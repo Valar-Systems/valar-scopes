@@ -1083,3 +1083,245 @@ run's tree** (0 bytes elsewhere).
 evening (ET 19:00-20:30, CT 18:00-19:30, MT 17:00-18:30, PT 16:00-17:30). Tonight's is too close to make with code,
 checks and images, and p4 holds the build slot until about 00:25Z. **So the survey window is requested for 00:00Z on
 2026-11-14,** and KSFO's capture can share it if the code is ready.
+
+## RP5's registration: the v19 run on the recordings, frozen before its window (2026-11-13)
+
+Everything below is ruled and frozen before the run's image exists. The numbers that depend on the recordings (n̂, the
+p95 centres, X̂) come from the reader's `--predict` over the PINNED recordings, and are added to this section before the
+window is requested. They are computed by a rule frozen here, and no run data exists when they are added.
+
+### The code, as ruled
+
+Branch `bench/frame-bench-v19-rec`. Each commit passed `check_frame_bench.py` on its committed tree and I-3 against
+D′ by `bindiff_elfhash.py` (elsewhere 0):
+
+| commit | what it does | the ruling |
+|---|---|---|
+| `41b317b6e5a0` | the replay: the real `/blips` GET, then the recorded body at the same elapsed time, parsed by the same `ParseBlips`; the CRC computed on the device; `served … crc … us …` | 23:53:37Z |
+| `be73655e8426` | FB-R3 guards `framebench_rec_gen.h`, not the generator's own name | 00:36:48Z |
+| `f7d2acf8243a` | **F1:** the replay runs in the SETTLE too (it had been gated on `measuring`, so every settle showed live traffic, and the recording arrived at measure start with no trails); FB-R9. **F2:** LIVE-APT measures 300 s. **F3:** CTRL-IL is I-6's S0 configuration, packed Bend 40 at 25 mi, local | after 00:45:54Z |
+| `d96e29db2ab0` | **(Z):** a REPLAY scene configures the shipping radius (its live GET is the recorded query, r=161) and zooms the ladder to its rung with `ApplyZoom(.., "bench")`, because a configured-radius scene sits at the ladder's Top, where `ZoomCulled` culls nothing; FB-R10 | 01:02:20Z |
+| `b417d80cd4c5` | **the customer defaults:** every scene but LIVE-OWN reads what a factory-fresh board reads; the per-scene record; FB-R11 | 01:15:18Z |
+
+`check_frame_bench.py` at `b417d80cd4c5`: 16 rows ok, selftest PASSED with 20 cases, each plant reading exactly its
+own row. I-3 at `f7d2acf8243a`: `1cbaaa520e5f`; at `d96e29db2ab0`: `0fdf828e0118`; both "length 1931824 in both;
+differing bytes: app_elf_sha256 32, image SHA-256 32, checksum 1, elsewhere 0". I-3 at `b417d80cd4c5`: `95e4a45ce300`,
+the same.
+
+**Q-RC5's claim corrected (F4).** Q-RC5 said a rung's replay shows "tracked = the recording, drawn = those inside the
+rung". That holds only on a ZOOMED view. The bench had configured each rung as the radius at `zoomIdx == Top()`, where
+v19's `ZoomCulled()` returns false ("the default view culls nothing", AircraftManager.cpp:5302-5308). So every scene
+drew every airborne tracked aircraft. (Z) makes the six literally "two homes × three zooms" of a default board. The
+orchestrator recorded the miss as partly its own acceptance.
+
+### The run: 18 scenes, about 77 min of trace
+
+| S | kind | home | level | rung | configured radius | view | settle + measure |
+|---|---|---|---|---|---|---|---|
+| 0 | CTRL-IL | Bend | 40 packed | 25 | 25 mi | Top | 100 s + 120 s, the plant in alternate 10 s blocks of the measure |
+| 1-3 | REPLAY | KSFO | the recording | 25 / 50 / 100 | 100 mi | zoom step 3 / 4 / Top of 5 | 100 s + 120 s |
+| 4-6 | REPLAY | the choice | the recording | 25 / 50 / 100 | 100 mi | as above | 100 s + 120 s |
+| 7, 8 | REPLAY | KSFO, the choice | the recording | 10 | 100 mi | zoom step 2 of 5 | 100 s + 120 s; reported, never in X |
+| 9-11 | FIXED | Bend | 40 packed | 25 / 50 / 100 | the rung | Top | 100 s + 120 s; stress, labelled |
+| 12-14 | FIXED | Bend | 60 packed | 25 / 50 / 100 | the rung | Top | 100 s + 120 s; stress, labelled |
+| 15, 16 | LIVE-APT | KSFO, the choice | live | 100 | 100 mi | Top | 100 s + 300 s |
+| 17 | LIVE-OWN | the board's own | live | its own | its own | its own | 100 s + 300 s; (iv) |
+
+90 s to the first scene, then 15 × 220 s + 3 × 400 s = 4,500 s: **76.5 min.** The ten mile rows cost 7.3 min, which
+fits inside the same window, so they are in (the owner: "if it costs no extra bench window").
+
+### The customer defaults (the cloud reviewer's item 2, ruled 01:15:18Z)
+
+- **The fact it rests on:** a factory-fresh board answers "" for every key. So in every scene but LIVE-OWN,
+  `Override()` answers "" for every key the scene does not set, and each parse in `Initialise()` applies its own
+  default. Nothing is transcribed, and any key missed in a list is defaulted anyway.
+- **The board's own, kept:** `cloud-url`, `cloud-key`, `cloud-key-fac`, `opensky-id`, `opensky-secret`. They draw
+  nothing.
+- **KEEP-CURRENT, exactly six:** `infotext`, `triangle`, `airports`, `trail`, `altcolor`, `highlight`. Their parse,
+  `if (!x.isEmpty()) m = …`, keeps the member's current value on "", which after boot is E2:08's saved one. Each is
+  answered with its member's initializer, snapshotted at the first `Initialise()`'s entry (main.cpp:720), before any
+  parse. All six are `true` (AircraftManager.h:94-103).
+- **FB-R11** holds both lists to the parses, with two plants.
+- **v19 at its defaults, read from the parses:** the weather layer OFF (v19 is built without `WX_LAYER_SHIPS`); scanline,
+  fade, mil-show and autodim on; heli and special off; the info fields at `defaultOn` (callsign, type, operator, speed,
+  baro altitude); logbook on (`LOGBOOK_DEFAULT_ON`); brightness 255; night clock, lookup, MQTT and visual-night off;
+  north up; no watchlist and no follow.
+- **THE RECORD, counts and booleans only:** `[frame-bench] keep defaults: …` once at boot; `[frame-bench] drawing S<k>:
+  …` after each scene's `Initialise()` (every drawing member, the info-field bitmask, `ntfy` as set 0/1 and never the
+  topic, `follow` 0/1, the watchlist's size, the unit, the zoom step); `[frame-bench] enrich S<k>: submits … tracked …
+  type … route …` after each scene's end.
+- **The deviations, printed, never silent:**
+  - `tz-offset` read at setup (main.cpp:198-199, :296): the board's own, and only the clock's text;
+  - the boot brightness carried in NVS (brightcarry): the backlight only;
+  - the board's own NVS-held DATA: the logbook's seen types (which contacts carry a NEW flag) and the enrichment
+    caches. A fresh board starts these empty;
+  - trails and tracked aircraft carried across scenes. They are state, not settings, and the 100 s settle covers them.
+- **(a) Enrichment at default:** info-type and info-operator are on by default and need lookups, so the replay's real
+  recorded hexes are looked up at the production Worker, as a customer's board at that airport would look them up.
+  The `enrich` line records submits per scene, and the tracked contacts with a type and with a route. Route fill is
+  production as it is: adsb.lol's routeset was failing on 11-12, and v19 looks routes up only for an inspected contact.
+- **(b) The packed rows** ran on 11-12 at E2:08's SAVED settings, and run here at v19's defaults. So PK is reported
+  beside 11-12's values, not graded. XCHK, at the board's own settings on both sides, stays the image cross-check.
+- **For v20:** each image runs at its OWN defaults; v20 runs with map and weather on, as shipped. A setting whose
+  defaults differ between v19 and v20 is a reported difference, not a stop. The scenes and the recordings stay
+  identical, which is what "identical ground" covers.
+
+### The reader, `fb_read_rp5.py` (frozen: `8589081a68d809859f938eabe73280585a8a4d249c95c2340c801a46f96d9382`)
+
+**Inputs:** the replay trace; the release trace (W1); both pinned recordings with their pinned sha256 (refused on a
+mismatch); the choice index; the measured image's source commit, for the transcription hashes. Reader b's `parse()`,
+`rank()`, `stats()`, `health_windows()` and `lines_of()` are IMPORTED (sha `b0dbd4ebc163` asserted), never copied.
+It prints statistics and verdicts only: no coordinate, no body, no name, no address.
+
+**THE TRANSCRIPTIONS, per image (item 1):** the reader embeds its transcription of `PredictPosition` and
+`GetDisplayPosition` (TrackedAircraft.h), `radarproj::Project` (RadarProjection.h), `ZoomCulled` and the view-radius
+terms (AircraftManager.cpp :855-864, `ApplyZoom`'s factor). Each run reads those functions' text from git at the
+measured image's commit, hashes it, and prints the reader's hash and the source's side by side. A mismatch is the
+INSTRUMENT. A v19 copy never grades v20.
+
+**BOOT and RUN** (else the INSTRUMENT):
+- `[build] env=blipscope-s3-128-framebench-replay fw=v19` once; `[frame-bench] the frame bench: 18 scenes` once;
+  the `keep defaults` line once, before S0's settle line;
+- I-5: record cost ≤ 5,000 ns per frame (over 50,000 is a STOP); the override cost reported;
+- TABLE: each settle line names the registered kind, home, level and rung;
+- every scene has its settle, measure and end lines and a complete dump; `run done` once;
+- KEEP: every scene but S17 has a `drawing` line whose six KEEP values equal the snapshot.
+
+**CTRL-IL, S0** (the 00:57:15Z ruling):
+- IL-n: drawn == 40 on every measured frame; IL-z: 0 `[zoom]` lines in the measure; IL-o: no overflow (else the
+  INSTRUMENT).
+- IL-f: the plant flag (bit 1) runs alternate, the first run OFF, 12 or 13 runs (else the INSTRUMENT). Pairs are runs
+  (2j, 2j+1), j = 0..5. The first frame of every run after the first is dropped: the plant sits after the present
+  (main.cpp:1006-1010), so that frame's p2p belongs to the previous run.
+- IL-s: the off runs' p50(p2p) range ≤ 2.0 ms (A1's p50 threshold; else the INSTRUMENT: a non-stationary control).
+- **IL-a:** the pooled Δp50 and Δmean (on − off), p2p and fr, each in [9.5, 10.5].
+- **IL-I6:** each pair's Δp50 and Δmean, and the POOLED Δp95, p2p and fr, each in [8.49, 13.08] (I-6's own deltas
+  [+10.03, +11.54] ± U95). Each pair's Δp95 is printed, not graded.
+- **The sizing reading,** on the frozen 11-12 log with the same pairing and drop (`il_feas2.py`
+  `ed537ac06150124d474d30c8cafe4ac6c60f50322cec295394b6770df97e90cd`, output
+  `0b956a36c64178e0ba719d3b603734190d95f2b8a857db2e32ea278715fd1d48`), accepted:
+
+  | | p2p | fr | band |
+  |---|---|---|---|
+  | IL-a pooled Δp50 | +10.05 | +10.04 | [9.5, 10.5] |
+  | IL-a pooled Δmean | +10.11 | +10.11 | [9.5, 10.5] |
+  | IL-I6 pooled Δp95 | +11.12 | +11.14 | [8.49, 13.08] |
+  | IL-I6 per pair Δp50 | 9.81-10.13 (6/6) | 9.82-10.13 (6/6) | [8.49, 13.08] |
+  | IL-I6 per pair Δmean | 9.84-10.31 (6/6) | 9.85-10.30 (6/6) | [8.49, 13.08] |
+  | per pair Δp95, printed only | 9.05-13.32 (5/6) | 9.05-13.31 (5/6) | not graded: one 10 s block's p95 moves 6.55 ms on stationary traffic |
+
+- **Outcomes:** (A) IL-a and IL-I6 in: PASS. (B) IL-a in, IL-I6 off: IL-I6's first off reading, reported; the rest is
+  graded. (C) IL-a off: I-6's row off a second time, so it goes to the OWNER, and nothing after S0 is graded. (D) p2p
+  and fr classified differently: an INSTRUMENT question; STOP, to the ORCHESTRATOR.
+- **Predicted: (A).**
+
+**EACH REPLAY SCENE, S1-S8:**
+- ZOOM: exactly one `[zoom] bench -> <rung> mi (step k of 5)` between the settle and measure lines for a rung below
+  100, and none at 100 (else the INSTRUMENT). ZOOM-T: the measure line's stamp minus that line's ≥ 3 s, the 1.5 s toast
+  (:5366-5370, :5438) plus a second of truncation at each stamp (else the INSTRUMENT).
+- REPLAY FIDELITY (else the INSTRUMENT): every `served` line between the settle and end lines names the scene's
+  airport, a seq in its recording, and the CRC-32 of that poll's body; no `replay FAILED`; each served seq is one the
+  device could pick at that line's elapsed time (the line's stamp minus the settle line's, ± 2 s).
+- THE MISSED-POLL RULE (a MISS: the scene is re-read in a later window, and a second miss on the same scene goes to the
+  owner): the first `served` line comes more than 6 s after the settle line; any two consecutive `served` lines, or
+  the last one and the end line, more than 7 s apart (the 5 s cadence, the GET's own time, a second of stamps); any of
+  `[WARN] Blipscope Cloud request failed:`, `[WARN] Blipscope Cloud returned HTTP`, `[WARN] Blipscope Cloud: blips
+  schema mismatch` between the settle and end lines.
+- CADENCE: every `[health]` line's `interval=` in the scene is 5000 ms (else the INSTRUMENT, H7 carried).
+- R-z, R-o (else the INSTRUMENT); R-r: rebuild-tagged frames 0.
+- **DRAWN (3′):** for each measured poll the reader transcribes `PredictPosition` for every row over the poll's display
+  horizon, dt in [ageS, ageS + H], with H = the gap to the next served line + 1 s, and projects each position through the
+  transcribed `Project` at the scene's view radius:
+  - SURE: inside the disc by more than 1 px over the whole horizon;
+  - EDGE: within 1 px of the edge, or across it, at some point in the horizon;
+  - RETAINED: in the previous poll, not in this one, and inside (kept up to 15 s by the stale rule).
+
+  The row: the scene's median drawn per measured frame lies in [median SURE, median (SURE + EDGE + RETAINED)]. Outside
+  that range: the INSTRUMENT, not a frame-time reading. **SEPARATION**, printed per scene: the median tracked beside the
+  band. Where the band's top reaches the tracked count, the row says "DRAWN cannot separate" for that scene instead of a
+  pass. **Predicted:** in the band everywhere; it separates at 10, 25 and 50 mi; at 100 mi it "cannot separate", by
+  construction (the default view culls nothing). **Its red plant:** a synthetic 25 mi scene with drawn = tracked on every
+  frame reads the INSTRUMENT on DRAWN.
+- n̂ = median SURE + median EDGE / 2, by the same transcription.
+- R-dur, reported beside p95(p2p): the replay's own `us`, max and p95 over the scene's polls. **Predicted:** p95 ≤ 10,000
+  µs and max ≤ 50,000 µs. Off is a first off reading, not a stop: it runs on core 0, outside the frame span.
+- R-b: p95(p2p) within centre ± 10 ms, centre = 35.80 + 0.802 × n̂ − 2.91. The −2.91 is the mean of 11-12's two LIVE
+  residuals from v19's line (−1.00 at Bend, −4.82 at KSFO): the recordings are live traffic.
+- A median drawn under 35 is named "thin". The scene is still in the six.
+- Reported: p50/p95/p99/max of p2p, p95(fr), frames, drawn median/min/max, tracked median, served polls, the `enrich`
+  line, the `drawing` line.
+
+**X, the bar's number:** the worst p95(p2p) of S1-S6, nearest rank, printed with its scene, every scene's drawn median
+and thin label, and ± 1.54 (U95). Its distance from the bar, X − 50 ms, is printed. **X is FINAL** only if: CTRL-IL
+reads (A) or (B); S1-S6 have no INSTRUMENT and no MISS; and XCHK reads ok. Otherwise X is printed as PARTIAL, and not
+handed to p4. **X-b:** X within X̂ ± 10, X̂ being the largest of the six centres. **Predicted:** v19 is OVER the bar if
+the largest n̂ among the six is 22 or more, since 35.80 + 0.802 × 22 − 2.91 = 50.53.
+
+**THE PACKED STRESS ROWS, S9-S14:** FIX-n (drawn == level), FIX-z, FIX-o and FIX-s (stationarity) carried, each else
+the INSTRUMENT; FIX-g and FIX-r carried as rows; CADENCE 1000 ms. PK is reported, not graded, beside 11-12's p95(p2p)
+at 25 and 50 mi (40: 78.59 and 76.66; 60: 106.25 and 103.70), labelled "11-12: E2:08's saved settings; RP5: v19's
+defaults".
+
+**LIVE-APT, S15-S16:** reported: drawn, p2p and fr, the residual from v19's line, the `enrich` line. CADENCE 5000 ms,
+else the INSTRUMENT.
+
+**XA (RP5, RP6),** per airport home:
+- the line: least squares of the 30 s windows' p95(p2p) (by cumulative p2p, full windows only) against each window's
+  median drawn, over that home's three six-scenes (12 windows);
+- LIVE-APT's 30 s windows (10) as residuals from it, dropping windows whose drawn is under 5 or outside the line's
+  drawn range (no extrapolation); at least 8 windows a side, else STOP, to the orchestrator;
+- the window count, read from the selftest: a window closes at the frame that reaches 30 s, so a 120 s scene gives
+  3 full windows (9 per home on the replay side) and a 300 s LIVE-APT gives 9. A live window whose drawn exceeds the
+  replay's maximum drops, so XA's STOP is a real possibility when live traffic outnumbers the recording at 100 mi;
+- m = the median residual. **XA's interval for v20 = m ± (3.0 + U95) = m ± 4.54**, frozen from this run before v20's
+  first candidate. **Predicted:** |m| ≤ 4.54 at each home (live and replayed traffic at the same airport). Off is a
+  first off reading; the interval is still computed and frozen, and flagged.
+- The packed m, on record and not the gate: LIVE-APT's windows as residuals from the packed rows' line (levels 40 and
+  60, extrapolated below 40, and labelled so).
+
+**XCHK ((iv), carried):** S17's `[health]` windows against W1's release trace: r = p95 − (35.80 + 0.802 n); n < 5
+dropped; at least 8 windows a side; the n interquartile ranges overlapping; |median gap| ≤ 3.0 ms. Outside, or too few
+windows: STOP, to the owner. **Predicted: ok** (11-12: +0.80).
+
+**RECORDED PER SCENE, not graded:** night (the `[health]` ` NIGHT` suffix count) and the `drawing` line (fade among
+it). The run's settings are compared with v20's run when v20 is read.
+
+**EXIT:** 0, every graded row in and no MISS; 1, a graded row off or a MISS; 2, the INSTRUMENT or a STOP.
+
+**THE ESCAPE HATCH.** Anything outside the outcomes named above stops the read, and it is reported unread. That
+includes a line format the reader does not know, a scene the table does not name, a transcription hash mismatch, an
+XA side under 8 windows, and a DRAWN band the transcription cannot compute. A second off reading on a row goes to the
+owner.
+
+**THE READER'S SELFTEST:** `--selftest <tree> b417d80cd4c5`, 26 cases, PASSED (output
+`f7f60715c9f49b41be71aaa1dd9f20774bd09a0ec30c5a3bc4d57ed01d353be9`). Each case must give its exit code and red set AND
+print its own reason's words, because exit codes alone let one plant pass on another row's refusal. That happened twice
+while writing it: the first DRAWN plant read INSTRUMENT because no served poll fell in the measure, and the first SEQ
+plant was refused by the CRC row.
+- the clean run: exit 0, X FINAL, "DRAWN cannot separate" at 100 mi, THIN below, CTRL-IL outcome A;
+- INSTRUMENT, each for its own reason: BOOT, KEEP, IL-D (p2p and fr disagreeing, to the orchestrator), CRC, FAILED,
+  SEQ (a whole poll at the wrong time), ZOOM, ZOOM-T, DRAWN (drawn = tracked at 25 mi, the ruled red plant), CADENCE,
+  HASH (one transcription hash changed), TABLE, IL-f, IL-s, FIX-n, and XA (live traffic above the replay's range: STOP,
+  to the orchestrator);
+- STOP: IL-C (to the owner);
+- graded red, exit 1: IL-B (IL-I6 only), I-5, R-dur, R-b, XCHK;
+- MISS, exit 1: the first served line late, a 20 s served gap, and a cloud failure line.
+
+**THE TRANSCRIPTIONS** are hashed at `b417d80cd4c5`, 24 pieces: GetDisplayPosition, PredictPosition, MAX_DR_SECONDS,
+Project, ZoomCulled, ProjectCoordinateToScreen, RadarBlipPosition, the view radius (:864-873), ApplyZoom's factor,
+PaintAndFadeActive, SWEEP_PERIOD_MS, the ladder's candidates and BuildLadder, ToKm and KM_PER_MILE, KNOTS_TO_MS, the
+six ParseBlips row fields, and the airport table. At v19's defaults, paint-and-fade is ON (`displaySweep &&
+displayFade`), so DRAWN's horizon starts one sweep period (5 s) before each poll's arrival.
+
+### The window (requested after the recordings are pinned)
+
+- **The image:** the replay env built from `b417d80cd4c5` or its ruled successor, with the pinned recordings
+  (`FRAME_BENCH_REC_{A,B}_{FILE,SHA}`), `FRAME_BENCH_REC_B` = the survey's choice, the real `FRAME_BENCH_HOST` (CTRL-IL
+  and the packed rows; never printed), the path mapping and the pinned build time. Its manifest is sent and
+  acknowledged before the window.
+- **W0:** E2:08 reserved by serial; `fixed_traffic.py --serve` on the bench PC. **W1:** the release trace, 10 min,
+  for XCHK; `read-mac` recovers. **W2:** the replay image to ota_0 alone (`app-only-write.py`). **W3:** one
+  `bench-trace`, about 78 min. Nothing reads the live log. **W4:** `rigcheck.py`, then the reader, after the trace
+  ends. **W5:** the v19 restore, the boot read, `read-mac`, HTTP 200, release, END.
+- **When:** the recordings' UTC band (00:00-02:00Z), so that LIVE-APT sees the airports at the same hour of the day.
+  About 100 min in all.
