@@ -998,6 +998,9 @@ between-session offset of about 1.5 ms is plausible, and nothing measured it.
   - The registered default for v20's first candidate is **A/B/A in one window**.
   - The before-to-before spread (v19's two reads) is the noise the delta is read against.
   - A delta inside that spread is reported as "not separated from the between-session noise".
+  - **Refined (00:17:57Z):** the error bar is **E = max(spread, U95)**, with U95 = 1.54 ms from I-6. A single pair's
+    spread can come out lucky-small, and it must not narrow the bar below the instrument's floor. "Not separated"
+    means |delta| ≤ E.
 - **Per-change frame-time reports** (the standing rule, step D's terrain shading among them) run A/B/A whenever two
   IMAGES are compared. That is registered with step D in docs/blipscope-map-client-steps.md.
 - Nothing already registered and run is re-graded.
