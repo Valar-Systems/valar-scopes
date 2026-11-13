@@ -10,6 +10,7 @@ import { type SrcFeature, keepWater } from "../src/basemap/layers";
 import { buildLine, seaRepairLines } from "../src/basemap/worker";
 import { COMMIT, lonLatOf, writeSynthStore } from "./basemap-synth";
 import { SEACI, seaciDef, seaciQuery } from "./basemap-seaci-fixtures";
+import { kb1Views } from "./basemap-fillring";
 
 type Built = Extract<BuildResult, { ok: true }>;
 async function run(name: string, cap?: number): Promise<BuildResult> {
@@ -75,6 +76,18 @@ describe("SEA-CI: the sea's synthetic stores", () => {
     const r = await run("xisland-tall");
     if (r.ok || r.status !== 500) throw new Error(`not a 500: ${r.ok ? 200 : r.status}`);
     expect([r.code, r.repair?.restored, r.repair?.rounds]).toEqual(["sea_repair_failed", 2, 3]);
+  });
+  // KB1 (registered at 667f7b6c before this row; R8's port, its parity with the pinned reference shown first): two rasters from ONE
+  // runtime, so no cross-language bits enter it
+  it("KB1: the bridged sea ring fills as its unbridged outer and islands by even-odd (FillRing's rule): 0 differing pixels in all 24 views", async () => {
+    for (const [n, islands] of [["kb1", 20_818], ["kb1c", 15_388]] as const) {
+      const r = ok(await run(n)), pkg = decode(r.bytes), s = r.report.sea!, f0 = s.fates[0];
+      const water = ((pkg.sections.find((x) => x.type === 1) as { rings: Pt[][] } | undefined)?.rings ?? []);
+      expect(f0?.fate, n).toBe("drawn");
+      const v = kb1Views(s.ringIdx.map((i) => water[i]!), f0!.q!, pkg.radiusMm, 162);
+      expect(v.map((x) => x.diff), n).toEqual(Array(24).fill(0));
+      expect(v.reduce((a, x) => a + x.island, 0), `${n}: CONTROL, the reference holds the islands`).toBe(islands);
+    }
   });
   it("REFUSED5: no step-5 refusal and no repair where none is needed", async () => {
     for (const n of ["kb1", "kb1c", "edge2", "kb2cross", "tsea0-with", "bowtie"]) {

@@ -559,7 +559,7 @@ const SABOTAGES = {
                     "    const qkeep = { outer: oq, holes: hq };\n    n.drawn++; out.push({ ...key, ring: oq, fate: \"drawn\", q: qkeep, planted: hq } as SeaOut); continue; // SABOTAGE S-KB-NOBRIDGE: the islands as their own rings\n"]]],
             [LAYERS, [["    const seaRecs = seaOut.flatMap((s) => (s.ring ? [{ file: s.file, record: s.record, part: 0, ring: s.ring, refused: false }] : []));\n",
                        "    const seaRecs = seaOut.flatMap((s) => (s.ring ? [{ file: s.file, record: s.record, part: 0, ring: s.ring, refused: false }, ...((s as { planted?: Pt[][] }).planted ?? []).map((r, i) => ({ file: s.file, record: s.record, part: i + 1, ring: r, refused: false }))] : [])); // SABOTAGE S-KB-NOBRIDGE\n"]]]],
-    set: "sea", expect: ["BRIDGES", "T-SEA0c"],
+    set: "sea", expect: ["BRIDGES", "T-SEA0c", "KB1"], // KB1 from pq4d (667f7b6c): kb1 20,818 and kb1c 15,388 differing
   },
   "S-KB-ORDER": {
     // pq4d "order": the piece is bridged BEFORE simplifying, then simplified unlocked (pq4d's simp: waterQ4), so no step 4a on this
@@ -573,9 +573,9 @@ const SABOTAGES = {
                     "      if (ring === REFUSED) { n.refused++; n.refused3++; out.push({ ...key, ring: null, fate: \"refused\" }); continue; }\n" +
                     "      if (ring.length < 3) { n.collapsed++; out.push({ ...key, ring: null, fate: \"collapsed\" }); continue; }\n" +
                     "      if (properPairs(ring).length) { n.refused++; n.refused5++; out.push({ ...key, ring: null, fate: \"refused\" }); continue; }\n" +
-                    "      n.drawn++; out.push({ ...key, ring, fate: \"drawn\" }); continue;\n" +
+                    "      n.drawn++; out.push({ ...key, ring, fate: \"drawn\", q: { outer: simpL(oc), holes: holesKm.map(simpL).filter((h) => h !== REFUSED && h.length >= 3) } }); continue;\n" +
                     "    }\n"]]]],
-    set: "sea", expect: ["EDGE2", "XISLAND", "XISLAND-TALL", "T-SEALOG"],
+    set: "sea", expect: ["EDGE2", "XISLAND", "XISLAND-TALL", "T-SEALOG", "KB1"], // KB1 from pq4d (667f7b6c): kb1c 128 differing
   },
   "S-KB-EDGEUNLOCK": {
     // pq4d "edgeunlock": step 3 unlocked (pq4d's simp, waterQ4) and step 4a's state with no vertex locked
@@ -636,8 +636,8 @@ const COMMITTED_OUTPUT = new Set(["MD3a", "MD4"]);
 // A PK id may hold hyphens (A12.15's neg-terrain-count) and must end at the title's colon, so it is either whole or
 // UNNAMED, never a shorter id that looks real (A2.46: the hyphen-less pattern graded MV/PK-terrain-count as MV/PK-terrain).
 // BB<n> (docs/basemap-build-reads.md): the builder's read-line rows, named in #539's plan before this pattern knew them.
-// SEA-CI's 14 ids (R12 (a)): an EXACT list, each ending at the title's colon, so no title that was UNNAMED before gains an id by accident.
-const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+(?=:)|(?:T-SEA0c?|T-SEALOG|T-PROV-[ab]|T-D2c?|KB2|KB7C|BRIDGES|EDGE2|XISLAND(?:-TALL)?|REFUSED5)(?=:))/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
+// SEA-CI's 15 ids (R12 (a); KB1 registered at 667f7b6c): an EXACT list, each ending at the title's colon, so no title that was UNNAMED before gains an id by accident.
+const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+(?=:)|(?:T-SEA0c?|T-SEALOG|T-PROV-[ab]|T-D2c?|KB1|KB2|KB7C|BRIDGES|EDGE2|XISLAND(?:-TALL)?|REFUSED5)(?=:))/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
 
 // THE DUPLICATE-ID GUARD (ruled 2026-11-05 ~20:05Z, docs/basemap-a1.md). Grading is by case id, so two rows sharing an id
 // grade as one -- A1's first run, where a new MI8 met basemap-regions.test.ts's MI8 and baseline[all] read 158 for 159.
@@ -648,7 +648,7 @@ const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-
 // the driver never runs cannot grade as one of its rows, and #577's MP3 in wx-opera.test.ts stopped every run until then.
 function duplicateCaseIds(testDir = join(PROXY, "test")) {
   const byId = new Map();
-  const TITLE = /\bit(?:\.each\([\s\S]*?\))?\(\s*(["'`])((?:M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+|(?:T-SEA0c?|T-SEALOG|T-PROV-[ab]|T-D2c?|KB2|KB7C|BRIDGES|EDGE2|XISLAND(?:-TALL)?|REFUSED5)(?=:))[^"'`]*)\1/g;
+  const TITLE = /\bit(?:\.each\([\s\S]*?\))?\(\s*(["'`])((?:M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+|(?:T-SEA0c?|T-SEALOG|T-PROV-[ab]|T-D2c?|KB1|KB2|KB7C|BRIDGES|EDGE2|XISLAND(?:-TALL)?|REFUSED5)(?=:))[^"'`]*)\1/g;
   for (const f of readdirSync(testDir).filter((n) => n.startsWith("basemap-") && n.endsWith(".test.ts")).sort()) {
     for (const m of readFileSync(join(testDir, f), "utf8").matchAll(TITLE)) {
       const title = m[2], id = caseOf(title);
