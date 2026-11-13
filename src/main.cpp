@@ -7,6 +7,11 @@
 #include "FrameBench.h"   // the frame-time bench, C1 (docs/frame-time-bench.md)
 #endif
 // THE FRAME BENCH END
+// THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+#include "FrameProfile.h"   // the frame profile, P1 (docs/frame-profile.md)
+#endif
+// THE FRAME PROFILE END
 
 #include "LGFX.h"
 #include "Layout.h"
@@ -1069,6 +1074,11 @@ void loop()
   // flush -- is one sample; AircraftManager logs avg/p95 + heap every 30 s and
   // shouts when a budget breaks. u32 micros() wrap-around subtracts correctly.
   const uint32_t frameStartUs = micros();
+  // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+  frameprofile::Start(frameStartUs);
+#endif
+  // THE FRAME PROFILE END
 #endif
 
   // Perform a requested reset and reboot into the setup portal -- from the
@@ -1249,7 +1259,17 @@ void loop()
 
 #if defined(BLIPSCOPE_PUSH_TASK)
   // M3: the buffer this frame draws into. It waits only while that buffer's previous push is still going.
+  // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+  frameprofile::Mark(frameprofile::B_UPD);
+#endif
+  // THE FRAME PROFILE END
   LGFX_Sprite& drawBuf = pushtask::TakeForDrawing();
+  // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+  frameprofile::Mark(frameprofile::B_WAIT);
+#endif
+  // THE FRAME PROFILE END
 #endif
   for (int bandY = 0; bandY < SCREEN_SIZE; bandY += BAND_H) {
 #if defined(BLIPSCOPE_PUSH_TASK)
@@ -1280,6 +1300,11 @@ void loop()
     canvas.fillScreen(lgfx::color888(0, 0, 0));
 #endif
     framebuf::SetPhase(framebuf::kPhaseCleared);   // diag only (A9.22)
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_UNDER);
+#endif
+    // THE FRAME PROFILE END
 #if defined(M3_BENCH)
     m3bench::MaybeGrabMidDraw(canvas.sprite());   // M3-1b's plant: the draw buffer, cleared and not yet drawn
 #endif
@@ -1308,7 +1333,17 @@ void loop()
     }
 #endif
 
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWEEP);
+#endif
+    // THE FRAME PROFILE END
     appManager.Draw(canvas, firstPass);
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_DRAW);
+#endif
+    // THE FRAME PROFILE END
 #if defined(M3_BENCH)
     m3bench::DrawTestFrame(canvas);   // M3-2: the glass test frame, over the radar
 #endif
@@ -1322,6 +1357,11 @@ void loop()
     // M3: frame N goes to the push task, and the loop moves on to frame N+1. The Pushed phase and
     // FrameDone are set by the push task when the send completes (docs/m3-push-task.md, section 5).
     pushtask::HandOver();
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_HAND);
+#endif
+    // THE FRAME PROFILE END
 #else
     backbuffer.pushSprite(0, bandY);
     framebuf::SetPhase(framebuf::kPhasePushed);    // diag only (A9.22)
@@ -1333,6 +1373,11 @@ void loop()
   // RGB SKUs draw into a cached PSRAM framebuffer; write it back so the panel DMA sees the
   // new frame. No-op on SPI SKUs (the pushSprite above already hit the panel directly).
   board::DisplayFlush(tft);
+  // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+  frameprofile::Mark(frameprofile::B_FLUSH);
+#endif
+  // THE FRAME PROFILE END
 
   // AFTER the flush, so a reader that samples the counter either side of its
   // copy is comparing against completed frames rather than against a frame
