@@ -1,0 +1,434 @@
+{
+ "pq4d": {
+  "Q4": {
+   "ladder": true,
+   "d2": true,
+   "plantMiB": 0
+  },
+  "Q4W": {
+   "tp": true,
+   "backstop": true
+  },
+  "Q4P": {
+   "prov": true
+  },
+  "Q4S": {
+   "on": true,
+   "plant": ""
+  }
+ },
+ "A@812": {
+  "status": 200,
+  "kOk": "kOk",
+  "totalBytes": 812,
+  "toleranceMm": 100584,
+  "radiusMm": 97000000,
+  "water": [
+   8445,
+   10134,
+   11823,
+   13512,
+   15201,
+   16890,
+   18579,
+   20268,
+   21957
+  ],
+  "roads": 7,
+  "roadPts": [
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "roadEnds": [
+   -20268,
+   -19930,
+   -19593,
+   -22633,
+   -22295,
+   -21957,
+   -21619
+  ],
+  "dropped": "0 / 0",
+  "eps": "100.584",
+  "rung": 0,
+  "nt": [],
+  "steps": 1,
+  "sections": {
+   "water": 144,
+   "rivers": 0,
+   "roads": 77,
+   "peaks": 0,
+   "places": 0,
+   "provenance": 511
+  },
+  "sectionCount": 3
+ },
+ "A@811": {
+  "status": 200,
+  "kOk": "kOk",
+  "totalBytes": 796,
+  "toleranceMm": 201168,
+  "radiusMm": 97000000,
+  "water": [
+   10134,
+   11823,
+   13512,
+   15201,
+   16890,
+   18579,
+   20268,
+   21957
+  ],
+  "roads": 7,
+  "roadPts": [
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "roadEnds": [
+   -20268,
+   -19930,
+   -19593,
+   -22633,
+   -22295,
+   -21957,
+   -21619
+  ],
+  "dropped": "0 / 0",
+  "eps": "100.584",
+  "rung": 2,
+  "nt": [],
+  "steps": 1,
+  "sections": {
+   "water": 128,
+   "rivers": 0,
+   "roads": 77,
+   "peaks": 0,
+   "places": 0,
+   "provenance": 511
+  },
+  "sectionCount": 3
+ },
+ "A@667": {
+  "status": 200,
+  "kOk": "kOk",
+  "totalBytes": 656,
+  "toleranceMm": 201168,
+  "radiusMm": 97000000,
+  "water": [
+   20268,
+   21957
+  ],
+  "roads": 3,
+  "roadPts": [
+   2,
+   2,
+   2
+  ],
+  "roadEnds": [
+   -20268,
+   -19930,
+   -19593
+  ],
+  "dropped": "6 / 4",
+  "eps": "100.584",
+  "rung": 4,
+  "nt": [],
+  "steps": 1,
+  "sections": {
+   "water": 32,
+   "rivers": 0,
+   "roads": 33,
+   "peaks": 0,
+   "places": 0,
+   "provenance": 511
+  },
+  "sectionCount": 3
+ },
+ "A@623": {
+  "status": 200,
+  "kOk": "kOk",
+  "totalBytes": 623,
+  "toleranceMm": 201168,
+  "radiusMm": 49664000,
+  "water": [
+   26391,
+   29690
+  ],
+  "roads": 0,
+  "roadPts": [],
+  "roadEnds": [],
+  "dropped": "2 / 0",
+  "eps": "100.584",
+  "rung": 4,
+  "nt": [],
+  "steps": 4,
+  "sections": {
+   "water": 32,
+   "rivers": 0,
+   "roads": 0,
+   "peaks": 0,
+   "places": 0,
+   "provenance": 511
+  },
+  "sectionCount": 3
+ },
+ "A@624": {
+  "status": 200,
+  "kOk": "kOk",
+  "totalBytes": 624,
+  "toleranceMm": 201168,
+  "radiusMm": 97000000,
+  "water": [],
+  "roads": 3,
+  "roadPts": [
+   2,
+   2,
+   2
+  ],
+  "roadEnds": [
+   -20268,
+   -19930,
+   -19593
+  ],
+  "dropped": "8 / 4",
+  "eps": "100.584",
+  "rung": 4,
+  "nt": [],
+  "steps": 1,
+  "sections": {
+   "water": 0,
+   "rivers": 0,
+   "roads": 33,
+   "peaks": 0,
+   "places": 0,
+   "provenance": 511
+  },
+  "sectionCount": 3
+ },
+ "B@841": {
+  "status": 200,
+  "kOk": "kOk",
+  "totalBytes": 839,
+  "toleranceMm": 201168,
+  "radiusMm": 97000000,
+  "water": [
+   8445,
+   10134,
+   11823,
+   13512,
+   15201,
+   16890,
+   18579,
+   20268,
+   21957
+  ],
+  "roads": 9,
+  "roadPts": [
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   3
+  ],
+  "roadEnds": [
+   -20268,
+   -19930,
+   -19593,
+   -22633,
+   -22295,
+   -21957,
+   -21619,
+   -16890,
+   -16890
+  ],
+  "dropped": "0 / 0",
+  "eps": "100.584",
+  "rung": 1,
+  "nt": [],
+  "steps": 1,
+  "sections": {
+   "water": 144,
+   "rivers": 0,
+   "roads": 104,
+   "peaks": 0,
+   "places": 0,
+   "provenance": 511
+  },
+  "sectionCount": 3
+ },
+ "B@838": {
+  "status": 200,
+  "kOk": "kOk",
+  "totalBytes": 823,
+  "toleranceMm": 201168,
+  "radiusMm": 97000000,
+  "water": [
+   10134,
+   11823,
+   13512,
+   15201,
+   16890,
+   18579,
+   20268,
+   21957
+  ],
+  "roads": 9,
+  "roadPts": [
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   3
+  ],
+  "roadEnds": [
+   -20268,
+   -19930,
+   -19593,
+   -22633,
+   -22295,
+   -21957,
+   -21619,
+   -16890,
+   -16890
+  ],
+  "dropped": "0 / 0",
+  "eps": "100.584",
+  "rung": 2,
+  "nt": [],
+  "steps": 1,
+  "sections": {
+   "water": 128,
+   "rivers": 0,
+   "roads": 104,
+   "peaks": 0,
+   "places": 0,
+   "provenance": 511
+  },
+  "sectionCount": 3
+ },
+ "A8@1322": {
+  "status": 200,
+  "kOk": "kOk",
+  "totalBytes": 1346,
+  "toleranceMm": 100584,
+  "radiusMm": 97000000,
+  "water": [
+   8445,
+   10134,
+   11823,
+   13512,
+   15201,
+   16890,
+   18579,
+   20268,
+   21957
+  ],
+  "roads": 7,
+  "roadPts": [
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "roadEnds": [
+   -20268,
+   -19930,
+   -19593,
+   -22633,
+   -22295,
+   -21957,
+   -21619
+  ],
+  "dropped": "0 / 0",
+  "eps": "100.584",
+  "rung": 0,
+  "nt": [],
+  "steps": 1,
+  "sections": {
+   "water": 144,
+   "rivers": 0,
+   "roads": 77,
+   "peaks": 0,
+   "places": 0,
+   "provenance": 1005
+  },
+  "sectionCount": 4
+ },
+ "A8@1321": {
+  "status": 200,
+  "kOk": "kOk",
+  "totalBytes": 1330,
+  "toleranceMm": 201168,
+  "radiusMm": 97000000,
+  "water": [
+   10134,
+   11823,
+   13512,
+   15201,
+   16890,
+   18579,
+   20268,
+   21957
+  ],
+  "roads": 7,
+  "roadPts": [
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "roadEnds": [
+   -20268,
+   -19930,
+   -19593,
+   -22633,
+   -22295,
+   -21957,
+   -21619
+  ],
+  "dropped": "0 / 0",
+  "eps": "100.584",
+  "rung": 2,
+  "nt": [],
+  "steps": 1,
+  "sections": {
+   "water": 128,
+   "rivers": 0,
+   "roads": 77,
+   "peaks": 0,
+   "places": 0,
+   "provenance": 1005
+  },
+  "sectionCount": 4
+ },
+ "MW13": {
+  "status": 422,
+  "code": "too_large",
+  "reads": 35,
+  "steps": 7
+ }
+}
