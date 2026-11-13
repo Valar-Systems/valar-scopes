@@ -19,9 +19,12 @@ withheld as implausible for the aircraft's position.
    one of the same two compilers in its footer (section 2.4), so it is not a way around the question.
 2. **adsb.lol's routes are the same data as our mirror.** adsb.lol says "the VRS standing data is formatted and used for
    showing routes" (section 2.3). A revived routeset would add position-aware leg choice, and **no coverage**.
-3. **The mirror itself has not been refreshed on record since 2026-08-26, and nothing would show it if it were stale.**
+3. **The mirror is the standing-data snapshot of 2026-08-25, and refreshing it recovers little** (measured, section 6).
    Its upstream publishes changes daily. No workflow runs the route ingest, and `meta:routes` is read by nothing in
-   `proxy/src` (section 2.1). This option costs no licence and no money, and it should be measured before anything is bought.
+   `proxy/src` (section 2.1).
+   - Of the 14,770 distinct callsigns that missed the mirror in a week, **1,304 (8.8%)** are in today's upstream.
+   - Most misses are callsigns no route table carries: on 2026-11-12, **46% were US N-numbers**.
+   - A refresh costs about $0.88 once in KV writes for production alone, or about $3.72 with staging first.
 4. **Of the paid APIs, only AeroDataBox's published terms fit a per-callsign lookup shown on our devices on their face.**
    Paid plans allow commercial use and need no attribution. Caching is allowed for up to 7 days or the response's
    `max-age`. Showing data to End Users inside an Application is carved out of the sublicensing ban. **Cost: 2 API units
@@ -54,6 +57,21 @@ withheld as implausible for the aircraft's position.
 
 ### 2.1 Our `rt:` mirror: `vradarserver/standing-data` (619,103 rows, CC0)
 
+**Its source and licence, in three parts, for any refresh decision:**
+
+1. **The licence, in its own words.** The repository's
+   [LICENSE](https://github.com/vradarserver/standing-data/blob/main/LICENSE), read 2026-11-13, is headed "Creative
+   Commons Legal Code" and "CC0 1.0 Universal". Its operative clause, "2. Waiver.", reads in part: "Affirmer hereby
+   overtly, fully, permanently, irrevocably and unconditionally waives, abandons, and surrenders all of Affirmer's
+   Copyright and Related Rights ... (iv) for any purpose whatsoever, including without limitation commercial,
+   advertising or promotional purposes".
+2. **Where the data comes from, in its README's words.** The
+   [README](https://github.com/vradarserver/standing-data), read 2026-11-13: "CSV files built from the aviation data
+   submitted by Virtual Radar Server users to the SDM site".
+3. **Derivation from the compilation adsbdb's README credits (section 2.2): NOT ESTABLISHED, either way.**
+
+Whether to refresh before the SDM site's operator answers is the owner's call. These three parts are what it rests on.
+
 - **The repo records:**
   - source: `vradarserver/standing-data`, the main-branch tarball ([proxy/scripts/ingest-routes.ts:101](../proxy/scripts/ingest-routes.ts));
   - licence: CC0 1.0, "verified by reading LICENSE" ([ingest-routes.ts:25-28](../proxy/scripts/ingest-routes.ts);
@@ -77,6 +95,9 @@ withheld as implausible for the aircraft's position.
   - No workflow runs `ingest:routes`. It is only an npm script ([proxy/package.json:19](../proxy/package.json)), run by hand.
   - The last load the docs record is **2026-08-26**, in staging and production
     ([docs/follow-mode-consolidated.md:84-87](follow-mode-consolidated.md)). No later refresh is recorded.
+  - **Production confirms it:** `meta:routes` reads `builtAt` 2026-08-26T17:25:54Z, 619,103 rows, rule rev 3, and
+    1,575 shards. A dry run of standing-data commit `dff309eb` (2026-08-25T03:49Z) reads **0/1,575 shards changed**,
+    so that snapshot is the mirror's content, proved by the ingest's own shard hashes (section 6).
   - `ingest-routes.ts:43-47` says the meta key exists so that "/healthz correctly reports stale". But no file in
     `proxy/src` reads `meta:routes`, so the mirror's age is printed nowhere routine.
   - Dating it takes one read of `meta:routes`, which is not a device key. That read was not run.
@@ -292,22 +313,95 @@ withheld as implausible for the aircraft's position.
   and no price was read.
 - **Not read in this pass:** Eurocontrol NM B2B, Spire, Aireon, ADS-B Exchange and OpenFlights. Ask if any should be.
 
-## 4. The number that sizes any paid option, not measured here
+## 4. What sizes a paid option
 
-Every paid row is priced per lookup, so cost is linear in **distinct callsign misses per month**. With a cache, a
-callsign is bought once per retention window, not once per request.
-- That count was not measured. It is one read-only Workers Logs query that prints counts only, like the logs-bytes
-  read.
-- Without it, a guide:
-  - 20,000 lookups a month is the AeroDataBox direct Starter at $19, or FlightAware's $100 minimum;
-  - 200,000 a month is AeroDataBox Growth at $99, or about $1,000 at FlightAware's per-set price.
-- Any paid plan is a separate subscription, outside the Cloudflare overage allowance, so it is the owner's call.
+Every paid row is priced per lookup, so cost is linear in **distinct callsign misses**. With a cache, a callsign is
+bought once per retention window, not once per request. The measured counts are in section 6. Any paid plan is a
+separate subscription, outside the Cloudflare overage allowance, so it is the owner's call.
 
 ## 5. Side findings (for the reviewer's queue)
 
-- **P2. The `rt:` mirror has no scheduled refresh, and its staleness signal has no reader (section 2.1).** This
-  probably contributes to the 36.8% that miss. Refresh it and measure before buying anything.
+- **P2. The `rt:` mirror has no scheduled refresh, and its staleness signal has no reader (section 2.1).** The cost
+  of the staleness is measured in section 6: about 9% of distinct misses.
 - **P3. OpenSky's terms require a written licence for "integration into a live product".** The radar's OpenSky source
   and Missileer's command-post watch call OpenSky from the device, with the customer's own account. Whether a
   customer's own key in our firmware is "operational use" by us or by them is unclear. For the owner's awareness;
   nothing here is a safety matter.
+
+## 6. Measured: what the mirror misses, and what a refresh would recover (2026-11-13)
+
+A read-only follow-up, ruled by the reviewer: counts only, never a callsign or a key.
+
+**How it was measured:**
+- Each `/enrich` request's `cs` came from Workers Logs (the request URL; unsampled, ABR level 1 throughout).
+- It was normalised the way `enrich.ts` does (trim, upper case, `^[A-Z0-9]{2,8}$`).
+- It was then checked against two snapshots:
+  - **the mirror**, standing-data `dff309eb`;
+  - **today's upstream**, `24ce5424` of 2026-11-12T04:49Z.
+- `resolveRoute` looks up exactly `rt:<cs>`, so membership in the snapshot is the lookup.
+
+**Anchors:**
+- **The tables.** The reader's parse reproduces the ingest's own usable counts exactly: 619,103 and 628,956.
+- **The snapshot is the mirror.** The ingest's dry run against production's manifest reads 0/1,575 shards changed for
+  `dff309eb`. My first guess, the 08-26 commit, read 82/1,576, which ruled it out.
+- **Control: every hit observed is in the snapshot.** A `route_stale` line is only written after a mirror hit.
+  - Across three hours (2026-11-07T18Z, 11-10T12Z, 11-13T00Z), **624 of 624** such callsigns are in `dff309eb`, and
+    0 are outside it.
+- **NOT reconciled: the reviewer's hour.** For 2026-11-13T00Z the reviewer reported 36.8% mirror misses and 17.0%
+  withheld. This read, over 6,129 `/enrich` requests in that hour, gives:
+  - **55.0%** with a callsign absent from the mirror;
+  - 9.2% with no callsign;
+  - 5.5% withheld (338 `route_stale` lines).
+  - The two reads' definitions or denominators differ in a way not yet known. Both are reported; neither is chosen.
+
+### 6.1 Per day (2026-11-06 is partly past Logs retention: 18 of 24 hours)
+
+| day | hours | `/enrich` requests | no `cs` | distinct `cs` | requests missing the mirror | distinct misses | of those, in today's upstream | missing requests a refresh recovers | `route_stale` lines |
+|---|---|---|---|---|---|---|---|---|---|
+| 11-06 | 18 | 65,290 | 6,136 | 8,815 | 41,978 (64.3%) | 3,455 | 650 | 3,515 | 2,028 |
+| 11-07 | 24 | 71,136 | 5,484 | 10,558 | 41,092 (57.8%) | 3,454 | 570 | 3,253 | 3,192 |
+| 11-08 | 24 | 61,748 | 4,066 | 9,880 | 36,432 (59.0%) | 3,442 | 645 | 3,562 | 2,656 |
+| 11-09 | 24 | 78,827 | 4,904 | 12,987 | 43,493 (55.2%) | 4,044 | 690 | 3,811 | 3,940 |
+| 11-10 | 24 | 70,403 | 5,207 | 10,687 | 40,386 (57.4%) | 3,442 | 466 | 2,571 | 3,134 |
+| 11-11 | 24 | 89,135 | 7,122 | 11,472 | 56,707 (63.6%) | 4,159 | 415 | 2,248 | 3,160 |
+| 11-12 | 24 | 88,574 | 7,221 | 11,541 | 51,246 (57.9%) | 3,834 | 456 | 2,510 | 3,957 |
+
+**Over the window** (2026-11-06T06Z to 11-13T01Z):
+- 31,756 distinct callsigns, of which **14,770 missed the mirror (46.5%)**;
+- **1,304 of the misses (8.8%) are in today's upstream**;
+- 5,884 distinct callsigns were withheld as stale; 20,654 were either missed or withheld.
+
+**What a refresh recovers:** 10-19% of a day's distinct misses, and 4-10% of a day's missing requests. On 2026-11-12
+that is 2,510 of 88,574 `/enrich` requests (2.8%).
+
+### 6.2 What the misses are (2026-11-12, 3,834 distinct misses; callsign shapes, counts only)
+
+| shape | distinct misses | in today's upstream |
+|---|---|---|
+| US N-number (`N` + digit) | 1,759 (45.9%) | 0 |
+| airline-style (3 letters + digit), airline prefix known to the table | 874 (22.8%) | 455 |
+| airline-style, prefix unknown to the table | 775 (20.2%) | 1 |
+| other | 426 (11.1%) | 0 |
+
+So **a refresh only reaches the known-airline row.** Nearly half the misses are general-aviation registrations, which
+no schedule table carries. FAA SWIM flight plans (section 2.9) are the one source read that could hold IFR ones.
+
+### 6.3 AeroDataBox at today's fleet
+
+**Assumptions:**
+- one lookup per distinct callsign per 7 days: the 7-day cache in its terms (5.5), with a perfect cache hit;
+- requests with no callsign are never looked up;
+- a month is 30.4 / 7 = 4.343 weeks;
+- the week is this window's;
+- a lookup is paid whether or not it answers. Whether AeroDataBox resolves N-numbers was not measured.
+
+| scenario | distinct per week | lookups per month | units per month (×2) | cheapest plan that covers it |
+|---|---|---|---|---|
+| S2: airline-style misses only, after a refresh (35.3%, the 11-12 share) | 4,756 | 20,655 | 41,309 | API.Market Ultra, $37.50 (50,000 units) |
+| S1: every miss, after a refresh | 13,466 | 58,481 | 116,962 | API.Market Ultra 2, $75 (150,000 units) |
+| S3: S1 plus the withheld | 19,350 | 84,034 | 168,069 | direct Growth, $99 (400,000 units; whether it can be bought now is unclear, section 2.5) |
+| S4: every callsign (replace the mirror) | 31,756 | 137,912 | 275,824 | direct Growth, $99 |
+
+**At 600 boards:** the counts scale at most linearly with boards, so multiply by 600 / today's board count.
+- Today's board count is not in this read, because it would mean reading device ids.
+- That linear bound is an upper bound. New boards under the same skies add few new callsigns.
