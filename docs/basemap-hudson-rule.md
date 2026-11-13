@@ -726,6 +726,37 @@ on the stored home at full precision, and places the package by its HEADER origi
 8676f6bd0df6, KJFK-2L 63d5ce513c7d, MIDTOWN-2L c7d812acf174, KEWR-2L e7f15057f238, KLGA-2L 51caf64fd419, and today's KORD-A0
 cb59bb06a506 as the A/A control. The manifest names these six unless the owner picks r_f = 19.4 km.
 
+### 5j. The owner picks r_f = 19.4 km; 2-L re-registered at 19.4 before the rebuild
+
+**The owner (18:25Z 2026-11-13, relayed verbatim by the orchestrator at 18:33:52Z):** "1. Hudson: 19.4 km. Covers the 10 nmi step for
+45-117 bytes a map; the few tiny Newark lakes are fine. For the bench, add one 25 km picture each for KLGA and KBOS. Boards set to km
+show the coarser lines in that view's outer ring (about 8 px). It doesn't block the run, but I want to see it."
+
+**OPTION: 2-L at r_f = 19.4 km.** Why 19.4: the 10 nmi step (18.52 km) plus the fleet-wide worst home-to-centre offset (0.785 km) is
+19.305 km. The same prototype (`pqo`, its three files checked against 5f's hashes as a control), the knob `Q4O_GRADE` = 2:19.4 (KBOS)
+and 4:19.4 (KEWR, MIDTOWN, KJFK, KLGA); driver `hb-drive.py` fd6adefe4357 (configs O2-F162-r194, O2-F129-r194, O2-E1c-r194), run
+script `hr-o2-194.sh` cd79a3462dc3, grader `hb-o2-194-grade.py` 00c8c742bcfa (expected values in it), offset proof
+`hb-offset-check194.py` 9144bccf2c16, sheets `hb-sheet2.py` dc15a505206a (hb-sheet.py plus km views).
+
+**The estimate** (`hb-o2-estimate.py` 7cbe453af9d2 at 19.4 km; measured/estimated at 17 km ran 0.87-1.21): extra line bytes KBOS 600,
+KEWR 290, MIDTOWN 360, KJFK 180, KLGA 316, against the room in 5f: KBOS 4,917 B and KJFK 595 B of secondaries; MIDTOWN 514 and KLGA 570
+B before a split inland body drops (of which 309 and 294 B were spent at 17 km); KEWR past its 50 B already (unit 39 dropped at 17 km).
+
+| row | predicted |
+|---|---|
+| **control** | `pqo` frame/layers/build = d80ff53f48dd / 9416caab048e / 5c2f72491505 |
+| **O2R-PKG** | KBOS 162 km, the four New York maps 129.6 km; header 1,609,344; kOk; 0 proper crossings; non-terrain bytes 32,600-32,768 |
+| **O2R-WATER** | KBOS rung 9, 242 kept, 0 dropped; KJFK rung 9, 179, 0; MIDTOWN rung 10, dropped.water 25-50, rings 91 and 132 kept, no multi-ring unit dropped or partial; KLGA rung 10, dropped.water 19-35, no multi-ring unit dropped or partial, (b)'s four bodies kept; **KEWR rung 10, dropped.water 43-60 (its few extra small lakes, accepted by the owner), record 27 kept, no multi-ring unit partial, none dropped but unit 39** |
+| **O2R-EXTRA** | line bytes minus the E1 package: KBOS 300-900, KEWR 145-435, MIDTOWN 180-540, KJFK 90-270, KLGA 160-475 |
+| **O2R-PIX** | at 5 and 10 mi (centred on the package centre) road and river pixels EQUAL to today's at all five; secondaries in neither; every ring today draws is drawn |
+| **O2R-WHOLE** | no body dropped whole compared with today, at all five |
+| **O2R-GRADE** | rfKm 19.4; at least one stretch coarsened at each |
+| **O2R-OFFSET** | the 20 worst homes (as 5i), centred on the HOME: **5 mi, 10 mi, 5 nmi and 10 nmi all EQUAL** (80 comparisons; the furthest reach 18.52 + 0.697 = 19.217 km, under 19.4) |
+
+**Then:** re-stage the five for FT-HR (sha256 read back; today's KORD-A0 control unchanged) and re-freeze the manifest before 11-15
+18:00Z. **The owner's two 25 km pictures** (KLGA and KBOS, today over 2-L at 19.4, one 25 km view each; hash-named in `hudson-options\`):
+informational, no gate. **Outside the set:** any O2R row off: STOP and report; the offset proof's any DIFFER: STOP, to the owner.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
@@ -755,7 +786,7 @@ GitHub-side re-run rule applies. Anything else: stop and report.
 - **4af70320e13f got no CI run:** its push returned a GitHub-side 500 after updating the ref; the PR stayed at e8cbe2fe until the next ordinary push re-synced it.
 - **Read at a6b1291416ab:** 33 = 31 / 2 / 0 as predicted (stable at 17:54:17Z), tested on "Merge a6b1291416ab... into b0c9412f71a8...".
 - **Read at 815148dd52b4:** 33 = 31 / 2 / 0 as predicted (stable at 18:17:55Z), tested on "Merge 815148dd52b4... into eb35add21c03...".
-- **Predicted for the section 5i head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
+- **Predicted for the section 5i-5j head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
   either: `workers.yml` filters on proxy/, dashboard/ and the wx fixtures, `account-budget.yml` on its own paths): **33 = 31 / 2 / 0**,
   on main as it then stands (287dc5ece2bc at this writing).
 
