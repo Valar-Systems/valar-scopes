@@ -3,17 +3,6 @@
 # one dies with the line it allows. The reason says when it goes: a PR-B or a clearance row is a migration owed.
 proxy/scripts/basemap/d1.ts	0f1207036112c5fb3ec0a5429278d3cd0e51bc0ad9d288cfd83b6ae4ad51ee99	migrates after the sea-path PR (map-server; v20's critical path)
 proxy/scripts/check-drift-workflow.mjs	206ac7a27bf8085be25b9bf01b31b4330a162511a8ef81ad107cb4b66782dcea	a test string: the drift check's own planted workflow edit
-proxy/scripts/deploy-inputs.mjs	604baadeb2e497eb64044b4bd608e410e7468239995ec212146a2c95982e2584	migrates in PR B (staging rehearsal; the deploy path)
-proxy/scripts/deploy.sh	7a372624e385b001edbd8224fec313ce52e54eb0e596f8e78afaa94b5192e12d	migrates in PR B (staging rehearsal; the deploy path)
-proxy/scripts/deploy.sh	09ab6d44f44f87469dc67fb21550eb2e0bc9e761d67b156d3e2747de7cafdf9f	migrates in PR B (staging rehearsal; the deploy path)
-proxy/scripts/deploy.sh	2f52fe6ae88aabb60a0f72e08270cd8a420213c2faffdb02895d13a6016e08d1	migrates in PR B (staging rehearsal; the deploy path)
-proxy/scripts/deploy.sh	f8f724a683216dff91cf3d2d31585d0b92e3ee614a80fc534b1981fb46277e15	migrates in PR B (staging rehearsal; the deploy path)
-proxy/scripts/deploy.sh	51785cd31dc00fb083af29c600145ef9d0db2ed65865072924d11760ce7219f9	migrates in PR B (staging rehearsal; the deploy path)
-proxy/scripts/deploy.sh	f39251d96163f305871498c903ae5f5d17f2bd606a90c6277085403ed5f0b66f	migrates in PR B (staging rehearsal; the deploy path)
-proxy/scripts/rotate-staging-provision-token.sh	f32b41e17eb2622aa3d2a4d76c9f1e0124d17ddeb1cbcdfe89b6a72b7b395507	migrates in PR B (staging rehearsal; the deploy path)
-proxy/scripts/rotate-staging-provision-token.sh	97d2d8c94f78e696357903280a0dd9cd6facf564579dad309daa00ded6f7cb55	migrates in PR B (staging rehearsal; the deploy path)
-proxy/scripts/rotate-staging-provision-token.sh	653fb18b14c995b6f14d5ce07ad8d2c566ebdb73e96adaadfb5841962f71f797	migrates in PR B (staging rehearsal; the deploy path)
-proxy/scripts/rotate-staging-provision-token.sh	da35c4898f303d55378985ec510476c0936f100837549c6a54516d156a1d5826	migrates in PR B (staging rehearsal; the deploy path)
 proxy/scripts/smoke-prod.sh	9688b24ad0847787fd0cfbedd72cf10cbf9f6edf07cd1aadb9f1b2ec48d840d9	prose in a printed explanation, not a command
 proxy/scripts/token-file.ts	1038cfd507c6cf2e536b3c6a406ca60bcb61c5c2823c8b10d909b9da94b03e68	prose in an error message, not a command
 scripts/claim-hook.py	2e5eabdc0204ce347b2e83ce75c48bee6553d894f1c8e9b7d7a4f2f7ae6a1a30	prose in the hook's docstring and refusal message, not a command
@@ -24,19 +13,8 @@ scripts/session-claim.py	178e11cec154be09b39ef0d48690948c28c112b82f2b59cec83fb6d
 scripts/session-claim.py	53e83bbe5923362c8e7b62200ea8bc739506faf9c69d73bc07319a09078f070e	a test string: the claim hook's own test (CL12)
 scripts/session-claim.py	b12dc6250bd514229355e33946acde297e9caec4ac66a2d6cd00a0ca80bec582	a test string: the claim hook's own test (CL12)
 scripts/session-claim.py	0ef19503c32bc5a52899f5c2a6038cd0b7e12939302968d33e9b0b46f2413453	a test string: the claim hook's own test (CL12)
-tools/wx/check_ingest_deploy.sh	6b4e10f8d7e3ee1db18270c98b14139593ab8250aec5a470aa36253f903f5e61	migrates in PR B (staging rehearsal; the deploy path); its fake mirrors ingest_deploy.sh's command shapes
-tools/wx/check_ingest_deploy.sh	5a61d1ec7828c40e24d1759a22e2b2979cff2380be84a24cbf01f902e5e55cd3	migrates in PR B (staging rehearsal; the deploy path); its fake mirrors ingest_deploy.sh's command shapes
-tools/wx/check_ingest_deploy.sh	70a95982505c795828919939973eaadc6ef27d36ca464250cdc25d92320d3a68	migrates in PR B (staging rehearsal; the deploy path); its fake mirrors ingest_deploy.sh's command shapes
-tools/wx/check_ingest_deploy.sh	c32657c9593f908a5c54a0b90c0e00579ec3f7b52a08b77c9bdc73c16eea313b	migrates in PR B (staging rehearsal; the deploy path); its fake mirrors ingest_deploy.sh's command shapes
-tools/wx/check_ingest_deploy.sh	7f7151ef1e0739b01a3390d4b06cad4a781a1e249add6fc37d39683992d7340f	migrates in PR B (staging rehearsal; the deploy path); its fake mirrors ingest_deploy.sh's command shapes
-tools/wx/check_ingest_deploy.sh	c6b35b673cc86fc73e509d289be6b008cef344786847e2a6e0647226f731ea71	migrates in PR B (staging rehearsal; the deploy path); its fake mirrors ingest_deploy.sh's command shapes
-tools/wx/ingest_deploy.sh	465ff57a6187baa7a7bc89aa716f5dc8c35faadd726768232447a0db3d6ec968	migrates in PR B (staging rehearsal; the deploy path)
-tools/wx/ingest_deploy.sh	c98af636c021071566be3626407d594c5752694898e471ea7806c62a1ea816ef	migrates in PR B (staging rehearsal; the deploy path)
-tools/wx/md_rollback.sh	3454dfda4db2b1052a4fb7a8a8e54d2261f382e1d91ddc49fe6cbc5741d02479	migrates in PR B (staging rehearsal; the deploy path)
-tools/wx/md_rollback.sh	d6e9569751b79a3bd3d8383b38bac651640c795ec814d4216cfd17a461857ec0	migrates in PR B (staging rehearsal; the deploy path)
-tools/wx/md_rollback.sh	e3a009a9fc8d165c1471bcc09851d3f142b0d308d634f428bb4888901c9b935a	migrates in PR B (staging rehearsal; the deploy path)
-tools/wx/md_rollback.sh	512fb8234a89474a110a86830d59d7ed9fddc34fd7f9a1342c90a1704e90b451	migrates in PR B (staging rehearsal; the deploy path)
-tools/wx/md_rollback.sh	fda2a855d8c624a8a33c70abd7ed772de96be627feacd4bb0917be5af66536ec	migrates in PR B (staging rehearsal; the deploy path)
-tools/wx/md_rollback.sh	2870ff2f36fba60dd11da3caead5093120d381cdea2d290ccec7e20bb5a94a3f	migrates in PR B (staging rehearsal; the deploy path)
-tools/wx/s3_cycle.sh	4563014181750b0ad38da05f32611e0fe90493dfdac25d7204eaaf625d937aa9	migrates in PR B (staging rehearsal; the deploy path)
-tools/wx/s3_cycle.sh	2e71bde73da86c7ccb051dd0f6a1640914e8cb5457b298bde3ce719ffadfc773	migrates in PR B (staging rehearsal; the deploy path)
+tools/wx/check_ingest_deploy.sh	1c4f510b2f0f5c48ddebd33039957bb8fd5e72a350e110d237e83728b124e803	a test string: the rig's fake wrangler, its expected calls (D1/D9/D11/D13) and the IDs-f plant
+tools/wx/check_ingest_deploy.sh	70a95982505c795828919939973eaadc6ef27d36ca464250cdc25d92320d3a68	a test string: the rig's fake wrangler, its expected calls (D1/D9/D11/D13) and the IDs-f plant
+tools/wx/check_ingest_deploy.sh	c32657c9593f908a5c54a0b90c0e00579ec3f7b52a08b77c9bdc73c16eea313b	a test string: the rig's fake wrangler, its expected calls (D1/D9/D11/D13) and the IDs-f plant
+tools/wx/check_ingest_deploy.sh	7f7151ef1e0739b01a3390d4b06cad4a781a1e249add6fc37d39683992d7340f	a test string: the rig's fake wrangler, its expected calls (D1/D9/D11/D13) and the IDs-f plant
+tools/wx/check_ingest_deploy.sh	c6b35b673cc86fc73e509d289be6b008cef344786847e2a6e0647226f731ea71	a test string: the rig's fake wrangler, its expected calls (D1/D9/D11/D13) and the IDs-f plant

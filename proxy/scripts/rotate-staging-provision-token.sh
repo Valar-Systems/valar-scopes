@@ -21,12 +21,12 @@ echo "rotate: wrote $F ($(wc -c < "$F" | tr -d ' ') characters; value not shown)
 
 OUT="$(mktemp)"; ERR="$(mktemp)"
 trap 'rm -f "$OUT" "$ERR"' EXIT
-npx wrangler secret put PROVISION_TOKEN --env staging < "$F" > "$OUT" 2> "$ERR"
+node scripts/wrangler-run.mjs secret put PROVISION_TOKEN --env staging < "$F" > "$OUT" 2> "$ERR"
 RC=$?
-echo "rotate: wrangler secret put PROVISION_TOKEN --env staging: exit $RC"
+echo "rotate: secret put PROVISION_TOKEN --env staging (wrangler-run.mjs): exit $RC"
 sed 's/\x1b\[[0-9;]*m//g' "$OUT" | grep -iE "success|uploaded|secret|error|blipscope" | head -6 | sed 's/^/  wrangler: /'
-npx wrangler secret list --env staging > "$OUT.list" 2>> "$ERR"
-echo "rotate: wrangler secret list --env staging names PROVISION_TOKEN: $(grep -c '"name": *"PROVISION_TOKEN"\|PROVISION_TOKEN' "$OUT.list" | awk '{print ($1 > 0) ? "yes" : "no"}')"
+node scripts/wrangler-run.mjs secret list --env staging > "$OUT.list" 2>> "$ERR"
+echo "rotate: secret list --env staging (wrangler-run.mjs) names PROVISION_TOKEN: $(grep -c '"name": *"PROVISION_TOKEN"\|PROVISION_TOKEN' "$OUT.list" | awk '{print ($1 > 0) ? "yes" : "no"}')"
 SEEN=$(cat "$OUT" "$ERR" "$OUT.list" | grep -cF -f "$F")
 echo "rotate: the value appears in the captured output: $SEEN times"
 rm -f "$OUT.list"

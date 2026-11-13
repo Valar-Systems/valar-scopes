@@ -39,16 +39,16 @@ if [ "${1:-}" = "--dry" ]; then
     [ "$topname" != "$WORKER" ] || fail="$fail top-level-is-opuk"
   fi
   # 2. The Worker -e opuk resolves to holds the rollback target (the API scopes a version to its script).
-  npx wrangler versions view "$V" -c "$TOML" -e "$ENV" --json > "$T/vv.out" 2> "$T/vv.err" < /dev/null
+  node scripts/wrangler-run.mjs versions view "$V" -c "$TOML" -e "$ENV" --json > "$T/vv.out" 2> "$T/vv.err" < /dev/null   # docs/wrangler-run.md
   rc=$?; echo "target ${V:0:8} in the -e $ENV Worker: exit $rc"
   [ $rc -eq 0 ] || { fail="$fail target-not-found"; head -3 "$T/vv.err"; }
-  npx wrangler deployments status -c "$TOML" -e "$ENV" --json > "$T/ds.out" 2> "$T/ds.err" < /dev/null
+  node scripts/wrangler-run.mjs deployments status -c "$TOML" -e "$ENV" --json > "$T/ds.out" 2> "$T/ds.err" < /dev/null
   rc=$?
   if [ $rc -eq 0 ] && [ -n "$PY" ]; then
     echo "opuk runs now: $("$PY" -c "import json,sys; d=json.load(open(sys.argv[1])); print([(v['version_id'][:8], v['percentage']) for v in d['versions']])" "$TW/ds.out")"
   else fail="$fail status-unreadable"; head -3 "$T/ds.err"; fi
   # 3. The control: the same read at the top level must reach no Worker.
-  npx wrangler deployments status -c "$TOML" --json > "$T/top.out" 2> "$T/top.err" < /dev/null
+  node scripts/wrangler-run.mjs deployments status -c "$TOML" --json > "$T/top.out" 2> "$T/top.err" < /dev/null
   rc=$?; echo "control, the top level: exit $rc ($(grep -o '1000[0-9]' "$T/top.out" "$T/top.err" 2>/dev/null | head -1 | cut -d: -f2))"
   [ $rc -ne 0 ] || fail="$fail control-reached-a-worker"
   rm -rf "$T"
@@ -57,16 +57,16 @@ if [ "${1:-}" = "--dry" ]; then
 fi
 
 [ -n "${1:-}" ] || { echo "usage: md_rollback.sh --dry | md_rollback.sh \"<the off row>\""; exit 2; }
-CMD="npx wrangler rollback $V -c $TOML -e $ENV -m \"opuk rollback: $1\" -y"
+CMD="node scripts/wrangler-run.mjs rollback $V -c $TOML -e $ENV -m \"opuk rollback: $1\" -y"
 LOGDIR="${BLIPSCOPE_CLAIMS_DIR:-$HOME/.config/blipscope/claims}"
 mkdir -p "$LOGDIR" && printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${BLIPSCOPE_SESSION:-unnamed}" "${CMD:0:200}" >> "$LOGDIR/rollbacks.log"
 echo "rollback start $(date -u +%H:%M:%S.%3NZ) (logged in rollbacks.log; announce it through Daniel)"
-npx wrangler rollback "$V" -c "$TOML" -e "$ENV" -m "opuk rollback: $1" -y > "$T/rb.out" 2> "$T/rb.err" < /dev/null
+node scripts/wrangler-run.mjs rollback "$V" -c "$TOML" -e "$ENV" -m "opuk rollback: $1" -y > "$T/rb.out" 2> "$T/rb.err" < /dev/null
 rc=$?
 echo "rollback end $(date -u +%H:%M:%S.%3NZ) exit $rc"
 tail -6 "$T/rb.out"
 echo "stderr bytes $(wc -c < "$T/rb.err")"; head -5 "$T/rb.err"
-npx wrangler deployments status -c "$TOML" -e "$ENV" --json > "$T/ds.out" 2>/dev/null < /dev/null
+node scripts/wrangler-run.mjs deployments status -c "$TOML" -e "$ENV" --json > "$T/ds.out" 2>/dev/null < /dev/null
 [ -n "$PY" ] && "$PY" -c "import json,sys; d=json.load(open(sys.argv[1])); print([(v['version_id'][:8], v['percentage']) for v in d['versions']])" "$TW/ds.out"
 rm -rf "$T"
 exit $rc
