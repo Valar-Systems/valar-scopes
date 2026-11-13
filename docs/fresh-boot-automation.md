@@ -148,3 +148,143 @@ the run exactly as they did on v19. **The automation changes who acts, never wha
 
 `X-Blipscope` is a CSRF guard, not authentication. Anything on the LAN can already `POST /factory-reset` with the
 confirmation word, and this plan doesn't change that. It only uses it.
+
+## Amendment 1: the driver as built, the end state, and the rehearsal's predictions (frozen 2026-11-13 ~02:30Z, before any window is asked for)
+
+### Who acts (ruled 2026-11-13 02:03:41Z)
+
+A session never types the owner's real password into a form, and never changes a Wi-Fi profile on this PC. So answer
+(a) now means **"his PC provisions it, on his command"**: step 2 is ONE command he runs, `scripts/fresh-boot-wifi-join.ps1`.
+- It reads his file and finds exactly one `Blipscope-XXXXXX` network on the adapter he names.
+- It adds a temporary open profile, joins, and posts `s=`/`p=` to the portal in-process.
+- It always removes the profile.
+- It prints neither the setup network's name (part of the board's MAC), his network nor his password.
+
+`scripts/fresh-boot-auto.sh` drives everything else, and stops at his two commands and his one tap.
+
+### The test's location (ruled 02:03:41Z)
+
+**A PUBLIC airport reference point, committed in the driver:** Seattle-Tacoma, `47.45, -122.31` (stored by the board as
+`47.4500` / `-122.3100`, which K-loc reads back). It guarantees traffic for his claim tap, and carries nothing about him.
+
+### The end state (the plan above was silent on it; v19 was "set up again by Daniel", `docs/v19-cut.md`)
+
+A factory reset clears `wifi, wifi-fast, config, logbook`, so EVERY setting goes back to its default, not only the
+location. Accepted 02:0xZ:
+- **R0 (the driver, read-only, before step 1).** `GET /`, turned into the config form's own body by
+  `scripts/fresh-boot-form.py`. It is written ONLY to `%USERPROFILE%\.config\blipscope\e208-snapshot`, never printed.
+  The NAMES of any masked secret fields go into the report BEFORE step 1, so he knows what he'd re-enter by hand.
+- **R1 (his command, after the grades).** It posts the snapshot back to `/save`. The command names the board's address,
+  so it is written to `e208-restore.cmd` beside the snapshot, and only that path is printed.
+- **R2 (the driver, read-only).** `GET /` compared with the snapshot field by field, printing "N of M fields equal" and
+  the NAMES that differ, never a value.
+  - **All equal (masked secrets aside):** the snapshot and the command file are removed, and the window may close.
+  - **Anything else:** the window is NOT closed, the snapshot is kept for him, and the report says where.
+- **Not restorable, stated:**
+  - masked secrets come back masked and the save skips them (R0 names them);
+  - the logbook's collection (NVS is never read from the PC);
+  - Wi-Fi comes back through step 2's own join, to the same network.
+- **No value reaches any output.** `fresh-boot-form.py --selftest` F7 runs a planted sentinel (asserted planted) through
+  every printing and error path and finds it in none, while the count and names lines still print.
+
+### What was built (this PR)
+
+| file | what | checked by |
+|---|---|---|
+| `scripts/fresh-boot-cadence.py` | the hands-on cadence; exit 0 allowed, 1 due, 2 instrument | `--selftest`: K-due-count, K-due-code, K-due-func, K-not-due, K-counter, as registered (in CI) |
+| `scripts/fresh-boot-form.py` | `form#cfg`'s FormData: `body`, `compare`, `field-equals` | `--selftest` F1-F7 (in CI) |
+| `scripts/fresh-boot-auto.sh` | the driver: preflight, R0, steps 1-6, the grades, R1/R2; `--controls`, `--sabotage skip-reset/skip-off`, `--dry-run` | `--selftest` W1-W2, P1-P2, locally. Its dry-run runs the real cadence check, which needs the release tags CI's shallow checkout lacks |
+| `scripts/fresh-boot-wifi-join.ps1` | his step-2 command; `-Control WrongPassword` for K-wifi | parsed with no errors. **Never run by a session** |
+
+### The rehearsal window: what it needs
+
+- **E2:08**, reserved, on YKUSH port 3 (confirmed by the owner, 2026-11-11 ~18:31Z), running the candidate under test.
+  Every switch is logged: port, label, UTC off and on, session, window.
+- **His file** `%USERPROFILE%\.config\blipscope\bench-wifi`, present.
+- **His hands, five times:**
+  - K-wifi's wrong-password command;
+  - step 2's command;
+  - the claim tap, three times (the full run, S-noreset's run, and S-nooff's run);
+  - R1's command after each run.
+- **About 90 minutes:** three runs of about 25 minutes, plus the controls.
+
+The rehearsal is three runs:
+1. `--controls`: the full run, with K-guard, K-reset and K-wifi in place;
+2. `--sabotage skip-reset`;
+3. `--sabotage skip-off`.
+
+### The rehearsal's predictions
+
+| row | predicted | if not |
+|---|---|---|
+| **RH0** | preflight passes: cadence ALLOWED on the candidate, both selftests and the acceptance's `--selftest` pass, `bench-wifi: present`, E2:08 in the listing and reserved | stop before anything is touched (exit 2), and report which |
+| **RH1** | R0: `GET /` by its mDNS name reads 200, and the snapshot is written. The masked-field names are a READING, reported before step 1, not predicted | if mDNS does not resolve from this shell, R0 refuses with nothing changed; the driver then takes the address another way, in a new amendment |
+| **RH2** | K-guard 403; K-reset refused, with no reset; step 1 POST 200 and `[reset] tier=factory` within 90 s | stop: the board is in the state the report names |
+| **RH3** | K-wifi: no `[WiFi] CONNECTED` for 90 s after the wrong password. Step 2: his command prints `save: HTTP 200` and `profile removed: yes`, and `[WiFi] CONNECTED` follows within 15 min | stop: the board is in its portal, for his phone |
+| **RH4** | step 2b: POST 200 and K-loc equal | stop |
+| **RH5** | the full run: the acceptance's ten checks all pass, as on v19 (`--assert-only`), and `--grade-boots` reads one POWERON | a red check is a FINDING about the automation's equivalence to the hands-on run; it is reported, not re-run |
+| **RH6** | S-noreset: the step-1 check reads RED and the rest pass. S-nooff: the step-6 check reads RED and the rest pass | the sabotage did not show: the acceptance cannot see that step, so stop and report |
+| **RH7** | R2 after each run: every field equal, masked secrets aside; the snapshot removed after the last | the window is NOT closed: E2:08 is left as it is for him, with the snapshot kept |
+| escape | anything the rows above do not name | stop and report, with no reading, and E2:08 left as it is |
+
+### Addendum (2026-11-13 ~06:20Z): his terminal, the pinned adapter, two slots
+
+These change who presses what, and where. They do not change what is graded: RH1-RH7 and the escape row stand as
+frozen, and RH0 gains one refusal (below).
+
+- **He runs the driver in his own terminal** (the owner, 06:01Z). That means Git Bash, launched by its full path
+  (`C:\Program Files\Git\bin\bash.exe`). It is never a bare `bash` from PowerShell, which can resolve to WSL's.
+  - The driver reads his Enter from the terminal it runs in (stdin first).
+  - It copies everything it prints to `bench-logs/fresh-boot-auto-<stamp>.log`, and the session grades from that file.
+  - `--by` stays `blipscope-5c`, because the window and the reservation are the session's.
+- **The PC adapter is pinned to "Wi-Fi"** (the owner, 06:06Z). His internet is on Ethernet, and "Wi-Fi 5" is a
+  virtual copy of the same card.
+  - Step 2's script no longer takes an adapter argument, and it matches the adapter by its exact name.
+  - `scripts/fresh-boot-wlan.py` reads `netsh wlan show interfaces` in-process. It prints four facts only: whether
+    "Wi-Fi" is listed, its state, its radios, and whether "Wi-Fi 5" is listed. netsh's own text carries a MAC and,
+    when connected, a network name, and none of it is printed.
+  - **RH0 now also refuses** unless "Wi-Fi" is listed and disconnected, with both radios on.
+  - Step 2's script refuses at its own start unless "Wi-Fi" is listed and disconnected.
+  - Read at 06:08:41Z: "Wi-Fi" was listed, disconnected, with both radios on; "Wi-Fi 5" was also listed.
+- **R1 is a file he runs**, not a line he copies.
+  - It is a batch file. In a batch file `%%` is one `%`, so `-w "%{http_code}"` survives.
+  - The driver's W3 runs one against a closed port and requires `000` with an empty stderr.
+  - Three broken shapes each read red: a single `%`, a missing data file, and both together.
+- **Two slots** (the owner, relayed 06:04Z):
+  - 18:00-19:30Z: run 1 (`--controls`), then p4.
+  - 20:00-20:50Z: run 2 (`skip-reset`, ~20 min), then run 3 (`skip-off`, ~30 min).
+  - Run 3 starts only if it can finish R2 by 20:50Z, so it must start by 20:20Z. Otherwise it waits for another slot,
+    for time, not failure.
+  - Run 2's R0 snapshots the board as p4 hands it back, so p4's restore is the check on that hand-back.
+- **New controls, each shown red once before being trusted:**
+  - The reader's F1 (no MAC, network name or BSSID reaches its output), under an in-memory plant that appends the
+    address.
+  - Step 2's J4 (with only "Wi-Fi 5" present, "Wi-Fi" reads as not listed), under a planted prefix match.
+  - Both selftests run in `device-ids.yml`.
+- **His file's line ends** (the reviewer and the cloud reviewer, ~06:20Z). His file has CRLF ends, so every reader of
+  it was checked for a kept trailing CR.
+  - **The driver** reads the file for presence only, never a value. Its old check (`grep -c '^password=.'`) was
+    correct on this PC by accident: Git for Windows' grep 3.0 strips a CR at the line end by default.
+    `printf 'password=\r\n' | grep -c '^password=.'` reads 0 here, while `grep -U` and WSL's Linux grep read 1, so
+    the check was blind to an empty CRLF line on any Linux grep.
+    - `wifi_file_ok` now strips a trailing CR (and only that) with `sed`, and turns grep's own handling off (`-U`).
+    - P3 (an empty CRLF password line refuses) was GREEN on the old check here, for the reason above.
+    - P5 calls the function directly on four synthetic files. It is green on the fix and RED on a plant with the strip
+      removed (Linux grep behaviour).
+  - **Step 2's script** is the only reader that uses the values. Its reader (`Get-Content`, which returns lines
+    without their CRLF or LF) already stripped the CR, so J6-J8 were GREEN on their first run under both
+    PowerShell 5.1 and 7.
+    - J6 and J7 compare the parsed values with made-up ones by length and bytes, inside the test, printing nothing.
+      J8: an empty CRLF password line is refused.
+    - A planted reader that keeps the CR (`ReadAllText` split on LF) turns J6 and J8 RED.
+    - The values go to the board in-process (`Invoke-WebRequest -Body`), unchanged. No other path passes them on.
+- **The hand-back check between the two slots** (the reviewer, ~06:20Z). Run 1's snapshot is deleted at its R2, so
+  run 2's R0 alone cannot show that the window in between left E2:08's settings untouched.
+  - Run 1 takes `--handback keep`: at R0 it keeps one salted SHA-256 per field NAME, with no values, as
+    `e208-handback.hash` in his config dir. The hash is never printed and never overwritten.
+  - Runs 2 and 3 take `--handback check`: R0 must hash equal before anything is written, or the run STOPS before step
+    1, naming the fields that differ.
+  - `--drop-handback` removes the hash at the end of the second slot.
+  - The preflight refuses `keep` when a hash already exists, and `check` when none does.
+  - In `fresh-boot-form.py`, H1-H5 cover it: equal, a changed value, an added field, refusing to overwrite, and a
+    missing file not reading as equal. F7 also requires that the sentinel value is absent from the saved hash file.
