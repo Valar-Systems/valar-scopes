@@ -126,3 +126,18 @@ the job's "Runner Image" block.
 **Outside the set:** any other row fails, the job fails elsewhere, or the run lands on an image other than 370 (then it
 is reported, and how to get a 370 run is asked, not improvised). The instrument is unreliable at this scale: stop
 and decide.
+
+**Amended 2026-11-13 ~14:00Z, before the code was written or anything was run.** Writing the wait loop showed two
+frozen rows that would test a race, not the rule. Both rows are corrected here, and nothing has been observed yet.
+
+- **W4's delay moves from 14,000 ms to 17,000 ms.** When no answer comes, the late window runs 2.5 s from the END of the
+  12 s wait, so the messages are read at about 14.5 s after the click. A 14 s answer would land inside that window and
+  read as an anchor OK: the race, not silence. 17 s is past wait plus window. W4's prediction is otherwise unchanged:
+  red set **exactly {S1}**, exit 2, BLIND, state the ask.
+- **W3's "old rule" restores BOTH halves of the old rule:**
+  - the 2,500 ms bound;
+  - the late window counted from the CLICK. Under the old rule, the messages were read 2.5 s after the click whatever
+    happened.
+
+  Forcing only the bound would leave a window ending about 5 s after the click, exactly when S1's delayed answer
+  arrives. Both edits are asserted applied. W3's prediction is unchanged: red set **exactly {S1}**.
