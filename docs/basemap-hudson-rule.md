@@ -786,9 +786,10 @@ GitHub-side re-run rule applies. Anything else: stop and report.
 - **4af70320e13f got no CI run:** its push returned a GitHub-side 500 after updating the ref; the PR stayed at e8cbe2fe until the next ordinary push re-synced it.
 - **Read at a6b1291416ab:** 33 = 31 / 2 / 0 as predicted (stable at 17:54:17Z), tested on "Merge a6b1291416ab... into b0c9412f71a8...".
 - **Read at 815148dd52b4:** 33 = 31 / 2 / 0 as predicted (stable at 18:17:55Z), tested on "Merge 815148dd52b4... into eb35add21c03...".
+- **Read at f476dfc49842:** 33 = 31 / 2 / 0 as predicted (stable at 18:57:51Z), tested on "Merge f476dfc49842... into 287dc5ece2bc...".
 - **Predicted for the section 5i-5j head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
   either: `workers.yml` filters on proxy/, dashboard/ and the wx fixtures, `account-budget.yml` on its own paths): **33 = 31 / 2 / 0**,
-  on main as it then stands (287dc5ece2bc at this writing).
+  on main as it then stands (9d0a148b44db at this writing).
 
 ## 7. Where the measurements are (scratch, sha256 first 12)
 
