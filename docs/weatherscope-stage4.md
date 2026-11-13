@@ -2170,3 +2170,31 @@ Production starts only when S1, D-S1, S2 and S3 all hold.
 
 - A crash is an instrument failure, never a red.
 - A count off from its own list: report both.
+
+#### S4.27d, 2026-11-13: the migrated ingest_deploy.sh's first real run, on the dev Worker (08:35Z)
+
+**Why.** #697 moved `tools/wx/ingest_deploy.sh` onto the wrangler helper (`proxy/scripts/wrangler-run.mjs`). The
+reviewer ruled that its first real run is the DEV Worker, on a slot, before any production ingest deploy uses the
+helper path.
+- The predictions (DV0-DV4) and their rules were sent and accepted at 08:17Z.
+- The slot opened at 08:35Z, on main `b7184243fc60`'s finished push CI: 36 = 34/2/0, four workflows completed, read
+  by the reviewer and again by me at 08:33:59Z.
+
+**What ran.** `bash tools/wx/ingest_deploy.sh wx-ingest-dev.wrangler.toml off`, from a clean detached main at
+`b7184243fc60`. The claim `wx-ingest-dev:production` was taken at 08:35:14Z and released at 08:46:48Z. The deploy was
+identical to what the dev Worker already ran: `off`, with `MODE` off, `WX` `blipscope-wx-dev`, no cron and no route.
+
+| row | predicted | read |
+|---|---|---|
+| DV0 | dev `7459e9be` at 100, `MODE` off, `WX` blipscope-wx-dev, no invocations; `~/.wrangler/logs` 34,093 files; 0 `wrangler-log-*` dirs | as predicted at 08:16Z and again at 08:35:08Z. The 08:06-08:16Z read had 0 dev invocations, with shsr's 11 as the anchor |
+| DV1 | exit 0; "runs now: [(<new>, 100)]", with new ≠ `7459e9be`; stderr 0 bytes | deploy 08:35:26.794Z to 08:35:30.314Z, exit 0; "blipscope-wx-ingest-dev runs now: [('a36a8c1e', 100)]"; wrangler's stderr 0 bytes, the script's 0 bytes |
+| DV2 | logs still 34,093, read right before and right after; 0 dirs left | 34,093 to 34,093, and still 34,093 after DV3's reads and at DV4; 0 dirs |
+| DV3 | the new version's bindings: `MODE` off, `WX` blipscope-wx-dev, nothing else | `a36a8c1e-ff52`: exactly those two |
+| DV4 | 0 dev invocations in the 10 min after | 08:35:30Z to 08:45:30Z, read at 08:46:40Z, ABR 1: 0 events. The anchor on the same reader: shsr 10 invocations, all `c6d27f8f` |
+
+**All four held.** No rollback was needed; `7459e9be` remains the previous version. The helper path through
+`ingest_deploy.sh` is now proven once for real. That covers the deploy and its `deployments status` read-back, and it
+left nothing in `~/.wrangler/logs`. The next production ingest deploy may use it.
+
+**Not affected:** the proxy. Its combined deploy (S4.27c) waits for the owner's answer and for the lift of the hold on
+the new deploy.sh (5c's staging rehearsal, which starts after this claim's release).
