@@ -2324,3 +2324,41 @@ The slot is 17:00Z to 23:30Z (the reviewer, 16:33:35Z). The run deploys a clean 
 > cannot prove it can observe presence. It needs a pinned anchor that cannot SKIP.
 
 Not re-running B0 to get 38/0/0 was right: that would have been choosing the data.
+
+**After the ruling** (B-probe, B-claim, staging, then production):
+
+| row | predicted | read |
+|---|---|---|
+| B-probe | shsr 404 `not_found`; cref 200 WXC1 with an ETag | 17:04:19Z: shsr 404 `not_found`; cref 200 WXC1, ETag `wx1-cref-1794589357-…`. As predicted |
+| B-claim | free | free; taken 17:04:28Z, `proxy:staging,proxy:production`, until 18:34:28Z |
+| S1 (c″) | staging commit `b7184243`; version `1f1a0fae` unless moved | `b7184243`; `1f1a0fae` at 100 (re-read 17:05:06Z). As predicted |
+| D-S1 | builtAt 2026-08-25T23:31:26.817Z, rows 619103, stale true, maxAgeDays 14, ageDays 79 before 23:31:26Z | 17:04:48Z: exactly those, ageDays 79. As predicted |
+| S2 | one new line, the last: `wx.shsr routed=false age=<0..600> stale=false` | `wx.shsr routed=false age=169 stale=false`, last of 12; the other 11 keep B0's shape. As predicted |
+| S3 | shsr 200 WXC1, an ETag, age ≤ 600 s; cref 200 WXC1 | 17:04:04Z+: shsr 200 WXC1, ETag `wx1-shsr-1794589320-44.06_-121.32_160`, age 184 s; cref 200 WXC1 (test-key-staging). As predicted |
+| D1 (c″) | exit 0; behind check does not block; confirm-deploy settles on `aa40aa43` | 17:05:20Z to 17:05:31Z: exit 0. "1 commit(s) behind origin/main touch nothing under proxy/ or in the machinery (not blocking)". Version `69072b90`. "confirmed: /healthz reports commit=aa40aa43". As predicted |
+| D-P2 (c″) | `aa40aa43` | 17:05:47Z: `aa40aa43`. As predicted |
+| D-P1 (c‴) | 78 before 17:25:54.476Z; builtAt 2026-08-26T17:25:54.476Z, rows 619103, stale true, maxAgeDays 14 | 17:05:47Z (Cloudflare Date 17:05:48Z, outside ±60 s): ageDays 78 and exactly those fields. As predicted |
+| D-P4 | keys {basemap, commit, ok, routes, upstreams, weatherscope, wx}; routes the only new one | exactly those. As predicted |
+| D2 | one new line, the last, shsr; the other 11 keep their shape | `wx.shsr routed=false age=109 stale=false`, last of 12; 0 shape changes. As predicted. Production `69072b90` at 100 |
+| D-P3 (17:02:15Z ruling) | per check against B0; the routes WARN "STALE: built 2026-08-26T17:25:54.476Z, A d old" | 17:06:07Z to 17:07:30Z: exit 0, PASS 38 / FAIL 0 / SKIPPED 0, stderr identical to B0's. Routes: `RESULT: WARN -- STALE: built 2026-08-26T17:25:54.476Z, 78 d old (limit 14 d)   (mode warn)`. **Two titles differ**: `/v1/enrich/<hex>` (a1be2f PASS to ac5f5f PASS) and `/v1/photo` (SKIPPED to `/v1/photo (via enrich pointer …)` PASS). Both are live tokens in the same check's title (smoke-prod.sh:422, :608 at `aa40aa43`). **Read literally as "names", that is off; treated as outside the set, so I stopped without a rollback** (17:08:00Z), holding the claim |
+
+**The reviewer's ruling, 17:08:43Z, quoted:**
+
+> D-P3 HOLDS; NO ROLLBACK. [...] smoke-prod.sh (my checkout's lines 395 / 581-585; yours are 422 / 608 on main's
+> newer copy): the enrich row is one line, `hit "/v1/enrich/$HEX (live hex from the blips response)"` -- $HEX is
+> whatever is overhead. The photo row is one check with three branches: `asset "/v1/photo (via enrich pointer $P)"`
+> when it runs, `skip "/v1/photo" ...` when it does not (no stock photo, or no live hex). Both differences are live
+> values interpolated into the same two checks' titles: the same check identity in the same place, the same count.
+>
+> THE RULING. "The same 38 check NAMES" in my 17:02 ruling meant check IDENTITY -- the source line that prints the
+> row, with live tokens masked. I did not say that; the imprecision is mine, and you were right to treat it as outside
+> the set rather than off. The alternative, a different check in that position, is excluded: the source shows one line
+> per title with $HEX/$P interpolated, and position and count match. Read as identity: 38/38, FAIL 0, exit 0, every
+> B0 PASS passed again. /v1/photo SKIPPED -> PASS is a measurement: the PHOTO PATH IS VERIFIED on 69072b90; no
+> re-runs. The routes row WARN with 78 d, as predicted; D-P1's 78 stands (17:05:47Z, outside +-60 s).
+>
+> FOR FUTURE DEPLOY REGISTRATIONS (a standing rule I am adding): smoke-prod rows compare by title TEMPLATE with $HEX
+> and $P masked, and that masking is written into the registration.
+>
+> Run D4 and D5 as registered. Off on shsr (FAIL 0 on the other 37 already stands): your registered rollback rule
+> applies. As predicted: release the claim and send "closed and verified" with the production version 69072b90.
