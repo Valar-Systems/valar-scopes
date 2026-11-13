@@ -87,6 +87,18 @@ export function squareBox(f: Frame, rMm: number): Box {
 }
 
 /** A layer set's content for the ladder: its drawn items, and its water set's own counts ("(C)": they travel with its rings). */
+/**
+ * R4 (docs/basemap-dense-code.md): the refusals of the water sets built for one D2 step -- each set's TIGER refusals (`refusedW`) and its
+ * sea pieces' step-3 refusals (`refused3`). `sets` lists every set built, each with its tolerance: a LIST, so two sets at one tolerance
+ * can be handed in (MN7; the owner's ruling, 05:01Z).
+ */
+export function refusedBuiltOf(sets: Array<{ tolMm: number; refusedW?: number; seaW?: { n: { refused3: number } } }>): number {
+  const byTol: Record<number, (typeof sets)[number]> = {};
+  for (const s of sets) byTol[s.tolMm] = s;
+  let n = 0;
+  for (const s of Object.values(byTol)) n += (s.refusedW ?? 0) + (s.seaW?.n.refused3 ?? 0);
+  return n;
+}
 interface Content { water?: Pt[][]; roads?: Road[]; rivers?: Rivers; collapsed: Partial<Record<Layer, number>>; refusedW?: number; seaW?: WaterRings["sea"] }
 
 /** One build at one radius; build() runs D2 over it. `refusedBuilt` gains this build's refusals across its four sets. */
@@ -219,10 +231,12 @@ async function buildOnce(store: StoreReader, q: BuildQuery, opts: { commit: stri
   };
   let at: Record<number, Content>;
   try { // a sea repair that cannot finish stops the build here (KB4 (B'))
-    at = { [q.epsMm]: content(L1), [EPS_STEP * q.epsMm]: content(L2) } as Record<number, Content>;
-    at[4 * q.epsMm] = content(L4); at[8 * q.epsMm] = content(L8);
+    const c1 = content(L1), c2 = content(L2), c4 = content(L4), c8 = content(L8); // built in this order, as before
+    at = { [q.epsMm]: c1, [EPS_STEP * q.epsMm]: c2 } as Record<number, Content>;
+    at[4 * q.epsMm] = c4; at[8 * q.epsMm] = c8;
+    const sets = [[q.epsMm, c1], [EPS_STEP * q.epsMm, c2], [4 * q.epsMm, c4], [8 * q.epsMm, c8]] as const;
+    acc.refusedBuilt += refusedBuiltOf(sets.map(([tolMm, c]) => ({ tolMm, refusedW: c.refusedW, seaW: c.seaW }))); // R4: every set built
   } catch (e) { if (e instanceof SeaRepairStop) return { ok: false, status: 500, code: e.code, why: e.message, repair: e.counts }; throw e; }
-  for (const c of Object.values(at)) acc.refusedBuilt += (c.refusedW ?? 0) + (c.seaW?.n.refused3 ?? 0); // R4: every set's refusals
   MEM?.("layers");
   const digests = await layerDigests(read);
   const assemble = (c: Content, d: Dropped, _tol: number): Section[] => {

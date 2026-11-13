@@ -1,7 +1,7 @@
 // MB, ME3, ME7 (docs/basemap-route.md A1.7): build.ts over the synthetic stores of basemap-synth.ts (committed before
 // build.ts, A2.25). Each test is named by its case id; scripts/sabotage-basemap.mjs grades its exact sets from them.
 import { describe, expect, it } from "vitest";
-import { type BuildResult, build } from "../src/basemap/build";
+import { type BuildResult, build, refusedBuiltOf } from "../src/basemap/build";
 import { type Pt, decode, validate } from "../src/basemap/format";
 import { COMMIT, mbStore, me3Store, me7Store } from "./basemap-synth";
 
@@ -96,6 +96,13 @@ describe("MN, step 0's ladder", () => {
     // a 422's layer bytes are its last rung tried at its last D2 step: A at 100's is PROVENANCE's alone
     const t = tooLarge(await ml("A", 100));
     expect(sumOf(t.ladder.sections), "A at 100").toBe(511);
+  });
+  // MN7 (the owner's ruling, 05:01Z; registered at 1c44790b): a permanent catch for the defect S-BTWICE found. refusedBuilt is every set
+  // BUILT, each once (R4), so two sets at one tolerance are both counted -- which a tolerance-keyed map silently is not
+  it("MN7: refusedBuilt counts every set built, each once: two sets at the same tolerance are both counted", () => {
+    const sea = (refused3: number) => ({ n: { refused3 } });
+    expect(refusedBuiltOf([{ tolMm: 100, refusedW: 1 }, { tolMm: 200, refusedW: 1 }]), "CONTROL, first: distinct tolerances are counted").toBe(2);
+    expect(refusedBuiltOf([{ tolMm: 400, refusedW: 1 }, { tolMm: 400, refusedW: 1 }, { tolMm: 800, refusedW: 0, seaW: sea(2) }])).toBe(4);
   });
 });
 
