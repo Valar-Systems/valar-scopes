@@ -30,6 +30,7 @@ import { handleWx, wxHealth } from "./wx/handler";
 import { basemapHealth, handleBasemap } from "./basemap/handler";
 import { PRODUCTS, ROUTED } from "./wx/products";
 import { handleWeatherscope, weatherscopeHealth } from "./weatherscope/handler";
+import { routesHealth } from "./routeshealth";
 
 // Authenticate a request. Per-device keys are now the ONLY way in: an
 // HMAC-derived key that is only valid when presented with the X-Blip-Device id
@@ -94,8 +95,11 @@ async function handleHealth(env: Env): Promise<Response> {
   // `basemap`: "not_configured" while the BASEMAP binding is absent, else {rev, store, commit} from this isolate's last
   // builder response, null before the first one (docs/basemap-deploy.md, Q4). D3 reads `commit` to prove which builder
   // is bound.
+  //
+  // `routes`: the rt: mirror's age from meta:routes (src/routeshealth.ts, docs/route-mirror-age.md), never a made-up
+  // age. Flat, with no arrays and no "commit" key, for the same two readers' sake as `wx` above.
   return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS, ROUTED), basemap: basemapHealth(env),
-                        weatherscope: weatherscopeHealth() });
+                        weatherscope: weatherscopeHealth(), routes: await routesHealth(env) });
 }
 
 // ---- edition-namespaced URLs (see docs/web-url-convention.md) ---------------

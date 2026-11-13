@@ -279,5 +279,46 @@ with tempfile.TemporaryDirectory() as d:
     print("BX4: %s -- no bench file, TX2's KV: exit %s; %s; 'none configured': %s"
           % ("as predicted" if ok else "OFF-PREDICTION", c, summary(o), "bench boards: none configured" in o))
 
+# --- RC1-RC4 and RC-S1: the route mirror's age line (docs/route-mirror-age.md, section 3) ----------------------------
+# route_mirror_lines is run on /healthz bodies built here: no network. Whole lines are compared, never fragments.
+RB = "2026-08-26T17:25:54.476Z"
+
+
+def rc(mod) -> dict:
+    body = lambda routes: json.dumps({"ok": True, "commit": "EXAMPLE", **({"routes": routes} if routes is not None else {})})
+    fresh = {"builtAt": RB, "ageDays": 3, "rows": 619103, "stale": False, "maxAgeDays": 14}
+    res = {}
+    lines, warn = mod.route_mirror_lines(body(fresh))
+    res["RC1"] = lines == ["  Route mirror (rt:): built %s, 3 d old, 619103 rows (limit 14 d)" % RB] and warn == []
+    lines, warn = mod.route_mirror_lines(body(dict(fresh, ageDays=79, stale=True)))
+    res["RC2"] = (lines == ["  Route mirror (rt:): built %s, 79 d old, 619103 rows (limit 14 d)  <== STALE" % RB]
+                  and warn == ["route mirror: 79 d old, past its 14-day limit"])
+    lines, warn = mod.route_mirror_lines(body(None))
+    res["RC3"] = warn == ["route mirror: /healthz has no routes field (a Worker before docs/route-mirror-age.md)"]
+    lines, warn = mod.route_mirror_lines(None)
+    res["RC4"] = warn == ["route mirror: could not read /healthz"]
+    return res
+
+
+import json  # noqa: E402
+got = rc(load(SRC))
+red = sorted(k for k, v in got.items() if not v)
+off += bool(red)
+print("RC (the real source): %s -- red %s" % ("as predicted" if not red else "OFF-PREDICTION", red or "none"))
+RC_ANCHOR = '    if r.get("stale") is not False:\n'
+if SRC.count(RC_ANCHOR) != 1:
+    off += 1
+    print("RC-S1: BLIND -- its anchor was found %d times" % SRC.count(RC_ANCHOR))
+else:
+    # RC-S1: the warning branch removed (a stale age reads as fresh), and every early warning silenced.
+    planted = SRC.replace(RC_ANCHOR, "    if False:  # SABOTAGE RC-S1\n").replace(
+        '["route mirror: could not read /healthz"]', "[]").replace(
+        '["route mirror: /healthz has no routes field (a Worker before docs/route-mirror-age.md)"]', "[]")
+    assert planted != SRC
+    got = sorted(k for k, v in rc(load(planted)).items() if not v)
+    ok = got == ["RC2", "RC3", "RC4"]
+    off += not ok
+    print("RC-S1: %s -- red %s (want ['RC2', 'RC3', 'RC4'])" % ("as predicted" if ok else "OFF-PREDICTION", got))
+
 print("SELFTEST PASSED" if not off else "SELFTEST: %d row(s) off" % off)
 sys.exit(1 if off else 0)
