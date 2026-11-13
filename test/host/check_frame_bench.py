@@ -9,7 +9,8 @@
   FB-R1  the cloud-poll region (framebench::OnCloudPoll) exists exactly once, inside a region, inside the cloud branch
          after CloudFeed::ParseBlips and before the local branch
   FB-R2  in FrameBench.h, the recorder prints a body only after the `if (!homeOk)` branch has returned
-  FB-R3  git tracks no recording and no generated recording header (names holding framebench_rec, *.fbrec, recordings/)
+  FB-R3  git tracks no recording and no generated recording header (framebench_rec_gen.h, *.fbrec, recordings/);
+         the generator scripts/framebench_rec.py is code and is tracked
   FB-R4  no print in a region or in FrameBench.h carries a latitude or longitude value
   FB-R5  FrameBench.h's airport strings equal include/Airports.h's values at 2 dp, code by code
   FB-R6  the rung set is the single kRungs[] constant: one definition, and no other {25, 50, 100}-style list
@@ -30,7 +31,7 @@ NVS = re.compile(r"\bPreferences\b|\.put[A-Z][A-Za-z]*\(|\bnvs_|\bSPIFFS\b|\bLit
 HEADER = "include/FrameBench.h"
 COORD = re.compile(r"kAptLat|kAptLon|kHomeLat|kHomeLon|latSent|lonSent|req->lat|req->lon|\blat0\b|\blon0\b|\.latitude|\.longitude")
 PRINT = re.compile(r"Serial\.(print|printf|println)\s*\(")
-TRACKED_REC = re.compile(r"framebench_rec|\.fbrec$|(^|/)recordings/")
+TRACKED_REC = re.compile(r"framebench_rec_gen\.h|\.fbrec$|(^|/)recordings/")
 
 
 def load(tree):
@@ -257,6 +258,10 @@ def selftest(tree):
     rc |= plant("FB-R2, the home-match gate disabled", r2, "FB-R2")
     rc |= plant("FB-R3, a recording tracked", lambda f: None, "FB-R3",
                 lst=(listing or []) + ["bench/framebench_rec_SFO.fbrec"])
+    rc |= plant("FB-R3, the generated header tracked", lambda f: None, "FB-R3",
+                lst=(listing or []) + ["include/framebench_rec_gen.h"])
+    rc |= plant("FB-R3 CONTROL, the generator script tracked", lambda f: None, set(),
+                lst=sorted(set((listing or []) + ["scripts/framebench_rec.py"])))
     rc |= plant("FB-R4, a coordinate printed", r4, "FB-R4")
     rc |= plant("FB-R5, one airport digit changed", r5, "FB-R5")
     rc |= plant("FB-R6, a second rung list", r6, "FB-R6")
