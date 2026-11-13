@@ -5,8 +5,8 @@
 frozen before a line of it exists. The predictions come from a measured scratch prototype (`pqh`, a copy of part 2's pinned prototype
 `pq4d` with this rule's knobs) and from the rule's Python twin, cited by sha256 (first 12).
 
-**The owner's pick is open.** One line of this file, section 5's OPTION, is the owner's to set: E1 at KEWR only, E1 wherever the margin
-is thin (a rule, defined below), or E2. The rule itself (sections 2 and 3) is the same under all three.
+**The owner's pick is made: (b), the rule** (section 5's OPTION; his answer and what it measured, section 5a). The three options were:
+E1 at KEWR only, E1 wherever the margin is thin (a rule, defined below), or E2. The rule itself (sections 2 and 3) is the same under all three.
 
 ## 1. What the owner asked for, and why the first rule was wrong
 
@@ -112,12 +112,13 @@ owner's to choose.
 
 ## 5. The predictions (frozen)
 
-**OPTION: _the owner's pick: (a), (b) or (c)_** -- the only line that changes. Each option's packages are below, measured on the
+**OPTION: (b), the RULE** -- the owner, 15:35Z 2026-11-13, relayed verbatim by the orchestrator at 16:33:35Z: *"The Hudson (#682):
+the rule. Show me Boston's picture under it before it ships."* -- the only line that changes. Each option's packages are below, measured on the
 prototype; the PR's builder must reproduce the chosen one byte for byte.
 
 | row | input | predicted |
 |---|---|---|
-| **HR-PKG** | the Hudson PR's builder on the prototype's sea store (`sea-obj`, store e9ef04165ba2), the 16 points, the client's query, as P2-1 | byte-identical to: **(all options)** KMIA 1a338238fbc8, KSFO 4d03beecdb4b, KSEA 9bd5b34d6718, KORD cb59bb06a506, KDTW 682208bf2fb2, KMSP b694c01dc502, KIND 89a4195fa4be, KJAC 42c32cd8578e, BUFFALO 52fad5e317f3, ROUSES afe7554245b8, ZAPATA e2ddaa00ecaf (run 10's); **(a)** KBOS 9af5f9e0ce25, KJFK 4737c48e436a, KLGA e7f0af9d9fba, KEWR e5333b0c570a, MIDTOWN 8377065310f7; **(b)** KEWR e5333b0c570a, MIDTOWN af608ebcddb4, KJFK 227ecbddfdf7, KLGA e7f0af9d9fba, KBOS **to be measured and frozen before the PR, if (b) is picked**; **(c)** KBOS 9af5f9e0ce25, KJFK 4737c48e436a, KLGA e7f0af9d9fba, KEWR f77f3911ae3a, MIDTOWN 8377065310f7. Any byte difference stops |
+| **HR-PKG** | the Hudson PR's builder on the prototype's sea store (`sea-obj`, store e9ef04165ba2), the 16 points, the client's query, as P2-1 | byte-identical to: **(all options)** KMIA 1a338238fbc8, KSFO 4d03beecdb4b, KSEA 9bd5b34d6718, KORD cb59bb06a506, KDTW 682208bf2fb2, KMSP b694c01dc502, KIND 89a4195fa4be, KJAC 42c32cd8578e, BUFFALO 52fad5e317f3, ROUSES afe7554245b8, ZAPATA e2ddaa00ecaf (run 10's); **(a)** KBOS 9af5f9e0ce25, KJFK 4737c48e436a, KLGA e7f0af9d9fba, KEWR e5333b0c570a, MIDTOWN 8377065310f7; **(b)** KEWR e5333b0c570a, MIDTOWN af608ebcddb4, KJFK 227ecbddfdf7, KLGA e7f0af9d9fba, KBOS **7402f8cee0f5** (HR-KBOS-E1, section 5a: measured as predicted and frozen, 2026-11-13); **(c)** KBOS 9af5f9e0ce25, KJFK 4737c48e436a, KLGA e7f0af9d9fba, KEWR f77f3911ae3a, MIDTOWN 8377065310f7. Any byte difference stops |
 | **HR-CTRL** | the same builds | MIDTOWN keeps rings 91 and 132; KEWR keeps record 27 (the seam ring at the river mouth; at 103.68 km, the seam ring whose box matches within 0.1 km); KBOS's next unit is the 6.6 km2 ring |
 | **HR-TWIN** | the twin's units vs the PR's units, the 16 points | equal, unit for unit, at every point that drops water |
 | **HR-MEM** | the PR's sea build with the rule minus without, P2-M's instrument, per phase | **at most +1.0 MiB** at the ladder phase at each of the five points (the eligible rings' count bytes, measured by the twin: KBOS 656,575 B, KJFK 558,296, KLGA 532,120, KEWR 490,901, MIDTOWN 514,929). A stop above it |
@@ -169,7 +170,7 @@ KEWR goes from 25 water rings to 130 under (a), MIDTOWN, KJFK and KLGA gain ring
   | MIDTOWN | 20a22bed5510 | 8377065310f7 | af608ebcddb4 | 8377065310f7 |
   | KJFK | 52ac9dc39de0 | 4737c48e436a | 227ecbddfdf7 | 4737c48e436a |
   | KLGA | feb6ef3bdf04 | e7f0af9d9fba | e7f0af9d9fba | e7f0af9d9fba |
-  | KBOS (it changes under every option, so it runs too) | f21d705d8b8a | 9af5f9e0ce25 | measured first if (b) | 9af5f9e0ce25 |
+  | KBOS (it changes under every option, so it runs too) | f21d705d8b8a | 9af5f9e0ce25 | 7402f8cee0f5 | 9af5f9e0ce25 |
   | KORD (the control: unchanged under every option) | cb59bb06a506 | cb59bb06a506 | cb59bb06a506 | cb59bb06a506 |
 
 - **Graded:** the p95 of `p2p` (present to present), the option's package minus run 10's, at each point and rung, **<= M**; `fr`
@@ -195,8 +196,9 @@ KEWR goes from 25 water rings to 130 under (a), MIDTOWN, KJFK and KLGA gain ring
 **Outside the set: stop and report, no reading.** Any HR-PKG byte; a control otherwise; the twin and the PR disagreeing; a limit
 crossed; a plant passing under its sabotage; any of the 11 other points changing; FT-HR over M (3.08 ms), or KORD's A/A over 3.08 ms.
 
-**This PR merges only after:** the owner's pick written into OPTION with that option's rows; (b)'s KBOS measured and frozen, if (b);
-and FT-HR's reading inside M. Its base is re-carried by tree at that moment.
+**This PR merges only after:** the owner's pick written into OPTION with that option's rows (done: (b)); (b)'s KBOS measured and
+frozen (done: 7402f8cee0f5, section 5a); **the owner has looked at Boston's two pictures** (section 5a; the orchestrator's 16:33:35Z
+condition); and FT-HR's reading inside M. Its base is re-carried by tree at that moment.
 
 ### 5a. The owner's pick, open between two forms, and both scratch builds registered before either runs
 
@@ -222,6 +224,88 @@ The question is with the owner, at the top of his digest. **Nothing goes into OP
 
 **The bench (held after 06:04Z):** one shared no-hands window for FT-SEA and FT-HR on E2:08, 11-16 04:00-07:30Z, after map-client's v20 bench. It is granted on a frozen manifest. The packages are frozen once the chosen build reads.
 
+### 5b. The owner's answer: the rule. HR-KBOS-E1 read as predicted; Boston's pictures
+
+**The owner (15:35Z 2026-11-13, relayed verbatim by the orchestrator at 16:33:35Z):** "The Hudson (#682): the rule. Show me Boston's
+picture under it before it ships." **The orchestrator's reading:** option (b) as registered. Newark, Midtown and JFK coarsen,
+LaGuardia stays as it is, and Boston coarsens too; it is not "exactly the four NY maps". (b)'s frozen predictions stand.
+**HR-KLGA-E1 (the fixed list) was not run.**
+
+**HR-KBOS-E1, run 16:37:49Z** (`bash runlog.sh hr-kbos-e1 bash hr-kbos.sh`; KBOS only; the predictions above were pushed at 7c5e2872
+first). **11 of 11 AS PREDICTED:**
+
+| row | read |
+|---|---|
+| C1, control: run 10's KBOS rebuilt today | f21d705d8b8a, byte-identical (FT-HR's run-10 column) |
+| C2, control: the rule as is at KBOS rebuilt today | 9af5f9e0ce25, byte-identical |
+| C3, control: KBOS's water ring total, three ways | 242, 242, 242 (run 10's 197 + 45 dropped; the rule's 188 + 54; the sequence's n) |
+| C4, control: the forced E1 fired | "forced at 162000000 (rung 7 fitted)" |
+| radius | 162 km |
+| rung | 9 |
+| nothing dropped | 242 of 242 water rings; dropped.water 0 |
+| status | kOk |
+| non-terrain bytes | 32,760 (at most 32,768) |
+| proper crossings | 0 over 242 rings (each water ring's own edges, as P2-1: roads are not in this row) |
+| the 2-ring 6.7 km2 body whole | rings 162 and 165 present: 6.67 km2 (ring areas added, as margin.json's 6.7), box x 13.0..15.4, y -62.4..-56.8 km |
+
+Beside the rows: every ring of run 10's KBOS package is in it (0 missing of 197); lines at 1.61 km. **(b)'s KBOS is 7402f8cee0f5**
+(211,400 B), now in HR-PKG and FT-HR's table, and staged for FT-HR as
+`C:\Github\_handoffs\map-server\frame-row-packages-hudson\KBOS-S08-F162.bmpk`, read back after the copy: sha256
+7402f8cee0f53efc123b06607d46f4a69b62ee76618154790bff9dfebd08c302.
+HR-MEM-E1 at KBOS (at most +2.0 MiB) is the code PR's row and is not measured here.
+
+**FT-HR's packages under (b):** KEWR e5333b0c570a, MIDTOWN af608ebcddb4, KJFK 227ecbddfdf7, KLGA e7f0af9d9fba (unchanged),
+KBOS 7402f8cee0f5; KORD cb59bb06a506 the control.
+
+**Boston's two pictures, for the owner** (in `C:\Github\_handoffs\map-server\hudson-boston\`, outside every git tree; each file named
+by its own sha256; not opened by this session):
+
+| file | the package | from |
+|---|---|---|
+| KBOS-today-f5214e3dbaed.png (81,666 B) | f21d705d8b8a, run 10's KBOS | `pqh` with no Hudson knobs, sea store `sea-obj` e9ef04165ba2 |
+| KBOS-rule-8b3b2d19d695.png (81,053 B) | 7402f8cee0f5, (b)'s KBOS | `pqh`, the rule's units + E1 forced at 162 km, the same store |
+
+- **The renderer:** hb-pics.py's drawing, unchanged: the s3-128's Dark colours, north up, a 240 px disc x3, no terrain shading.
+- **The views:** 100, 50 and 10 mi, the same in both files.
+- **A GREEN outline,** the same in both: the 45 rings the rule's map draws and today's does not, 69 km2 of visible water. Water lost to
+  land: 0 px at every view; the 29 water->road px at 100 mi are coarser roads drawn over water.
+- **An ORANGE label on each of the 4 bodies today's map splits** (drops part of), which the rule keeps whole.
+- **Line pixels that change:** 996, 1,676 and 1,103 at 100, 50 and 10 mi. Boston's lines go from 0.40 km to 1.61 km (4x).
+
+**Q1 (the orchestrator, 16:41:26Z): the labels' areas.** **The ORANGE labels print the ring areas ADDED** (a body's overlaps counted
+twice): the registration's quantity (margin.json, hb-margin.py), and HR-KBOS-E1's graded 6.67. **What is drawn is the union.** The
+owner's digest uses the drawn set (the orchestrator, 16:45Z); the pictures are not re-rendered.
+
+| body | where | label (ring areas added), km2 | drawn (union), km2 | overlap, km2 | today drops, the rule shows again, km2 |
+|---|---|---|---|---|---|
+| rings 162, 165 | 62 km NE (~42.90 N, 70.83 W) | 6.7 | 6.5 | 0.15 | 2.5 |
+| rings 138, 152, 155 | 153 km NW | 7.9 | 7.5 | 0.35 | 4.0 |
+| rings 24, 45 | 154 km NE | 11.9 | 11.3 | 0.60 | 2.7 |
+| rings 95-98 | 133 km SW, by Springfield | 23.4 | 23.4 | 0.03 | 1.9 |
+
+The first is in the 100 and 50 mi views (about 2 x 4 and 4 x 8 px at device scale); the other three in the 100 mi view only. None
+is inside 10 mi.
+
+**Q2 (the orchestrator, 16:41:26Z): the hatched band south of the centre in the rule's 10 mi view.**
+- **The object.** The I-93 / US 1 / Route 3 corridor south of downtown (the Southeast Expressway). TIGER's Massachusetts roads file
+  holds it as many separate primary lines: each carriageway, each route name sharing the pavement, and the HOV lanes. Primary records
+  whose bounding box meets the corridor: 48 (I-93 4, Southeast Expy 4, State Rte 3 4, Sargeant William G Walsh Expy 4, US Hwy 1 2,
+  US Rte 1 2, I-93 Sb/Nb HOV Lane 1 each, among others). That box test is loose. The packages carry 36 distinct lines along the
+  corridor today and 37 under the rule.
+- **Why hatched and not just straighter.** Each line is simplified on its own.
+  - At 0.40 km (3 px at 10 mi), every copy stays within 3 px of the road. They stack in a 0.2-2.8 px band (y = 2-15 km) and cross
+    401 times inside it: one line.
+  - At 1.61 km (12 px), each copy keeps different vertices and strays its own way. The band fans to 4-8 px mid-corridor and 12.2 and
+    16.3 px at 14-15 km south, and they cross 116 times, each crossing now wide: the hatching.
+  - Each line still sits within 1.6 km of its own true path, as section 4 stated.
+- **Against the rows: outside every registered row.** "0 proper crossings" is water rings only, and no row grades how a road looks.
+  The registration stated the line cost as a distance only (section 4; (b)'s KBOS cell). The orchestrator (16:45Z): "That isn't a
+  miss in your run; the registration simply never named it. The owner now sees it and decides." No fix is proposed. Whether the New
+  York E1 maps show the same is not measured; their pictures are rendered only if the owner asks.
+- **For later (the orchestrator, 16:45Z):** any future change to line simplification registers a road-look row: band width and
+  crossing count over a named multi-line corridor at the 10 mi view, by hb-kbos-road.py's measure, with a picture, the band width
+  predicted before the run.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
@@ -236,6 +320,16 @@ GitHub-side re-run rule applies. Anything else: stop and report.
   this writing). One workflow landed on main since 5cdc8bd8: #671's `account-budget.yml`, which runs on a pull request ONLY when it
   touches the budget's own paths (docs/account-budget.*, scripts/account_budget.py, tools/budget/**, the workflow itself). This PR
   touches none, so it adds no check run here. Any further workflow change before the run starts is read first.
+- **Read at 1f4d05928:** 32 = 30 / 2 / 0 as predicted, tested on "Merge 1f4d05928... into eed76e5ec332...".
+- **7c5e2872's push (section 5a) carried NO CI prediction: an omission, recorded here.** It read **33 = 31 / 2 / 0**, tested on
+  "Merge 7c5e2872... into b7e7fdd99884...". The 33rd run is `build (blipscope-s3-128-cardbench)`, a firmware matrix leg that #674
+  (c8140f8a) added on main before that base.
+- **Predicted for this head (section 5b):** main is aa40aa43d8c9 at this writing. Its workflow changes since b7e7fdd99884 add STEPS
+  only: three in `device-ids.yml`'s existing job (the wrangler-call check, its selftest, the helper's selftest) and steps in
+  `workers.yml`, which runs no job for this PR's paths (none of the last three runs has a workers job). So **33 check runs: 31
+  success, 2 skipped (`promote`, `version`), 0 failed**, tested on the merge into main as it then stands, read from the run's own
+  checkout log. A new red from `ship-alert` reads INSTRUMENT. Any further workflow change before the run is read first; anything else:
+  stop and report.
 
 ## 7. Where the measurements are (scratch, sha256 first 12)
 
@@ -247,3 +341,10 @@ GitHub-side re-run rule applies. Anything else: stop and report.
 - The raster: hb-raster2.py fdc7bc2db6fd; the parity run hb-parity.py d50b1fcee522.
 - The owner's pictures (in the hand-off folder, opened only by him): KEWR-E1-vs-E2 b68198ccb84e, MIDTOWN-rule bf673465abd0, KJFK-rule
   824d0f672584, KLGA-rule 21cba0040b84, KBOS-before-after 03a9944ce204.
+- HR-KBOS-E1 (section 5b): the driver hb-drive.py 7f7f2af97ae0 (configs S08-F162, A0-anc and S08-anc added; the others unchanged),
+  hr-kbos.sh 3fdadc6dc87a, the grader hr-kbos-grade.mts 0d824a983cd8; outputs hb-out/S08-F162.json 8cc6f560453d, A0-anc.json
+  5c08fb69d59d, S08-anc.json 2695f32edc89; the run's stdout 76c91301a590.
+- Boston's pictures (section 5b): hb-kbos-pics.py c63a4a580b0a (stdout 8a9ad19aedf2), the pixel breakdown hb-kbos-pxcheck.py
+  19a136092cf4, the road measure hb-kbos-road.py 3655d636f598 (stdout b77c7c9a0d72); the package dumps KBOS-A0-anc.bmpk.full.json
+  4f0336de03e2 (equal to KBOS-A0's) and KBOS-S08-F162.bmpk.full.json b5740246b773. The files: KBOS-today f5214e3dbaed, KBOS-rule
+  8b3b2d19d695.
