@@ -3544,3 +3544,9 @@ the matching prototype plant (`pq4d-seaci.mts` in plant mode, every fixture at t
 
 **Outside the set: stop.** A test that does not read as registered on the shipped code, a sabotage whose red set differs in either
 direction, an edit that does not apply exactly once, or a restore whose sha256 differs.
+
+**T-SEALOG, amended (the orchestrator, after 02:29:02Z), before its test ran:** the limit's code is covered directly. `seaRepairLines()`
+is the one source of the production lines, and a 500 carrying repair counts takes its one branch, so the limit path is not a second path.
+T-SEALOG also feeds it a synthetic `sea_repair_limit` result whose `why` carries a record key and a point (the harness's full line, as the
+builder makes it) and asserts the same properties: one line, the counts-only format, no `/\d\.\d/`, no `/\d+\/\d+/`. S-SEALOG-POINT's red
+set is unchanged, **{T-SEALOG}**: the same test reads red on all three builds.
