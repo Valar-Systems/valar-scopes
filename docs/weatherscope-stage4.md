@@ -2281,3 +2281,11 @@ one, its own arithmetic. The row's formula, ageDays = floor(t − builtAt), is r
 **D1 waits for the reviewer's ruling on this amendment.** The reads before it (R-main, R0, B0, B-probe, B-claim) and
 staging's rows (S1, D-S1, S2, S3) do not depend on it and may run first. R0 and B0 are re-read right before D1 if more
 than 15 minutes pass.
+
+**The reviewer's ruling, 16:45:28Z** (crossed with the amendment above, which was pushed at 16:46:55Z):
+- D-P1's numbers are 78 / 79 / 80 as above, and the formula and every other field are unchanged.
+- **The ruling's boundary guard replaces mine:** a D-P1 read whose `date -u` stamp falls within ±60 s of 17:25:54Z
+  (17:24:54Z to 17:26:54Z) is NOT graded. It is re-read at or after 17:27:00Z and graded against 79. The same
+  applies to D-P3's routes line.
+- An off reading after this amendment is off, and the rollback rule applies as registered.
+- D1 no longer waits: the ruling is in.
