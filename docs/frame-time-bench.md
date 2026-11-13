@@ -1456,7 +1456,9 @@ unchanged" is recorded as an ASSUMPTION, not a finding.
   row M3-3P: a spin there reads red, because the push task outranks the loop on its core); the loop's +10 ms by
   `delayMicroseconds` before `RecordFrameUs` (I-6's).
 - **M3-3's second instrument, read two ways (p4's written agreement, quoted below):** (a) `[m3] push_avg_us` is a
-  since-boot average (main.cpp :151-152, 243-252), so the reader WINDOWS it between consecutive reports, counting only
+  since-boot average (at `3bc7ec26fe28`, main.cpp :151 `g_pushes`, :152 `g_pushUsSum`/`g_syncUsSum`, :153
+  `g_pushUsMax`; the push task's sums at :243-246 and its report at :247-256, whose only resets are `g_pushUsMax` and
+  `g_waitUsMax` at :255-256), so the reader WINDOWS it between consecutive reports, counting only
   windows wholly inside a measured span and printing how many; (b) the bench's own per-scene push average and push-time
   histogram (1 ms bins), from a B-only region in the push task. p4's bands apply to each; (a) and (b) differing by more
   than 0.5 ms is the INSTRUMENT; a span with no window for (a) is graded on (b) alone, and says so.
@@ -1467,12 +1469,18 @@ unchanged" is recorded as an ASSUMPTION, not a finding.
 > correct plant. That's my miss: I wrote the band against the line's shape without reading its denominator. READ
 > BOTH, (a) and (b), as you propose."
 
+(Non-grading note: the quote's line numbers are one early at `3bc7ec26fe28`. Read from that tree, the counters are
+:151-152 and the resets :255-256, as cited above; the finding is unchanged.)
+
 ### PG-1, C1's substitute (the orchestrator's acceptance; p4's proposal)
 
 > p4: "Your per-frame STATE bit, wxShowing == Crop, on EVERY measured frame. This replaces (a): the layer was
 > composited. A /diag/fb PIX-WX read in each arm's span: weather-coloured pixels present. This rules out a dry layer,
 > which blends less and reads faster. (b) unchanged. Plants: a weather-off arm's frames (P0-shaped) must read
 > INSTRUMENT on the STATE bit, and a dry-layer grab must read INSTRUMENT on PIX-WX."
+
+(Non-grading note, p4's: "(b) unchanged" as quoted here is superseded by the exact (b) below (`2caa62954f87`), because
+the original (b) named no line.)
 
 - **STATE:** flag bit 2 (`wxShowing == Crop`) on every measured frame, else the INSTRUMENT. Bit 3 (the map) on no
   frame. Bit 4 (night) recorded.
