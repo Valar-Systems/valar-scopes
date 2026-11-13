@@ -238,7 +238,8 @@ function seaStage(cache: string, log: FetchLog, files: ManifestFile[], index: Ma
   const oceanF = one("sea", /\/ne_10m_ocean\.zip$/), lakesF = one("sea", /\/ne_10m_lakes\.zip$/), adminF = one("naturalearth", /\/ne_10m_admin_0_countries\.zip$/);
   const states = shp(one("states", /\/tl_2024_us_state\.zip$/).url).filter((r) => !TERRITORY_FIPS.has(r.attrs["STATEFP"]!));
   if (states.length !== 51) throw new Error(`${states.length} states + DC, not 51`);
-  const extent = seaExtent(coverageSegments(encodeCoverage(coverageRows(states.map((r) => r.parts.map((xy) => ({ xy })))))));
+  const cov = encodeCoverage(coverageRows(states.map((r) => r.parts.map((xy) => ({ xy })))));
+  const extent = seaExtent(coverageSegments(cov));
   const srcs = seaSources(shp(oceanF.url), shp(lakesF.url), shp(adminF.url));
   const { byCell, stats: cut } = seaPieces(extent, srcs);
   const km2 = (r: Array<[number, number]>) => { let s = 0; const c0 = Math.cos((r[0]![1] * Math.PI) / 180); for (let i = 0; i < r.length - 1; i++) s += r[i]![0] * r[i + 1]![1] - r[i + 1]![0] * r[i]![1]; return Math.abs(s / 2) * 111 * 111 * c0; };
@@ -257,7 +258,8 @@ function seaStage(cache: string, log: FetchLog, files: ManifestFile[], index: Ma
   return {
     features, regions,
     stats: { files: 2, records: record, kept: 0, vertices: 0, bytes: 0 },
-    pieceStats: { extentCells: extent.size, cellsWithSea: Object.keys(byCell).length, pieces: cut.pieces, islandsKept: cut.kept, islandsDropped: cut.dropped,
+    // S-3: the in-memory coverage's sha256, for SEA-STORE to compare with the coverage step's coverage.bin
+    pieceStats: { coverageSha256: createHash("sha256").update(cov).digest("hex"), extentCells: extent.size, cellsWithSea: Object.keys(byCell).length, pieces: cut.pieces, islandsKept: cut.kept, islandsDropped: cut.dropped,
       oceanOuters: srcs.ocean.length, lakesRead: srcs.stats.lakesRead, lakesSelected: srcs.lakes.length, lakesInsideUs: srcs.stats.inside, lakesSmall: srcs.stats.small,
       holesNotInOneOuter: srcs.stats.notInOne },
     // SEA-STORE's S-4 sidecar (not a store object): the selection and the extent in PARITY's own field names, so the store's pieces can be
