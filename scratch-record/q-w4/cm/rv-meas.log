@@ -1,0 +1,15 @@
+MEASUREMENT, not graded. start=19:25:48Z
+KBOS     200 ce5b1ea7589e mem 56.70 MiB at "ladder" (59.5 MB) phases {"cell":47.24,"tile":53.45,"tiles":53.33,"terrain":53.58,"layers":56.62,"ladder":56.7,"end":9.49}
+KJFK     422 238588/196364/176124/40366 mem 58.54 MiB at "ladder" (61.4 MB) phases {"cell":55.26,"tile":55.3,"tiles":55.2,"terrain":55.45,"layers":58.51,"ladder":58.54,"end":8.9}
+KLGA     422 249684/205868/186014/41061 mem 60.01 MiB at "ladder" (62.9 MB) phases {"cell":55.2,"tile":56.73,"tiles":56.61,"terrain":56.85,"layers":59.98,"ladder":60.01,"end":8.88}
+KEWR     422 256169/210479/189029/41370 mem 60.81 MiB at "ladder" (63.8 MB) phases {"cell":52.48,"tile":57.5,"tiles":57.39,"terrain":57.64,"layers":60.77,"ladder":60.81,"end":9.47}
+MIDTOWN  422 253966/208947/188359/41610 mem 58.11 MiB at "ladder" (60.9 MB) phases {"cell":50.57,"tile":54.8,"tiles":54.7,"terrain":54.95,"layers":58.08,"ladder":58.11,"end":8.89}
+KMIA     200 000dde33cc42 mem 39.39 MiB at "ladder" (41.3 MB) phases {"cell":22.31,"tile":37.12,"tiles":37.07,"terrain":37.32,"layers":39.29,"ladder":39.39,"end":8.86}
+KSFO     200 399cb059f84a mem 39.21 MiB at "ladder" (41.1 MB) phases {"cell":20.25,"tile":36.9,"tiles":36.85,"terrain":37.1,"layers":39.12,"ladder":39.21,"end":9.46}
+KSEA     200 69ff5b17e2ee mem 49.18 MiB at "ladder" (51.6 MB) phases {"cell":23.87,"tile":46.9,"tiles":46.82,"terrain":47.07,"layers":49.09,"ladder":49.18,"end":11.02}
+KORD     200 b54fa953fef7 mem 45.79 MiB at "ladder" (48.0 MB) phases {"cell":29.55,"tile":42.92,"tiles":42.88,"terrain":43.12,"layers":45.7,"ladder":45.79,"end":6.24}
+KDTW     200 8976db34bf1a mem 47.13 MiB at "ladder" (49.4 MB) phases {"cell":24.18,"tile":44.47,"tiles":44.4,"terrain":44.65,"layers":47.05,"ladder":47.13,"end":6.97}
+KMSP     200 863f7f2955a7 mem 47.27 MiB at "ladder" (49.6 MB) phases {"cell":29.57,"tile":44.77,"tiles":44.71,"terrain":44.96,"layers":47.19,"ladder":47.27,"end":7.46}
+KIND     200 f740fbc3f99e mem 50.85 MiB at "ladder" (53.3 MB) phases {"cell":33.69,"tile":47.96,"tiles":47.89,"terrain":48.13,"layers":50.77,"ladder":50.85,"end":7.09}
+KJAC     200 b3f428e5860e mem 38.88 MiB at "ladder" (40.8 MB) phases {"cell":17.48,"tile":36.63,"tiles":36.58,"terrain":36.83,"layers":38.75,"ladder":38.88,"end":8.47}
+end=19:26:18Z; figures written to rv-meas.json

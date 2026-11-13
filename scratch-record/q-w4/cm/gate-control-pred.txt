@@ -1,0 +1,4 @@
+gate control, predicted before it runs (2026-11-13T07:24:18Z):
+(a) a dummy node process with "sabotage-gate-control" in its command line running: cm-run.py gate reads "vitest/sabotage processes 1" and STOPs (exit 1)
+(b) the dummy killed and shown gone: cm-run.py gate reads 0 and prints "gate: PASSED" (exit 0)
+Outside this: the gate is in doubt -> stop.

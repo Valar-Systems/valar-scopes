@@ -1,0 +1,14 @@
+rkmsp at 2026-11-13T07:24:35Z: TIME_WAIT 60, vitest/sabotage processes 0, C: free 42.8 GB
+  pin cm/dr-cm.mts 3a98e065bd05
+  pin cm/mk-cm.mjs 751201f6d83f
+  pin cm/cp/proxy/src/basemap/build.ts 15c19c728dea (registered 15c19c728dea)
+  pin cm/main/proxy/src/basemap/build.ts f60ae55f45d9 (registered f60ae55f45d9)
+R-KMSP: KMSP's collapsed.water and refused equal those of KMSP built at eps x 8 with no cap (rung 0); the control refusedBuilt >= 1
+    cp/orig/KMSP: 200 rung 3 dc13ef49694d peak 51.70 MiB at ladder (54.2 MB); steps [51.7]; phases cell 33.66, tile 49.01, tiles 48.95, terrain 49.19, layers 51.66, ladder 51.70, end 6.86; 2439 ms
+    cp/orig/KMSP/nocap8: 200 rung 0 8096ddc6218f peak 49.77 MiB at layers (52.2 MB); steps [49.77]; phases cell 31.69, tile 47.14, tiles 47.07, terrain 47.32, layers 49.77, ladder 49.77, end 7.52; 2159 ms
+  the comparison build is what the row names: eps x 8, no cap, rung 0, one step: AS PREDICTED (rung 0, radii [162], tolerance 1609344 mm)
+  R-KMSP's control: refusedBuilt >= 1 on the client's build: AS PREDICTED (refusedBuilt 2)
+  R-KMSP: collapsed.water equal: AS PREDICTED (273 vs 273)
+  R-KMSP: refused equal: AS PREDICTED (0 vs 0)
+  recorded, not graded: the prototype's QW4-C1 figures refused 0, refusedBuilt 2, the drawn set's collapsed.water 273; the code's: refused 0, refusedBuilt 2, collapsed.water 273; rung 3, ntb 32745, crossings 0
+rkmsp: ALL AS PREDICTED at 2026-11-13T07:24:40Z (2 builds)

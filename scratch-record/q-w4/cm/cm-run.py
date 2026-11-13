@@ -7,7 +7,7 @@
 import hashlib, json, os, shutil, subprocess, sys, time
 D = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); P = os.path.join(D, "wt-main", "proxy")
 GROUP = sys.argv[1] if len(sys.argv) > 1 else ""
-if GROUP not in ("rkmsp", "rd2", "seamem", "cm"): print("usage: rkmsp|rd2|seamem|cm"); sys.exit(2)
+if GROUP not in ("rkmsp", "rd2", "seamem", "cm", "gate"): print("usage: rkmsp|rd2|seamem|cm|gate"); sys.exit(2)
 B, MiB = 0.785, 1024 * 1024
 NY = ["KJFK", "KLGA", "KEWR", "MIDTOWN"]
 P13 = ["KBOS", "KJFK", "KLGA", "KEWR", "MIDTOWN", "KMIA", "KSFO", "KSEA", "KORD", "KDTW", "KMSP", "KIND", "KJAC"]
@@ -22,10 +22,13 @@ def row(label, ok, detail):
 # ---- the gates and the pins
 def ps(cmd): return subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, text=True).stdout.strip()
 tw = int(ps("(Get-NetTCPConnection -State TimeWait -ErrorAction SilentlyContinue | Measure-Object).Count") or "-1")
-busy = int(ps("(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'vitest|sabotage-' } | Measure-Object).Count") or "-1")
+# the query's own command line holds the pattern, so it (and any shell wrapping it) is excluded by its own text (fixed 07:2xZ: the first
+# rkmsp attempt counted itself, 1, and stopped at the gate with no build run)
+busy = int(ps("(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'vitest|sabotage-' -and $_.CommandLine -notmatch 'Get-CimInstance Win32_Process' } | Measure-Object).Count") or "-1")
 free = shutil.disk_usage("C:/").free / 1e9
 print(f"{GROUP} at {now()}: TIME_WAIT {tw}, vitest/sabotage processes {busy}, C: free {free:.1f} GB")
 if not (0 <= tw < 2000) or busy != 0 or free < 30: stop("a gate (TIME_WAIT < 2,000, no vitest/sabotage process, >= 30 GB free)")
+if GROUP == "gate": print("gate: PASSED"); sys.exit(0)
 sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()[:12]
 PINS = {"cm/dr-cm.mts": None, "cm/mk-cm.mjs": None, "cm/cp/proxy/src/basemap/build.ts": "15c19c728dea", "cm/main/proxy/src/basemap/build.ts": "f60ae55f45d9"}
 for k, want in PINS.items():
@@ -79,8 +82,21 @@ elif GROUP == "seamem":
     plant_control("SEA-MEM's control", "sea")
     P2M = {"KBOS": 0.82, "KJFK": 0.78, "KLGA": 0.75, "KEWR": 0.71, "MIDTOWN": 0.72, "KMIA": 0.61, "KSFO": 0.40, "KSEA": 0.99, "KORD": 0.01, "KDTW": 0.36, "KMSP": 0.05,
            "KIND": 0.01, "KJAC": 0.02, "BUFFALO": 0.45, "ROUSES": 0.46, "ZAPATA": 0.28}
+    # the orchestrator's addition (after 07:23Z), recorded and NOT graded: run 10 recorded P2-M only as per-phase differences (sea minus
+    # no-sea) and peaks, never its no-sea build's absolute cell phase, so the check is made on the differences, cell loop included
+    R10 = os.path.join(D, "p2-runs", "p2-read.run10.out")
+    if sha(R10) != "fffce461d302": stop("run 10's output is not the pinned file")
+    P2MD = {}
+    for l in open(R10, encoding="utf-8"):
+        if "P2-M " in l and "RECORDED sea minus no-sea" in l:
+            h = l.split("P2-M ")[1].split(":")[0]
+            P2MD[h] = {kv.split()[0]: float(kv.split()[1]) for kv in l.split("per phase: ")[1].split(";")[0].split(", ")}
+    if sorted(P2MD) != sorted(P16): stop("run 10's P2-M rows did not parse at all 16")
     for h in P16:
         a, b = build("cp", "sea", h), build("cp", "orig", h)
+        PH6 = ("cell", "tile", "tiles", "terrain", "layers", "ladder")
+        print(f"  recorded, not graded ({h}): sea minus no-sea per phase, the code PR [P2-M run 10]: " + ", ".join(f"{k} {a['phases'][k] - b['phases'][k]:+.2f} [{P2MD[h][k]:+.2f}]" for k in PH6)
+              + f"; the code PR's no-sea build (no sea layer): cell {b['phases']['cell']:.2f}, ladder {b['phases']['ladder']:.2f} MiB")
         row(f"SEA-MEM {h}: the sea build is SEA-PKG's package (the tree from the commit builds what SEA-PKG built)", a["ok"] and a["sha"] == SEAPKG[h], f"{a.get('sha')} vs {SEAPKG[h]}")
         d = a["phases"]["ladder"] - b["phases"]["ladder"]
         row(f"SEA-MEM {h}: sea minus no-sea at the ladder phase within +/- 0.785 of P2-M's {P2M[h]:+.2f}", abs(d - P2M[h]) <= B,

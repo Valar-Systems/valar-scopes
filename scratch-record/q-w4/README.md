@@ -29,6 +29,14 @@ shipped code, and nothing here reads a credential, a board or a production servi
 | `seafig/control-drawn-sc.out`, `control-order.out` | 0870aeb5f944, 63e2066669ea | the control's readings: 5 off and 1 off, as predicted |
 | `seafig/u1-ksea.py` | 30bdaa902b56 | scope ruling u1's input hashes and the KSEA guard on the code PR's package |
 | `seafig/u1-ksea.out` | 3fc4621fda73 | its reading: 01ddfab4ae28 both sides; KSEA 0.886081 PASS |
+| `cm/mk-cm.mjs` | 751201f6d83f | the two trees from their commits: the code PR's byte-identical, main's with mk-hooks' seven lines (hooked build.ts f60ae55f45d9, #639's) |
+| `cm/dr-cm.mts` | 3a98e065bd05 | the memory child: dr-p2m.mts with the tree by name, the child-held plant, and R-KMSP's nocap8 mode |
+| `cm/cm-run.py` | 8a9400a4af7b | the driver, groups rkmsp / rd2 / seamem / cm / gate; `cm-run.272c0a2b7bf8.py` is the registered version whose gate matched itself |
+| `cm/gate-control-pred.txt` | a597def69d5d | the gate fix's control, predicted before it ran |
+| `cm/rkmsp.out`, `rd2.out`, `seamem.out`, `cm.out` | 7526f6d595bd, 803226cfa9ea, 4b9817bfc216, 6f571098aad2 | the four groups' readings, all AS PREDICTED |
+| `cm/seamem-builds.r4.json`, `cm-builds.r4.json` | 421312abd1fb, f4e7ce06c75e | the builds behind seamem and cm, floats rounded to 4 places. The full-precision files the doc cites (770f80633dbe, 373bc70b3512) stay in scratch: their 16-digit float tails trip the device-id hook |
+| `cm/rv-meas.log` | fc43b98c419e | #639's measurement run, CM-0's references (the only record of its cell phase) |
+| `cm/dr-q4c3.mts`, `pk-cp.mts`, `pk-grade.py` | b02b5a66d240, c9ac9a5c5a4f, 3d5f5c8a62f2 | the 5.6 package rows: QW4-C's child for pq4b's references, the code PR's twin, the grader |
 
 ## Regenerating
 

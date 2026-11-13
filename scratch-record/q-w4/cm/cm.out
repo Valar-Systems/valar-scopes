@@ -1,0 +1,67 @@
+cm at 2026-11-13T07:29:41Z: TIME_WAIT 51, vitest/sabotage processes 0, C: free 42.8 GB
+  pin cm/dr-cm.mts 3a98e065bd05
+  pin cm/mk-cm.mjs 751201f6d83f
+  pin cm/cp/proxy/src/basemap/build.ts 15c19c728dea (registered 15c19c728dea)
+  pin cm/main/proxy/src/basemap/build.ts f60ae55f45d9 (registered f60ae55f45d9)
+  u4: proxy/src/basemap's tree at e03e6c4d equals main's head's: AS PREDICTED (e03e6c4d 07649873ad4d, main 4abb65082f5e 07649873ad4d)
+CM-0: main's hooked builder at all 13, its peak and its cell phase within 0.785 of #639's measurement, and #639's answers
+    main/orig/KBOS: 200 rung 3 ce5b1ea7589e peak 56.07 MiB at ladder (58.8 MB); steps [56.07]; phases cell 46.74, tile 52.81, tiles 52.69, terrain 52.94, layers 55.99, ladder 56.07, end 8.87; 2496 ms
+  CM-0 KBOS: AS PREDICTED (200 ce5b1ea7589e vs 200 ce5b1ea7589e; peak 56.07 vs 56.70; cell 46.74 vs 47.24)
+    main/orig/KJFK: 422 rung -1 238588/196364/176124/40366 peak 58.52 MiB at ladder (61.4 MB); steps [58.52]; phases cell 55.25, tile 55.28, tiles 55.18, terrain 55.42, layers 58.49, ladder 58.52, end 8.88; 2683 ms
+  CM-0 KJFK: AS PREDICTED (422 238588/196364/176124/40366 vs 422 238588/196364/176124/40366; peak 58.52 vs 58.54; cell 55.25 vs 55.26)
+    main/orig/KLGA: 422 rung -1 249684/205868/186014/41061 peak 60.01 MiB at ladder (62.9 MB); steps [60.01]; phases cell 55.19, tile 56.73, tiles 56.61, terrain 56.86, layers 59.97, ladder 60.01, end 8.88; 2848 ms
+  CM-0 KLGA: AS PREDICTED (422 249684/205868/186014/41061 vs 422 249684/205868/186014/41061; peak 60.01 vs 60.01; cell 55.19 vs 55.20)
+    main/orig/KEWR: 422 rung -1 256169/210479/189029/41370 peak 60.81 MiB at ladder (63.8 MB); steps [60.81]; phases cell 52.46, tile 57.50, tiles 57.39, terrain 57.64, layers 60.78, ladder 60.81, end 9.47; 2726 ms
+  CM-0 KEWR: AS PREDICTED (422 256169/210479/189029/41370 vs 422 256169/210479/189029/41370; peak 60.81 vs 60.81; cell 52.46 vs 52.48)
+    main/orig/MIDTOWN: 422 rung -1 253966/208947/188359/41610 peak 58.11 MiB at ladder (60.9 MB); steps [58.11]; phases cell 50.56, tile 54.80, tiles 54.70, terrain 54.95, layers 58.08, ladder 58.11, end 8.89; 2517 ms
+  CM-0 MIDTOWN: AS PREDICTED (422 253966/208947/188359/41610 vs 422 253966/208947/188359/41610; peak 58.11 vs 58.11; cell 50.56 vs 50.57)
+    main/orig/KMIA: 200 rung 2 000dde33cc42 peak 39.39 MiB at ladder (41.3 MB); steps [39.39]; phases cell 22.30, tile 37.12, tiles 37.07, terrain 37.32, layers 39.29, ladder 39.39, end 8.86; 1283 ms
+  CM-0 KMIA: AS PREDICTED (200 000dde33cc42 vs 200 000dde33cc42; peak 39.39 vs 39.39; cell 22.30 vs 22.31)
+    main/orig/KSFO: 200 rung 3 399cb059f84a peak 39.21 MiB at ladder (41.1 MB); steps [39.21]; phases cell 20.24, tile 36.90, tiles 36.85, terrain 37.09, layers 39.12, ladder 39.21, end 9.45; 1392 ms
+  CM-0 KSFO: AS PREDICTED (200 399cb059f84a vs 200 399cb059f84a; peak 39.21 vs 39.21; cell 20.24 vs 20.25)
+    main/orig/KSEA: 200 rung 3 69ff5b17e2ee peak 49.16 MiB at ladder (51.5 MB); steps [49.16]; phases cell 23.85, tile 46.92, tiles 46.84, terrain 47.05, layers 49.07, ladder 49.16, end 11.00; 2070 ms
+  CM-0 KSEA: AS PREDICTED (200 69ff5b17e2ee vs 200 69ff5b17e2ee; peak 49.16 vs 49.18; cell 23.85 vs 23.87)
+    main/orig/KORD: 200 rung 3 b54fa953fef7 peak 45.85 MiB at ladder (48.1 MB); steps [45.85]; phases cell 29.54, tile 42.92, tiles 42.88, terrain 43.12, layers 45.70, ladder 45.85, end 6.24; 1816 ms
+  CM-0 KORD: AS PREDICTED (200 b54fa953fef7 vs 200 b54fa953fef7; peak 45.85 vs 45.79; cell 29.54 vs 29.55)
+    main/orig/KDTW: 200 rung 3 8976db34bf1a peak 47.13 MiB at ladder (49.4 MB); steps [47.13]; phases cell 24.16, tile 44.47, tiles 44.40, terrain 44.65, layers 47.05, ladder 47.13, end 6.97; 1722 ms
+  CM-0 KDTW: AS PREDICTED (200 8976db34bf1a vs 200 8976db34bf1a; peak 47.13 vs 47.13; cell 24.16 vs 24.18)
+    main/orig/KMSP: 200 rung 3 863f7f2955a7 peak 47.26 MiB at ladder (49.6 MB); steps [47.26]; phases cell 29.54, tile 44.76, tiles 44.70, terrain 44.95, layers 47.19, ladder 47.26, end 7.45; 1967 ms
+  CM-0 KMSP: AS PREDICTED (200 863f7f2955a7 vs 200 863f7f2955a7; peak 47.26 vs 47.27; cell 29.54 vs 29.57)
+    main/orig/KIND: 200 rung 3 f740fbc3f99e peak 50.84 MiB at ladder (53.3 MB); steps [50.84]; phases cell 33.67, tile 47.96, tiles 47.88, terrain 48.13, layers 50.76, ladder 50.84, end 7.09; 2104 ms
+  CM-0 KIND: AS PREDICTED (200 f740fbc3f99e vs 200 f740fbc3f99e; peak 50.84 vs 50.85; cell 33.67 vs 33.69)
+    main/orig/KJAC: 200 rung 1 b3f428e5860e peak 38.88 MiB at ladder (40.8 MB); steps [38.88]; phases cell 17.47, tile 36.63, tiles 36.58, terrain 36.83, layers 38.75, ladder 38.88, end 8.47; 1515 ms
+  CM-0 KJAC: AS PREDICTED (200 b3f428e5860e vs 200 b3f428e5860e; peak 38.88 vs 38.88; cell 17.47 vs 17.48)
+CM-P: KJFK on the code PR's builder, the 8 MiB plant against the same build without it
+    cp/orig/KJFK/plant8: 200 rung 7 ee8c834bc81a peak 79.55 MiB at cell (83.4 MB); steps [79.55, 61.03]; phases cell 79.55, tile 67.23, tiles 67.11, terrain 67.35, layers 71.05, ladder 71.10, d2 8.28, end 14.07; 6709 ms
+    cp/orig/KJFK: 200 rung 7 ee8c834bc81a peak 71.83 MiB at ladder (75.3 MB); steps [71.83, 61.75]; phases cell 71.55, tile 67.94, tiles 67.83, terrain 68.08, layers 71.78, ladder 71.83, d2 9.01, end 14.79; 6622 ms
+  CM-P: the 8 MiB plant: +8 +/- 0.785 in the cell phase, 0 +/- 0.785 later; made and read back: AS PREDICTED (cell +8.01; later tile -0.71, tiles -0.73, terrain -0.73, layers -0.73, ladder -0.73; made 8388608 B, read back 10, held to the end False)
+The memory rows: the code PR minus main, +/- 0.785 MiB
+    cp/orig/KBOS: 200 rung 3 ed5393b4fc0f peak 68.80 MiB at ladder (72.1 MB); steps [68.8]; phases cell 60.04, tile 64.95, tiles 64.82, terrain 65.07, layers 68.75, ladder 68.80, end 9.54; 3038 ms
+    cp/orig/KJFK: 200 rung 7 ee8c834bc81a peak 71.79 MiB at ladder (75.3 MB); steps [71.79, 61.71]; phases cell 71.54, tile 67.91, tiles 67.80, terrain 68.05, layers 71.74, ladder 71.79, d2 8.97, end 14.75; 6742 ms
+    cp/orig/KLGA: 200 rung 7 031e27e8afb5 peak 74.02 MiB at ladder (77.6 MB); steps [74.02, 64.62]; phases cell 65.71, tile 70.05, tiles 69.94, terrain 70.19, layers 73.97, ladder 74.02, d2 9.01, end 14.79; 6987 ms
+    cp/orig/KEWR: 200 rung 7 5f7a5ebc9b7a peak 74.05 MiB at ladder (77.6 MB); steps [74.05, 69.59]; phases cell 62.26, tile 70.09, tiles 69.94, terrain 70.19, layers 74.00, ladder 74.05, d2 9.55, end 15.95; 7493 ms
+    cp/orig/MIDTOWN: 200 rung 7 0fa4de83d3da peak 71.14 MiB at ladder (74.6 MB); steps [71.14, 63.33]; phases cell 67.88, tile 67.16, tiles 67.05, terrain 67.30, layers 71.10, ladder 71.14, d2 8.99, end 14.76; 6253 ms
+    cp/orig/KMIA: 200 rung 2 997d060cd3ff peak 41.02 MiB at ladder (43.0 MB); steps [41.02]; phases cell 23.44, tile 38.75, tiles 38.70, terrain 38.95, layers 41.01, ladder 41.02, end 8.92; 1422 ms
+    cp/orig/KSFO: 200 rung 3 39cbf7ff2966 peak 41.40 MiB at ladder (43.4 MB); steps [41.4]; phases cell 21.76, tile 39.00, tiles 38.95, terrain 39.20, layers 41.35, ladder 41.40, end 9.54; 1560 ms
+    cp/orig/KSEA: 200 rung 3 8c75ffa482dd peak 53.15 MiB at ladder (55.7 MB); steps [53.15]; phases cell 26.44, tile 50.77, tiles 50.70, terrain 50.95, layers 53.09, ladder 53.15, end 11.11; 2113 ms
+    cp/orig/KORD: 200 rung 3 4238243a57a6 peak 46.71 MiB at ladder (49.0 MB); steps [46.71]; phases cell 35.34, tile 43.45, tiles 43.41, terrain 43.66, layers 46.63, ladder 46.71, end 6.32; 2208 ms
+    cp/orig/KDTW: 200 rung 3 82d0ec793b69 peak 52.80 MiB at ladder (55.4 MB); steps [52.8]; phases cell 28.79, tile 49.86, tiles 49.79, terrain 50.04, layers 52.74, ladder 52.80, end 7.05; 2013 ms
+    cp/orig/KMSP: 200 rung 3 dc13ef49694d peak 52.38 MiB at ladder (54.9 MB); steps [52.38]; phases cell 34.11, tile 49.69, tiles 49.63, terrain 49.87, layers 52.34, ladder 52.38, end 7.54; 2307 ms
+    cp/orig/KIND: 200 rung 3 bf16d0f88a19 peak 51.64 MiB at ladder (54.1 MB); steps [51.64]; phases cell 41.55, tile 48.35, tiles 48.27, terrain 48.52, layers 51.59, ladder 51.64, end 7.18; 2561 ms
+    cp/orig/KJAC: 200 rung 1 a6a475745804 peak 40.66 MiB at ladder (42.6 MB); steps [40.66]; phases cell 19.01, tile 38.46, tiles 38.41, terrain 38.65, layers 40.64, ladder 40.66, end 8.54; 1859 ms
+  the three: KJFK cell +16.30 -> O2; KORD peak +0.86 -> O2; KIND peak +0.79 -> O2
+  the world: O2
+  KJFK's peak, one value +13.24: AS PREDICTED (+13.27)
+  KBOS's peak, graded by the world O2: 11.285 to 12.855: AS PREDICTED (+12.73)
+  KLGA's peak, one value +13.98: AS PREDICTED (+14.01)
+  KEWR's peak, one value +13.23: AS PREDICTED (+13.24)
+  MIDTOWN's peak, one value +13.01: AS PREDICTED (+13.03)
+  KMIA's peak, one value +1.62: AS PREDICTED (+1.63)
+  KSFO's peak, one value +2.16: AS PREDICTED (+2.19)
+  KSEA's peak, one value +3.94: AS PREDICTED (+4.00)
+  KDTW's peak, one value +5.63: AS PREDICTED (+5.67)
+  KMSP's peak, one value +5.09: AS PREDICTED (+5.12)
+  KJAC's peak, one value +1.78: AS PREDICTED (+1.78)
+  recorded beside, not graded: the cell phase, the code PR minus main: KBOS +13.30, KLGA +10.52, KEWR +9.79, MIDTOWN +17.32
+CM-M: none over 96 MB (each build above was checked as it ran); each code PR build's largest against the 77.2 MB the owner took with B: KBOS 72.1, KJFK 75.3, KLGA 77.6, KEWR 77.6, MIDTOWN 74.6, KMIA 43.0, KSFO 43.4, KSEA 55.7, KORD 49.0, KDTW 55.4, KMSP 54.9, KIND 54.1, KJAC 42.6
+cm: ALL AS PREDICTED at 2026-11-13T07:31:21Z (28 builds)
