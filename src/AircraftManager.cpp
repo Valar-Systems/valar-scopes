@@ -1,4 +1,9 @@
 #include "AircraftManager.h"
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#include "FrameBench.h"   // the frame-time bench, C1 (docs/frame-time-bench.md)
+#endif
+// THE FRAME BENCH END
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
 #include "DrawHelpers.h"       // DrawRadarSweepBeam: today's beam over the weather sweep (WD6)
 #include "BrightnessCarry.h"
@@ -2136,6 +2141,77 @@ void AircraftManager::RecordSweepParts(uint32_t rasteriseUs, uint32_t blendUs, u
 
 void AircraftManager::RecordFrameUs(uint32_t frameUs)
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    {
+        // The frame bench's recorder and scene driver, on the loop task (docs/frame-time-bench.md, C1).
+        framebench::State& fb = framebench::S();
+        static bool announced = false;
+        if (!announced) {
+            announced = true;
+            Serial.printf("[frame-bench] the frame bench C1: %d scenes, settle %lu s, measure %lu s, push task %s\n",
+                          framebench::kNumScenes, (unsigned long)(framebench::SETTLE_MS / 1000),
+                          (unsigned long)(framebench::MEASURE_MS / 1000),
+#if defined(BLIPSCOPE_PUSH_TASK)
+                          "on");
+#else
+                          "off");
+#endif
+            framebench::PrintTable();
+        }
+        const uint8_t stateFlags = (uint8_t)((wxShowing == wxpolicy::Show::Crop ? 4 : 0) | (MapEnabled() ? 8 : 0) |
+                                             (nightNow ? 16 : 0));
+        framebench::Record(frameUs, trackedAircraft.size(), stateFlags);
+        const uint32_t nowMs = millis();
+        auto applyScene = [&](int k) {
+            fb.noting = true;
+            Initialise();
+            fb.noting = false;
+            framebench::PrintNoted(k);
+        };
+        if (!fb.done) {
+            if (fb.scene < 0) {
+                if (nowMs >= framebench::START_AFTER_MS && framebench::Allocate()) {
+                    framebench::SelfTime();
+                    fb.scene = 0;
+                    framebench::PrepareScene(0);
+                    fb.measuring = false;
+                    fb.phaseStartMs = nowMs;
+                    Serial.printf("[frame-bench] scene S0 %s home=Bend level=%d rung=%dmi settle\n",
+                                  framebench::kKindName[framebench::kScenes[0].kind], framebench::kLevel,
+                                  framebench::kRungMi);
+                    applyScene(0);
+                }
+            } else if (!fb.measuring) {
+                if (nowMs - fb.phaseStartMs >= framebench::SettleMs(fb.scene) && fb.dumpScene < 0) {
+                    fb.measuring = true;
+                    fb.phaseStartMs = nowMs;
+                    fb.n = 0;
+                    fb.overflowFrames = 0;
+                    Serial.printf("[frame-bench] scene S%d measure\n", fb.scene);
+                }
+            } else if (nowMs - fb.phaseStartMs >= framebench::MeasureMs(fb.scene)) {
+                framebench::EndMeasure();
+                const int next = fb.scene + 1;
+                if (next < framebench::kNumScenes) {
+                    fb.scene = next;
+                    framebench::PrepareScene(next);
+                    fb.phaseStartMs = nowMs;
+                    Serial.printf("[frame-bench] scene S%d %s home=Bend level=%d rung=%dmi settle\n", next,
+                                  framebench::kKindName[framebench::kScenes[next].kind], framebench::kLevel,
+                                  framebench::kRungMi);
+                    applyScene(next);
+                } else {
+                    fb.done = true;
+                    Serial.println("[frame-bench] run done; the board's own settings again");
+                    Initialise();
+                }
+            }
+        }
+        framebench::PumpDump();
+    }
+#endif
+    // THE FRAME BENCH END
     // Ring of the last N frames in 0.1 ms units (u16 caps at ~6.5 s -- ample).
     const uint32_t tenths = frameUs / 100;
     const uint16_t capped = (uint16_t)std::min(tenths, (uint32_t)UINT16_MAX);
@@ -3111,6 +3187,14 @@ void AircraftManager::RunFetchTask()
                 res->ok = true;
             else // schema-version mismatch or malformed body: never wipe the picture over it
                 Serial.println("[WARN] Blipscope Cloud: blips schema mismatch; keeping current picture");
+            // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+            // THE (a) HOOK: after the REAL GET's parse, the table's content at the device's UTC second
+            if (res->ok)
+                framebench::OnCloudPoll(doc, res->aircraft, res->dataEpoch,
+                                        [](JsonDocument& d, auto& r, long& e) { return CloudFeed::ParseBlips(d, r, e); });
+#endif
+            // THE FRAME BENCH END
         }
 #endif
         else if (req->local) {
@@ -3390,6 +3474,16 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
 {
     // Only a WHOLE body is a candidate: len == claimed. An over-cap reply arrives with len 0 and claimed > cap,
     // and is passed to the policy at its claimed size, so (b) refuses it for size rather than as an error.
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    // THE WEATHER FIELD: a whole 200's body replaced by the fixed one-cell field; its header (the real frame
+    // time and geometry) kept, so the shipping Validate, OnResponse and rebuild run unchanged
+    if (status == 200 && len > 0 && len == claimed) {
+        len = framebench::WxField(wxLanding, len);
+        claimed = len;
+    }
+#endif
+    // THE FRAME BENCH END
     wxcrop::Header h;
     const bool whole = status == 200 && len > 0 && len == claimed;
     const bool valid = whole && wxcrop::Validate(wxLanding, len, &h) == wxcrop::Status::Ok;
@@ -3430,6 +3524,11 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
 
 bool AircraftManager::MapEnabled() const
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::MapOff()) return false;   // C1: map OFF, the registered deviation
+#endif
+    // THE FRAME BENCH END
     return useCloudSource && !cloudUrl.isEmpty() && hasLocation && !mapAllocFailed;
 }
 
@@ -3583,6 +3682,11 @@ bool AircraftManager::RebuildWeatherLayer()
     wxNeedsRebuild = false;
     // B1 reads this: a rebuild is a one-frame spike, barred at 40 ms on the s3-128.
     Serial.printf("[wx] layer rebuilt in %lu ms (look %c)\n", millis() - t0, wxLook == wxs2::Look::A ? 'A' : 'B');
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    framebench::S().rebuilt = true;   // a rebuild frame, counted per arm
+#endif
+    // THE FRAME BENCH END
     return true;
 }
 
@@ -4229,6 +4333,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         // view culls nothing, as before zoom). The tap hit-test uses the same
         // predicate, so nothing undrawn can be tapped.
         if (ZoomCulled(x, y)) continue;
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        if (firstPass) framebench::S().drawn++;   // DRAWN (A2): this frame's drawn aircraft
+#endif
+        // THE FRAME BENCH END
 
         // The whole contact -- marker, trail, label -- fades together as its
         // radar return ages, so a dim blip doesn't sit under a bright trail/label.
@@ -10505,6 +10614,11 @@ void AircraftManager::RequestCloudEnrich(const String& icao24, const String& cal
     req->hasTrack = hasTrack;
     if (enqueueEnrich(enrichRequestQueue, req))
         enrichInFlight = true;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::IsSceneHex(icao24)) framebench::S().fbSubmits++;   // must stay 0
+#endif
+    // THE FRAME BENCH END
 }
 
 void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e,
@@ -11928,6 +12042,11 @@ void AircraftManager::ProcessMetadataLookups()
     for (auto& [icao, tracked] : trackedAircraft) {
         if (tracked.metadataState != TrackedAircraft::MetadataState::NotFetched)
             continue;
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        if (framebench::IsSceneHex(icao)) continue;   // the table's hexes never leave the board
+#endif
+        // THE FRAME BENCH END
         if (now < tracked.metadataRetryAfter)
             continue; // still in post-failure cooldown; skip so others get a turn
 

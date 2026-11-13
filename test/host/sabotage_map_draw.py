@@ -32,7 +32,7 @@ AMCPP = os.path.join("src", "AircraftManager.cpp")
 PY = sys.executable
 TOOL_EXTS = (".sh", ".ini", ".py", ".mjs", ".js", ".json")
 
-REFUSAL = ("#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C)\n"
+REFUSAL = ("#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C) && !defined(BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT)\n"
            "#error \"step B draws the map without step C: the sweep erases it. Land step C before WX_LAYER_SHIPS ships.\"\n"
            "#endif\n")
 STEPC_AT = '#include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task\n'

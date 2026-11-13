@@ -42,13 +42,21 @@
 #include "MapQuery.h"       // the request for the stored config (pure; CA1-CA3)
 #endif
 // THE MAP FETCH END
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+// C1's bench (docs/frame-time-bench.md, "C1's bench"), bench/frame-bench-c1 ONLY and never merged: the map is OFF by
+// construction (MapEnabled()'s bench line, C1-M), so the sweep erases nothing and the step-C refusal's premise cannot
+// occur. Active only where FRAME_BENCH is; check_no_bench_exemption.py refuses it on every main-bound branch.
+#define BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT 1
+#endif
+// THE FRAME BENCH END
 // THE MAP DRAW BEGIN
 // CB10 (docs/blipscope-map-client-steps.md, step B): step B draws the map under the radar, and until step C the
 // sweep's wedge erases it wherever the beam passes. The joint release turns WX_LAYER_SHIPS on for every shipping env
 // (platformio.ini, the weather switch), so this refuses that build until step C's header defines
 // BLIPSCOPE_MAP_STEP_C. The wxlook bench image (WX_LOOK_AB) is exempt: its "[wx-bench]" marker is refused in every
 // slug-ful image by scripts/check-no-bench-hooks.sh (P-CB-BENCH). check_map_draw.py's CD4 holds this block exactly.
-#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C)
+#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C) && !defined(BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT)
 #error "step B draws the map without step C: the sweep erases it. Land step C before WX_LAYER_SHIPS ships."
 #endif
 // THE MAP DRAW END
