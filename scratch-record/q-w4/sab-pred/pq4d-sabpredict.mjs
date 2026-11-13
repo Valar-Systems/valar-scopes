@@ -11,6 +11,8 @@ import { join, resolve } from "node:path";
 const S = resolve(".");
 const PQ = join(S, "pq4d"), RUN_DIR = join(S, "wt-main", "proxy");
 const ENV = { ...process.env, Q4_LADDER: "b", Q4_D2: "1", Q4_TP: "1", Q4_PROV: "1", Q4_SEA: "1" };
+const QFILE = join(resolve("."), "sab-pred", "clean-q.json"); // KB1: the clean run writes its q, every plant run reads it
+ENV.SABROWS_QFILE = QFILE;
 for (const k of ["Q4_SEAPLANT", "Q4_BACKSTOP", "Q4_PLANT_MIB"]) delete ENV[k];
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 const lf = (t) => t.split("\r\n").join("\n");
@@ -23,7 +25,7 @@ const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const at = (o, path) => path.split(".").reduce((x, k) => (x == null ? x : x[k]), o);
 
 if (process.argv[2] === "--control") {
-  const got = instrument();
+  const got = instrument({ ...ENV, SABROWS_WRITEQ: "1" });
   if (!got.ok) { console.log(`CONTROL: the instrument did not run: ${got.why}`); process.exit(2); }
   const old = JSON.parse(readFileSync(join(S, "cp-out", "oldrows-pq4d.json"), "utf8")), sea = JSON.parse(readFileSync(join(S, "cp-out", "seaci-pq4d.json"), "utf8"));
   const diffs = [];
@@ -34,6 +36,12 @@ if (process.argv[2] === "--control") {
   }
   const reg = { "xchk:xisland": { status: 200, repairs: [{ rings: 2, restored: 2, rounds: 2 }] }, "xchk:xisland-tall": { status: 500, code: "sea_repair_failed", stop: { rings: 2, restored: 2, rounds: 3 } }, "provB-ctl": { w2: 1, w8: 1 } };
   for (const [k, v] of Object.entries(reg)) if (!eq(got.j[k], v)) diffs.push(`${k} (got ${JSON.stringify(got.j[k])})`);
+  // KB1 (R8): on pq4d's live output the port reads 0 in all 24 views, and the island totals the PINNED REFERENCE read on part 2's stored
+  // synthetic outputs (r8/py-new.json: kb1 20818, kb1c 15388) -- the port on the prototype's output against the reference on its record
+  for (const [k, island] of [["kb1:kb1", 20818], ["kb1:kb1c", 15388]]) {
+    const o = got.j[k];
+    if (!(o && o.qFrom === "own" && eq(o.diffs, Array(24).fill(0)) && o.island === island)) diffs.push(`${k} (got ${JSON.stringify(o)?.slice(0, 160)})`);
+  }
   console.log(`CONTROL: ${Object.keys(got.j).length} objects; ${diffs.length} differ from the frozen values${diffs.length ? `: ${diffs.join(", ")}` : ""}`);
   process.exit(diffs.length ? 1 : 0);
 }
@@ -63,6 +71,7 @@ const ROWS = {
   "T-D2": [["sea:d2", ["status", "steps", "radiusMm"]]],
   "T-D2c": [["sea:d2-control", ["status", "steps"]]],
   "T-SEALOG": [["xchk:xisland", ["status", "repairs"]], ["xchk:xisland-tall", ["status", "code", "stop"]]],
+  KB1: ["kb1:kb1", "kb1:kb1c"].map((k) => [k, ["status", "notDrawn", "noQ", "diffs", "island"]]), // R8 (proposed with KB1's registration)
 };
 // Two rows assert a relation, not a value: MN6's identity and T-PROV-a's byte equality. Each is evaluated on the planted output itself.
 const PRED = {
@@ -100,7 +109,7 @@ PLANTS["S-RUNG"].pq4dOverride = true;
 for (const [name, p] of Object.entries(C_PLANTS)) PLANTS[name] = { files: p.files.map(([f, edits]) => [f, edits.map(([a, b]) => [indent2(a), indent2(b)])]), expect: null, reanchored: true };
 
 const only = process.argv.slice(2);
-const cleanRun = instrument();
+const cleanRun = instrument({ ...ENV, SABROWS_WRITEQ: "1" });
 if (!cleanRun.ok) { console.log(`clean run failed: ${cleanRun.why}`); process.exit(2); }
 const clean = cleanRun.j;
 if (process.argv[2] === "--knobs") {
@@ -116,7 +125,8 @@ if (process.argv[2] === "--knobs") {
     if (extra.Q4_PROV === "") delete env.Q4_PROV;
     const r = instrument(env);
     if (!r.ok) { console.log(`knob ${name}: did not run: ${r.why.slice(0, 200)}`); continue; }
-    const g = grade(clean, r.j), sea = g.red.filter((x) => SEACI_ROWS.has(x)), other = g.red.filter((x) => !SEACI_ROWS.has(x));
+    const g = grade(clean, r.j), sea = g.red.filter((x) => SEACI_ROWS.has(x)), other = g.red.filter((x) => !SEACI_ROWS.has(x) && x !== "KB1");
+    console.log(`  knob ${name}: KB1 ${g.red.includes("KB1") ? "RED" : "green"}  (kb1 ${JSON.stringify(r.j["kb1:kb1"]?.diffs?.reduce?.((a, x) => a + x, 0) ?? r.j["kb1:kb1"])}, kb1c ${JSON.stringify(r.j["kb1:kb1c"]?.diffs?.reduce?.((a, x) => a + x, 0) ?? r.j["kb1:kb1c"])})`);
     const ok = eq(sea, [...want].sort()); if (ok) same++;
     console.log(`knob ${name.padEnd(12)} SEA-CI red {${sea.join(", ")}} vs registered {${[...want].sort().join(", ")}}: ${ok ? "SAME" : "DIFFERENT"}; other graded rows red: {${other.join(", ")}}`);
   }

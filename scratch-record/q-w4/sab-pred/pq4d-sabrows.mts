@@ -14,6 +14,8 @@ import { nonTerrainBytes } from "./pq4d/src/basemap/budget.ts";
 import { parseQuery } from "./pq4d/src/basemap/query.ts";
 import { type SynthDef, COMMIT, lonLatOf, mbStore, writeSynthStore } from "./pq4d/test/basemap-synth.ts";
 import { SEACI, seaciDef, seaciQuery } from "./wt-code/proxy/test/basemap-seaci-fixtures.ts";
+import { kb1Views } from "./wt-code/proxy/test/basemap-fillring.ts"; // R8's port, shown equal to the reference (P1, 144/144)
+import { readFileSync, writeFileSync } from "node:fs";
 
 // KNOB MODE (SABROWS_KNOB=1): the ruled settings plus exactly ONE prototype knob plant, as pq4d-seaci.mts's plant mode -- the grader's check
 // against the SEA-CI red sets registered from those knobs (3bf4b3c2), which it must reproduce before it predicts anything.
@@ -92,6 +94,25 @@ for (const n of ["kb1", "kb1c", "edge2", "kb2cross", "tsea0-without", "tsea0-wit
 await guard("sea:provB", () => one("provB", 458));
 await guard("sea:d2", () => one("d2", 600));
 await guard("sea:d2-control", () => one("d2-control", 600));
+
+// --- KB1 (R8): the drawn sea rings against their piece's unbridged q, through the port, 24 views. A plant whose piece carries no q is
+// graded against the CLEAN run's q, as p2-read.py graded plants (SABROWS_QFILE: written by the clean run, read by the plants).
+const QFILE = process.env.SABROWS_QFILE, cleanQ: Record<string, unknown> = QFILE && !process.env.SABROWS_WRITEQ ? JSON.parse(readFileSync(QFILE, "utf8")) : {};
+const wroteQ: Record<string, unknown> = {};
+for (const n of ["kb1", "kb1c"]) await guard(`kb1:${n}`, async () => {
+  const fx = SEACI[n]!(), { store } = await writeSynthStore(seaciDef(fx, lonLatOf) as any);
+  const r = await build(store, seaciQuery(fx), { commit: "0".repeat(40) });
+  if (!r.ok) return { status: r.status };
+  const pkg = decode(r.bytes) as any, water = ((pkg.sections.find((s: any) => s.type === 1)?.rings ?? []) as any[]), sea = q4Out.sea;
+  const f0 = sea?.fates?.[0];
+  if (!f0 || f0.fate !== "drawn") return { status: 200, notDrawn: f0?.fate ?? "none" };
+  wroteQ[n] = f0.q ?? null;
+  const q = (f0.q ?? cleanQ[n]) as any;
+  if (!q) return { status: 200, noQ: true };
+  const v = kb1Views((sea.ringIdx as number[]).map((i) => water[i]), q, pkg.radiusMm, 162);
+  return { status: 200, diffs: v.map((x) => x.diff), island: v.reduce((a, x) => a + x.island, 0), qFrom: f0.q ? "own" : "clean" };
+});
+if (QFILE && process.env.SABROWS_WRITEQ) writeFileSync(QFILE, JSON.stringify(wroteQ));
 
 // --- pq4d-xchk.mts: the repair's counts (from the harness line, whose numbers are the counts T-SEALOG and XISLAND assert)
 const countsOf = (line: string) => { const m = /rings ([\d,]*) restored (\d+) rounds (\d+)/.exec(line); return m ? { rings: m[1] === "" ? 0 : m[1]!.split(",").length, restored: Number(m[2]), rounds: Number(m[3]) } : { unparsed: line.slice(0, 80) }; };
