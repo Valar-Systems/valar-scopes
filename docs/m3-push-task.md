@@ -224,7 +224,7 @@ These replace the parts of the M3-3 row that named A0a's profile, which has neve
   - D is `vTaskDelay(pdMS_TO_TICKS(D))` in the push task, never a spin. The push task runs one priority above the loop,
     on the loop's core, so a spin would preempt the loop.
   - D = 60, not 40: with weather on, B's loop is about 64-69 ms, and push + 40 sits inside that.
-- **The push readings** (`[m3] push_avg_us` is a since-boot average, `main.cpp:150-151`, so it is never graded as
+- **The push readings** (`[m3] push_avg_us` is a since-boot average, `main.cpp:151-152`, so it is never graded as
   printed). The push bands apply to two readings, and a disagreement between them over 0.5 ms is INSTRUMENT:
   - (a) the reader's windowed average between consecutive `[m3]` lines lying wholly inside a span;
   - (b) map-client's own per-scene FRAME_BENCH push average.
