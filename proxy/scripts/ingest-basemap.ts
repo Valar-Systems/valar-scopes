@@ -260,6 +260,12 @@ function seaStage(cache: string, log: FetchLog, files: ManifestFile[], index: Ma
     pieceStats: { extentCells: extent.size, cellsWithSea: Object.keys(byCell).length, pieces: cut.pieces, islandsKept: cut.kept, islandsDropped: cut.dropped,
       oceanOuters: srcs.ocean.length, lakesRead: srcs.stats.lakesRead, lakesSelected: srcs.lakes.length, lakesInsideUs: srcs.stats.inside, lakesSmall: srcs.stats.small,
       holesNotInOneOuter: srcs.stats.notInOne },
+    // SEA-STORE's S-4 sidecar (not a store object): the selection and the extent in PARITY's own field names, so the store's pieces can be
+    // graded by PARITY step 2's verify2.py (PB-0's extent, PB-1's counts, PB-2's selected record indices)
+    sidecar: { extent_cells: extent.size, extent: [...extent].sort(), ocean_outers: srcs.ocean.length, ocean_holes: srcs.ocean.reduce((n, p) => n + p.holes.length, 0),
+      lakes_read: srcs.stats.lakesRead, lakes_selected: srcs.lakes.length, lakes_inside_us: srcs.stats.inside, lakes_small: srcs.stats.small,
+      selected_indices: srcs.lakes.map((l) => l.index), holes_not_in_one_outer: srcs.stats.notInOne, cells_with_sea: Object.keys(byCell).length,
+      pieces: cut.pieces, holes_kept: cut.kept, holes_dropped: cut.dropped, vertices: cut.verts },
   };
 }
 
@@ -379,6 +385,7 @@ async function dryRun(cache: string): Promise<void> {
   // pieces exist only here
   const seaRegionsText = JSON.stringify(sea.regions) + "\n";
   writeFileSync(join(out, "store", "sea-regions.json"), seaRegionsText);
+  writeFileSync(join(out, "sea-stats.json"), JSON.stringify(sea.sidecar) + "\n"); // beside the store, never in it
   storeBytes += Buffer.byteLength(manifestText) + Buffer.byteLength(indexText);
 
   const summary = {
