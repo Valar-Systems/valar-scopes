@@ -984,6 +984,24 @@ its code.**
      scene is re-read** in a later window. A second miss on the same scene goes to the owner, under the retry cap.
      The rest of the run is graded as it stands.
 
+### A/B/A for every before/after between two images (the orchestrator's ruling, 00:11:47Z)
+
+**Why:** 5c's FT2 path, untouched by its fix, read +1.41 and +1.60 ms between the before session and the after
+session: separate flashes, separate boots, a 112 B layout shift. Its within-session A/A held (at most 1.06). So a
+between-session offset of about 1.5 ms is plausible, and nothing measured it.
+
+**The rule, as it applies here:**
+- **The bar itself is absolute** (worst-of-six p95 ≤ 50 ms). The v19 replay run (RP5) reads X against the bar, so it is
+  unaffected.
+- **Any v19-vs-v20 DELTA reported from this bench** carries either v19 read AGAIN after v20 in the same window (A/B/A:
+  v19, v20, v19), or a stated between-session spread beside it.
+  - The registered default for v20's first candidate is **A/B/A in one window**.
+  - The before-to-before spread (v19's two reads) is the noise the delta is read against.
+  - A delta inside that spread is reported as "not separated from the between-session noise".
+- **Per-change frame-time reports** (the standing rule, step D's terrain shading among them) run A/B/A whenever two
+  IMAGES are compared. That is registered with step D in docs/blipscope-map-client-steps.md.
+- Nothing already registered and run is re-graded.
+
 ### p2p under M3, for v20's framebench: registered now, applied when framebench carries main (not before C1)
 
 **The ruling (the orchestrator, 23:50Z, corrected 23:55:42Z):**
