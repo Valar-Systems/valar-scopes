@@ -19,6 +19,19 @@ and at least every third release."
 - **(c):** `POST /factory-reset` stands in for the glass menu on automated runs.
 - **The cadence rule** is the next section, and it is written into `RELEASING.md` step 0 as well.
 
+**Confirmed** (the owner, 2026-11-13 01:17Z, relayed by the reviewer at 01:26:46Z): "yes to all three, with the
+uncovered parts written into the record. I'll put the bench Wi-Fi password in the local file myself." The uncovered
+parts are recorded in "What an automated run does not cover" below.
+
+**The password file** (answer (a)). It is `%USERPROFILE%\.config\blipscope\bench-wifi`: the folder that already holds
+the token file (CLAUDE.md, "no user-level CLOUDFLARE_API_TOKEN"), outside every git working tree.
+- **Format:** two lines, `ssid=<the bench network's name>` and `password=<its password>`.
+- **Who writes it:** the owner, himself.
+- **How the driver uses it:** it reads the file and never prints, logs or commits either value. Its presence check
+  prints `present` or `absent`, nothing else. With the file absent, or either line missing, it refuses the automated
+  run, and step 2 falls back to his phone.
+- **Windows** cannot check the file's permissions; the driver says so, as `tools/token_file.py` does.
+
 ## The hands-on cadence, and its counter
 
 Answers (a) and (c) mean an automated run never exercises the glass reset menu or the phone's QR and captive-portal
@@ -78,6 +91,22 @@ All the firmware facts are read from main at `c73aee2f1a5b`.
 - **the phone's QR scan and captive portal**, if (a) is yes;
 - **anyone looking at the screen.** The acceptance doesn't grade the display today either. That is unchanged, but worth
   saying.
+
+## What an automated run does not cover (the record; the owner's word, 2026-11-13 01:17Z)
+
+With (a) and (c) yes, an automated step 0 passes without these parts ever running. **A green automated run says
+nothing about them.** Each is covered only by the hands-on cadence above: at least every third release, and whenever
+its code changes.
+
+| uncovered part | what it is | what the automated run does instead | the cadence's trigger for it |
+|---|---|---|---|
+| **the glass reset menu** | the menu drawn on the panel (Connect, Reset, Factory Reset), its confirm screen, and the touch handling that opens, steps through and closes it (`DrawResetMenu`, `HandleResetMenuTap`, `CloseResetMenu` in `src/AircraftManager.cpp`) | `POST /factory-reset` from the PC. It reaches the same `RequestReset(factoryreset::Tier::Factory)` and the same `[reset] tier=factory cleared=` line, but it skips the menu's drawing and every tap | due by code: any of those three functions, `src/FactoryReset.cpp` or `include/FactoryReset.h` |
+| **the phone's QR setup** | the setup QR drawn on the panel (`include/SetupQr.h`, `include/QrRender.h`), and a phone camera reading it and joining `Blipscope-<6 hex>` | a PC Wi-Fi adapter joins the open setup network by name. No QR is read | due by code: `include/SetupQr.h`, `include/QrRender.h` |
+| **the phone's captive-portal experience** | the phone noticing the portal and opening it, and WiFiManager's pages as a phone renders them, up to the save | the PC posts WiFiManager's save form directly | due by code: `include/WiFiManagerHelpers.h`, or the `tzapu/WiFiManager` line in `platformio.ini` |
+| the location form and the config form, as UI | the page's own forms, typed into by a person | `POST /location` and `POST /save` with the page's own current values, read back from `GET /` | none of its own: the forms' handlers are what is exercised, the UI isn't |
+| someone looking at the Collection page and the screen | a human eye on the result | `GET /` after the claim, graded on the request line | none: the acceptance never graded the display, automated or not |
+
+**The claim is NOT on this list.** It stays the owner's tap in every run (answer (b)), so it is covered every time.
 
 ## The driver
 
