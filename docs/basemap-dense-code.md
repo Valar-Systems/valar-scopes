@@ -3961,3 +3961,32 @@ So **S-KB-NOBRIDGE = {BRIDGES, T-SEA0c, KB1}** and **S-KB-ORDER = {EDGE2, XISLAN
 **I2's row, registered here before the real store exists.** At each of the 16 points, the package built from the new store and the one built from the prototype store (SEA-PKG's) are rendered by **KB5's FillRing**: the device's C++ extract `kb5` a841b11b5f47, at the closest zoom, north-up, as KB5 renders. **Their DRAWN masks are EQUAL at all 16; else STOP**, and the order question goes to the orchestrator.
 
 **Outside the set: stop.**
+
+### R12 (d), read (03:58-04:58Z, at 9008c74dee8f; record cbc84d6bb92c): 87 of 89, two OFF, stopped before smoke and credits
+
+- **AS PREDICTED:**
+  - baseline[ingest] 11 cases in 1 file, baseline[mv, -t MV] 31 in 1, baseline[all] 190 in 18, baseline[sea] 14 in 1;
+  - 87 of the 89 sabotages, C-LOADFAIL BLIND among them;
+  - 0 runtime failures in 93 runs; the highest TIME_WAIT at a run's start was 7,910 (gate 8,000); porcelain 0 after every restore.
+- **OFF 1, S-BTWICE: it read T-PROV-a red too.**
+  - **A real latent defect, caught by the sabotage.** The shipped builder summed `refusedBuilt` over `Object.values(at)`, a map keyed by tolerance.
+  - With EPS_STEP 4, L2 is built at ε × 4, and `at[4ε] = content(L4)` overwrote its entry. So L2's refusal went uncounted: provA-both read 2, where R4's "every set" makes 3.
+  - pq4d counts once per set built, which is why it predicted green. In the clean state the four keys are distinct, so every earlier reading agreed.
+  - **Ruled (i), after 05:0xZ:** sum over the four built sets, [L1, L2, L4, L8], each once. The reading stays OFF on the record. The re-run grades S-BTWICE against its ORIGINAL registered set (T-PROV-a green under the plant).
+- **OFF 2, S-KB-REPAIRLIMIT: it read {XISLAND, XISLAND-TALL}, so T-SEALOG was missing. My registration error at 3bf4b3c2.**
+  - T-SEALOG asserts only that each build yields exactly one counts-only line. Under limit 1, xisland and xisland-tall both stop with a 500 carrying counts, so each still yields one line, and T-SEALOG stays green.
+  - The reading stays OFF; no re-grade.
+- **The lesson, on the record.** The prototype-side predictor modelled T-SEALOG by xchk's status, with the same error. Its "7 of 7" grader check could not catch it: it was validated against the REGISTERED sets, which held the error. That is a check validated against another prediction, not against an independent answer.
+
+**The new prediction for the re-run, registered here before it runs (ruled after 05:0xZ):**
+- **S-KB-REPAIRLIMIT = {XISLAND, XISLAND-TALL}.** Under limit 1 each build still yields exactly one counts-only line (the 500's), so T-SEALOG stays green.
+- T-SEALOG keeps three catchers: S-SEALOG-POINT (the full line), S-KB-REPAIROFF and S-KB-ORDER (xisland yields no line).
+- A second off reading on this row goes to the owner.
+
+**The re-run, as ruled.** It runs (d) again at the head that carries (i) and this prediction, in a fresh LF clone. Its predictions are R12's table with KB1's two set changes, the ingest rows' three sabotages, and this one:
+- baseline[ingest] **12** in 1 file; baseline[mv, -t MV] **31** in 1; baseline[all] **194** in **19**; baseline[sea] **15** in 1;
+- **92 AS PREDICTED**;
+- then the smoke driver: **CONTROL 1095 passed, 1 skipped, of 1096; ALL AS REGISTERED**;
+- credits only if anything it touches changed. Nothing has, so it does not run.
+
+Outside the set: stop.
