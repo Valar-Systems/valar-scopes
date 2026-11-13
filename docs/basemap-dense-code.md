@@ -3883,3 +3883,34 @@ So **S-KB-NOBRIDGE = {BRIDGES, T-SEA0c, KB1}** and **S-KB-ORDER = {EDGE2, XISLAN
 **These counts replace KB1's for the driver re-run at the head that holds these rows.** The re-run covers the basemap and smoke drivers. Credits is not re-run, by the ruling after 04:18:52Z: nothing it touches has changed, and under the owner's scale-to-risk rule its earlier reading stands.
 
 **Outside the set: stop.**
+
+### PARITY-CODE: the shipped sea module on step 2's pinned inputs, registered before it runs
+
+**The question** is whether `scripts/basemap/sea-pieces.ts` at the PR head is the PARITY-proven ingest (`sea-ingest.mts` 45500edf4529). It is the module the dry run's `seaStage()` calls.
+
+**The run:**
+- **The driver** is `parity-code.mts`, scratch. It imports the shipped module and `shapefile.ts` from the PR head, and runs them on step 2's own inputs:
+
+  | input | sha256 |
+  |---|---|
+  | `ne_10m_ocean.zip` | db626fcd5d50 |
+  | `ne_10m_lakes.zip` | 0803a06f9c3c |
+  | `ne_10m_admin_0_countries.zip` | ce1ac7036499 |
+  | the store's `coverage.bin` | 5cf7169484c2 |
+
+- The extent comes from that coverage.bin's bytes through `coverageSegments`. I3's in-memory coverage, computed from the states file, is the dry run's, and is checked in SEA-STORE.
+- It writes the pieces as `JSON.stringify(byCell)`, and the stats in sea-ingest.mts's fields.
+- **Its graders** are step 2's own: `verify2.py` bd3766b3161d (PB-0 to PB-2, then `verify.py` 0951ccd447d1's `compare`) against `sea-pieces.json` 8ad5d92fa7c7 and `sea-extent-cells.json` b47eb8e12f48.
+
+**Predicted:**
+
+| row | predicted |
+|---|---|
+| **PC-1, the bytes** | the pieces file **byte-identical to step 2's real run**, `det-1.json` 09db20fc5a86 |
+| **PC-2, the stats** | every field of `det-1.stats` (afb7c0d2c472) but `ms` and `opts` equal: extent 2,584 cells; ocean 2 outers, 6,820 holes; lakes 1,355 read, 1,168 selected, 149 inside the US, 38 small; 0 holes outside exactly one outer; 1,435 cells with sea; 1,914 pieces; 497 islands kept, 135 dropped; 69,728 vertices; and the same 1,168 selected indices in order |
+| **PC-3, step 2's grader** | **PB-0:** the same 2,584 cells. **PB-1:** 2 / 6,820; 1,355 / 1,168 / 149 / 38. **PB-2:** the same 1,168 records. **PA-1:** 1,435 / 1,914 / 497 / 135. **PA-2 to PA-5: 0 fails** |
+| **PC-C, the control** | **the code PR's own output with one piece altered:** the first cell's first piece scaled by (1 + 1e-5) about its centroid (shapely), then graded by `verify.py`'s `compare` against the reference. **PA-4 and PA-5 fail at exactly that one cell; PA-2 and PA-3 have 0 fails.** So the grader sees a change in the candidate, not only in the reference as step 1's C-AREA showed |
+
+**Outside the set: stop.**
+
+**SEA-STORE needs more than this machine has.** It takes a full dry run, done twice for QW4-ID (c), and the Class A count comes from the ingest's own listing. No ingest cache exists on this machine: there is no `fetch-log.json` under C:\Github, the user's folders, either temp tree, or WSL's home, all read-only. The store's manifest gives what one takes: **16,035 files, 5.57 GB**, against 48 GB free. The re-fetch's go, and what a fresh fetch changes (GNIS updates monthly), are for the orchestrator.
