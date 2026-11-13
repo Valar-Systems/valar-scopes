@@ -1325,3 +1325,254 @@ displayFade`), so DRAWN's horizon starts one sweep period (5 s) before each poll
   ends. **W5:** the v19 restore, the boot read, `read-mac`, HTTP 200, release, END.
 - **When:** the recordings' UTC band (00:00-02:00Z), so that LIVE-APT sees the airports at the same hour of the day.
   About 100 min in all.
+
+## C1's bench: p4's M3-3 single scene on the M3 tree, registered before its images (2026-11-13)
+
+**What it is for.** C1 (docs/speed-plan.md 2b, the owner's meanings) reads M3's cut on ONE scene, fixed by M3-3's
+registration (docs/m3-push-task.md §6 :119 and its M3-3 row :128): Bend, 40 aircraft, weather on, map off, cloud-fed
+through the (a) bench's /blips hook. Not the six recorded scenes, and not CTRL. The bar's own v20 bench keeps its date
+(11-15 18:00Z ready, 11-16 00:00Z); C1 runs in its own window, **11-15 02:00-03:00Z**, granted on a frozen manifest.
+
+### The tree, the images and their proof
+
+- **The tree:** p4's M3 tree, `3bc7ec26fe28da66846526adc68f5bd031dcc013` (#687), with THE FRAME BENCH's C1 regions
+  applied by `apply_c1.py` (counted anchors) on branch `bench/frame-bench-c1`.
+- **The flags (p4):** both images `${s3128_hw.build_flags}` + `-DBLIPSCOPE_EXPECT_BIG_NVS` + `${cloud.prod}` +
+  `-DWX_LAYER_SHIPS` + `-DFRAME_BENCH`. **A** adds `-DBLIPSCOPE_NO_PUSH_TASK`; **B** does not. Neither has
+  `-DWX_LOOK_AB` (its timers run inside the frame), `-DM3_BENCH` (Check(p), the test frame) or `-DFRAME_PROFILE`.
+  `WX_LAYER_SHIPS` is load-bearing: the shipping `[weather] layer` is empty on this tree.
+- **The proof, from the BUILT images, never the ini** (one static line per image in the manifest, each check shown
+  able to fail on an image where the answer is no): the weather layer present in A and B (a string only that code
+  has; the no-control: the tree's shipping image, built without the layer); the push task present in B and absent in
+  A (its task name and its `[m3]` print; the no-control: A itself); `[frame-bench]` present in both (the no-control:
+  the shipping image).
+- **I-3, AS PREDICTED:** the shipping `blipscope-s3-128` built from `bench/frame-bench-c1` (`bfcb47e01c3d`, c1-I3,
+  `de75e3606ba7`) against the same env from `3bc7ec26fe28` unpatched (m3-Dp, `fae94d2f70c3`), both with the path mapping
+  and the pinned build time, by `bindiff_elfhash.py`: "length 1933952 in both; differing bytes: app_elf_sha256 32, image
+  SHA-256 32, checksum 1, elsewhere 0".
+
+**THE IMAGES AND THE MANIFEST** (`build_c1.ps1` `c93f8a94ccc7`; `make_c1_manifest.py`; every write ota_0 alone at
+0x20000 on the release's table `28f336fe57a9…`):
+
+| image | sha256 | bytes | write range |
+|---|---|---|---|
+| c1-A (A1 and A2) | `5eb7c4ad525d0afe58db58999c9186ec8dab599efbd65cfebf9bf397bf3a240a` | 1,963,024 | 0x020000..0x1FF40F |
+| c1-B | `1132863bd0dfb5ce42e9da0decd873291ce212b4f9d4c777146d22031e7e7f3a` | 1,964,944 | 0x020000..0x1FFB8F |
+| restore-v19 | `f6d73e39163177b0dc25516a104bb02021d2048a94f82a66fc42a90f0a2615be` | 1,931,840 | 0x020000..0x1F7A3F |
+
+`c1_manifest.json` `864eb0e4905b10adf3403898fe8fc9df855e5793771cc6bbf45586562784631b`. `win_c1.ps1`
+`e1f6ac41e7deb0f43bf2c5390d3485f5462bb1b5fccd1489ef72644855a079f0`; its sha guard's dry run: B's bytes staged as A
+refused (exit 20, nothing written), A and B each matched (exit 0, no port touched).
+
+**THE ARTIFACT LINES, ALL AS PREDICTED** (`c1_artifacts.py`):
+
+| image | push task (`m3push`) | `[frame-bench]` | weather (`check-no-weather.sh`) | bench-hook scan | `--expect "[frame-bench]"` |
+|---|---|---|---|---|---|
+| m3-Dp (shipping, unpatched) | 1 | 0 | plain: none, exit 0 | exit 0 | — |
+| c1-I3 (shipping, patched) | 1 | 0 | plain: none, exit 0 | exit 0 | — |
+| c1-A | **0** (the no-control) | 20 | `--expect`: all present, exit 0 | **exit 1, refused** | exit 0 |
+| c1-B | 1 | 20 | `--expect`: all present, exit 0 | **exit 1, refused** | exit 0 |
+
+Each check is shown able to fail on an image where the answer is no: the push task on A, the bench marker and the
+weather on the shipping two.
+
+### The step-C refusal, and the bench exemption (the orchestrator's ruling with p4's conditions, 2026-11-13)
+
+**The fact.** p4's tree cannot build with weather on. `src/AircraftManager.h` :51-52 refuses any map-fetching build
+without step C (`#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C)`), and CD4
+forbids defining `BLIPSCOPE_MAP_STEP_C` anywhere but step C's header. The gate refused correctly: weather + map without
+step C must never ship. **C1 therefore measures M3's cut on a tree WITHOUT step C**, as p4's pinned tree is; v20's real
+gain is re-read on the real candidate at the bar gate. p4's "with the map off, step C's sweep over weather is
+unchanged" is recorded as an ASSUMPTION, not a finding.
+
+**The ruling: option 1, a FRAME_BENCH-only exemption, bench/frame-bench-c1 only, never merged.** Options 2
+(`WX_LOOK_AB`, whose timers run inside the frame) and 3 (a tree with step C, a day and C1's slot) were refused.
+- **Inside a FRAME_BENCH region:** the region in `AircraftManager.h` defines `BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT`, and
+  the refusal's `#if` gains `&& !defined(BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT)`, the one non-region line changed. Any
+  image carrying it carries `[frame-bench]`, which check-no-bench-hooks refuses from every slug-ful image: shown by
+  `--expect` on c1-A and c1-B and a plain scan of each reading 1 (the artifact lines below).
+- **Load-bearing on C1-M:** `MapEnabled()`'s bench line is the only reason the guard's premise cannot occur. The static
+  half: C1-M's plant (the line removed) reads red. The runtime half: flag bit 3 (`MapEnabled()`) on NO measured frame,
+  with a data-side plant reading the INSTRUMENT.
+- **CD4 CARRIES the exemption on the bench branch** (`check_map_draw.py`'s `REFUSAL_IF` and `sabotage_map_draw.py`'s
+  `REFUSAL` hold the exempted line, named as changed in the commit): CD4 ok, its sabotages and controls as predicted.
+- **C1-X (static, with its plant):** the macro defined exactly once, inside a FRAME_BENCH region, and named exactly once
+  more, on the refusal's `#if`.
+- **It cannot reach main:** `check_no_bench_exemption.py` (`60b4bb282859`) refuses the macro anywhere in `src/` or
+  `include/`, or FRAME_BENCH on the refusal's `#if`. `prepush_frame.ps1` (`7469bef5b609`) runs it for every branch
+  that is not `bench/*`. Shown clean on wt-stepc and wt-c1 before the exemption, then REFUSED on wt-c1 after (exit 1,
+  :50 and :59), and clean on wt-stepc still. Its CI step on every PR to main follows once C1's images are frozen.
+
+### The scene, and what each image runs
+
+| image | scenes (each 100 s settle + 120 s measure) |
+|---|---|
+| A (A1, then A2 after B) | C1 |
+| B | C1 plain, C1 + push 10 ms, C1 + push 60 ms, C1 + loop 10 ms |
+
+- **The scene's keys, in RAM:** the home Bend (2 dp), radius 25 mi, the cloud source, `wx-layer` "true". Every other
+  key is the board's own and is RECORDED: every key `Initialise()` reads during the scene is noted with its value
+  where it is short and safe, else "set" / "empty", and the location, identity and topic keys as "bench" or "set".
+  The line `[frame-bench] keys S<k>: … map=off (bench override)` names the deviation.
+- **Map OFF:** this tree has no map key (`MapEnabled()` :3431 is true whenever cloud-fed with a location), so a bench
+  line in `MapEnabled()` returns false, unconditionally in C1's images: the map's buffers are never allocated in any arm.
+- **The (a) hook:** in the cloud branch, after the REAL `/blips` GET's `ParseBlips`, the content is replaced by the
+  (a) table (fixed_traffic.py's formulas, `include/FrameBenchTable.h`) at the device's UTC second, parsed by the same
+  `ParseBlips`. Category 4 (`LocalCategoryToOpenSky("A3")`). Each poll prints `table served n 40 t <s> crc <c> us
+  <us>`. **TBL-HOST** (`tbl_host.py`, WSL g++ 11.4 against fixed_traffic.py's own `aircraft()`, its rounding shadowed):
+  360 rows, worst |Δ| 1.1e-13, the sum `b1ace60e` equal; its plant (one phase constant) reads red on 354 rows.
+  **TBL-DEV:** the image prints `table h=bend n=40 t=1794441386 sum=<crc>` at boot; **predicted `b1ace60e`**; unequal
+  is the INSTRUMENT (a last-unit flip in the device's libm is the named way it fails on a correct port).
+- **The synthetic hexes never leave the board:** this tree's background enrichment scan has no non-ICAO skip (the
+  device-side check is only on the detail card, :10287), so a bench line skips `fb0000`-`fb0027` before the cooldown
+  check, and `RequestCloudEnrich` counts any that get through. **Predicted 0 per scene** (`fb submits` in the push
+  line); anything else is the INSTRUMENT.
+- **THE WEATHER FIELD (the orchestrator's rulings):** a whole `/wx` 200 lands; before `whole` is decided, a bench
+  region keeps its 32-byte header (the REAL frame time, so `WhatToShow`'s 600-900 s age limit never hides it, and the
+  real geometry) and replaces the body: code 0 everywhere, and ONE cell at code 2, the lowest drawn code, 15 mi from
+  the home at bearing 135°, found on the device from the 2-dp home in the header's own geometry (crop.ts :47). Bend at
+  25 mi is about 77 × 106 cells and never coarsens under the 32 KB cap, so the geometry is the same in every response
+  and arm. The shipping `Validate`, `OnResponse` and rebuild run unchanged. Each response prints `wx served rows <r>
+  cols <c> coarsen <k> crc <c> bytes <n>`, the CRC over everything but the 4 frame-time bytes. **The basis, stated:**
+  the plan's 13.2 ms weather term came from the 10-29 replay-session arm on production's live crop, 1 echo cell within
+  100 km at its start (perhaps never drawn) and 0 at its end, blend 4.45 ms against 4.32 dry: a near-dry layer. Its
+  cell had no recorded code, size or position; ours is drawn by construction, about 3.3 × 2.4 px.
+- **Rebuilds** follow the real radar cadence (every new real frame is Replaced, WxPolicy.h :152-159): each rebuild
+  frame is tagged (flag bit 0), counted per arm beside its p95, and included in the p95 by v19's rule. If A1, B and A2's
+  counts differ by more than one, the report says so; the cut is graded either way.
+
+### M3-1, M3-2, M3-3
+
+- **M3-1, the stamp's location (static, FB row with its plant):** `framebench::Present()` appears exactly twice:
+  in `pushtask::Task` between `framebuf::FrameDone()` and `xSemaphoreGive(g_free[i])` (B), and after the loop's own
+  `FrameDone()` inside its `#if !defined(BLIPSCOPE_PUSH_TASK)` block (A). The plant, a present at the loop's hand-off
+  (v19's anchor), reads red. **P2P-FLOOR (runtime):** in B, the median p2p is not below the push's own average; below
+  it, the anchor is misplaced: the INSTRUMENT.
+- **M3-2, the hand-off:** `Present()` publishes {p2p, a present count} under a spinlock; `Record()` reads both and
+  stores the presents since the last record per frame. **Predicted:** in A exactly 1 on every frame (one task); in B
+  a count other than 1 on under 1 % of measured frames. Over 1 %: the INSTRUMENT, and the alternative (the push task's
+  own p2p series) goes to the orchestrator.
+- **M3-3's plants:** the push delay by `vTaskDelay(pdMS_TO_TICKS(D))` after `tft.endWrite()` and before `t2` (static
+  row M3-3P: a spin there reads red, because the push task outranks the loop on its core); the loop's +10 ms by
+  `delayMicroseconds` before `RecordFrameUs` (I-6's).
+- **M3-3's second instrument, read two ways (p4's written agreement, quoted below):** (a) `[m3] push_avg_us` is a
+  since-boot average (main.cpp :151-152, 243-252), so the reader WINDOWS it between consecutive reports, counting only
+  windows wholly inside a measured span and printing how many; (b) the bench's own per-scene push average and push-time
+  histogram (1 ms bins), from a B-only region in the push task. p4's bands apply to each; (a) and (b) differing by more
+  than 0.5 ms is the INSTRUMENT; a span with no window for (a) is graded on (b) alone, and says so.
+
+> p4: "your finding is CONFIRMED, from the source. In 3bc7ec26fe28's src/main.cpp:150-151, g_pushes, g_pushUsSum and
+> g_syncUsSum are never reset. Only g_pushUsMax and g_waitUsMax reset at each report (:252-253). So `[m3]
+> push_avg_us` is a since-boot average, and my "+9.0 to +10.0" band applied to the printed line would read OFF on a
+> correct plant. That's my miss: I wrote the band against the line's shape without reading its denominator. READ
+> BOTH, (a) and (b), as you propose."
+
+### PG-1, C1's substitute (the orchestrator's acceptance; p4's proposal)
+
+> p4: "Your per-frame STATE bit, wxShowing == Crop, on EVERY measured frame. This replaces (a): the layer was
+> composited. A /diag/fb PIX-WX read in each arm's span: weather-coloured pixels present. This rules out a dry layer,
+> which blends less and reads faster. (b) unchanged. Plants: a weather-off arm's frames (P0-shaped) must read
+> INSTRUMENT on the STATE bit, and a dry-layer grab must read INSTRUMENT on PIX-WX."
+
+- **STATE:** flag bit 2 (`wxShowing == Crop`) on every measured frame, else the INSTRUMENT. Bit 3 (the map) on no
+  frame. Bit 4 (night) recorded.
+- **PIX-WX:** three `/diag/fb` grabs in each image's first settle (never in a measured span), read by `pix_wx.py`: in
+  the cell's neighbourhood (radius 8 px around its projected position, about (170, 170) at 25 mi), a pixel equal to a
+  scaling of code 2's base colour, the colours taken from `scripts/wx-fb-check.py`'s own source derivation (imported,
+  sha asserted). Predicted > 0 in each arm; 0 is the INSTRUMENT. Its plant: the same grab with those pixels repainted
+  reads 0.
+- **PG-1 (b), made exact** (p4's sign-off, docs/m3-push-task.md at `2caa62954f87`, "M3-3 for C1, as ported by
+  map-client"):
+
+  > **(b), made exact, per arm, ALL of:** (i) at least one "[wx] layer rebuilt in N ms (look A)" before the span ends;
+  > (ii) zero "the layer stays off" and zero "[wx] buffers FAILED" since boot; (iii) every "[wx] status=" line up to
+  > the span's end shows 200 or 304, with an outcome that is not error. The reader matches the strings. At
+  > `3bc7ec26fe28` they are AircraftManager.cpp :3585, :3555, :3342 and :3420.
+
+  The weather hook replaces the body after the real GET, so the real status line still prints. Each part has a
+  data-side plant that reads the INSTRUMENT.
+
+### The grading: p4's text, quoted from `95cf5b27dfb8`
+
+docs/m3-push-task.md :184-194:
+
+> - **The noise:** N = |p95(A2) − p95(A1)|, read before B is graded.
+> - **The error bar (the orchestrator's refinement, 00:15:35Z):** E = max(N, U). A single A1/A2 pair can land close by
+>   luck, and that must not shrink the bar below the instrument's own floor. U is the bench's within-session U95:
+>   **1.54 ms**, I-6's measured p95 noise on map-client's bench (`baseline_b.out`, `29d24028cec9`), or the same
+>   window's own CTRL repeat |Δp95| if the run carries one, whichever is larger.
+> - **M3's cut:** cut = mean(p95(A1), p95(A2)) − p95(B).
+> - **The grade.** C1's band (≥ 20 on track; 10-20 partial; < 10 failed) is assigned only if cut − E and cut + E fall
+>   in the SAME band. If they straddle a boundary, the row reports the straddle with both ends and goes to the
+>   orchestrator. It is not rounded into a band.
+> - **The stop: N > 5 ms.** That is the escape hatch speed-plan 2a uses for the same bench. The bench then cannot grade a
+>   cut of this size, the row is INSTRUMENT, and nothing is read from B.
+
+docs/speed-plan.md :216-228 (the owner's meanings):
+
+> **What C1 reads, and what each result means (fixed now):**
+> - **M3 cuts ≥ 20 ms:** on track. P4-P6 proceed as sized.
+> - **M3 cuts 10-20 ms:** partial (the push task contends, or the overlap is incomplete). L2 becomes the next lever,
+>   because it shortens the push the task has to hide. It goes to the owner at C1 with an incoming-inspection row.
+> - **M3 cuts < 10 ms:** M3 has failed. Without it, the frame is 86.9 + M; L2 takes ~12.9 ms off, and W and L1 would
+>   have to find ~24.0 + M ms between them. **The levers beyond L2 change what is drawn,** so each is the owner's ruling:
+>   - **L3, a cheaper sweep blend** (up to −4.6 ms; the blend's look);
+>   - **L4, less label and trail work per frame**, for example labels redrawn only when their text changes, or culled
+>     where they overlap (the labels' look).
+>
+>   The date then waits on those rulings.
+> - **Outside the set** (M3 makes the frame SLOWER, or the picture changes on the 240 golden): stop, and report to the
+>   orchestrator.
+
+The boundaries are exact (p4): a cut − E of exactly 20.0 is "on track". C1's run carries no CTRL repeat, so U = 1.54.
+
+### p4's predictions for B's arms, verbatim (each band ± E)
+
+- **B plain:** "p2p p95 = mean(A1, A2) − cut, with the cut graded in C1's bands. Predicted on track: cut 25.8 − ε, where
+  ε ≥ 0 is the PSRAM contention the CTRL argument ignores. [m3] push_avg_us − sync_avg_us = 25.8 ± 1.0 ms, with
+  sync_avg reported and expected < 1.0 ms."
+- **D = 10:** "push_avg rises by +9.0 to +10.0 ms. p2p p95 does NOT move, within ± E."
+- **D = 60:** "push_avg rises by +59 to +60, and p2p p95 = p95(push) ± E, about 85-87 ms. It must sit at least 10 ms
+  above B plain. If B plain is already within E of push + D, the control is uninformative: INSTRUMENT, stop."
+- **I-6's +10 ms loop plant:** "In a draw-bound scene, Δp2p p95 = +10.0 ± 1.5, and push_avg is unchanged within ± 1.0."
+- **Outside the set:** "if p2p p95 (B plain) is within 2 ms of push_avg, B is push-bound and every prediction above
+  flips. Stop."
+- **A (not graded):** p4's estimate, about 90-95 ms.
+
+### The per-scene rows the reader carries (each else the INSTRUMENT unless named)
+
+BOOT (each image's banner and the bench line naming its scene count and push task); TBL-DEV; I-5 (record cost ≤ 5,000
+ns); every scene's settle, measure, end and complete dump; 0 `[zoom]` lines and no overflow in a measured span; drawn
+== 40 on every measured frame; STATIONARITY (A1's thresholds, 2.0 / 4.0 ms); STATE; M3-2's present counts; every
+`wx served` line equal in rows, cols, coarsen and CRC across the scenes and the three arms, and no SKIP; every `table
+served` line, no FAILED, consecutive lines at most 7 s apart and no `[WARN] Blipscope Cloud` failure line in a scene
+(else a MISS: that arm is re-run if the window allows, else C1 is not graded and says so); `fb submits` 0; rebuild
+frames counted; the keys record present with map=off.
+
+**The escape hatch:** anything outside the outcomes above stops the read, reported unread. A second off reading on a
+row goes to the owner.
+
+### The reader and the tools, frozen
+
+| tool | sha256 | its proof |
+|---|---|---|
+| `fb_read_c1.py`, the reader | `f210ea1cf2effc6aa1b73af9e3e0d12534d176b02ff2d3b7355a7d74d02e6c41` | `--selftest`: 25 cases PASSED, each giving its exit, its red set AND its own reason's words (output `3aaedfe98289…`) |
+| `pix_wx.py` | `85620cff73eaf0f7595322a081089e6b17e7b3f764c8949f002d907397238564` | 50 code-2 colours from the C1 tree's own `wx-fb-check.py`; the cell reads 6, the same colour 40 px away 0, the dry plant 0 |
+| `fetch_c1.py` | `15c2ec1799801dca2da6392873ebfb279e165d9b4b9404c47c7fbc36c09e9909` | against a local stand-in: Finished kept, unfinished kept and marked, a 503 refused |
+| `tbl_host.py` | `f2f838f9a3daf6a53b3ca395314bbdbb0a956adb5869d368ad2636a61a726008` | 360 rows, worst \|Δ\| 1.1e-13, sum `b1ace60e`; its plant red on 354 rows |
+| `c1_artifacts.py` | `e352531a9bfcdbaa2b31b8368987dc216f80b398786d9b7541ecf75ef01eaa23` | the artifact lines below, predictions in the script |
+| `check_no_bench_exemption.py` | `60b4bb282859534ea89ee1bba9a2410455bd812f7eea0f6b06f0043a529d8e1d` | clean on wt-stepc, REFUSED on wt-c1 |
+
+The reader's 25 cases: the clean run (on track, read (a) over its window, "WITHOUT step C", the ASSUMPTION line);
+the INSTRUMENT for TBL-DEV, PG-1 (b)(i), (ii) and (iii), STATE, MAP-OFF, a table hex leaving the board, the weather
+field differing, push (a) and (b) disagreeing, N > 5, the keys record missing, M3-2 in A and in B, drawn ≠ 40,
+STATIONARITY, P2P-FLOOR, push-bound, M3 slower, and D = 60 uninformative; graded red for I-5, D = 10's push, and the
+loop's +10; a MISS for a 20 s table gap; and a STRADDLE, to the orchestrator.
+
+### The window, 11-15 02:00-03:00Z
+
+W0 E2:08 reserved by serial. W1 read-mac, write A (app-only, ota_0), trace ~6 min (1 scene), with three `/diag/fb`
+grabs by `fetch_c1.py` at 120, 140 and 160 s after the trace opens (inside S0's settle, timed from the trace's start,
+never from the live log); read-mac recovers the download mode. W2 B the same, ~18 min (4 scenes), grabs in S0's settle. W3
+A again (A2), ~6 min, grabs. W4 the v19 restore, its boot read (the accepted tokens), read-mac, HTTP 200, release, END.
+About 39 min; the ungraded 100 % stress pair runs only if the graded set and the restore still fit.
