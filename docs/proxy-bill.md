@@ -814,6 +814,15 @@ That does not EXCLUDE the two other explanations; they are simply not needed:
 The test that would separate them: Logs' non-HIT `/enrich` requests in the hour should be about 254. A count well off
 that puts the gap in the unsampled class, where sampling cannot reach.
 
+**Run by uk-data (06:55:52Z), counts only.** It split the hour's 1,924 `/enrich` requests by the `req` line's own
+`cache` field and status class (1,922 carry a `req` line):
+- **HIT with status < 400: 1,668.**
+- **Everything else: 254**, SKIP 176 and MISS 78, all < 400, with no STALE seen. That is AE's weight-1 estimate exactly.
+
+So the unsampled class matches to the request, which **excludes path aliasing and hour-edge skew for this hour**:
+either would have moved that class. The whole 70 is the Worker's 1:10 HIT sampling (1,668 / 10 ≈ 167 expected, 174
+written).
+
 **The reason adsbdb is off, read from `a9594ab` (2026-08-26, PR #260), not from `wrangler.toml`'s line-46 comment:**
 - adsbdb left the chain over a LICENSING question: the commit says there is "no written permission to use
   commercially".
