@@ -3085,8 +3085,11 @@ void AircraftManager::RunFetchTask()
             // The recording plan's survey and recorder (docs/frame-time-bench.md, RP1, RP2): the request's own 2-dp
             // lat/lon, exactly as sent, decide whether a body may be printed.
             if (res->ok)
-                framebench::OnCloudPoll(doc, res->aircraft, wireloc::Center(req->lat).c_str(),
-                                        wireloc::Center(req->lon).c_str());
+                framebench::OnCloudPoll(doc, res->aircraft, res->dataEpoch, wireloc::Center(req->lat).c_str(),
+                                        wireloc::Center(req->lon).c_str(),
+                                        [](JsonDocument& d, std::vector<Aircraft>& r, long& e) {
+                                            return CloudFeed::ParseBlips(d, r, e);
+                                        });
 #endif
             // THE FRAME BENCH END
         }

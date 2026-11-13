@@ -13,6 +13,10 @@
   FB-R4  no print in a region or in FrameBench.h carries a latitude or longitude value
   FB-R5  FrameBench.h's airport strings equal include/Airports.h's values at 2 dp, code by code
   FB-R6  the rung set is the single kRungs[] constant: one definition, and no other {25, 50, 100}-style list
+  FB-R7  the replay's CRC is computed on the device over the SAME body it deserialized (rp[pick].body both times),
+         and the served line prints that computed crc
+  FB-R8  the generated recording header is included only under FRAME_BENCH_RUN_REPLAY, and scripts/framebench_rec.py
+         compares each recording's sha256 to its pinned value before using it
     python -I check_frame_bench.py <tree>             the rows; exit 0 all pass, 1 any fails
     python -I check_frame_bench.py --selftest <tree>  each row planted red on a copy in memory, and the clean tree green"""
 import os
@@ -31,6 +35,9 @@ TRACKED_REC = re.compile(r"framebench_rec|\.fbrec$|(^|/)recordings/")
 
 def load(tree):
     files = {}
+    sp = os.path.join(tree, "scripts", "framebench_rec.py")
+    if os.path.isfile(sp):
+        files["scripts/framebench_rec.py"] = open(sp, "rb").read().decode("utf-8", errors="replace").replace("\r\n", "\n").split("\n")
     for top in ("src", "include"):
         for root, _, names in os.walk(os.path.join(tree, top)):
             for n in names:
@@ -62,9 +69,10 @@ def tracked(tree):
 
 def rows(files, listing=None):
     res = {}
+    code_files = {k: v for k, v in files.items() if not k.startswith("scripts/")}   # FB-R8 reads the script alone
     bad1, bad2, bad3, bad4 = [], [], [], []
     nreg = 0
-    for rel, lines in files.items():
+    for rel, lines in code_files.items():
         if rel == HEADER:
             continue
         regs = regions(lines)
@@ -97,7 +105,7 @@ def rows(files, listing=None):
     res["FB5"] = (fb5, "FrameBench.h is all under #ifdef FRAME_BENCH" if fb5 else "FrameBench.h has code outside #ifdef FRAME_BENCH")
     # FB-R1: the cloud-poll region, once, in the cloud branch after ParseBlips and before the local branch
     hits = []
-    for rel, lines in files.items():
+    for rel, lines in code_files.items():
         if rel == HEADER:
             continue
         regs = regions(lines)
@@ -125,7 +133,7 @@ def rows(files, listing=None):
                     "no tracked file listing to read" if listing is None else f"tracked recording files: {bad_t[:3] or 0}")
     # FB-R4: no print carries a coordinate
     bad_p = []
-    for rel, lines in files.items():
+    for rel, lines in code_files.items():
         spans = [(0, len(lines) - 1)] if rel == HEADER else regions(lines)
         for a, b in spans:
             for i in range(a, b + 1):
@@ -154,12 +162,25 @@ def rows(files, listing=None):
     # FB-R6: one kRungs[] and no other rung list
     defs = len(re.findall(r"static const uint8_t kRungs\[\]\s*=\s*\{[^}]*\}", text))
     others = []
-    for rel, lines in files.items():
+    for rel, lines in code_files.items():
         for i, l in enumerate(lines):
             code = l.split("//")[0]
             if re.search(r"\{\s*25\s*,\s*50\s*,\s*100\s*\}|\{\s*10\s*,\s*25\s*,\s*50\s*\}", code) and "kRungs[]" not in code:
                 others.append(f"{rel}:{i + 1}")
     res["FB-R6"] = (defs == 1 and not others, f"kRungs[] definitions {defs}; other rung lists {others[:3] or 0}")
+    # FB-R7: the CRC over the body deserialized
+    de = text.count("deserializeJson(doc, rp[pick].body);")
+    cr = text.count("Crc32(rp[pick].body, strlen(rp[pick].body))")
+    pr = text.count('"[frame-bench] served A%u %d crc %08lx us %lu\\n", (unsigned)sc.home, rp[pick].seq,')
+    res["FB-R7"] = (de == 1 and cr == 1 and pr == 1 and "(unsigned long)crc" in text,
+                    f"deserialize {de}, CRC over the same body {cr}, served print {pr}")
+    # FB-R8: the generated header gated; the pre-build step checks the pin before use
+    inc = [i for i, l in enumerate(hdr) if '#include "framebench_rec_gen.h"' in l]
+    gated = len(inc) == 1 and any("#elif defined(FRAME_BENCH_RUN_REPLAY)" in hdr[j] for j in range(max(0, inc[0] - 6), inc[0]))
+    sc = "\n".join(files.get("scripts/framebench_rec.py", []))
+    pin = sc.find("hashlib.sha256(blob).hexdigest() != want")
+    use = sc.find("json.loads(l)")
+    res["FB-R8"] = (gated and 0 <= pin < use, f"header includes {len(inc)}, gated {gated}; pin check before use {0 <= pin < use}")
     return res
 
 
@@ -239,6 +260,17 @@ def selftest(tree):
     rc |= plant("FB-R4, a coordinate printed", r4, "FB-R4")
     rc |= plant("FB-R5, one airport digit changed", r5, "FB-R5")
     rc |= plant("FB-R6, a second rung list", r6, "FB-R6")
+
+    def r7(f):
+        f[HEADER] = [l.replace("Crc32(rp[pick].body, strlen(rp[pick].body))", "Crc32(rp[0].body, strlen(rp[0].body))")
+                     for l in f[HEADER]]
+
+    def r8(f):
+        f["scripts/framebench_rec.py"] = [l.replace("hashlib.sha256(blob).hexdigest() != want", "False")
+                                          for l in f["scripts/framebench_rec.py"]]
+
+    rc |= plant("FB-R7, the CRC over another body", r7, "FB-R7")
+    rc |= plant("FB-R8, the pinned-sha check removed", r8, "FB-R8")
     print("selftest " + ("PASSED" if rc == 0 else "FAILED"))
     return rc
 

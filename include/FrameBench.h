@@ -30,7 +30,8 @@
 
 namespace framebench {
 
-enum Kind : uint8_t { CTRL = 0, CTRL_DELAY = 1, FIXED = 2, LIVE = 3, LIVE_OWN = 4, SURVEY = 5, REC = 6 };
+enum Kind : uint8_t { CTRL = 0, CTRL_DELAY = 1, FIXED = 2, LIVE = 3, LIVE_OWN = 4, SURVEY = 5, REC = 6, REPLAY = 7,
+                      CTRL_IL = 8, LIVE_APT = 9 };
 struct Scene {
     Kind kind;
     uint8_t home;    // 0 Bend, 1 KSFO; for SURVEY and REC, an index into kAptCode
@@ -67,6 +68,25 @@ static_assert(sizeof(kScenes) / sizeof(kScenes[0]) == kNumApt, "one survey scene
 #error "FRAME_BENCH_RUN_REC needs FRAME_BENCH_REC_B in 1..8 (the survey's choice)"
 #endif
 static const Scene kScenes[] = {{REC, 0, 0, kShippingRadiusMi}, {REC, FRAME_BENCH_REC_B, 0, kShippingRadiusMi}};
+#elif defined(FRAME_BENCH_RUN_REPLAY)
+// RP5, the v19 run on the recordings: the interleaved control, THE SIX (KSFO and the choice at kRungs), the 10 mi
+// reported rows, the packed stress rows (Bend, 40 and 60, at kRungs), LIVE at both airports, LIVE-OWN.
+#if !defined(FRAME_BENCH_REC_B) || FRAME_BENCH_REC_B < 1 || FRAME_BENCH_REC_B > 8
+#error "FRAME_BENCH_RUN_REPLAY needs FRAME_BENCH_REC_B in 1..8 (the survey's choice)"
+#endif
+#include "framebench_rec_gen.h"   // GENERATED from the two pinned recordings (scripts/framebench_rec.py), untracked
+static_assert(sizeof(kRungs) / sizeof(kRungs[0]) == 3, "the six: two homes x three rungs (the owner, 23:31Z)");
+static const Scene kScenes[] = {
+    {CTRL_IL, 0, 0, kRungs[1]},
+    {REPLAY, 0, 0, kRungs[0]}, {REPLAY, 0, 0, kRungs[1]}, {REPLAY, 0, 0, kRungs[2]},
+    {REPLAY, FRAME_BENCH_REC_B, 0, kRungs[0]}, {REPLAY, FRAME_BENCH_REC_B, 0, kRungs[1]},
+    {REPLAY, FRAME_BENCH_REC_B, 0, kRungs[2]},
+    {REPLAY, 0, 0, kReportedMi}, {REPLAY, FRAME_BENCH_REC_B, 0, kReportedMi},
+    {FIXED, 0, 40, kRungs[0]}, {FIXED, 0, 40, kRungs[1]}, {FIXED, 0, 40, kRungs[2]},
+    {FIXED, 0, 60, kRungs[0]}, {FIXED, 0, 60, kRungs[1]}, {FIXED, 0, 60, kRungs[2]},
+    {LIVE_APT, 0, 0, kShippingRadiusMi}, {LIVE_APT, FRAME_BENCH_REC_B, 0, kShippingRadiusMi},
+    {LIVE_OWN, 0, 0, 0},
+};
 #else
 // docs/frame-time-bench.md, section 4 and A1: CTRL (plain, then +10 ms), each home's levels 20/40/60 through rungs
 // 10/25/50, then LIVE at each home at 25 mi.
@@ -84,7 +104,8 @@ static const Scene kScenes[] = {
 static_assert(sizeof(kScenes) / sizeof(kScenes[0]) == 23, "the registered run is 23 scenes");
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
-static const char* const kKindName[] = {"CTRL", "CTRL+10ms", "FIXED", "LIVE", "LIVE-OWN", "SURVEY", "REC"};
+static const char* const kKindName[] = {"CTRL", "CTRL+10ms", "FIXED", "LIVE", "LIVE-OWN", "SURVEY", "REC",
+                                        "REPLAY", "CTRL-IL", "LIVE-APT"};
 static const char* const kHomeName[] = {"Bend", "KSFO"};
 // The homes, to 2 dp. They are only ever returned to Initialise(); nothing prints them.
 static const char* const kHomeLat[] = {"44.06", "37.62"};
@@ -128,7 +149,8 @@ struct State {
     bool rebuilt = false;      // v20's map region sets it on a rebuild frame
     char url[112] = {0};
     char radius[8] = {0};
-    uint32_t sceneStartMs = 0; // the scene's settle start (SURVEY and REC time their polls from it)
+    uint32_t sceneStartMs = 0; // the scene's settle start (SURVEY, REC and REPLAY time their polls from it)
+    bool delayed = false;      // this frame carried the planted delay (CTRL+10ms, and CTRL-IL's on blocks)
     int polls = 0;             // SURVEY and REC: polls seen in this scene's measured span
 };
 inline State& S()
@@ -151,7 +173,9 @@ inline const char* Override(const char* key)
     if (s.scene < 0 || s.done) return nullptr;
     const Scene& sc = kScenes[s.scene];
     if (sc.kind == LIVE_OWN) return nullptr;   // (iv): every key is the board's own
-    if (sc.kind == SURVEY || sc.kind == REC) {  // the shipping query at the airport: cloud, radius 100 mi
+    if (sc.kind == SURVEY || sc.kind == REC || sc.kind == REPLAY || sc.kind == CTRL_IL || sc.kind == LIVE_APT) {
+        // the airport home, the cloud source; the radius is the scene's rung (100 mi, the shipping default, for
+        // SURVEY, REC and LIVE-APT)
         if (strcmp(key, "latitude") == 0) return kAptLat[sc.home];
         if (strcmp(key, "longitude") == 0) return kAptLon[sc.home];
         if (strcmp(key, "radius") == 0) return s.radius;
@@ -181,8 +205,13 @@ inline void Present(uint32_t nowUs)
 }
 inline bool DelayOn()
 {
-    const State& s = S();
-    return s.scene >= 0 && !s.done && kScenes[s.scene].kind == CTRL_DELAY;
+    State& s = S();
+    bool on = s.scene >= 0 && !s.done && kScenes[s.scene].kind == CTRL_DELAY;
+    // CTRL-IL: the plant on in alternate 10 s blocks of the MEASURED span, off in the others (I-6's (3): one scene)
+    if (s.scene >= 0 && !s.done && kScenes[s.scene].kind == CTRL_IL && s.measuring)
+        on = ((millis() - s.phaseStartMs) / 10000u) % 2u == 1u;
+    s.delayed = on;
+    return on;
 }
 
 // RecordFrameUs's region, every frame: one record while measuring, then this frame's counters reset.
@@ -196,7 +225,7 @@ inline void Record(uint32_t frameUs, size_t tracked)
             r.p2p10 = Ten(s.p2pUs);
             r.tracked = (uint8_t)(tracked > 255 ? 255 : tracked);
             r.drawn = (uint8_t)(s.drawn > 255 ? 255 : s.drawn);
-            r.flags = s.rebuilt ? 1 : 0;
+            r.flags = (uint8_t)((s.rebuilt ? 1 : 0) | (s.delayed ? 2 : 0));
             r.pad = 0;
         } else {
             s.overflowFrames++;
@@ -204,6 +233,7 @@ inline void Record(uint32_t frameUs, size_t tracked)
     }
     s.drawn = 0;
     s.rebuilt = false;
+    s.delayed = false;
 }
 
 inline uint32_t MeasureMs(int k)
@@ -226,14 +256,21 @@ inline uint32_t SettleMs(int k)
 inline const char* HomeName(int k)
 {
     const Scene& sc = kScenes[k];
-    return (sc.kind == SURVEY || sc.kind == REC) ? kAptCode[sc.home] : kHomeName[sc.home];
+    return (sc.kind == SURVEY || sc.kind == REC || sc.kind == REPLAY || sc.kind == CTRL_IL || sc.kind == LIVE_APT)
+               ? kAptCode[sc.home] : kHomeName[sc.home];
 }
 
 // The URL the bench host serves this scene's traffic on; the server follows the board by ?s=<scene>.
 inline void PrepareScene(int k)
 {
     State& s = S();
+#if defined(FRAME_BENCH_RUN_REPLAY)
+    // the packed stress rows ask fixed_traffic.py by home and level (its ?s= table is the baseline run's)
+    snprintf(s.url, sizeof s.url, "http://%s/aircraft.json?home=%s&n=%u", FRAME_BENCH_HOST,
+             kScenes[k].home == 0 ? "bend" : "ksfo", (unsigned)kScenes[k].level);
+#else
     snprintf(s.url, sizeof s.url, "http://%s/aircraft.json?s=%d", FRAME_BENCH_HOST, k);
+#endif
     snprintf(s.radius, sizeof s.radius, "%u", (unsigned)kScenes[k].rung);
     s.sceneStartMs = millis();
     s.polls = 0;
@@ -243,14 +280,57 @@ inline void PrepareScene(int k)
 // and the recorder. latSent/lonSent are the request's own 2-dp strings (wireloc::Center), exactly what was sent.
 // A REC poll whose request is not at the scene's airport prints "skip home-ok 0" and NO body (FB-R2): no body from any
 // other home can be printed. Nothing here prints a coordinate.
+// CRC-32 (IEEE, zlib's), bitwise: the replay's CRC is computed ON THE DEVICE over the body it deserialized.
+inline uint32_t Crc32(const char* p, size_t n)
+{
+    uint32_t c = 0xFFFFFFFFu;
+    for (size_t i = 0; i < n; ++i) {
+        c ^= (uint8_t)p[i];
+        for (int k = 0; k < 8; ++k) c = (c >> 1) ^ (0xEDB88320u & (0u - (c & 1u)));
+    }
+    return ~c;
+}
+
 // A template, so this header needs neither ArduinoJson nor models/Aircraft.h: the region's own types fill it in.
-template <typename Doc, typename Rows>
-inline void OnCloudPoll(Doc& doc, const Rows& rows, const char* latSent, const char* lonSent)
+template <typename Doc, typename Rows, typename Parse>
+inline void OnCloudPoll(Doc& doc, Rows& rows, long& dataEpoch, const char* latSent, const char* lonSent, Parse parse)
 {
     State& s = S();
     const int k = s.scene;
     if (k < 0 || s.done || !s.measuring) return;
     const Scene& sc = kScenes[k];
+#if defined(FRAME_BENCH_RUN_REPLAY)
+    if (sc.kind == REPLAY || sc.kind == CTRL_IL) {
+        // THE REPLAY (on the fetch task, core 0): the live GET has been made and parsed as shipped; its content is
+        // replaced by the recorded body at the same elapsed time since the scene's settle began.
+        const int ai = sc.home == 0 ? 0 : 1;
+        const RecPoll* rp = kRecPolls[ai];
+        const uint32_t el = millis() - s.sceneStartMs;
+        int pick = 0;
+        for (int i = 0; i < kRecN[ai]; ++i)
+            if (rp[i].ms <= el) pick = i;
+        const uint32_t t0 = micros();
+        doc.clear();
+        deserializeJson(doc, rp[pick].body);
+        const long age = rp[pick].epoch - doc["t"].template as<long>();   // the recording's own data age
+        doc["t"] = (long)time(nullptr) - age;
+        Rows tmp;
+        long e2 = 0;
+        const bool parsed = parse(doc, tmp, e2);
+        if (parsed) {
+            rows.swap(tmp);
+            dataEpoch = e2;
+        }
+        const uint32_t crc = Crc32(rp[pick].body, strlen(rp[pick].body));
+        const uint32_t us = micros() - t0;
+        if (parsed)
+            Serial.printf("[frame-bench] served A%u %d crc %08lx us %lu\n", (unsigned)sc.home, rp[pick].seq,
+                          (unsigned long)crc, (unsigned long)us);
+        else   // the live picture stands this poll: counted as a miss (the replay's condition 3)
+            Serial.printf("[frame-bench] served A%u %d replay FAILED\n", (unsigned)sc.home, rp[pick].seq);
+        return;
+    }
+#endif
     if (sc.kind != SURVEY && sc.kind != REC) return;
     const bool homeOk = strcmp(latSent, kAptLat[sc.home]) == 0 && strcmp(lonSent, kAptLon[sc.home]) == 0;
     const int poll = ++s.polls;
