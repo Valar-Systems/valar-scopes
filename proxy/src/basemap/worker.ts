@@ -4,6 +4,7 @@
 // it logs nothing about the request: the query holds the origin. Its one line per build (BB1-BB3,
 // docs/basemap-build-reads.md) is about the build's store reads, in counts and milliseconds only.
 import { type BuildQuery, type BuildResult, type StoreReader, build } from "./build";
+import type { RepairCounts } from "./sea";
 import { CAP_BYTES } from "./budget";
 
 // The commit this bundle was built from, stamped at deploy by `deploy.sh --builder` with --define, exactly as the proxy
@@ -49,7 +50,9 @@ function asQuery(v: unknown): BuildQuery | null {
 /**
  * The builder's one line per build, whatever its outcome (BB1-BB4, BL1): integers only, nothing from the query. A built
  * package or a too_large also says what the budget ladder measured (step 0, docs/basemap-dense.md): the rung that
- * fitted, the cap, on a 422 the non-terrain bytes at each rung's full step, and the bytes each layer adds.
+ * fitted, the cap, and the bytes each layer adds; and (Q-W4, docs/basemap-dense-code.md R2-R5) D2's `steps` and the
+ * build-wide `refusedBuilt`. A built package adds the drawn set's `refused` and its sea: `seaLost` = `seaRefused` +
+ * `seaCollapsed` + `seaDropped`, with `refused5` (step 5's), `islandsDropped`, `seaRepairs` and `seaRepairVertices`.
  */
 export function buildLine(r: BuildResult, stat: ReadStat, wallMs: number): Record<string, string | number> {
   const line: Record<string, string | number> = { evt: "bm_build", status: r.ok ? 200 : r.status, ...stat, wallMs };
@@ -60,7 +63,25 @@ export function buildLine(r: BuildResult, stat: ReadStat, wallMs: number): Recor
   if (ladder.nt.length === 4) [line.nt0, line.nt1, line.nt2, line.nt3] = ladder.nt as [number, number, number, number];
   const b = ladder.sections;
   Object.assign(line, { secWater: b.water, secRivers: b.rivers, secRoads: b.roads, secPeaks: b.peaks, secPlaces: b.places, secProv: b.provenance });
+  const rep = r.ok ? r.report : r.status === 422 ? r.report : null;
+  if (!rep) return line;
+  Object.assign(line, { steps: rep.radii.length, refusedBuilt: rep.refusedBuilt });
+  if (rep.refused !== undefined) line.refused = rep.refused;
+  const s = rep.sea;
+  if (s) Object.assign(line, { seaLost: s.lost, seaRefused: s.refused, seaCollapsed: s.collapsed, seaDropped: s.dropped, refused5: s.refused5,
+    islandsDropped: s.islandsDropped, seaRepairs: s.repairs, seaRepairVertices: s.repairVertices });
   return line;
+}
+
+/** One sea repair, as production may log it: COUNTS only -- never the record key, never the island's point (the ruling after
+ *  01:50:28Z: a point inside the requested square is a location tied to a request). The full line is the harness's alone. */
+const repairLine = (c: RepairCounts) => `sea_repair rings ${c.rings} restored ${c.restored} rounds ${c.rounds}`;
+/** The production sea_repair lines for a build: one per repaired piece of a built package, and one for a repair that stopped the
+ *  build (its 500's counts). T-SEALOG asserts on exactly these. */
+export function seaRepairLines(r: BuildResult): string[] {
+  if (r.ok) return (r.report.sea?.repairCounts ?? []).map(repairLine);
+  if (r.status === 500 && r.repair) return [repairLine(r.repair)];
+  return [];
 }
 
 /** The builder's fetch handler for one stamped commit. The default export is the deployed bundle's own (MW18). */
@@ -75,6 +96,7 @@ export function makeBuilder(commit: string) {
       const t0 = Date.now(), stat: ReadStat = { reads: 0, bytes: 0, readMs: 0, maxReadMs: 0 };
       const r = await build(r2Reader(env.STORE, stat), q, { commit });
       console.log(JSON.stringify(buildLine(r, stat, Date.now() - t0)));
+      for (const l of seaRepairLines(r)) console.log(l);
       if (!r.ok) return json(r.status, { error: r.code });
       // x-basemap-commit: the proxy's /healthz reports it (Q4), so D3 can prove which builder is bound
       return new Response(r.bytes, { status: 200, headers: { "content-type": "application/octet-stream", "x-basemap-store": r.storeId, "x-basemap-commit": commit } });
