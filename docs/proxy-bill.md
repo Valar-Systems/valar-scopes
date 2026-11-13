@@ -677,3 +677,73 @@ reader is committed with its sha before it runs, and it runs twice, at least 60 
 - **Recorded, not read:**
   - `adsb_lol` and `adsb_lol_b` (the aircraft feed, both relays) had one short episode, in the 00:10-00:20 slice;
   - adsb.fi's 4xx holds were concentrated in 00:10-00:30.
+
+## The route source's outage: two reads (registered 2026-11-13 ~01:25Z, before either reader exists)
+
+**Why, and why first** (the reviewer, 01:15:18Z). adsb.lol's routeset failed every probe in the hour ending 01:00Z, and
+production has `ROUTE_ADSBDB_ENABLED = "false"` (`wrangler.toml:367`). Line 46's comment reads `"false" once adsb.lol
+routeset recovers`: the fallback was switched off on the premise that the routeset answers. Nothing is proposed before
+these two reads. Turning adsbdb back on is a config change and a deploy, and it was switched off deliberately on 08-26
+(`a9594ab`), so it is the owner's call, with that commit's reason read first.
+
+**What the source records about a route** (read for this registration):
+- `resolveRoute` (`proxy/src/enrich.ts:446`) runs once per `/enrich` request that carries a callsign. It is the only
+  caller of `fetchRoute` (`enrich.ts:549`; nothing else in `proxy/src` calls either).
+- **The KV path.** It reads the bucketed key, then the mirror `rt:<CS>`. A hit that fails the geometric check writes
+  one `route_stale cs=... <verdict>` line (`not_for_position` or `reversed`) and returns no route. A hit that passes
+  writes NOTHING.
+- **The miss path.** `fetchRoute` (`upstreams/chain.ts:689`) asks adsb.lol's routeset. It writes an
+  `upstream_skip breaker_open` while the breaker is open; otherwise it probes, writing an `upstream` line with
+  `ok:true` or `ok:false`. Then, whenever that returns nothing, it asks adsbdb, which writes
+  `upstream_skip disabled_by_config`. So **every lookup that missed KV and got no route writes exactly one
+  `(adsbdb_route, disabled_by_config)` line.**
+- **Not recorded anywhere:**
+  - whether a request carried a callsign;
+  - whether a KV hit came from the mirror or the 24 h runtime cache (`RT_TTL_S`);
+  - a route blanked by the 2.5 s deadline (`enrich.ts:609-618`).
+
+### (1) ONSET: adsb_lol_route's states per hour, back to Workers Logs' retention
+
+**The read.** For every whole hour from the earliest the API returns, to the hour ending 01:00Z, the proxy's events
+whose JSON `id` is `adsb_lol_route`, selected by a SERVER-SIDE filter. Counted per hour: `breaker` open, reopened and
+closed; `upstream` ok:true and ok:false; `upstream_skip` breaker_open. Plus each hour's sampling level. Retention
+(7 days on Workers Paid, per the documentation) is stated as the earliest hour that returns any event.
+
+**Controls, before any hour is believed:**
+- **Positive.** The filtered counts for `[00:00Z, 01:00Z)` must equal the unfiltered read's: open 25, reopened 324,
+  closed 0, `breaker_open` skips 304.
+- **Negative.** The same filter on an id the source never writes must return 0 events. That shows the filter is
+  applied, not ignored.
+
+| row | predicted | if not |
+|---|---|---|
+| **O-a** (predicted, low confidence: nothing in the record dates a change) | the outage's signature (`reopened` > 0, `closed` 0, `upstream ok:true` 0) is in EVERY hour back to the earliest retained one: onset "before <that hour>" | **O-b:** a first signature hour inside retention, after hours with `closed` or `ok:true`. The onset is dated to that hour, and the last hour with a `closed` is named |
+| **O-c** (not predicted) | | signature hours interleaved with healthy hours: intermittent on an hour scale. Reported to the reviewer at once |
+| escape | either control fails; more than 10% of hours sampled (a sampled hour is marked, never graded); a run of hours with no proxy events at all | the instrument is unreliable for those hours: stop and report, with no reading |
+
+### (2) IMPACT, in the hour ending 01:00Z: how `/enrich` requests end, route-wise
+
+**The read:**
+- `/enrich` requests in `[00:00Z, 01:00Z)`, from Analytics Engine: `SUM(_sample_interval * double4)` over the two
+  enrich route templates.
+- The Logs counts for the same hour: the 733 `disabled_by_config` skips and 304 `breaker_open` skips already read; the
+  338 `route_stale` lines, counted by verdict (the verdict printed only from the source's two values); and the routeset's
+  `upstream ok:true` count, from read (1).
+
+**Reported:**
+- no route, KV miss: the `disabled_by_config` count;
+- no route, KV hit withheld: the `route_stale` count, by verdict;
+- route from the routeset: `ok:true` lines, as an upper bound, since an ok:true can be empty;
+- route from KV (mirror or runtime cache, not separable): `/enrich` minus the above, as an UPPER bound, because
+  requests without a callsign make no lookup and are not recorded.
+
+Each is given as a count and as a share of `/enrich` requests.
+
+| row | predicted | if not |
+|---|---|---|
+| **I1** | `/enrich` requests >= 733 + 338 = 1,071: by the source, each of those lines belongs to exactly one `/enrich` request | the attribution is wrong: stop |
+| **I2** | the routeset's `upstream ok:true` count in the hour is **0**, consistent with no `closed` | some routes did come from the routeset: count them, and the "no route" figures stand as written |
+| escape | the two reads disagree; an unknown verdict; the Analytics Engine query errors | stop and report |
+
+**Both readers** follow the pattern above: no wrangler, counts only, held in memory, error paths print the type only,
+the token file. Each is committed with its sha before it runs, and runs twice at least 60 s apart.
