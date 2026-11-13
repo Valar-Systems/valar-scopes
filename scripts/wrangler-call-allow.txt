@@ -1,7 +1,6 @@
 # scripts/wrangler-call-allow.txt -- lines scripts/check_wrangler_calls.py lets through, by path and the SHA-256 of
 # the stripped line (docs/wrangler-run.md). An entry whose line has changed or gone is STALE and refused, so each
 # one dies with the line it allows. The reason says when it goes: a PR-B or a clearance row is a migration owed.
-proxy/scripts/basemap/d1.ts	0f1207036112c5fb3ec0a5429278d3cd0e51bc0ad9d288cfd83b6ae4ad51ee99	migrates after the sea-path PR (map-server; v20's critical path)
 proxy/scripts/check-drift-workflow.mjs	206ac7a27bf8085be25b9bf01b31b4330a162511a8ef81ad107cb4b66782dcea	a test string: the drift check's own planted workflow edit
 proxy/scripts/deploy-inputs.mjs	604baadeb2e497eb64044b4bd608e410e7468239995ec212146a2c95982e2584	migrates in PR B (staging rehearsal; the deploy path)
 proxy/scripts/deploy.sh	7a372624e385b001edbd8224fec313ce52e54eb0e596f8e78afaa94b5192e12d	migrates in PR B (staging rehearsal; the deploy path)

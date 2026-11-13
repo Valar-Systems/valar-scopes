@@ -48,8 +48,8 @@ is where someone will be tempted to forget it.
   `rotate-staging-provision-token.sh`, and `tools/wx`'s deploy, rollback and cycle scripts. Until then, their lines are
   allowlist entries reading "migrates in PR B (staging rehearsal)", so the check forces PR B. The helper also joins
   `deploy-inputs.mjs`'s machinery list (DB17) in PR B.
-- **After the sea-path PR** (map-server's, v20's critical path): `proxy/scripts/basemap/d1.ts`, with entries reading
-  "migrates after the sea-path PR".
+- **In the sea-path PR** (map-server's, v20's critical path): `proxy/scripts/basemap/d1.ts`. Its one allowlist entry
+  ("migrates after the sea-path PR") was dropped there, with its call moved to the helper (the reviewer, 2026-11-13 ~07:39Z).
 - **`tools/wx/*` and the `ingest-*` scripts:** only after the reviewer clears the exact lines with weatherscope and
   uk-data.
 
