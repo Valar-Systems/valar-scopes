@@ -117,7 +117,7 @@ The values were read 2026-11-13 under the narrowed hold, with wrangler's log in 
 | row | where | predicted |
 |---|---|---|
 | D-S1 | staging `/healthz` `routes` | `builtAt` `2026-08-25T23:31:26.817Z`, `rows` 619103, `stale` true, `maxAgeDays` 14, `ageDays` = floor(t − builtAt), at the read's own time t (79 before 11-13T23:31:26Z, 80 after) |
-| D-P1 | production `/healthz` `routes` | `builtAt` `2026-08-26T17:25:54.476Z`, `rows` 619103, `stale` true, `maxAgeDays` 14, `ageDays` = floor(t − builtAt): 79 before 11-13T17:25:54Z, 80 after |
+| D-P1 | production `/healthz` `routes` | `builtAt` `2026-08-26T17:25:54.476Z`, `rows` 619103, `stale` true, `maxAgeDays` 14, `ageDays` = floor(t − builtAt): 78 before 11-13T17:25:54.476Z, 79 from then, 80 from 11-14T17:25:54.476Z. **Corrected 2026-11-13 16:45Z, before any read** (ruled by the reviewer). This was a derivation error: the numbers had been written as "79 before, 80 after", one day too many. The formula is unchanged. A read within 60 s either side of 17:25:54Z is not graded; it is re-read at or after 17:27:00Z against 79 |
 | D-P2 | production `/healthz` `commit` | the deployed sha, by `healthz-commit.sh` |
 | D-P3 | `smoke-prod.sh` against production | the new block reads `WARN -- STALE: built 2026-08-26T17:25:54.476Z, <ageDays> d old (limit 14 d)`. PASS/FAIL/SKIPPED and the exit code are **identical** to the same script's run before the deploy |
 
