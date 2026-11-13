@@ -3797,3 +3797,41 @@ Both print, per view, the differing and island pixel counts and a sha256 prefix 
 - So **9 of 32** vertex coordinates differ in their last bits, and the old rule turns that into a 2-pixel flip at an exact tie.
 
 **What this does and does not show, for any future cross-runtime comparison:** under the pinned rule the two raster masks agreed on every input and view here, despite those ulp differences. These inputs do not show that the lower-endpoint rule is tie-robust in general. An alternative is not excluded: the rule's lower endpoint may simply have been one of the bit-equal coordinates where the old rule's first endpoint was not. So a comparison across runtimes can meet a tie under either rule. KB1 avoids the question by comparing two rasters made by the port in one runtime.
+
+### KB1, registered before its test exists (KB1 ruled to proceed after 04:04Z)
+
+**The row**, the 15th SEA-CI test, in `basemap-sea.test.ts`. For kb1 and kb1c, each built as the other SEA-CI fixtures are:
+- the piece is drawn;
+- its drawn sea rings (`report.sea.ringIdx`) are rasterised by the port's `kb1Views` against the piece's own unbridged `q`, at radius 162 km;
+- **the differing pixels are 0 in all 24 views**;
+- CONTROL, that the reference holds the islands: **the island pixels total 20,818 (kb1) and 15,388 (kb1c)**.
+
+**Where the values come from.** They are pq4d's: the instrument `pq4d-sabrows.mts` (a11faef1ee71, record 8f78ed30744d) runs the port on the prototype's live output. Its control passed before any prediction was read: 31 of 31 objects. That includes KB1 on clean pq4d reading 0 in all 24 views with island totals 20,818 and 15,388, exactly the totals the pinned Python reference read on part 2's stored outputs (R8's P2). So the port on the prototype agrees with the reference on its record.
+
+**Its red-set additions, from pq4d under the same plants (`pq4d-sabpredict.mjs` d80b3c87c2d8; the grader check is still 7 of 7):**
+
+| plant | KB1 | pq4d read |
+|---|---|---|
+| S-KB-NOBRIDGE | **red** | kb1 20,818, kb1c 15,388 differing |
+| S-KB-ORDER | **red** | kb1 0, kb1c 128 differing |
+| S-KB-CROSS, S-KB-EDGEUNLOCK, S-KB-REPAIRLIMIT, S-BACKSTOP-OFF, S-PROV-OLD | green | 0 and 0 |
+| every build() plant (28 + the four re-anchored) | green | 0 and 0 |
+| S-KB-REPAIROFF | green, reasoned | kb1 and kb1c need no repair (REFUSED5: repairs 0) |
+| S-SEALOG-POINT | green, reasoned | worker.ts only; KB1 reads `build()` |
+| the 48 outside `build()` | green, reasoned | as R12 (b) |
+
+So **S-KB-NOBRIDGE = {BRIDGES, T-SEA0c, KB1}** and **S-KB-ORDER = {EDGE2, XISLAND, XISLAND-TALL, T-SEALOG, KB1}**. Every other set is unchanged.
+
+**One plant change, registered here: S-KB-ORDER's piece carries `q`.**
+- As written at 2b9126702aef, the plant pushed its drawn piece with no `q`. KB1 would then go red on a missing field, not on the registered cause, a bridge with width.
+- Part 2 graded the order plant against the clean run's `q` (`p2-read.py`). On kb1c the clean `q` is step 3's rings, because kb1c needs no repair.
+- So the plant now records `q: { outer: simpL(oc), islands simpL(h) for each kept island }`, the same rings. No other test reads `q`, so the plant's other reds are unchanged.
+
+**The counts move by one**, and the `caseOf` list gains KB1:
+- baseline[sea]: **15** cases in 1 file;
+- baseline[all]: **191** in 18 files;
+- the smoke CONTROL: **1092 passed, 1 skipped, of 1093**.
+
+**R12 (d), running now, grades 9008c74dee8f, before KB1.** Once KB1 lands, the driver runs again at the new head. That re-run is the whole basemap driver plus the smoke driver, because the counts move and the "all" set grades KB1 under every plant. Its predictions are R12's table with this section's two set changes and these counts.
+
+**Outside the set: stop.**
