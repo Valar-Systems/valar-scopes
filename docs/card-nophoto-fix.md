@@ -477,6 +477,46 @@ at the moment it opened, frozen.
 
 ## Results
 
+### Window B, FT1 and FT2 (E2:08, 2026-11-12 23:53Z - 2026-11-13 00:08Z; M7, as registered)
+
+Images `9b03eaf5a570` (before) and `dbda143abbaf` (after), driver `371c7de871ab`. Every write verified; CN0 held for
+every card; the photo was drawn before every FT2 sample. Restored to v19 (boot read: `fw=v19`, `[WiFi] CONNECTED`, no
+line that opens a portal) and released at 00:08:34Z.
+
+**The instrument held:**
+- **The control** (`Z 5000`): +5.07 ms before and +5.18 ms after, both inside 5.0 +/- 1.0. The graded quantity sees
+  a slowdown of that size.
+- **FT-AA:** every pair of samples within 2 ms of each other, the largest 1.06 ms.
+- **Tracked:** exactly n + 1 on every sample.
+- **No lookups:** zero metadata lookups from the first full `[perf]` window after F, and zero `fb00..` enrich lines
+  anywhere, in both phases (4 and 5 `[perf]` lines counted).
+- **The uncovered interval** (F's line to the first `[perf]` line after it): before, 23:54:26Z to 23:55:02Z, 36.8 s;
+  after, 00:01:34Z to 00:02:11Z, 37.0 s. Both are under one `[perf]` period.
+
+**The rows** (the mean of two samples, ms per drawn frame):
+
+| row | before | after | after - before | the margin (+2 ms) | the prediction |
+|---|---|---|---|---|---|
+| FT1, n = 20 | 38.74 | 39.66 | +0.92 | within | **off** (predicted after <= before) |
+| FT1, n = 40 | 39.40 | 40.64 | +1.24 | within | **off** |
+| FT2, n = 40 | 41.62 | 43.22 | +1.60 | within | **off** (predicted within 1 ms) |
+| FT2, n = 20 | 41.28 | 42.69 | +1.41 | within | **off** |
+
+**By the registered rule the fix does not stop:** every row is inside its +2 ms margin. **Every prediction was
+wrong, though,** in the same direction: each row is slower after, by 0.9 to 1.6 ms.
+
+**Two explanations, and the data does not separate them:**
+- **(1) An offset between the two sessions.** They are a separate flash and boot of a different image (112 B larger,
+  so the code layout moves), with a different heap and network state. FT2's path is not touched by the fix: the
+  photo page returns before the changed block, and (c0)/(c1) were byte-identical. Yet FT2 is +1.41/+1.60 ms. That is
+  the signature of a session offset, of about that size. Under it, FT1's +0.92/+1.24 would be the offset, not the fix.
+- **(2) The fix costs about 1 ms on FT1.** The compact card draws seven more flowed rows than the silhouette card,
+  and FT2 is slower for another reason.
+
+What would separate them is a between-session A/A: the before image flashed twice, or before / after / before. It was
+not registered and was not run. The predictions are reported as missed and not re-graded. Whether the margin's pass
+is enough for the merge is the reviewer's and the owner's call.
+
 ### Window A, the pictures (E2:08, 2026-11-12 23:16-23:20Z; the reviewer's split after the third stop)
 
 The third stop (run 3) came from the window's design. While a card is open, `Update()` returns before the feed merge
