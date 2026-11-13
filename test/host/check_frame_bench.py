@@ -18,6 +18,9 @@
          and the served line prints that computed crc
   FB-R8  the generated recording header is included only under FRAME_BENCH_RUN_REPLAY, and scripts/framebench_rec.py
          compares each recording's sha256 to its pinned value before using it
+  FB-R9  in OnCloudPoll the replay block precedes the measuring gate (the replay runs in the settle too): no
+         `s.measuring` test between the function's start and the replay block, and `if (!s.measuring) return;` after
+         the block's #endif
     python -I check_frame_bench.py <tree>             the rows; exit 0 all pass, 1 any fails
     python -I check_frame_bench.py --selftest <tree>  each row planted red on a copy in memory, and the clean tree green"""
 import os
@@ -182,6 +185,16 @@ def rows(files, listing=None):
     pin = sc.find("hashlib.sha256(blob).hexdigest() != want")
     use = sc.find("json.loads(l)")
     res["FB-R8"] = (gated and 0 <= pin < use, f"header includes {len(inc)}, gated {gated}; pin check before use {0 <= pin < use}")
+    # FB-R9: the replay runs in the settle too (F1): the measuring gate sits below the replay block
+    fs = next((i for i, l in enumerate(hdr) if "inline void OnCloudPoll(" in l), -1)
+    rb = next((i for i in range(fs + 1, len(hdr)) if "if (sc.kind == REPLAY)" in hdr[i]), -1) if fs >= 0 else -1
+    rend = next((i for i in range(rb + 1, len(hdr)) if hdr[i].strip() == "#endif"), -1) if rb >= 0 else -1
+    early = [i for i in range(fs + 1, rb) if "s.measuring" in hdr[i]] if rb > fs >= 0 else []
+    low = next((i for i in range(rend + 1, len(hdr)) if hdr[i].strip().startswith("if (!s.measuring) return;")), -1) \
+        if rend >= 0 else -1
+    r9 = fs >= 0 and rb > fs and not early and low > rend >= 0
+    res["FB-R9"] = (r9, f"replay block at line {rb + 1 if rb >= 0 else None}; measuring tests above it {len(early)}; "
+                        f"the gate below it at line {low + 1 if low >= 0 else None}")
     return res
 
 
@@ -276,6 +289,16 @@ def selftest(tree):
 
     rc |= plant("FB-R7, the CRC over another body", r7, "FB-R7")
     rc |= plant("FB-R8, the pinned-sha check removed", r8, "FB-R8")
+
+    def r9(f):
+        h = f[HEADER]
+        i = next(j for j, l in enumerate(h) if "inline void OnCloudPoll(" in l)
+        k = next(j for j in range(i, len(h)) if h[j].strip() == "if (k < 0 || s.done) return;")
+        h[k] = h[k].replace("if (k < 0 || s.done) return;", "if (k < 0 || s.done || !s.measuring) return;")
+        g = next(j for j in range(k, len(h)) if h[j].strip().startswith("if (!s.measuring) return;"))
+        del h[g]
+
+    rc |= plant("FB-R9, the measuring gate moved back above the replay block", r9, "FB-R9")
     print("selftest " + ("PASSED" if rc == 0 else "FAILED"))
     return rc
 

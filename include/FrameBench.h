@@ -69,15 +69,15 @@ static_assert(sizeof(kScenes) / sizeof(kScenes[0]) == kNumApt, "one survey scene
 #endif
 static const Scene kScenes[] = {{REC, 0, 0, kShippingRadiusMi}, {REC, FRAME_BENCH_REC_B, 0, kShippingRadiusMi}};
 #elif defined(FRAME_BENCH_RUN_REPLAY)
-// RP5, the v19 run on the recordings: the interleaved control, THE SIX (KSFO and the choice at kRungs), the 10 mi
-// reported rows, the packed stress rows (Bend, 40 and 60, at kRungs), LIVE at both airports, LIVE-OWN.
+// RP5, the v19 run on the recordings: CTRL-IL (F3: I-6's S0, packed Bend/40/25, local), THE SIX (KSFO and the choice
+// at kRungs), the 10 mi rows, the packed stress rows (Bend 40/60 at kRungs), LIVE at both airports (F2), LIVE-OWN.
 #if !defined(FRAME_BENCH_REC_B) || FRAME_BENCH_REC_B < 1 || FRAME_BENCH_REC_B > 8
 #error "FRAME_BENCH_RUN_REPLAY needs FRAME_BENCH_REC_B in 1..8 (the survey's choice)"
 #endif
 #include "framebench_rec_gen.h"   // GENERATED from the two pinned recordings (scripts/framebench_rec.py), untracked
 static_assert(sizeof(kRungs) / sizeof(kRungs[0]) == 3, "the six: two homes x three rungs (the owner, 23:31Z)");
 static const Scene kScenes[] = {
-    {CTRL_IL, 0, 0, kRungs[1]},
+    {CTRL_IL, 0, 40, 25},   // I-6's S0 (Bend/40/25): the control's own configuration, not a rung of the bar
     {REPLAY, 0, 0, kRungs[0]}, {REPLAY, 0, 0, kRungs[1]}, {REPLAY, 0, 0, kRungs[2]},
     {REPLAY, FRAME_BENCH_REC_B, 0, kRungs[0]}, {REPLAY, FRAME_BENCH_REC_B, 0, kRungs[1]},
     {REPLAY, FRAME_BENCH_REC_B, 0, kRungs[2]},
@@ -115,6 +115,7 @@ constexpr uint32_t START_AFTER_MS = 90000;    // the first scene starts 90 s aft
 constexpr uint32_t SETTLE_MS = 100000;        // A1: the trail's 90 s age plus a margin
 constexpr uint32_t MEASURE_MS = 120000;
 constexpr uint32_t MEASURE_OWN_MS = 300000;   // LIVE-OWN: about 10 [health] windows for (iv)
+constexpr uint32_t MEASURE_APT_MS = 300000;   // LIVE-APT: 10 windows of 30 s, so XA has >= 8 a side (F2)
 constexpr uint32_t PLANTED_DELAY_US = 10000;  // CTRL+10ms (I-6)
 constexpr uint32_t SURVEY_SETTLE_MS = 20000;  // RP2: the home applied, the first poll at it
 constexpr uint32_t SURVEY_MS = 180000;        // RP2: at least 10 polls at the idle cadence
@@ -173,7 +174,7 @@ inline const char* Override(const char* key)
     if (s.scene < 0 || s.done) return nullptr;
     const Scene& sc = kScenes[s.scene];
     if (sc.kind == LIVE_OWN) return nullptr;   // (iv): every key is the board's own
-    if (sc.kind == SURVEY || sc.kind == REC || sc.kind == REPLAY || sc.kind == CTRL_IL || sc.kind == LIVE_APT) {
+    if (sc.kind == SURVEY || sc.kind == REC || sc.kind == REPLAY || sc.kind == LIVE_APT) {
         // the airport home, the cloud source; the radius is the scene's rung (100 mi, the shipping default, for
         // SURVEY, REC and LIVE-APT)
         if (strcmp(key, "latitude") == 0) return kAptLat[sc.home];
@@ -240,6 +241,7 @@ inline uint32_t MeasureMs(int k)
 {
     switch (kScenes[k].kind) {
     case LIVE_OWN: return MEASURE_OWN_MS;
+    case LIVE_APT: return MEASURE_APT_MS;
     case SURVEY: return SURVEY_MS;
     case REC: return REC_MS;
     default: return MEASURE_MS;
@@ -256,7 +258,7 @@ inline uint32_t SettleMs(int k)
 inline const char* HomeName(int k)
 {
     const Scene& sc = kScenes[k];
-    return (sc.kind == SURVEY || sc.kind == REC || sc.kind == REPLAY || sc.kind == CTRL_IL || sc.kind == LIVE_APT)
+    return (sc.kind == SURVEY || sc.kind == REC || sc.kind == REPLAY || sc.kind == LIVE_APT)
                ? kAptCode[sc.home] : kHomeName[sc.home];
 }
 
@@ -297,12 +299,13 @@ inline void OnCloudPoll(Doc& doc, Rows& rows, long& dataEpoch, const char* latSe
 {
     State& s = S();
     const int k = s.scene;
-    if (k < 0 || s.done || !s.measuring) return;
+    if (k < 0 || s.done) return;
     const Scene& sc = kScenes[k];
 #if defined(FRAME_BENCH_RUN_REPLAY)
-    if (sc.kind == REPLAY || sc.kind == CTRL_IL) {
-        // THE REPLAY (on the fetch task, core 0): the live GET has been made and parsed as shipped; its content is
-        // replaced by the recorded body at the same elapsed time since the scene's settle began.
+    if (sc.kind == REPLAY) {
+        // THE REPLAY (on the fetch task, core 0), in the SETTLE and the measured span alike (F1; FB-R9): the live GET
+        // has been made and parsed as shipped; its content is replaced by the recorded body at the same elapsed time
+        // since the scene's settle began, so the settle's trails are the recording's own.
         const int ai = sc.home == 0 ? 0 : 1;
         const RecPoll* rp = kRecPolls[ai];
         const uint32_t el = millis() - s.sceneStartMs;
@@ -331,6 +334,7 @@ inline void OnCloudPoll(Doc& doc, Rows& rows, long& dataEpoch, const char* latSe
         return;
     }
 #endif
+    if (!s.measuring) return;   // SURVEY and REC count and record only in the measured span (below the replay: FB-R9)
     if (sc.kind != SURVEY && sc.kind != REC) return;
     const bool homeOk = strcmp(latSent, kAptLat[sc.home]) == 0 && strcmp(lonSent, kAptLon[sc.home]) == 0;
     const int poll = ++s.polls;
