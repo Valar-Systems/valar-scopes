@@ -3350,6 +3350,22 @@ the sea rings, record 18, and the water and roads the ladder drops to fit them.
 - **Outside the set: STOP.** A slowdown over M at KJFK or KBOS stops the code PR and goes to the owner.
 - **Amendment (the orchestrator, 19:51Z), every load variable pinned:** WEATHER is OFF for both packages, so the row isolates the map.
   THE AIRCRAFT LEVEL is FIXED's default, **40 drawn**, the same for sea and no-sea at every point and rung.
+- **Amendment (the orchestrator's ruling (B), 2026-11-12 ~22:55Z), made BEFORE any reading, on map-client's v19 baseline**
+  (docs/frame-time-bench.md at 3fb9adab3633; reader frame_bench_read_b.py b0dbd4ebc163, output baseline_b.out 29d24028cec9):
+  - **The inputs.** REPEAT NOISE **0.93 ms**: |delta p95(`p2p`)| between S0, CTRL plain ("Bend, 40 fixed, 25 mi"), and S6, FIXED
+    Bend/40/25 mi, the same scene measured twice. **U95 = 1.54 ms**, the bench's stated uncertainty on every single p95 (I-6's excess,
+    +11.54 against its +10.0 plant). U95 comes from ONE CTRL pair, so it is an ESTIMATE.
+  - **M = max(2 x repeat noise, 2 x U95, 2.0 ms) = 3.08 ms,** replacing the formula above. The graded quantity is a difference of two
+    single p95s, each +- 1.54, so this bench cannot resolve less than about 3 ms; a margin inside that turns noise into STOPs, each
+    wrongly going to the owner.
+  - **The cost, named:** a real slowdown under 3.08 ms passes unseen. A pass is recorded as "below this bench's resolution", never as
+    "no slowdown". Resolving under 3 ms would need repeats, registered then. A speed-up never stops.
+  - **The control, KORD,** must read **|delta p95| <= 2 x U95 = 3.08 ms** at every rung, replacing "within the repeat noise" above (0.93
+    sits below one p95's own uncertainty, so the control would fail on noise). Its two packages differ only in 9 secondary roads, which
+    the device does not draw while a primary road is in view (MapLayer's S1, which the bench prints), so the pair draws the same frame:
+    **it is printed beside the graded deltas every run as that run's live noise reading,** and if it ever exceeds 3.08 ms the run is the
+    instrument's: STOP, and nothing in it is graded.
+  - FT-HR (docs/basemap-hudson-rule.md, #682) carries the same amendment.
 
 ## #652's CI, predicted (the docs-only shape from main 099f1946, the orchestrator's 19:06:30Z announcement)
 
