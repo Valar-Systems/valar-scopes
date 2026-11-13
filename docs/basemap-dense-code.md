@@ -3990,3 +3990,32 @@ So **S-KB-NOBRIDGE = {BRIDGES, T-SEA0c, KB1}** and **S-KB-ORDER = {EDGE2, XISLAN
 - credits only if anything it touches changed. Nothing has, so it does not run.
 
 Outside the set: stop.
+
+### The owner's two rulings (05:01Z, relayed verbatim by the orchestrator at 05:02:35Z), and MN7, registered before it runs
+
+> "The map data download's user agent: yes, add support@valarsystems.com, and keep the repo's web address beside it. This supersedes the
+> Oct 28 ruling."
+
+> "The builder's rejected-pieces count (from the sabotage run): besides the one-line fix, add a permanent host test that forces two tries
+> at the same simplification level and fails on today's code first, so the bug can't come back unnoticed."
+
+**1. The ingest's User-Agent**, from the SEA-STORE fetch on: `BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes; support@valarsystems.com)`. This **supersedes the 2026-10-28 ruling**, by the owner's words above.
+
+**2. MN7, red first.** The fix had been applied in the working tree, uncommitted, before the owner's message arrived. It was reversed exactly, and build.ts equals HEAD (git diff), so "today's code" is the code as committed at c3e0faa0.
+- **The seam** (named to the orchestrator before it was written): `refusedBuiltOf(sets)`, exported from build.ts.
+  - It takes the sets as a LIST, each with its tolerance (`tolMm`, `refusedW`, `seaW`). The map is the defect, so a helper taking the map could never be handed two sets at one tolerance.
+  - **Step 1, the extraction, carries today's semantics exactly:** index the list by `tolMm` (a later set replaces an earlier one), then sum over the index's values. build() calls it with L1, L2, L4 and L8 and their tolerances, and the ladder's `at` map is built as now.
+  - The extraction is byte-neutral: every package, the clean state's `refusedBuilt`, and every row are unchanged.
+- **MN7** (basemap-build.test.ts) asserts that two sets at the SAME tolerance (1 refusal each) and one at another (2 sea step-3 refusals) give **4**. **CONTROL:** two sets at distinct tolerances (1 each) give 2.
+- **Predicted:** on today's code (step 1), **MN7 RED: 3 where 4 is asserted**; the control passes. **Step 2, the fix** (sum over the list, each set once): MN7 GREEN.
+- **Its plant**, S-RBMAP: the map-indexed sum put back, red set **{MN7}**. Under EPS_STEP 2 the four tolerances are distinct, so T-PROV-a and the rest stay green. S-BTWICE stays the second catcher (its registered set, T-PROV-a green once fixed).
+
+**The re-run's counts move by MN7:**
+- baseline[all] **195** cases in 19 files;
+- the smoke CONTROL **1096 passed, 1 skipped, of 1097**;
+- **93 sabotages AS PREDICTED**;
+- ingest 12, mv 31 and sea 15 unchanged.
+
+Every other prediction is as registered at c3e0faa0.
+
+Outside the set: stop.
