@@ -251,8 +251,16 @@ the requests) is the family that passes KM3 at both ends.
 **The instrument:** `tools/bill/kv_model_read.py` (read-only; the `analytics-read` token from the token file, never
 printed; counts only).
 - `tools/token_file.py` knows no KV-read purpose, so the leaderboard's two key counts (`lb:dev:` 6,
-  `lb:firsttype:` 290) came from `wrangler kv key list --remote` on production's namespace, piped into a counter so
-  no key name was printed. Both counts were non-zero, which shows the remote store was read.
+  `lb:firsttype:` 290) came from `wrangler kv key list --remote` on production's namespace, piped into a counter.
+  Both counts were non-zero, which shows the remote store was read.
+  - **Corrected 2026-11-13:** no key name reached the SCREEN, but every name reached DISK. wrangler 4.35.0 appends
+    every message it logs, including the key list it prints, to its own debug log in `~/.wrangler/logs/`
+    (`src/utils/log-file.ts`; there is no off switch, and `WRANGLER_LOG_PATH` only moves the file). This run left
+    the 6 `lb:dev:` names, which are device ids, in one file there. Removing it is the owner's call.
+  - **Ruled (the reviewer, 00:44:37Z):** a key count from now on goes through a reader that prints only the count.
+    The reader sets `WRANGLER_LOG_PATH` to a `.log` file in a fresh temp dir it creates and removes on exit. Its two
+    controls: the name-bearing files in the default folder are counted before and after and must match, and the temp
+    dir must be gone after exit. The reader's sha goes here. No key list runs until it exists.
 - **(iv), confirmed by the schema introspection:** `kvOperationsAdaptiveGroups`' dimensions are `actionType`, `date`,
   `datetime` (and its 5-minute, 15-minute, hour and minute forms), `namespaceId`, `responseStatusCode` and `result`.
   There is no key dimension, so KM3 is graded as a claim about the model.
@@ -288,3 +296,151 @@ printed; counts only).
   **7.4 reads per `/enrich` request**, inside its registered [1, 16], if revocation is near 0. So lever (b) has two
   targets: `fw:` (one read a request, cacheable per isolate against `REFRESH_MS`) and `/enrich`'s lookup chain.
   The design (step 4) is registered with its own predictions.
+
+## Step 4a: lever (b1), the `fw:` isolate cache (design; predictions frozen 2026-11-13 ~00:55Z; nothing built or deployed)
+
+**The ruling on what step 2b's fails mean** (the reviewer, 00:36:48Z):
+- KM1'''s registered "if not" is "a missed read path". A missed path pushes the measurement ABOVE the model, but the
+  reading is BELOW it, so the escape branch was taken. The reviewer decided it:
+  1. **`fw:` does not rest on the model.** It is one read per device request, from the source (`proxy/src/index.ts:384`
+     to `fleet.ts:107`), times the measured requests. It is designed now, below.
+  2. **`/enrich`'s chain is not designed from a midpoint.** Its design starts with an instrumentation proposal:
+     Analytics Engine counts per branch (route cache hit or miss, the `ovr:`/`pa:`/`mil:` depth, revocation's
+     isolate-cache misses). It is registered first, and its deploy is the owner's call. "About 7.4 reads per `/enrich`
+     request" holds only if revocation is about 0, and is stated as that, not as a finding.
+  3. **(c) waits the same way,** for measured write paths (the leaderboard's T, the route key's writes).
+- **Order:** this design first. Step 3, which is reading only, runs while it is in review.
+
+### What `fw:` costs now
+
+- **Where the read is.** `recordFleetFirmware` (`proxy/src/fleet.ts:92`) runs on every request that passes auth and
+  the per-key limit with both `X-Blip-Device` and `X-Blip-FW` set. It always issues one `ENRICH_KV.get("fw:<dev>")`.
+- **When it writes.** Only when the record is new, the firmware changed, or the stored `lastSeen` is older than
+  `REFRESH_MS` (1 h).
+- **Its share.** In step 2b's window, the device routes made 482,349 requests against 1,696,591 production reads:
+  **28.43%**. That is an upper bound. The 482,349 is the device routes' total, not filtered on both headers being
+  present or on the key limiter's 429s. The exact baseline is the first thing the post-deploy read prints.
+- **Per board.** On `docs/wx-account-cost.md` section 6's 401,000 KV reads a board a month: **about 114,000 `fw:` reads
+  a board a month.**
+
+### The change: a memo in front of the read, per isolate
+
+```ts
+// Per isolate: device -> the fw and lastSeen of the STORED record, as this isolate last read or wrote it.
+const now = Date.now();
+const m = memo.get(dev);
+if (m && m.fw === fw && now - m.lastSeen < REFRESH_MS) { meta.fwKvRead = 0; return; }   // no KV call at all
+meta.fwKvRead = 1;
+ctx.waitUntil(/* today's read / compare / write, unchanged; then memo.set(dev, { fw: stored fw, lastSeen: stored or written lastSeen }) */);
+```
+
+- **What it remembers.** `memo.lastSeen` is the STORED `lastSeen`, not the request's time. So the memo expires
+  exactly when the stored record's refresh falls due, and the read at that moment does the write today's code would
+  have done.
+- **Its bound.** The map is cleared at 4,096 entries; 600 boards are far below that.
+- **Testable as two isolates.** It is built as `makeFleetRecorder()` with its own memo, so a test can hold two
+  "isolates" over one fake KV.
+- **What it does not add.** No log line, and no Analytics Engine data point (see the instrument below).
+
+**What the KV read establishes, and what the memo does with each** (CLAUDE.md, "when you add a second path"):
+
+| the read establishes | under the memo | consequence |
+|---|---|---|
+| the stored `fw` equals the reported one | it equals what THIS isolate last saw stored; another isolate may have written a change since | **The A-B-A case:** a device reports v19, then v20 on isolate B, then v19 again on isolate A within the hour. The v20-to-v19 transition is recorded LATE, by at most `REFRESH_MS`, when A's memo expires. It is never lost: the next read anywhere sees the stored v20 and appends it. Its `at` is the late time |
+| the stored `lastSeen` is fresh | it is as of this isolate's last read or write; another isolate's later refresh is not seen | the memo expires early, never late: an extra read, never a missed write |
+| the record exists | assumed for up to `REFRESH_MS` | a row deleted by hand is re-created up to an hour later, not at the next request |
+| no write unless new, changed or stale | unchanged: a write still follows a read that found one of the three | KV writes unchanged, apart from the late A-B-A write |
+
+`lastSeen` as liveness (`scripts/reconcile-fleet.py`) is unchanged: it is still at most `REFRESH_MS` plus the gap to the
+device's next request.
+
+### The instrument: one double, appended
+
+- **The field.** `RequestMetric` gains `fwKvRead` (0 or 1), set synchronously at the decision above, so `record()`
+  sees it.
+- **On request rows, as `double5`, appended** (`metrics.ts:233`'s append-only rule). It adds no data point, so it
+  costs nothing in Analytics Engine.
+- **No collision.** Every query that reads `double5` to `double8` today belongs to the usage family
+  (`dashboard/src/analytics.ts:302-305`, `proxy/scripts/usage-stats.ts:73-184`). The code PR shows each is scoped by
+  `blob1 = 'usage'` before it lands.
+- **The count.** `fw:` reads = `SUM(_sample_interval * double4 * double5)` over request rows; `double4` carries the
+  1:10 sampling of hit rows.
+- **Its denominator** is the requests that reached the decision: the same sum without `double5`, over rows with
+  `blob5 != ''` and `blob6 != ''`.
+- **r** = `fw:` reads per device request. Before the change r = 1, by the source, less the key limiter's 429s.
+
+### Controls, before anything is believed
+
+Each request's `waitUntil` is settled before the next in the vitest controls.
+
+| control | where | must |
+|---|---|---|
+| **C1:** the counter cannot drift from the reads | vitest, with a spy on `ENRICH_KV.get` | over a scripted sequence (20 requests with one fw inside the hour, then a fw change, then the clock past `REFRESH_MS`), the spy's `fw:` gets equal the sum of `fwKvRead`, and both are **3** |
+| **C1-red** | the same test, with the memo check planted out (the plant asserted to apply) | fails with gets = **22** |
+| **C2:** a change is never lost | vitest: two recorders (two isolates) over one fake KV, the A-B-A sequence | the stored `changes` holds both transitions; the second's `at` is no later than A's memo expiry |
+| **C3:** the bound | vitest | after 4,097 distinct devices the memo holds at most 4,096 |
+| **C4:** two instruments agree | production, after the deploy | GraphQL's production reads per device request drop by (1 - r) within the before-to-before spread. A counter that is inverted, or wired to the wrong branch, disagrees here |
+
+### Predictions (frozen now; graded on the first read after the owner's deploy)
+
+- **The window:** 24 h, starting 1 h after the deploy.
+- **The spread:** two 24 h windows before the deploy, read the same way. Their difference in production reads per
+  device request is the spread that F2 and C4 are read against.
+
+| row | predicted | if not |
+|---|---|---|
+| **F1** | **r <= 0.05**: at most one read per device per isolate per hour, plus the reads in flight while an isolate first sees the device | **0.05 < r <= 0.5:** the lever is real, but a device's requests spread over many isolates. The read prints the implied isolates per device-hour (r x the device's requests an hour) and the account totals at the measured r. **r > 0.5:** the memo rarely hits (isolates short-lived, or many); the named alternative below is designed instead |
+| **F2** | production KV writes per device request unchanged, within the spread | the memo touches a write path this design missed: stop and find it |
+| **F3** | Workers Logs events per request unchanged (no line is added) | stop: the change logs something it was not meant to |
+| escape | r = 0 or r > 1; C4 disagrees beyond the spread; anything the rows above do not name | the instrument is unreliable at this scale: stop and report, with no reading |
+
+**Why r <= 0.05 and not a range.** A device's requests come from one address, so one colo, and a Worker at this volume
+runs on few isolates there. That is a belief, not a measurement, which is why F1 carries three branches.
+
+### The account at the predicted r and at the middle branch
+
+KV reads only; every other line is unchanged. The saving is N x 114,000 x (1 - r) reads a month at $0.50 a million,
+while the total stays above the free 10 M. The bill is `docs/wx-account-cost.md` section 6's (Read P, November, no
+Weatherscope, without the ten).
+
+| boards | KV reads line now | at r = 0.05 | at r = 0.5 | the account now | at r = 0.05 | at r = 0.5 |
+|---|---|---|---|---|---|---|
+| 17 (today) | $0 | $0 | $0 | $5.29-$5.55 | $5.29-$5.55 | $5.29-$5.55 |
+| 50 | $5.04 | $2.33 | $3.62 | $15.07-$16.15 | $12.36-$13.44 | $13.64-$14.72 |
+| 200 | $35.13 | $24.30 | $29.43 | $117.54-$123.99 | $106.71-$113.16 | $111.84-$118.29 |
+| 600 | $115.38 | $82.89 | $98.28 | $393.65-$413.11 | $361.16-$380.62 | $376.55-$396.01 |
+
+**Today's allowance, the near-term reason** (section 1). The account's KV reads are at 72% of the free 10 M, and `fw:`
+is 28.43% of production's. At r = 0.05 that falls to about **53%**; at r = 0.5, about **62%**. It moves the crossing.
+It changes nothing on the bill below 10 M.
+
+**The budget line** (the owner's rule, `docs/account-budget.md` section 0). `tools/budget/build_budget.py` assembles
+`docs/account-budget.json` from fresh reads, so a hand-added row would be lost at the next build. The proposed line, in
+the code PR:
+- the proxy gains a state `fw-memo`. Its rows are its `r-7d` rows under a read `proj-fw-memo`, with `kv_read` x
+  (1 - 0.2843 x 0.95);
+- every scenario names the proxy's state (`now`), and one new scenario, "today + fw memo", names `fw-memo`.
+
+Whether it lands there or with this design is the reviewer's decision.
+
+### What it needs, and whose call each part is
+
+- **The code PR:** `fleet.ts` (the memo, `makeFleetRecorder`), `metrics.ts` (`fwKvRead`, `double5`), tests C1-C3 with
+  C1-red's plant, and `build_budget.py`'s rows. About 0.5 d.
+- **The deploy is the owner's call,** with a slot from the reviewer and the deployer lock confirmed first.
+- **The two pre-deploy windows** for the spread can be read at any time before it, read-only.
+
+### Named alternatives, not chosen
+
+- **The Cache API, per colo, on a synthetic URL.** It survives isolate churn within a colo and is not a KV operation;
+  its billing is read from Cloudflare's documentation before it is designed. It adds a cache round trip to every
+  device request and brings its own staleness rules. It is F1's fallback, not the first choice, because the memo makes
+  no network call at all.
+- **Liveness from Analytics Engine.** Request rows already carry `dev` and `fw`, so this would drop the read entirely.
+  It changes `reconcile-fleet.py`'s source and gives up the change log beyond Analytics Engine's retention. It also
+  reverses a recorded choice: `fleet.ts`'s header picked KV on purpose, for a small current-state table with a change
+  log, readable with the deploy's own credential. Not proposed here.
+
+### CI for this push (predicted before it)
+
+Docs only, against main `e03e6c4d1903` (unmoved since the registration): **32 = 30 / 2 / 0**, as section 6.
