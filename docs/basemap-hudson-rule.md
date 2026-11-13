@@ -557,6 +557,57 @@ today** at any of the four New York maps (0 at each; Boston is today's package).
 2fec6e252125), coordinates at 2 decimal places. Sheets: KBOS, KEWR, MIDTOWN, KJFK under option 2; KLGA twice (option 2 = (b)'s KLGA;
 option 2-L). Run script `hr-o2.sh` caf57498135a, grader `hb-o2-grade.py` f3afdadfbe73, driver `hb-drive.py` 7ff093b1d92b.
 
+### 5g. Options 2 and 2-L read; the v2 controls stopped (instrument failure #2); v2.1 and its controls frozen before any run
+
+**Options 2 and 2-L (17:33:57Z, `hr-o2.sh` caf57498135a): 46 of 46 AS PREDICTED.**
+- O2-ANCHOR: `pqo` with the knob unset rebuilt all five E1 packages byte-identical to `pqh`'s.
+- The graded packages, all kOk with 0 proper crossings and the header at 1,609,344:
+
+  | map | package | rung | rings kept / dropped.water | non-terrain B | extra line bytes (estimate range) |
+  |---|---|---|---|---|---|
+  | KBOS | 8676f6bd0df6 | 9 | 242 / 0 | 32,755 | 418 (240-725) |
+  | KJFK | 63d5ce513c7d | 9 | 179 / 0 | 32,758 | 112 (60-190) |
+  | MIDTOWN | c7d812acf174 | 10 | 144 / 29 | 32,762 | 309 (130-385) |
+  | KEWR | e7f15057f238 | 10 | 123 / 43 | 32,754 | 243 (120-370) |
+  | KLGA (2-L) | 51caf64fd419 | 10 | 155 / 19 | 32,766 | 294 (130-390) |
+
+- O2-WATER: no multi-ring unit partial anywhere; KEWR's unit 39 dropped whole (today draws none of it); KLGA under 2-L keeps the
+  four bodies (b) drops (the Hudson by Poughkeepsie and three reaches of the Delaware); MIDTOWN keeps rings 91 and 132.
+- **O2-PIX: at 5 and 10 mi the road and river pixels are IDENTICAL to today's at all five maps**; secondaries drawn in neither; every
+  ring today draws is drawn. O2-GRADE: every stretch coarsened, **0 fallbacks** at every point.
+- **O2-WHOLE: no body dropped whole compared with today** at KBOS, KJFK, MIDTOWN, KEWR, or KLGA under 2-L; KLGA under option 2 ((b)'s
+  KLGA): 25 bodies, 283.6 km2 (section 5f).
+- Sheets (`hudson-options\`, today over the option, the whole-drop list in each caption, not opened by this session): KBOS-opt2
+  5850e6edc43c, KEWR-opt2 1dafadfc66fa, MIDTOWN-opt2 90345d675b9b, KJFK-opt2 a1b2ed7ba963, KLGA-opt2 3a142c0232ae ((b)'s KLGA),
+  KLGA-opt2L 86d294552615. No corridor number is claimed for any option yet.
+
+**The v2 controls (17:32:44Z, `hb-rl2-controls.py` 01fd40db9ef6, stdout c0a8acc88e01): C1 AS EXPECTED; C2's first row AS EXPECTED
+(members 12 -> 13); C2's second row OFF, on the record:** the band widened at 3 stations near the plant, none farther, but at most
+6.0 px against 6.5-14.5. **Two causes (the orchestrator, 17:34:40Z, counted as the corridor instrument's FAILURE #2; a third goes to
+the owner):** the plant's normal was taken on a local kink, 12 degrees off square, so its tip sat about 0.32 km along the road (legs
+1.60 km, not 1.53); and **fixed 0.25 km stations can step past a narrow stray's peak**, which a real straying chord is.
+
+**v2.1 (`hb-road-look21.py` ec48f8cfb943):** v2 plus a station at the projection of every member vertex inside the view and at every
+axis vertex (where the axis kinks, a segment's distance to it is not linear). **The median is read on the regular 0.25 km stations only
+(v2's meaning); the max on all stations.**
+
+**Its controls (`hb-rl21-controls.py` 95157c7c68f2, expected values in the file).** Plants in the AXIS frame: the normal from the axis
+direction over s0 +- 0.3 km; **the square check printed and enforced before anything is read** (the tip projects within 0.01 km of s0
+and lies 1.5 +- 0.01 km out). **Site:** of the multiples of 0.25 km (each exactly midway between two regular stations) on a straight
+stretch (under 2 degrees over +-0.9 km), the one nearest the axis's middle where, unplanted, the members straddle the axis at every
+regular station within 1 km (so a plant's on-axis parts add no width).
+
+| control | expected |
+|---|---|
+| **C1** (stands) | the OLD test EXCLUDES PLANT-STRAY: pieces and widths unchanged |
+| **C2** (re-registered) | v2.1 counts PLANT-STRAY (members + 1); **the station at the tip's projection reads 11.0-14.5 px**; regular stations more than 0.4 km from the tip unchanged |
+| **C2b** (new: the sampling fix) | PLANT-NARROW (legs within +-0.1 km, the tip midway between two regular stations): **v2 UNDER-reads it, every regular station and its max unchanged**; **v2.1 reads its tip at 11.0-14.5 px**, its regular stations unchanged |
+| **C3** (stands) | PLANT-PARALLEL EXCLUDED; every v2.1 value unchanged |
+| **C4** (re-read under v2.1, ranges frozen here) | 10 mi: today's median 1.0-4.5 px, max at most 10; (b)'s median 4.5-14 and at least 2x today's, max at most 26; (b) crosses less. 5 mi: today's median 2.0-9.0, max at most 20; (b)'s median 9.0-28 and at least 2x today's, max at most 52; (b) crosses less |
+
+**The corridor rows registered in 5e (O3-RL2-SEE, O3-RL2-NJT, O2-RL2) are read with v2.1:** median on the regular stations, max on all
+stations; their ranges stand as registered. **Any OFF in a control stops the run, and that third instrument failure goes to the owner.**
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
@@ -583,7 +634,7 @@ GitHub-side re-run rule applies. Anything else: stop and report.
   stop and report.
 - **Read at 5e24c9e233e9:** 33 = 31 / 2 / 0 as predicted (stable at 17:05:53Z), tested on "Merge 5e24c9e233e9... into aa40aa43d8c9...".
 - **Read at e8cbe2fe709f:** 33 = 31 / 2 / 0 as predicted (stable at 17:30:58Z), tested on "Merge e8cbe2fe709f... into 86077c7fe9f2...".
-- **Predicted for the section 5c-5f head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
+- **Predicted for the section 5c-5g head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
   either: `workers.yml` filters on proxy/, dashboard/ and the wx fixtures, `account-budget.yml` on its own paths): **33 = 31 / 2 / 0**,
   on main as it then stands (b0c9412f71a8 at this writing).
 
