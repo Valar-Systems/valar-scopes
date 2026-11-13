@@ -526,6 +526,37 @@ option 2 needs re-staging (the four graded packages; KLGA's e7f0af9d9fba is stag
 **Outside the set:** O2-ANCHOR off: STOP (the copy is not the prototype). O2-PIX off: STOP (a defect in the build, by construction).
 Any other row off: OFF on the record, reported. Anything else: stop and decide.
 
+**Option 2-L (the orchestrator, 17:21:30Z: register and build it beside option 2).** Option 2 with **KLGA also taking E1 beyond 17 km
+only** (the rule + E1 forced at 129.6 km + `4:17`, the same configuration as KJFK and MIDTOWN). Options 2 and 2-L differ only at KLGA.
+The estimator (`hb-o2-estimate.py` bf527f8a0a67, KLGA added): about **261 B** of extra line bytes against the E1 package's rung 10 with
+no secondaries left and **570 B** before a split inland body drops.
+
+**What option 2 does to KLGA, named from the source** (correcting map-server's 17:20:58Z answer to the orchestrator, which called it
+all inland; `hb-whole-drops.py` b68961da9848, names by `hb-water-names.py` 855ca11c89e9 from TIGER 2024 AREAWATER's FULLNAME, the
+polygon nearest each body's point; output ab8ee5c82903). (b)'s KLGA, which is option 2's, drops **25 bodies WHOLE** compared with
+today, **283.6 km2 drawn**: none is a sea-mask ring, but by name about 221 km2 are rivers (**Hudson Riv** 80.6 km2 near 41.64 N 73.94 W
+and 7.8 km2 near 41.03 N 73.90 W; **Delaware Riv** 46.5 and 29.4 km2; an unnamed 26.7 km2 polygon by the Delaware near 40.82 N 75.10 W;
+**Housatonic Riv** 20.0 and 9.9 km2) and about 58 km2 are coastal bay pieces (Barnegat Bay 28.3, Sandy Hook Bay 7.2, Lower New York Bay
+6.7, Great Peconic Bay 4.0, Shinnecock Canal 3.9, a 3.0 km2 piece named Atlantic Ocean, and smaller ones). **Why:** today's ladder drops
+the 116 smallest rings (none above 18.8 km2); the rule never drops a split body's piece alone, so those pieces stay, and at 0.8 km lines
+the ladder reaches unit 92 of 103 and drops whole bodies and large single rings instead. **Option 3 drops no body whole compared with
+today** at any of the four New York maps (0 at each; Boston is today's package).
+
+**The rows, extended (blind unless labelled):**
+
+| row | input | predicted |
+|---|---|---|
+| **O2-ANCHOR**, KLGA | `pqo` knob unset, KLGA forced E1 at 129.6 km | 48db330265e1 (`pqh`'s) |
+| **O2-PKG**, KLGA (2-L) | the graded KLGA build | 129.6 km; header 1,609,344; kOk; 0 proper crossings; 32,600-32,768 B |
+| **O2-WATER**, KLGA (2-L) | rung, dropped.water, bodies | rung 10; dropped.water 2-30; no multi-ring unit dropped or partial; **the four multi-ring bodies (b) drops whole (units 81, 82, 87, 88: the Hudson by Poughkeepsie and three reaches of the Delaware) all kept** |
+| **O2-EXTRA**, KLGA (2-L) | as above | 130-390 B |
+| **O2-PIX**, KLGA (2-L) | as above | at 5 and 10 mi, road and river pixels EQUAL to today's; secondaries drawn in neither; every ring today draws is drawn |
+| **O2-WHOLE** (the orchestrator's caption row) | bodies dropped WHOLE compared with today, per map | KBOS 0; KJFK 0; MIDTOWN 0; KLGA under 2-L 0; KEWR 0, or only unit 39 if today draws a ring of it; KLGA under option 2 (= (b)'s, NOT BLIND) 25 bodies, 283.6 km2 |
+
+**Every option's sheet caption carries its list of bodies dropped whole compared with today, named from the source** (`hb-sheet.py`
+2fec6e252125), coordinates at 2 decimal places. Sheets: KBOS, KEWR, MIDTOWN, KJFK under option 2; KLGA twice (option 2 = (b)'s KLGA;
+option 2-L). Run script `hr-o2.sh` caf57498135a, grader `hb-o2-grade.py` f3afdadfbe73, driver `hb-drive.py` 7ff093b1d92b.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
