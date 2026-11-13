@@ -2289,3 +2289,38 @@ than 15 minutes pass.
   applies to D-P3's routes line.
 - An off reading after this amendment is off, and the rollback rule applies as registered.
 - D1 no longer waits: the ruling is in.
+
+#### S4.27e, 2026-11-13: the combined proxy run (S4.27c as amended by c′, c″, c‴), from 17:00Z
+
+The slot is 17:00Z to 23:30Z (the reviewer, 16:33:35Z). The run deploys a clean detached `aa40aa43d8c9`.
+
+**Before:**
+
+| row | predicted | read |
+|---|---|---|
+| R-main | `aa40aa43`, clean; a further bundled commit stops the run | 17:00:11Z: main is `86077c7fe9f2` (#699, `docs/account-budget.md` +96 only). The bundle, the machinery, smoke-prod.sh, routes-age-verdict.sh and test-identity.sh change in 0 files, so the run goes on, deploying `aa40aa43` as registered (the reviewer confirms, 17:02:15Z). The checkout is clean at `aa40aa43` |
+| R0 | production `0f4cf9bb` at 100; staging recorded | 17:00:14Z, through the helper: production `0f4cf9bb` at 100 (created 11-12T15:15:08Z); staging `1f1a0fae` at 100. stderr holds only wrangler's standing config warnings |
+| B0 | PASS 38 / FAIL 0 / SKIPPED 0, exit 0; the routes block WARN "no routes field"; a SKIPPED from an empty sky is recorded and the run goes on; any FAIL stops | 17:00:43Z to 17:01:06Z: exit 0, **PASS 37 / FAIL 0 / SKIPPED 1**. The routes block reads `RESULT: WARN -- /healthz has no routes field (a Worker before this change)   (mode warn)`, as predicted. The SKIPPED is `/v1/photo`: "live hex resolved no photo pointer (that type has no stock photo)". **That cause is outside the registered set, so I stopped and reported at 17:01:22Z.** |
+
+**The reviewer's ruling, 17:02:15Z, quoted:**
+
+> (a) B0 ACCEPTED as read: PASS 37 / FAIL 0 / SKIPPED 1, exit 0, routes WARN as uk-data predicted, cref 200 WXC1. The
+> SKIPPED is outside the registered set with its cause named (the live hex's type has no stock photo); the stop rule
+> (any FAIL) did not fire. Record the consequence: /v1/photo is UNTESTED on the old Worker -- no photo baseline exists
+> for this deploy.
+>
+> (b) D-P3 graded per check against B0, never on totals: exit 0 and FAIL 0; the same 38 check NAMES as B0; every check
+> that PASSED in B0 passes again; the empty-sky checks may flip PASS<->SKIPPED (live traffic); any other difference is
+> off and the rollback rule applies.
+>
+> THE TIGHTENING, /v1/photo only: a deploy that broke photo-pointer resolution would also produce "resolved no photo
+> pointer" = SKIPPED, so a post-deploy SKIPPED there is NOT accepted as equal. If D-P3's /v1/photo reads SKIPPED:
+> re-run smoke-prod at 5-minute intervals, at most 6 times, grading only that row (every other row is graded from D-P3);
+> stop at the first PASS or FAIL. FAIL -> rollback rule. PASS -> photo path verified. Still SKIPPED after 6 -> report
+> "/v1/photo untested by this deploy", not a red, into the owner's queue. B0 SKIPPED then D-P3 PASS is a measurement,
+> and accepted.
+>
+> THE STRUCTURAL GAP is a P2 in my queue, not for you now: smoke-prod's photo check is whatever is overhead, so it
+> cannot prove it can observe presence. It needs a pinned anchor that cannot SKIP.
+
+Not re-running B0 to get 38/0/0 was right: that would have been choosing the data.
