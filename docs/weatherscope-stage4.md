@@ -2029,3 +2029,65 @@ against "within 120 s".
   reported. A version change on an existing trigger is not expected to re-propagate.
 - **S4.27's stop rule is unchanged:** errors in 3 minutes running, or no `shsr` line in 3 minutes running, means
   `shsr-inert` is redeployed at once.
+
+#### S4.27b, 2026-11-13: O1 and O2 as read, after the owner's go (06:12Z)
+
+**The go.** The owner, in this session at 06:12Z: "Go for SeamlessHSR's live step". The reviewer granted a new slot,
+06:15-07:15Z, for `wx-ingest-shsr:production`, with O1 and O2 exactly as S4.27a re-registered them.
+
+**The lock.** The reviewer could not read it this time, so I read it myself immediately before O1:
+- `session-claim.py show` at 06:15:05Z: deploy free, merge free.
+- I took the claim at 06:15:09Z, until 07:15:00Z.
+- I released it at 06:28:13Z, after my own read-back.
+
+**The checkout.** A detached main at `b7e7fdd99884` (#691), which includes #685, rather than `05746deca023`.
+- The Worker's inputs are byte-identical between the two: `git diff --quiet` passes over `proxy/src`,
+  `proxy/wx-ingest.wrangler.toml`, `proxy/package.json` and `proxy/package-lock.json`.
+- `tools/wx/ingest_deploy.sh` is unchanged.
+- Between the two commits, only the readers moved to `tools/token_file.py`.
+- `token_file.py --check` passed. It prints booleans and key names only.
+
+**The baseline, before O1, on the #685 reader.** Window 06:07:36Z to 06:12:36Z:
+- `shsr-inert` `19b85e60` alone, 5 invocations 60 s apart, `wx_ingest_off` lines only, ABR 1.
+- cref's Worker present on the same reader.
+
+**O1 holds.** The deploy ran 06:15:16.124Z to 06:15:22.762Z: exit 0, stderr 0 bytes, "runs now:
+[('c6d27f8f', 100)]". `PRODUCT` shsr, `WX_INGEST` on, schedule `* * * * *`. `19b85e60` (shsr-inert) is the
+rollback version.
+
+**The anchor.** The first invocation of `c6d27f8f` had scheduledTime 06:15:41Z, 18 s after the deploy ended. The 6 min
+bound held, and the cron did not re-propagate, as S4.27a expected.
+
+**O2 holds, stable.** Window 06:15:41Z to 06:25:41Z.
+- Read at 06:27:01Z and again at 06:28:02Z. The two reads are byte-identical (sha256 `33faa6283b07` both).
+- ABR 1, 30 events, all `c6d27f8f`. 10 invocations, 60 s apart.
+
+| band | read |
+|---|---|
+| `shsr` lines 16-20 | 20 |
+| `shsr_minutes_both` at least 8 of 10 | 9 (one 1, none 0) |
+| `stored` or `backfilled` seen | stored 6, backfilled 6, already-stored 8 |
+| at most 2 errors, none in two minutes running | 0 errors; minutes with an error 0 |
+
+The first storing check was at 06:15:45Z. `mapPutErrors` was 0.
+
+**The stop rule never fired.** It was read twice inside the window:
+- to 06:18:31Z: 6 lines, 0 errors, no minute without a line;
+- to 06:21:31Z: 12 lines, 0 errors, no minute without a line.
+
+**A note on the reader, not a re-grade.** r3p buckets a check by the wall minute in which the check started
+(`timestamp - ms`).
+- shsr's cron fires at :41, so each invocation's `:30` check starts at :11 of the NEXT minute. There it pairs with the
+  next invocation's `:00` check.
+- So the first minute of a window anchored at an invocation can only read "one". The ceiling on this window is 9 of 10,
+  not 10.
+- The raw `check` and `ms` fields over 06:15:41Z to 06:18:31Z show that every invocation logged both checks.
+- The band (at least 8) was registered without knowing this, and it holds with one to spare.
+- cref's cron fires at :05, so its reads are unaffected.
+- Queued as P3: a line in r3p.py's docstring when the file is next touched.
+
+**Still open:**
+- **The proxy's `/wx/shsr` route** deploys only when the reviewer schedules it. Until then `/wx/shsr` answers 404:
+  frames are built into R2 but not served.
+- **X10 (S4.12.4):** the first full day's CPU ms per invocation and Class A, after 2026-11-14 06:16Z. Printed, then
+  sent to uk-data.
