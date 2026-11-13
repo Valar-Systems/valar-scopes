@@ -3835,3 +3835,51 @@ So **S-KB-NOBRIDGE = {BRIDGES, T-SEA0c, KB1}** and **S-KB-ORDER = {EDGE2, XISLAN
 **R12 (d), running now, grades 9008c74dee8f, before KB1.** Once KB1 lands, the driver runs again at the new head. That re-run is the whole basemap driver plus the smoke driver, because the counts move and the "all" set grades KB1 under every plant. Its predictions are R12's table with this section's two set changes and these counts.
 
 **Outside the set: stop.**
+
+### The ingest port: I1-I3 ruled, and its CI rows registered before they are written
+
+**Ruled (the orchestrator, after 04:2xZ):**
+- **I1:** the ocean entry moves from "naturalearth" to "sea"; the lakes zip joins it under "sea"; `tileBitsCmd` finds the ocean under "sea"; admin-0 stays "naturalearth"; "sea" is the eighth package layer key. **Checklist 6.33 is resolved** by L1449 and L1697-1698.
+- **I2:** SEA-PKG stays on the PROTOTYPE store. The real store is checked by SEA-STORE and the runs on it, **plus one row registered before the real-store runs:** at all 16 points, the DRAWN masks from KB5's FillRing render of the real-store package equal the prototype-store package's; else STOP.
+- **I3:** the extent comes from the coverage the same ingest computes, in memory.
+
+**What is ported (3ec5a636, 7cae61ed; nothing run yet):**
+- `rectclip.ts` and `uscontain.ts`: byte-identical bodies to the pinned files.
+- `sea-pieces.ts`: sea-ingest.mts's sections 1-3, with no options.
+- The dry run's `seaStage()`:
+  - one record per piece, numbered store-wide;
+  - attrs `area` and `src` as the prototype store wrote them;
+  - **each sea file's region is its pieces' bounding box**, the prototype's definition. It is written by the dry run as `sea-regions.json` and merged by d1, because the coverage step that writes `regions.json` runs after the dry run and has no pieces. d1 refuses a sea file in no region, since PROVENANCE would never credit it.
+
+**The CI rows, registered with their expected values.** The values are analytic: the geometry is synthetic and the property defines the answer.
+
+| row | file | asserts |
+|---|---|---|
+| **KB7-a** | `basemap-seaingest.test.ts` (new) | Through `seaSources` + `seaPieces`, with a synthetic US (admin-0 `ADM0_A3` USA: the square (-1, -1)..(0.5, 2), clockwise), no ocean, the extent {0/0}, and two lakes: the BORDER lake 0.3..0.7 × 0.3..0.6 (crossing x = 0.5) and the INSIDE lake 0.1..0.2 × 0.1..0.2. **The inside lake is not selected and has no piece** (lakesInsideUs 1). **The border lake is selected, and its pieces in cell 0/0 together equal it:** exactly 1 piece, its outer's area equal to the lake's 0.12 deg² within 1e-9 relative, and the same vertex set. **CONTROL:** design (b)'s geometry, the lake minus the US (the lake clipped to x ≥ 0.5), fails the same equality (0.06 deg²) |
+| **C-BORDER-S** | the same file | as registered at L2714-2721: the test US is the V-notch square (0, 0) (0, 10) (4, 10) (5, 5) (6, 10) (10, 10) (10, 0); the lake is 3..7 × 6.5..7. `whollyInside` in full mode reads **NOT inside**; **CONTROL:** vertices-only reads **inside** |
+| **MI-roundtrip, the sea case** | `basemap-ingest.test.ts` | a kind-6 feature (file 3, record 7, part 1, attrs `area` 1234.5678 and `src` "Lake Erie", 3 vertices) decodes to itself |
+| **MI10 (QW4-ID (a), F1)** | `basemap-ingest.test.ts` | F1's check, extracted unchanged from `d1Cmd` into a pure `f1Refusal()` (the same four conditions, the same message). It **refuses** a dirty tree, a `builder` other than the dry run's `ingestCommit`, a store id other than the dry run's, and an unknown commit. **CONTROL:** the same inputs from a clean tree at a known, matching commit pass (null) |
+
+**Their sabotages (driver, set `all`), each red set exact:**
+
+| sabotage | the edit | red set |
+|---|---|---|
+| S-F1DIRTY | `f1Refusal` never refuses a dirty tree | {MI10} |
+| S-USVERTS | `whollyInside`'s default mode becomes "vertices" (no edge test) | {C-BORDER-S}. KB7-a's lakes read the same in both modes: the border lake has vertices outside the US, and the inside lake is clear of every US edge |
+| S-KB7-NOUS | `seaSources` never asks the US containment, so every lake is selected | {KB7-a}: the inside lake gets a piece |
+
+**No existing sabotage reaches these rows.** `sea-pieces.ts`, `rectclip.ts` and `uscontain.ts` are planted by nothing else, and `f1Refusal` by no `ingest`-set plant: those edit `verifyStore`, `publishStore`, the manifest and the roads predicate.
+
+**The counts move:**
+
+| measure | from | to |
+|---|---|---|
+| `caseOf` exact list | | adds KB7-a and C-BORDER-S |
+| baseline[ingest] | 11 | **12** cases in 1 file |
+| baseline[all] | 191 in 18 | **194** cases in **19** files |
+| baseline[sea] | | 14 + KB1 = **15** (unchanged by these rows) |
+| smoke CONTROL | 1092 passed, 1 skipped, of 1093 | **1095 passed, 1 skipped, of 1096** |
+
+**These counts replace KB1's for the driver re-run at the head that holds these rows.** The re-run covers the basemap and smoke drivers. Credits is not re-run, by the ruling after 04:18:52Z: nothing it touches has changed, and under the owner's scale-to-risk rule its earlier reading stands.
+
+**Outside the set: stop.**
