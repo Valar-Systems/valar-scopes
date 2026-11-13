@@ -526,3 +526,19 @@ committed with its sha before it runs. It refuses a sampled hour, as `logs_bytes
 | **E3** | everything else totals about **1.18** per invocation (3.175 measured, less E1 and E2), and **`upstream` is the largest part of it, at 0.8 or more** | the rest is something the source reading did not weight: report its kinds before any design |
 | **E4** | by bytes, the invocation log is the largest kind: **over 40%** of the proxy's Logs bytes | (a3) is worth less than its event share suggests; (a4) is weighed by its own bytes |
 | escape | an "unnamed" bucket over 1% of events; kinds summing more than 10% off the measured events per invocation; or a sampled hour | the instrument is unreliable at this scale: stop and report, with no reading |
+
+**Approved** (the reviewer, 01:00:04Z) as registered, under "reading only", on three conditions: classify server-side
+where the query can, and otherwise hold events in memory only (no event body, key or value reaches disk, a cache,
+stdout or stderr); no wrangler anywhere; the hour is the one ending 01:00Z, `[2026-11-13T00:00Z, 01:00Z)`.
+
+**The reader:** `tools/bill/logs_by_kind.py`, blob **`7e927b41dbaa`**, committed here before it runs.
+- **Where it classifies: in memory.** The telemetry API's server-side grouping is not in the documentation found in
+  step 3, and no tool in the tree uses it. Byte sizes cannot be computed server-side at all. So events are held in the
+  process's memory only, as `tools/budget/logs_bytes.py` on main already does. Nothing is written; the output is
+  counts, byte totals, kind names from the reader's own lists, and the counts of `$metadata.type` values shaped
+  `[a-z-]{1,30}`.
+- **Error paths print the exception's type only** (and an HTTP status), never its message or a traceback, so no event
+  content can reach stderr that way.
+- **No wrangler.** Tokens: `observability-read` and `analytics-read` from the token file, through `tools/token_file.py`.
+- **Run twice, at least 60 s apart.** The two reads must agree before either is graded, because a just-closed hour can
+  still be filling. If they differ, that is the moving-target signature: report it, and read again later.
