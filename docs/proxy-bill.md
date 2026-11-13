@@ -245,3 +245,46 @@ that the source does not contain), so section 4's "model within +/-20%" of a fix
 
 **My expectation, written so it can be wrong:** the `fw:` floor (one read per device request, and `/blips` is most of
 the requests) is the family that passes KM3 at both ends.
+
+### Step 2b's read and its grades (2026-11-13 00:33Z; window `[2026-11-06T00:00:00Z, 2026-11-13T00:00:00Z)`)
+
+**The instrument:** `tools/bill/kv_model_read.py` (read-only; the `analytics-read` token from the token file, never
+printed; counts only).
+- `tools/token_file.py` knows no KV-read purpose, so the leaderboard's two key counts (`lb:dev:` 6,
+  `lb:firsttype:` 290) came from `wrangler kv key list --remote` on production's namespace, piped into a counter so
+  no key name was printed. Both counts were non-zero, which shows the remote store was read.
+- **(iv), confirmed by the schema introspection:** `kvOperationsAdaptiveGroups`' dimensions are `actionType`, `date`,
+  `datetime` (and its 5-minute, 15-minute, hour and minute forms), `namespaceId`, `responseStatusCode` and `result`.
+  There is no key dimension, so KM3 is graded as a claim about the model.
+
+**What was read:**
+- Production `ENRICH_KV`: **1,696,591 reads, 76,264 writes, 1,248 lists**.
+- The account: 1,697,293 reads and 141,955 writes, so staging holds about 65 k of the writes.
+- Requests by group (`sum(_sample_interval x double4)`): `/blips` 314,680; `/enrich` 164,688; pages and `/other`
+  3,775; `/airports` 849; leaderboard submit 577; `/photo` 555; `/config` 531; `/wx` 427; enroll 46; leaderboard
+  pages 39; Weatherscope 3.
+- `/enrich`'s `ac:` cache: HIT 146,740, MISS 7,239, SKIP 10,704, plus an empty state. Gaps: type 2,576, name 12,
+  photo 8,106. Distinct devices: 22.
+
+**Grades, as registered:**
+
+| row | result | grade |
+|---|---|---|
+| **KM1'** | measured 1,696,591 inside [387,668, 4,385,954]; the band's width is 193% of its midpoint | **pass, weak:** consistent with the source to within **x_min = 8.55 reads a `/blips` request**, not a validated model |
+| **KM1''** | the hybrid 2,080,509 against the measured 1,696,591: **+23%** | **FAIL** (+/-20%) |
+| **KM2'** | measured 76,264 inside [923, 615,622] | pass, weak |
+| **KM2''** | the hybrid 178,098 against the measured 76,264: **+134%** | **FAIL** |
+| **KM3** | `fw:` is 100% of the low end and 13% of the high end | **FAIL:** no family is over half at both ends |
+| escape | six routes the table did not name: `/credits` (27 requests, 1 KV read each), `/healthz` (91), and `/missileer/{archive,leaderboard,log,sources}` (340); the last two kinds read no KV | **reported, not folded in:** 27 reads of 1.7 M |
+
+**What the misses say. These are explanations, not re-grades:**
+- **KM1''** is over by about 384 k. Its largest unrecorded midpoint is revocation's 0.5 a request, about 241 k on its
+  own; with a 60 s isolate cache, the true figure is likely near 0. The others are midpoints too: the route key and
+  its mirror, the `ap:` pair, and the `ovr:`/`pa:`/`mil:` chain.
+- **KM2''** comes almost entirely from two midpoints: the leaderboard's T at 145 of 290 (about 84 k), and the route
+  key's writes at 0.5 a `/enrich` request (about 82 k). The true values are far lower.
+- **The measurement settles what KM3 could not.** Every device request reads `fw:` exactly once, and device requests
+  total about 482 k, so **`fw:` is about 28% of production's reads**. Nearly all the rest belong to `/enrich`: about
+  **7.4 reads per `/enrich` request**, inside its registered [1, 16], if revocation is near 0. So lever (b) has two
+  targets: `fw:` (one read a request, cacheable per isolate against `REFRESH_MS`) and `/enrich`'s lookup chain.
+  The design (step 4) is registered with its own predictions.
