@@ -4285,3 +4285,27 @@ KJFK's no-sea package, ee8c834bc81a, is the one FT-SEA pins.
   - KMIA's, KEWR's and MIDTOWN's cell-only differences;
   - the roughly 5 MiB shift on both sides at KDTW, KMSP and ROUSES (it cancels; #639's unnamed tree effect).
 - **The CM rows may run.** They compare the code PR against main, both on `bm-obj`, so the store question does not enter them.
+
+**The CM rows (07:29:41-07:31:21Z, 28 builds; `cm/cm.out` 6f571098aad2, `cm/cm-builds.json` 373bc70b3512): ALL AS PREDICTED.**
+- **u4:** `proxy/src/basemap` is 07649873ad4d at e03e6c4d and at main's head. Main has moved to 4abb65082f5e since the ruling, outside this tree.
+- **CM-0, at all 13:** main's answers equal #639's (Nov 8's shas at the 9, #620's ladders at New York). Its peak and cell phase are within 0.785 of #639's: KBOS is furthest, -0.63 and -0.50; every other point is within 0.06.
+- **CM-P:** cell +8.01, made and read back. **The later phases read -0.71 to -0.73, inside ± 0.785 by 0.055.** That is near the band's edge, so it is stated rather than left to the PASS (SEA-MEM's control on `sea-obj` read -0.01 to 0.00).
+- **The memory rows: the world is O2 at all three:**
+  - KJFK's cell phase is +16.30 (O2 +16.29); KORD's peak +0.86 (O2 +0.89); KIND's peak +0.79 (O2 +0.75).
+  - So the tree effect is PRESENT in the real builder.
+  - KJFK's peak reads +13.27 (+13.24). KBOS's reads +12.73, inside O2's band, 11.285 to 12.855.
+  - The one-value peaks: KLGA +14.01, KEWR +13.24, MIDTOWN +13.03, KMIA +1.63, KSFO +2.19, KSEA +4.00, KDTW +5.67, KMSP +5.12, KJAC +1.78. Each is within 0.06 of its frozen value.
+  - The cell phase is recorded: KBOS +13.30, KLGA +10.52, KEWR +9.79, MIDTOWN +17.32.
+- **CM-M:** none is over 96 MB. **KLGA and KEWR read 77.6 MB against the 77.2 the owner took with B, as on the prototype: a report, not a stop.** The other code PR builds: KBOS 72.1, KJFK 75.3, MIDTOWN 74.6, KMIA 43.0, KSFO 43.4, KSEA 55.7, KORD 49.0, KDTW 55.4, KMSP 54.9, KIND 54.1, KJAC 42.6.
+
+**The 5.6 package rows' harness, registered before it runs:**
+- **The references:** QW4-1's packages, rebuilt by `pq4b` at QW4-1's knobs (`Q4_LADDER=b`, `Q4_D2=1`, `Q4_TP=1`) through QW4-C's own child, `dr-q4c3.mts` b02b5a66d240, unchanged. Each is checked against QW4-1's sha FIRST, along with its old `collapsed.water`; else STOP, since the references have moved.
+- **The code PR's build:** `cm/pk-cp.mts` c9ac9a5c5a4f. It is `dr-q4c3` with the builder from the code PR's tree (`cm/cp`, from its commit), no knobs, and the proper crossings added. Its per-section digest is `dr-q4c3`'s expression, unchanged, so the two compare.
+- **The grade, by `cm/pk-grade.py` 3d5f5c8a62f2, "equal" at every point exactly as frozen:**
+  - every section but PROVENANCE identical;
+  - PROVENANCE has the same line count and differs only in `collapsed.water`, which equals the table's value (at KJAC, no difference at all);
+  - PROVENANCE's byte change and the non-terrain bytes are the table's;
+  - the rung, radius and tolerance are QW4-1's;
+  - the package is `kOk` and at most 32,768 B, with 0 proper crossings.
+- **A cap edge anywhere stops,** as does anything else outside "equal".
+- Import checks: both children refused an unknown point after their imports resolved (exit 2).
