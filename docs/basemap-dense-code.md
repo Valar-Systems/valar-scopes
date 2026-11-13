@@ -4046,3 +4046,28 @@ Outside the set: stop.
 **Disk:** 48 GB free before the fetch; the fetch takes 5.57 GB, and each dry run's store tree is read from the dry run's own summary. **Under 30 GB free, nothing more is built.**
 
 **Outside the set: stop.**
+
+### The code PR's runs after SEA-STORE: the list and its scope (ruled after 05:3xZ), fixed before any of them runs
+
+**In this order, each against its frozen prediction:**
+1. SEA-PKG re-read at the head;
+2. SEA-FIG;
+3. SEA-OWN;
+4. I2's drawn masks;
+5. R-KMSP and R-D2;
+6. KB7-b (from the dry run);
+7. KB7-c-real;
+8. SEA-MEM;
+9. the no-sea store's CM-0 / CM-P / CM-M with the memory rows (5.1-5.5) and the 13 package rows (5.6);
+10. FT-SEA in a bench window.
+
+**The scope rulings:**
+- **(u1) Part 2's KB rows.**
+  - **KB5** is bound by SEA-PKG's byte identity, and this is stated in the run record.
+  - **KB3, KB4 and KB8** are bound by identity ONLY IF their inputs beyond the package bytes are shown identical to run 10's: the harness report's sea set, every piece's fate (hashed and compared), and the same `sea-obj` source. If those are equal, the record says "covered by identity of bytes and inputs", with the hashes. If not, they run.
+  - **The KSEA guard prints on the code PR's KSEA package regardless**, as the owner said: "prints every run". It must not fall below 88.6%.
+- **(u2) SEA-MEM's 8 MiB plant control** is repeated on the code PR's builder: it is the instrument's only blindness check.
+- **(u3) The no-sea memory rows are NOT void.** #639's staging rows read at 15:30Z on 11-12 (`docs/basemap-release.md`: SG-A as predicted at KLGA and KJFK, no SG-B to SG-F). The run record cites that line.
+- **(u4) "Main's builder" is the PR's merge-base, e03e6c4d.** At run time, the run prints `proxy/src/basemap`'s tree hash at e03e6c4d and at main's head (b7e7fdd9 when this was ruled) and shows them equal. **If they differ, stop and report.**
+
+Outside the set: stop.
