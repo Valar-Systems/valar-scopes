@@ -777,6 +777,43 @@ The routeset's own lines in the hour: 429 `upstream` failures, no success, and 3
 - **Whether the 36.8% would have had a route with the routeset up is not knowable from here.** As CLAUDE.md records,
   the routeset answered 201 with an empty body before.
 
+#### Restated on one denominator (2026-11-13 ~07:00Z, reconciled with uk-data; the 36.8% is RETIRED)
+
+Three readings of this hour disagreed: AE 1,994 (the table above), Logs `req` lines 4,349 (all routes, so not a
+per-route count), and uk-data's 6,129 (Logs EVENTS whose URL holds `/enrich/`: 1,923 invocation and 4,206 span events,
+uk-data's own defect, found by uk-data).
+
+**One definition, one source.** The source is Workers Logs, unsampled that hour (ABR 1).
+- A request is one distinct `$metadata.requestId` whose URL path contains `/enrich/`: **1,924**, uk-data's count.
+- A miss is a request whose callsign is not a key of the mirror snapshot. That equals one `adsbdb_route
+  disabled_by_config` skip line, and uk-data's 733 matches the 733 above exactly.
+
+| how a `/enrich` request ended | count | share of 1,924 |
+|---|---|---|
+| no route: KV miss | 733 | **38.1%** |
+| no route: a KV route withheld as implausible | 338 | **17.6%** |
+| a route from the routeset | 0 | 0.0% |
+| a route from KV (an upper bound, as above) | at most 853 | at most 44.3% |
+
+So **at least 55.7%** of the hour's `/enrich` requests ended with no route. The grades are unchanged: I1 holds at any
+denominator above 1,071, and I2 does not use one.
+
+**Why AE read 70 more, and what is not excluded.** The table's 1,994 is an ESTIMATE, not a count:
+`proxy/src/metrics.ts` writes an AE point for a HIT or STALE response (status < 400) only 1 time in 10, with weight 10.
+The hour's AE points, split (counts only):
+- **weight 1:** 238 rows at `_sample_interval` 1, plus 8 rows at interval 2. The estimate is 254.
+- **weight 10:** 174 points. The estimate is 1,740.
+
+If AE's 254 matches Logs, Logs holds about 1,670 HIT/STALE requests. That makes 167 ± 12 points the expectation, and
+174 is +0.57 standard deviations. **The whole 70 fits the Worker's own 1:10 sampling.**
+
+That does not EXCLUDE the two other explanations; they are simply not needed:
+- **path aliasing** (a request AE files under an `/enrich` template whose URL has no `/enrich/`);
+- **hour-edge skew** between AE's timestamp and the Logs event time.
+
+The test that would separate them: Logs' non-HIT `/enrich` requests in the hour should be about 254. A count well off
+that puts the gap in the unsampled class, where sampling cannot reach.
+
 **The reason adsbdb is off, read from `a9594ab` (2026-08-26, PR #260), not from `wrangler.toml`'s line-46 comment:**
 - adsbdb left the chain over a LICENSING question: the commit says there is "no written permission to use
   commercially".
