@@ -261,3 +261,30 @@ frozen, and RH0 gains one refusal (below).
     address.
   - Step 2's J4 (with only "Wi-Fi 5" present, "Wi-Fi" reads as not listed), under a planted prefix match.
   - Both selftests run in `device-ids.yml`.
+- **His file's line ends** (the reviewer and the cloud reviewer, ~06:20Z). His file has CRLF ends, so every reader of
+  it was checked for a kept trailing CR.
+  - **The driver** reads the file for presence only, never a value. Its old check (`grep -c '^password=.'`) was
+    correct on this PC by accident: Git for Windows' grep 3.0 strips a CR at the line end by default.
+    `printf 'password=\r\n' | grep -c '^password=.'` reads 0 here, while `grep -U` and WSL's Linux grep read 1, so
+    the check was blind to an empty CRLF line on any Linux grep.
+    - `wifi_file_ok` now strips a trailing CR (and only that) with `sed`, and turns grep's own handling off (`-U`).
+    - P3 (an empty CRLF password line refuses) was GREEN on the old check here, for the reason above.
+    - P5 calls the function directly on four synthetic files. It is green on the fix and RED on a plant with the strip
+      removed (Linux grep behaviour).
+  - **Step 2's script** is the only reader that uses the values. Its reader (`Get-Content`, which returns lines
+    without their CRLF or LF) already stripped the CR, so J6-J8 were GREEN on their first run under both
+    PowerShell 5.1 and 7.
+    - J6 and J7 compare the parsed values with made-up ones by length and bytes, inside the test, printing nothing.
+      J8: an empty CRLF password line is refused.
+    - A planted reader that keeps the CR (`ReadAllText` split on LF) turns J6 and J8 RED.
+    - The values go to the board in-process (`Invoke-WebRequest -Body`), unchanged. No other path passes them on.
+- **The hand-back check between the two slots** (the reviewer, ~06:20Z). Run 1's snapshot is deleted at its R2, so
+  run 2's R0 alone cannot show that the window in between left E2:08's settings untouched.
+  - Run 1 takes `--handback keep`: at R0 it keeps one salted SHA-256 per field NAME, with no values, as
+    `e208-handback.hash` in his config dir. The hash is never printed and never overwritten.
+  - Runs 2 and 3 take `--handback check`: R0 must hash equal before anything is written, or the run STOPS before step
+    1, naming the fields that differ.
+  - `--drop-handback` removes the hash at the end of the second slot.
+  - The preflight refuses `keep` when a hash already exists, and `check` when none does.
+  - In `fresh-boot-form.py`, H1-H5 cover it: equal, a changed value, an added field, refusing to overwrite, and a
+    missing file not reading as equal. F7 also requires that the sentinel value is absent from the saved hash file.

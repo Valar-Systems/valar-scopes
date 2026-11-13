@@ -44,6 +44,16 @@ function Get-WlanBlock([string]$text, [string]$name) {
   return $hit
 }
 
+# His file's two values, or $null unless there is exactly one non-empty ssid= and one non-empty password= line.
+# Get-Content returns lines WITHOUT their line ends (CRLF or LF), so a CRLF file's values carry no trailing CR: the
+# board is handed exactly what he wrote (J6-J8; the cloud reviewer, 2026-11-13 06:19Z).
+function Read-BenchWifi([string]$path) {
+  $lines = Get-Content -LiteralPath $path
+  $s = @($lines | Where-Object { $_ -match '^ssid[=].' }); $p = @($lines | Where-Object { $_ -match '^password=.' })   # ssid[=]: scripts/check_wifi.py
+  if ($s.Count -ne 1 -or $p.Count -ne 1) { return $null }
+  return @{ Ssid = $s[0].Substring(5); Pw = $p[0].Substring(9) }
+}
+
 if ($SelfTest) {
   # Synthetic only: a locally administered address and <...> placeholders (scripts/check_macs.py, check_wifi.py).
   $sample = @"
@@ -70,6 +80,20 @@ if ($SelfTest) {
   $only5 = ($sample -f "x", "") -split "(?m)^\s*$" | Where-Object { $_ -match "Wi-Fi 5" }
   Ok "J4 only 'Wi-Fi 5' present -> 'Wi-Fi' not listed (no prefix match)" ($null -eq (Get-WlanBlock ($only5 -join "`n") "Wi-Fi"))
   Ok "J5 'AP BSSID' is never read as the SSID" ((Get-WlanBlock ($sample -f "connected", "") "Wi-Fi").Ssid -eq "")
+  # J6-J8: his file's reader on synthetic files with made-up values, compared byte for byte here; nothing printed.
+  $fakeS = "fba-fake-net-7"; $fakeP = "fba-fake-pw 9!"
+  $tmp = Join-Path ([IO.Path]::GetTempPath()) ("fba-bw-" + [guid]::NewGuid().ToString("N"))
+  try {
+    $same = { param($a, $b) ($a.Length -eq $b.Length) -and ([Text.Encoding]::UTF8.GetBytes($a) -join ",") -ceq ([Text.Encoding]::UTF8.GetBytes($b) -join ",") }
+    [IO.File]::WriteAllBytes($tmp, [Text.Encoding]::ASCII.GetBytes("ssid=$fakeS`r`npassword=$fakeP`r`n"))
+    $v = Read-BenchWifi $tmp
+    Ok "J6 CRLF file: both values equal the fakes exactly (length and bytes; no trailing CR)" ($v -and (& $same $v.Ssid $fakeS) -and (& $same $v.Pw $fakeP))
+    [IO.File]::WriteAllBytes($tmp, [Text.Encoding]::ASCII.GetBytes("ssid=$fakeS`npassword=$fakeP`n"))
+    $v = Read-BenchWifi $tmp
+    Ok "J7 LF file: both values equal the fakes exactly" ($v -and (& $same $v.Ssid $fakeS) -and (& $same $v.Pw $fakeP))
+    [IO.File]::WriteAllBytes($tmp, [Text.Encoding]::ASCII.GetBytes("ssid=$fakeS`r`npassword=`r`n"))
+    Ok "J8 CRLF file with an EMPTY password line: refused (null)" ($null -eq (Read-BenchWifi $tmp))
+  } finally { Remove-Item -LiteralPath $tmp -ErrorAction SilentlyContinue }
   if ($bad -eq 0) { Write-Host "SELFTEST PASSED"; exit 0 } else { Write-Host "SELFTEST FAILED: $bad"; exit 1 }
 }
 
@@ -80,10 +104,9 @@ Say "adapter `"$Adapter`": listed, disconnected"
 
 $file = Join-Path $env:USERPROFILE ".config\blipscope\bench-wifi"
 if (-not (Test-Path $file)) { Say "bench-wifi: absent. Nothing done."; exit 2 }
-$lines = Get-Content -LiteralPath $file
-$s = @($lines | Where-Object { $_ -match '^ssid[=].' }); $p = @($lines | Where-Object { $_ -match '^password=.' })   # ssid[=]: scripts/check_wifi.py
-if ($s.Count -ne 1 -or $p.Count -ne 1) { Say "bench-wifi: malformed (needs exactly one ssid= and one password= line). Nothing done."; exit 2 }
-$ssid = $s[0].Substring(5); $pw = $p[0].Substring(9)
+$v = Read-BenchWifi $file
+if (-not $v) { Say "bench-wifi: malformed (needs exactly one ssid= and one password= line, each with a value). Nothing done."; exit 2 }
+$ssid = $v.Ssid; $pw = $v.Pw; $v = $null
 Say "bench-wifi: present"
 if ($Control -eq "WrongPassword") { $pw = "fba-control-not-the-password"; Say "K-wifi control: posting a fixed WRONG password" }
 

@@ -21,6 +21,9 @@
 #
 #   ./scripts/fresh-boot-auto.sh --by <session> --window "<the owner's window words>" [--candidate <ref>] [--dry-run]
 #   ./scripts/fresh-boot-auto.sh --selftest
+#   ... --handback keep    (run 1) keep a per-field hash of R0, no values, in his config dir
+#   ... --handback check   (runs 2, 3) STOP before step 1 unless R0 hashes equal to the kept one
+#   ./scripts/fresh-boot-auto.sh --drop-handback    the end of the second slot: remove the kept hash; no board touched
 #
 # THE OWNER RUNS IT IN HIS OWN TERMINAL (2026-11-13 06:01Z): Git Bash, launched by its full path, never a bare `bash`
 # from PowerShell (that can resolve to WSL's). It stops for his Enter at K-wifi and R1, reading the terminal it runs
@@ -48,7 +51,7 @@ WIFI_FILE="$CFGDIR/bench-wifi"
 SNAP="$CFGDIR/e208-snapshot"
 T_RESET=90; T_WIFI=900; T_CLAIM=1200; T_GRADE=600
 
-CAND="HEAD"; BY=""; WINDOW=""; DRY=0; MODE="run"; CONTROLS=0; SABOTAGE=""
+CAND="HEAD"; BY=""; WINDOW=""; DRY=0; MODE="run"; CONTROLS=0; SABOTAGE=""; HANDBACK=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --controls) CONTROLS=1; shift ;;     # rehearsal only: K-guard and K-reset before step 1
@@ -58,6 +61,9 @@ while [ $# -gt 0 ]; do
     --by) BY="${2:-}"; shift 2 ;;
     --window) WINDOW="${2:-}"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
+    --handback) HANDBACK="${2:-}"; shift 2       # the hand-back check across two bench slots (the reviewer, 11-13 ~06:20Z)
+                case "$HANDBACK" in keep|check) ;; *) echo "--handback takes keep or check" >&2; exit 2 ;; esac ;;
+    --drop-handback) MODE="drop-handback"; shift ;;
     --selftest) MODE="selftest"; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -79,6 +85,17 @@ write_r1() {
   printf '@curl -s -o NUL -w "%%%%{http_code}" -H "X-Blipscope: 1" -H "Content-Type: application/x-www-form-urlencoded" --data-binary "@%s" http://%s/save\r\n@echo.\r\n' "$2" "$1" > "$3"
 }
 winpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
+
+# wifi_file_ok <file>: exactly one ssid= and one password= line, each with a non-empty value once a trailing CR (and
+# only that) is stripped. His file has CRLF ends, so an EMPTY line is "password=\r". Git for Windows' grep strips that
+# CR by default and a Linux grep does not, so the CR is stripped here and grep's own handling is off (-U): the same
+# answer on both. Reads the file; prints nothing.
+wifi_file_ok() {
+  [ -f "$1" ] || return 1
+  [ "$(sed 's/\r$//' "$1" | grep -U -c '^ssid[=].')" = "1" ] && [ "$(sed 's/\r$//' "$1" | grep -U -c '^password=.')" = "1" ]
+}
+
+HANDBACK_FILE="$CFGDIR/e208-handback.hash"   # no values: one salted SHA-256 per field name (fresh-boot-form.py)
 
 # wait_log <log> <regex> <after-line> <timeout-s>: the first matching line number after <after-line>, or empty.
 wait_log() {
@@ -128,9 +145,42 @@ if [ "$MODE" = "selftest" ]; then
   printf 'ssid=<SENTINEL-NET>\n' > "$T/cfg/bench-wifi"
   out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
   ok "P2 a missing password line refuses (exit 2), saying 'absent'" "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -q 'bench-wifi: absent' && echo 0 || echo 1)"
+  # P3: his file has CRLF line ends. An EMPTY password line is then "password=\r", which a bare `^password=.` reads as
+  # non-empty: the check would be blind in exactly the case it exists for (the reviewer, 2026-11-13 ~06:20Z).
+  printf 'ssid=<SENTINEL-NET>\r\npassword=\r\n' > "$T/cfg/bench-wifi"
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
+  ok "P3 CRLF with an EMPTY password line refuses (exit 2), saying 'absent'" "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -q 'bench-wifi: absent' && echo 0 || echo 1)"
+  # P4, its control: CRLF with both values present (his file's shape) still reads present.
+  printf 'ssid=<SENTINEL-NET>\r\npassword=<SENTINEL-PW>\r\n' > "$T/cfg/bench-wifi"
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
+  ok "P4 CRLF with both values present reads present (exit 0), and prints no part of the file" "$([ $rc -eq 0 ] && printf '%s' "$out" | grep -q 'bench-wifi: present' && ! printf '%s' "$out" | grep -q SENTINEL && echo 0 || echo 1)"
+  # P5: wifi_file_ok itself, on any grep: an empty value behind a CR is empty, for either key; full values pass.
+  p5=0
+  printf 'ssid=<F>\r\npassword=\r\n' > "$T/w1"; wifi_file_ok "$T/w1" && p5=1
+  printf 'ssid=\r\npassword=<F>\r\n' > "$T/w2"; wifi_file_ok "$T/w2" && p5=1
+  printf 'ssid=<F>\r\npassword=<F>\r\n' > "$T/w3"; wifi_file_ok "$T/w3" || p5=1
+  printf 'ssid=<F>\npassword=<F>\n' > "$T/w4"; wifi_file_ok "$T/w4" || p5=1
+  ok "P5 wifi_file_ok: CRLF-empty password and CRLF-empty ssid refused; CRLF and LF with values pass" "$p5"
+  # HB1-HB4: the hand-back flags' preflight refusals and --drop-handback, on a synthetic config dir.
+  hb="$T/cfg/e208-handback.hash"; rm -f "$hb"
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD --handback check 2>&1)"; rc=$?
+  ok "HB1 --handback check with no kept hash refuses (exit 2)" "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -q 'no kept hash' && echo 0 || echo 1)"
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD --handback keep 2>&1)"; rc=$?
+  ok "HB2 --handback keep with none kept passes the preflight (the control for HB3)" "$([ $rc -eq 0 ] && printf '%s' "$out" | grep -q 'kept hash is absent' && echo 0 || echo 1)"
+  printf 'salt 00\nx\t00\n' > "$hb"; before="$(cat "$hb")"
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD --handback keep 2>&1)"; rc=$?
+  ok "HB3 --handback keep over a kept hash refuses (exit 2) and leaves it as it was" "$([ $rc -eq 2 ] && [ "$(cat "$hb")" = "$before" ] && printf '%s' "$out" | grep -q 'already exists' && echo 0 || echo 1)"
+  FBA_CFGDIR="$T/cfg" bash "$0" --drop-handback >/dev/null 2>&1; rc=$?
+  ok "HB4 --drop-handback removes it (exit 0, file gone)" "$([ $rc -eq 0 ] && [ ! -e "$hb" ] && echo 0 || echo 1)"
   rm -rf "$T"
   [ $bad -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED: $bad"
   exit $(( bad ? 1 : 0 ))
+fi
+
+if [ "$MODE" = "drop-handback" ]; then
+  if [ -f "$HANDBACK_FILE" ]; then rm -f "$HANDBACK_FILE"; fi
+  if [ -f "$HANDBACK_FILE" ]; then say "hand-back hash: NOT removed ($(winpath "$HANDBACK_FILE"))"; exit 1; fi
+  say "hand-back hash: removed (or was absent); nothing else touched"; exit 0
 fi
 
 [ -n "$BY" ] && [ -n "$WINDOW" ] || { echo "usage: $0 --by <session> --window \"<the owner's window words>\" [--candidate <ref>] [--dry-run] | --selftest" >&2; exit 2; }
@@ -153,11 +203,18 @@ if [ -n "${FBA_SELFTEST_NO_WLAN:-}" ]; then
 else
   "${PY[@]}" "$ROOT/scripts/fresh-boot-wlan.py" check || die "the PC adapter \"Wi-Fi\" is not free for step 2 (above): absent, connected to something, or a radio off" 2
 fi
-if [ -f "$WIFI_FILE" ] && [ "$(grep -c '^ssid[=].' "$WIFI_FILE")" = "1" ] && [ "$(grep -c '^password=.' "$WIFI_FILE")" = "1" ]; then
+if wifi_file_ok "$WIFI_FILE"; then
   say "bench-wifi: present"
 else
   say "bench-wifi: absent"; die "step 2 needs the owner's file (docs/fresh-boot-automation.md): it falls back to his phone" 2
 fi
+if [ "$HANDBACK" = "keep" ] && [ -f "$HANDBACK_FILE" ]; then
+  die "HAND-BACK: a kept hash already exists; this run would not overwrite it (--drop-handback first, if it is stale)" 2
+fi
+if [ "$HANDBACK" = "check" ] && [ ! -f "$HANDBACK_FILE" ]; then
+  die "HAND-BACK: there is no kept hash to check against (run 1 keeps it with --handback keep)" 2
+fi
+[ -n "$HANDBACK" ] && say "hand-back: --handback $HANDBACK (the kept hash is $( [ -f "$HANDBACK_FILE" ] && echo present || echo absent ))"
 if [ $DRY -eq 1 ]; then
   say "DRY RUN: preflight passed. The run would now reserve $LABEL, snapshot its settings (R0), factory-reset it, stop for"
   say "the owner's Wi-Fi command, set SEA, wait for his tap, probe, cut port $HUB_PORT, turn the logbook off, grade, stop for"
@@ -175,8 +232,18 @@ cleanup_work() { rm -rf "$WORK"; }
 
 # ------------------------------------------------------------------------------------------------------- R0
 s="$(get_page "$HOST" "$WORK/before.html")"; [ "$s" = "200" ] || die "R0: GET / read $s; nothing was changed" 2
+if [ "$HANDBACK" = "check" ]; then
+  "${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" hash-compare "$HANDBACK_FILE" "$WORK/before.html" \
+    || { cleanup_work; die "HAND-BACK: $LABEL's settings are not the ones run 1 snapshotted (the names above). Something changed them between the slots. Nothing was changed by this run" 2; }
+  say "HAND-BACK: every field equal to run 1's R0 (by hash; no value read back or printed)"
+fi
 "${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" body "$WORK/before.html" "$SNAP" || die "R0: the snapshot could not be built; nothing was changed" 2
 say "R0: $LABEL's settings snapshotted to $SNAP (the line above names any masked secret: those need re-entering by hand after the run)"
+if [ "$HANDBACK" = "keep" ]; then
+  "${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" hash-save "$WORK/before.html" "$HANDBACK_FILE" \
+    || { cleanup_work; die "HAND-BACK: the hash could not be kept (above); nothing on the board was changed" 2; }
+  say "HAND-BACK: run 1's R0 kept as a hash at $(winpath "$HANDBACK_FILE") (names only; removed with --drop-handback at the end of the second slot)"
+fi
 
 # ------------------------------------------------------------------------------------------------------- step 1
 cap="$(bash "$ROOT/scripts/fresh-boot-acceptance.sh" --capture-only "$PORT")" || die "the capture did not start"
