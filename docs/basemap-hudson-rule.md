@@ -366,6 +366,55 @@ owner's pick; without one, option 3's staged set plus whichever of 1 and 2 fit a
 **Next:** each option's registration (predicted bytes and water per affected map, the corridor measure predicted), pushed here before
 its build: option 3 first, then 2, then 1.
 
+### 5d. The road-look instrument, and option 3 registered (before its rebuild and before any corridor reading)
+
+**The instrument (A2.49's corridor measure), general form:** `hb-corridor-src.py` (c8fa0470cbb5) names a corridor FROM THE SOURCE:
+TIGER 2024 PRISECROADS, primary (S1100) records, projected exactly as `frame.ts`'s `toFrameKm`. `hb-road-look.py` (24dfe8d4f326)
+then reads a package: the corridor's REGION is its source centreline within B = 2.0 km inside the view's disc. A package primary line
+belongs to the corridor if its piece in the region is at least 1 km long with at least 80 % of it within 1 km of the centreline (a road
+CROSSING the corridor fails that). **Band width:** stations every 1 km along the longest merged centreline; at each, the spread of the
+corridor lines' crossings of a 4 km perpendicular, in device px at that view. **Crossings:** proper point crossings among the distinct
+pieces (overlaps and shared endpoints are not counted).
+- **The corridors, named from the source:** KBOS: `Southeast Expy` (4 parts, 25.3 km inside 10 mi; the same pavement also carries
+  I-93, US 1, Route 3 and the HOV lanes, which the measure counts as lines along it). New York: `New Jersey Tpke` by Newark Airport
+  (40 parts, 134.2 km inside KEWR's 10 mi disc, 67.9 km inside its 5 mi disc; inside MIDTOWN's 10 and 5 mi discs: 113.1 and 16.5 km).
+  The same pavement also carries `I- 95` (36 parts, 135.2 km inside KEWR's 10 mi disc). Corridor files: KBOS 8a58901ee714, KEWR
+  78243f2f06cb, MIDTOWN 9f0c7d1a83a8.
+- **Its check on a known pair** (Boston, today f21d705d8b8a vs (b) 7402f8cee0f5, read 16:59:42Z, stdout a373600405a1):
+
+  | view | today: lines (distinct), band median / max px, crossings | (b) |
+  |---|---|---|
+  | 5 mi | 14 (12), 4.4 / 5.5, 122 | 12 (11), 11.6 / 13.3, 18 |
+  | 10 mi | 26 (24), 2.0 / 2.7, 233 | 25 (24), 5.4 / 8.4, 54 |
+
+  **Crossings fall as the band widens:** stacked lines at fine detail cross each other constantly within a pixel or two. The band
+  width is the reading the eye sees; the crossing count is read beside it, as a direction.
+- **A correction to section 5b's Q2 answer.** "12.2 and 16.3 px at 14-15 km south" came from `hb-kbos-road.py`'s axis-aligned box,
+  which took in every primary line in it. Along the named Southeast Expressway (12.7 km of axis inside 10 mi), (b)'s band reads 5.4 px
+  median and 8.4 px at most. The 4-8 px mid-corridor figure stands.
+
+**Option 3 (the fixed list), registered.** Every package below was BUILT ON 11-12; those rows are labelled NOT BLIND and the rebuild
+is a determinism check. The corridor rows and the KLGA dropped-ring row are blind: none has been read.
+
+| row | input | predicted |
+|---|---|---|
+| **O3-ANCHOR** (NOT BLIND) | rebuilt on `pqh` + `sea-obj` e9ef04165ba2: KEWR (S08-E1c), MIDTOWN, KJFK and KLGA (S08-F129), KBOS (A0) | byte-identical: e5333b0c570a, af608ebcddb4, 227ecbddfdf7, **48db330265e1**, f21d705d8b8a |
+| **O3-BYTES** (NOT BLIND) | non-terrain bytes against the 32,768 B cap | KEWR 32,744; MIDTOWN 32,764; KJFK 32,757; KLGA 32,756; KBOS 32,759 (today's) |
+| **O3-WATER** (NOT BLIND) | rings kept and dropped.water | KEWR 130 kept, 36 dropped, record 27 kept; MIDTOWN 163, 10, rings 91 and 132 kept; KJFK 179, 0; KLGA 173, 1; KBOS today's 197, 45, its 4 split bodies still split (the rule is not applied there) |
+| **HR-KLGA-E1** (5a, NOT BLIND) | the KLGA rebuild | 5a's rows, graded as a MEASUREMENT: 129.6 km; a rung from 8 to 10; dropped.water at most 106; kOk; at most 32,768; 0 proper crossings |
+| **O3-KLGA-DROP** (blind) | KLGA's one dropped ring | it is the FIRST unit of KLGA's rule sequence (`seq-ii-0.8-plus.json`), a unit of ONE ring. "Every split inland body whole or wholly dropped" is graded on the units: every multi-ring unit has all of its rings in the package, or none |
+| **O3-RL-SEE** | the Southeast Expressway, KBOS, today vs option 3 | equal to today's reading above (option 3 IS today's package at KBOS) |
+| **O3-RL-NJT** (blind) | the NJ Turnpike: KEWR today dff28487eaf4 (lines at 0.80 km) vs option 3 e5333b0c570a (1.61 km); MIDTOWN today 20a22bed5510 vs option 3 af608ebcddb4 | **10 mi:** today's band median 1.5-6 px, max at most 10; option 3's median 3-12 px and at least 1.2x today's, max at most 20. **5 mi:** today's median 3-12 px; option 3's 6-24 px and at least 1.2x today's, max at most 40. **Crossings:** option 3's FEWER than today's in every reading |
+
+**Outside the set:** an anchor byte differs: STOP (the prototype is not what was measured). A corridor reading outside its range: the
+reading is recorded as OFF and reported, never re-ranged. A corridor with no lines in a view: instrument, stop. Anything else: stop and
+decide.
+
+**Option 3's pictures:** one contact sheet per changed map (KEWR, MIDTOWN, KJFK, KLGA): today's package over option 3's, at 5, 10,
+25, 50 and 100 mi; drawn areas (the union) labelled. Boston has no option 3 sheet: **option 3 IS Boston's today package**.
+**Option 3 and FT-HR:** its New York packages are already staged (`KEWR-S08-E1c`, `MIDTOWN-S08-F129`, `KJFK-S08-F129`,
+`KLGA-S08-F129`); Boston's bytes do not change, so no KBOS reading is needed; KORD stays the A/A control.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
@@ -390,7 +439,7 @@ GitHub-side re-run rule applies. Anything else: stop and report.
   success, 2 skipped (`promote`, `version`), 0 failed**, tested on the merge into main as it then stands, read from the run's own
   checkout log. A new red from `ship-alert` reads INSTRUMENT. Any further workflow change before the run is read first; anything else:
   stop and report.
-- **Predicted for the section 5c head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
+- **Predicted for the section 5c-5d head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
   either: `workers.yml` filters on proxy/, dashboard/ and the wx fixtures, `account-budget.yml` on its own paths): **33 = 31 / 2 / 0**,
   on main as it then stands (aa40aa43d8c9 at this writing).
 
