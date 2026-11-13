@@ -4151,3 +4151,28 @@ All 16 packages are byte-identical to run 10's, every sha as frozen in d0's row.
 
   `repairLog` is printed beside run 10's and recorded, not graded: the row names `repairs` and the vertices only.
 - **Outside the set: STOP,** and report to the orchestrator. That covers any figure that differs, a missing p21 file, or a grader error.
+
+**SEA-FIG, read (07:02:53-07:03:02Z at 313add48; `sf-run.mts` 51c8bf0fca58, `sf-grade.py` 152e123d4cf4, output 724a193379c4): AS PREDICTED, 413 checks, 0 off.**
+- **At all 16 points, every graded figure equals run 10's:**
+  - rung and radius;
+  - D2's steps, 2 at New York and 1 elsewhere;
+  - the sea counts by run 10's definitions;
+  - `refused5` 0;
+  - `repairs` 1 with 4 vertices at New York, and 0 elsewhere.
+  - At New York, the non-terrain bytes, `dropped.water` and the water rings are 32,752 / 86 / 93 (KJFK), 32,760 / 116 / 58 (KLGA), 32,763 / 141 / 25 (KEWR) and 32,760 / 120 / 53 (MIDTOWN).
+  - KBOS's `dropped.water` is 45.
+- **The consistency check holds at all 16.** In the code's report, SeaCounts' `drawn` equals fate-drawn plus fate-dropped, and its `dropped`, `refused`, `collapsed` and `outside` each equal their fate counts.
+- **Run 10's own pieces:** every point's (file, record, fate) list equals its p21 file in order, and `ringIdx` equals its `seaIdx`.
+- **`repairLog`** (recorded, not graded) is the same as run 10's at all 16.
+- **The grader's control, its predictions written first** (`seafig/control-pred.txt` 9117f6b99e4d, 07:03:28Z). The control replays the saved builds with one planted fault, using the same grader with its plant hooks (2bbabb5d5be9). Both read exactly as predicted:
+  - **`drawn-sc`** (the code's own pre-ladder `drawn` graded as if it were run 10's) is OFF at exactly 5 points, every one `sea.drawn`: KBOS 20 / 17, KJFK 16 / 14, KLGA 16 / 14, KEWR 15 / 11, MIDTOWN 16 / 14;
+  - **`order`** (KBOS's pieces reversed) is OFF at exactly 1 point: KBOS, "ONLY IN ORDER".
+  - The unplanted grade was then re-run on that same grader (07:03:36-07:03:45Z). It read the identical output, 724a193379c4.
+
+**Scope ruling u1, read at the same builds (07:04:58Z; `seafig/u1-ksea.py` 30bdaa902b56):**
+- **KB3, KB4 and KB8 are covered by the identity of their bytes and their inputs.**
+  - Their packages are SEA-PKG's.
+  - Their inputs beyond the bytes are every piece's fate in order plus the sea set, at all 16. Those hash to **01ddfab4ae28 on both sides** (the code's builds against run 10's p21 files), with 0 points differing.
+  - The sources run 10 rendered against are unchanged: `sea-pieces.json` 8ad5d92fa7c7, last written by run 10's step 0 at 19:30:25Z, and `sea-obj`'s `index.json` d6945e124bfa.
+- **KB5** is bound by SEA-PKG's byte identity, as ruled.
+- **The KSEA guard, printed on the code PR's own KSEA package** (9bd5b34d6718: its water rings by `i2/pkg2json.mts`, its sea set from the code's report, rendered by run 10's `p2-render.py` kb4 against `sea-obj`) reads **frac 0.886081: PASS** against 0.886. That equals run 10's value to 6 places (cover 0.9192, 8,190 sea px). Its rings, origin and radius equal run 10's p21.
