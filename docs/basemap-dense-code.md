@@ -4273,3 +4273,15 @@ KJFK's no-sea package, ee8c834bc81a, is the one FT-SEA pins.
   - Also recorded: at KDTW, KMSP and ROUSES, BOTH of the code's builds read about 5 MiB above pq4d's: +5.35, +5.72 and +4.65, the same on both sides. So it cancels in SEA-MEM. It is the class of #639's unnamed KORD/KIND tree effect. The code PR at KMSP on `bm-obj`, 52.39, sits where QW4-1's pq4b did.
   - Every other point agrees with P2-M's peaks to ± 0.05 on both builds.
 - **Put to the orchestrator (07:29Z), with the CM rows HELD, not started:** is KSFO's 0.64 MiB at the ladder the stop its sentence "if they differ at the ladder too, that's the stop" describes? Or is it a recorded reading on a row that passed? Its cause is not being investigated without a ruling.
+
+**THE ORCHESTRATOR'S RULING (after 07:29Z): SEA-MEM's graded result STANDS.**
+- **The orchestrator records its own miss:** its rule ("if they differ at the ladder too, that's the stop") gave no threshold, so the reading was ambiguous at the moment it was read. It rules on the data instead of re-reading the sentence.
+- **KSFO's deviation is attributed to the NO-SEA BASELINE'S STORE, not to the sea path.**
+  - The code's SEA build equals P2-M's sea build at the ladder: 41.15 against 41.16 at KSFO, and 45.14 against 45.14 at BUFFALO. The sea side did not move.
+  - The no-sea build on `bm-obj` reads +0.64 against pq4d's knob-off build on `sea-obj`. The baseline moved.
+  - **Correcting KSFO's measured sea cost by that shift gives -0.25 + 0.64 = +0.39, against P2-M's +0.40.** So the whole deviation is the baseline.
+- **The alternative, "a sea-path memory change at KSFO", is EXCLUDED by the equal sea peaks.**
+- Recorded and not investigated now:
+  - KMIA's, KEWR's and MIDTOWN's cell-only differences;
+  - the roughly 5 MiB shift on both sides at KDTW, KMSP and ROUSES (it cancels; #639's unnamed tree effect).
+- **The CM rows may run.** They compare the code PR against main, both on `bm-obj`, so the store question does not enter them.
