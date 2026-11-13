@@ -747,3 +747,5 @@ Each is given as a count and as a share of `/enrich` requests.
 
 **Both readers** follow the pattern above: no wrangler, counts only, held in memory, error paths print the type only,
 the token file. Each is committed with its sha before it runs, and runs twice at least 60 s apart.
+
+**The readers**, committed here before either runs: (1) `tools/bill/route_onset_read.py`, blob **`b708610e1d1b`**; (2) `tools/bill/route_impact_read.py`, blob **`3433e7efa78d`**. (1) runs its two controls first, and reads no other hour unless both pass.
