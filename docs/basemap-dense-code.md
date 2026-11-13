@@ -3379,3 +3379,36 @@ d6cd3a3f24d7 at 19:46Z). The tested base is read from the run's own checkout log
 GitHub-side re-run rule applies. Anything else: stop and report.
 - **Re-predicted for the amendment's head** (a new commit, so a new run): the same, **32 = 30 / 2 / 0**, provided main's workflows are
   still those of 099f1946 when the run starts. The run on 101902e5db7b is superseded, and the review reads the new head's finished run.
+
+## The code PR's port: the rulings on the obligations checklist (the orchestrator, 2026-11-13 01:46:35Z), before build.ts
+
+The port reads this registration as an obligations checklist: 175 obligations and 39 conflicts or supersessions, each with its line
+numbers, read from this file at da3d73a07ead (sha256 df0fb3fe942c; the checklist, a scratch file, sha256 9ab06faeedd8). Eleven needed a
+ruling before any code depends on them. **All eleven were ruled as proposed:**
+
+| | the question (checklist ref) | ruled |
+|---|---|---|
+| **R1** | "the code PR separates dropped.sea from dropped.water" (the sea's storage proposal) against d0's SEA-PKG, byte-identical to run 10 with PROVENANCE included (6.1) | **d0 binds.** No separation in this PR: `dropped.sea` stays 0 and the ladder's sea drops stay in `dropped.water`, as run 10's packages have them. They are counted on `bm_build` as `seaDropped`. A separation, if wanted, is its own PR with its own byte prediction |
+| **R2** | `refused`: build-wide, or the drawn set's (6.3) | **the drawn set's** refusals (what the package omits); `refusedBuilt` is build-wide |
+| **R3** | `steps`: a list of radii (T-D2) or an integer (6.4) | **the build result carries `radii`** (D2's radii in order, which T-D2 asserts); **`bm_build`'s `steps` = radii.length** |
+| **R4** | `refusedBuilt`'s scope | **every backstop refusal in every water set of EVERY D2 step of the call,** TIGER's rings and the sea's (step 3's outers and islands), as the prototype's per-process counter counted them. Step 5's refusals are `refused5`'s |
+| **R5** | the new `bm_build` names (6.15, 6.16) | **`seaLost` = `seaRefused` + `seaCollapsed` + `seaDropped`**, the drawn set's; `seaRefused` includes step 5's, with **`refused5`** the step-5 subset; **`islandsDropped`**; **`seaRepairs`** and **`seaRepairVertices`**; **one `sea_repair` log line per repaired piece**, in run 10's observed format |
+| **R6** | the `seaLost` response header (1.41) | **`bm_build` only.** The header is #655's; this PR does not change the response contract |
+| **R7** | control knobs: T-PROV-a's backstop off, S-KB-REPAIRLIMIT's limit of 1, against "carries no plant knob" | **no knob in the shipped builder.** Every control and sabotage is an in-place edit by `proxy/scripts/sabotage-basemap.mjs`: asserted to apply once, the registered red set compared exactly, every file restored from a byte copy and its sha256 checked |
+| **R8** | KB1 in CI (the prototype's FillRing raster was Python) | **a TypeScript port of FillRing's fill rule** in the test helper, its parity with the Python reference shown on the synthetics before the row runs |
+| **R9** | "collapsed.water == drawn at KMSP" and "at most 2 steps at New York" listed under SEA-CI (6.14) | **local RUN rows** (R-KMSP, R-D2); CI keeps the synthetic T-PROV-a and T-D2 |
+| **R10** | rows d0 does not mention: T-PROV-a/b, T-D2, QW4-ID (a)-(c), KB7-b, KB7-c-real (Buffalo, Rouses Point, Zapata), the post-deploy staging rows, the MI-roundtrip sea case, C-BORDER-S (6.34) | **all stand,** carried into the code PR |
+| **R11** | KB3/4/5/8 and the KSEA guard on the code PR's builds | **identity covers only a row whose ENTIRE input is the package's bytes.** A row that also reads anything else runs |
+
+**R11, row by row, from each instrument's inputs in run 10's reader (`p2-read.py` 7ad9bcdbb63a):**
+
+| row | its inputs | covered by SEA-PKG's identity? |
+|---|---|---|
+| **KB5** | the package's water rings, rendered at the home its header names, by the C++ FillRing harness and the Python reference | **yes**: a function of the bytes alone |
+| **KB3** | the sea's bytes, which needs WHICH rings are sea: the builder's own sea set (the package does not tag it) | **no: runs** |
+| **KB4** (and its loss column) | the package against the sea's SOURCE pieces | **no: runs** |
+| **the KSEA guard** | as KB4 | **no: runs** |
+| **KB8** | the package against the unsimplified reference (the source), on the cells' edges | **no: runs** |
+
+So the build result carries, for the run's harness and nothing else, the drawn set's sea rings (their positions in the water section), the
+sea's bytes and every piece's fate, as the prototype's record did. None of it is on `bm_build` beyond R5's fields, and none is in the package.
