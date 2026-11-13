@@ -3423,3 +3423,20 @@ sea's bytes and every piece's fate, as the prototype's record did. None of it is
 - **The phase hook** (QW4's instrument: `buildHooks.phase`, a named phase per build stage) is `null` in production, so each site is an
   optional call that does nothing. Only the memory harness sets it, and what the hook does (its samples, its GC, its 8 MiB plant control)
   is the instrument's own cost, as it was P2-M's. The hook changes no byte of any package.
+
+**R5's `sea_repair` line, SUPERSEDED for production (the orchestrator, after 01:50:28Z; a privacy finding raised before worker.ts logs
+it).** Run 10's observed format, `sea_repair 16036/18 rings 0,1 restored 4 rounds 1 island 40.617,-73.417`, carries the source record and
+the island's centroid. The island lies inside the requested square, which is centred near the customer's home, so a 3-decimal point
+there is a location tied to a request: worker.ts's contract (BB1-BB3: "logs nothing about the request"), the telemetry rule and the
+brief's 2-dp limit all exclude it. This narrows what is logged, so it needs no owner's call.
+- **Production logs the repair as COUNTS only:** `seaRepairs` and `seaRepairVertices` on `bm_build` (R5), and per repaired piece one line
+  `sea_repair rings <n> restored <v> rounds <r>`: no record key, no point.
+- **The full line** (record key and island point) lives only in the build result's harness-only report, for local runs. Run 10's records,
+  and the rows that read the full line locally, are unchanged.
+- **The 500 stop** (`sea_repair_failed`, `sea_repair_limit`, `sea_repair_state`): the response carries the error code only (as worker.ts
+  already answers `{ error }`), and its log line carries counts only, in the same format.
+- **T-SEALOG (CI), the assertion that it cannot come back:** every production `sea_repair` line, and every `bm_build` line, the builder
+  emits for a build that repairs (a synthetic store with one repaired piece) and for one that stops (`sea_repair_limit`), contains **no
+  digit-dot-digit** (`/\d\.\d/`) and **no record key** (`/\d+\/\d+/`). **Its control:** the line still says something -- it matches
+  `^sea_repair rings \d+ restored \d+ rounds \d+$`, and the repaired build emits exactly one. Its sabotage (S-HR-LOGPOINT, through
+  sabotage-basemap.mjs): the full harness line logged instead, which must turn T-SEALOG red and nothing else.
