@@ -1,0 +1,4 @@
+CONTROL (unsabotaged): 1096 passed, 1 skipped, of 1097; 0 failed (TIME_WAIT start 100, peak 14742; held 0 s)
+S-SQ: as registered; failed 2 (want 2): ["SQ1","SQ2"] (want ["SQ1","SQ2"]); TIME_WAIT start 1503, peak 14731; held 77 s; restored byte-identical
+S-SQP: as registered; failed 1 (want 1): ["SQ-C"] (want ["SQ-C"]); TIME_WAIT start 517, peak 14710; held 77 s; restored byte-identical
+ALL AS REGISTERED
