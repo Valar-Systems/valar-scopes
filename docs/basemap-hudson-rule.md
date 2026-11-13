@@ -608,6 +608,37 @@ regular station within 1 km (so a plant's on-axis parts add no width).
 **The corridor rows registered in 5e (O3-RL2-SEE, O3-RL2-NJT, O2-RL2) are read with v2.1:** median on the regular stations, max on all
 stations; their ranges stand as registered. **Any OFF in a control stops the run, and that third instrument failure goes to the owner.**
 
+### 5h. The v2.1 controls refused to build: the corridor instrument's FAILURE #3; the measure is parked and goes to the owner
+
+**The run (17:39:05Z, `hb-rl21-controls.py` 95157c7c68f2, stdout e0e91ef507ad):** "no straight stretch where the members straddle the
+axis (3 straight) -- the control cannot be built". Nothing was planted or read. **Why** (read-only, after the refusal): the axis is one
+carriageway's SOURCE line and today's simplified package lines run beside it, not around it: of 51 regular stations the members
+straddle the axis at 9, lie wholly on the + side at 29 and wholly on the - side at 13. The site rule assumed the opposite; the
+precondition caught it before it could produce a false OFF.
+
+**The orchestrator (17:40:16Z):** counted as the corridor instrument's **FAILURE #3** (a precondition that refuses to build is the
+instrument unable to measure, the class of BLIND under the 11-04 rule; consistent with uk-data's (A) the same afternoon), "and it goes
+to the owner". **All corridor work stopped.** Two options go to the owner, the orchestrator recommending the first: **(i) park the
+corridor number** -- he decides on pictures, his own rule; options 2 and 2-L are pixel-identical to today at 5 and 10 mi anyway; or
+**(ii) one more attempt** with the design below. **Until he answers, the standing road-appearance row (A2.49) is PICTURES ONLY, with no
+corridor number.** No corridor reading is claimed for any option.
+
+**The proposal for (ii), written down and NOT run** (draft `hb-rl21b-controls.py` 567eabc8a838, never run):
+- **Plants as SHORT COPIES of a real member line M** (the member passing nearest the axis at s0): M's own vertices within +-0.9 km of the
+  point of M nearest the axis at s0, new base vertices inserted ON M's segments at +-w along M (w = 0.3 km for PLANT-STRAY, 0.1 km for
+  PLANT-NARROW), and one tip 1.5 km out along the axis normal at s0 (the normal from the axis direction over s0 +- 0.3 km). Away from
+  the spike the copy lies exactly on M, so its crossings land on M's own offsets: every station away from the tip is EXACTLY unchanged,
+  wherever it is sited, with no straddling assumption.
+- **Short, not whole, for C1's sake:** a full-length copy would pass the OLD test (its long on-road length outweighs the spike), so C1
+  could not show the defect; and C1 and C2 must use the same plant (the ruling of 17:09:24Z).
+- **Built and checked before anything is read, each printed:** square (the tip projects within 0.01 km of s0 and lies 1.5 +- 0.01 km
+  out); a v2.1 member by its own vertices; and, for C1, its length within 1 km of the centreline under 80 %.
+- **Site:** of the multiples of 0.25 km on a straight stretch, the one nearest the axis's middle where a member passes within 0.15 km
+  of the axis.
+- **The tip's expected width is RELATIVE:** 1.5 km minus the unplanted members' lowest offset at the tip's station (read from the
+  unplanted geometry first), +-0.05 km, with a sanity range of 10.0-14.5 px (the frozen 11.0-14.5 assumed straddling).
+- C1, C2's member count and "unchanged" rows, C2b, C3 and C4 as frozen in 5g otherwise.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
@@ -634,7 +665,7 @@ GitHub-side re-run rule applies. Anything else: stop and report.
   stop and report.
 - **Read at 5e24c9e233e9:** 33 = 31 / 2 / 0 as predicted (stable at 17:05:53Z), tested on "Merge 5e24c9e233e9... into aa40aa43d8c9...".
 - **Read at e8cbe2fe709f:** 33 = 31 / 2 / 0 as predicted (stable at 17:30:58Z), tested on "Merge e8cbe2fe709f... into 86077c7fe9f2...".
-- **Predicted for the section 5c-5g head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
+- **Predicted for the section 5c-5h head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
   either: `workers.yml` filters on proxy/, dashboard/ and the wx fixtures, `account-budget.yml` on its own paths): **33 = 31 / 2 / 0**,
   on main as it then stands (b0c9412f71a8 at this writing).
 

@@ -2722,3 +2722,9 @@ multi-line corridor at the 10 mi view, by `hb-kbos-road.py`'s measure, with a pi
 | labels | areas labelled as DRAWN (the union of the rings), never as ring areas added |
 | who sees it | the owner, before he is asked to decide |
 | outside the set | a corridor that reads outside its prediction: stop and report, no reading claimed |
+
+**Status (2026-11-13 17:40:16Z, the orchestrator): the CORRIDOR MEASURE IS PARKED.** It failed three times on its first day (v1's
+membership excluded the strays it measured; v2's fixed stations stepped past a narrow stray; v2.1's controls refused to build on a
+wrong siting assumption), and under the retry cap it went to the owner (docs/basemap-hudson-rule.md sections 5d-5h). **Until he rules,
+this row is PICTURES ONLY: before/after at 5, 10, 25, 50 and 100 mi, drawn areas labelled, no corridor number claimed.** A proposed
+fourth design is written down in section 5h, not run.
