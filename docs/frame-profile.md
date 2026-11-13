@@ -82,6 +82,37 @@ be the expected result, not a stop.
 - **Rebuild frames** (section 4 said 0): rebuilds follow the real radar cadence, because each new real frame is
   Replaced. So, as in C1, they are counted, tagged and included per v19's rule.
 
+**(e) THE DRAWING SETTINGS (the orchestrator's rule, 2026-11-13, before the run).** Every key a scene does not answer
+is E2:08's own saved value, so without this row the profile would measure E2:08's drawing configuration, not v20's
+customer defaults, and P5/P6 are sized from it.
+- **The tree:** map-client's frozen C1-L, `bench/frame-bench-levels` at `40f02c0fa812`. The profile is
+  `bench/frame-profile-p1-levels` at `e4763d4c6c08`.
+- **v20's default** for a drawing key is what the image applies to an ABSENT key, from its own parse in `Initialise()`.
+- **THE TARGET KEYS ARE ANSWERED BY THE PROFILE'S SCENES**, as the image's own default. These are the keys that touch a
+  phase P5/P6 targets: outline, labels, the sweep blend, weather, trails.
+  - `infotext`, `triangle`, `trail`, `scanline` and `fade` are answered **"true"**. Each member's compiled default is
+    `true` (`AircraftManager.h`). The first three parse as `if (!x.isEmpty()) member = ...`, so an empty answer would
+    leave the member at the BOARD's boot-time value, not the default: a second path that keeps the old value. The
+    explicit default closes it.
+  - `wx-look` is answered **""**, which `LookFromStored` parses as look A, the default.
+  - The 15 info-field keys (`info-callsign` ... `info-possrc`, `AircraftInfoFields.cpp`) are answered **""**. Their parse
+    is `stored.isEmpty() ? defaultOn : ...`, so "" gives each field's compiled `defaultOn`.
+  - `wx-layer` is the scene's own (`kScenes[k].wx`).
+- **The mechanism:** one FRAME_PROFILE line in `framebench::Override`, calling `ProfileOverride(key)` from p4's
+  `FrameProfileScenes.h`. `FrameBench.h` is map-client's, and C1-L is frozen, so the line is map-client's to place or
+  to allow. That is a named dependency.
+- **The non-target drawing keys stay the board's own.** They are `airports`, `airports-min`, `altcolor`, `highlight`,
+  `mil-show`, `heli-show`, `spc-show`, `mil-visual`, `emg-visual`, `watchlist` and `follow`. The reader records each
+  one from map-client's keys record and prints every deviation from the default, and the run goes ahead.
+- **THE ROW, read before the run** from the settle's keys record: every target key reads "bench" (answered). A target
+  key read as the board's own is a STOP BEFORE THE RUN, fixed by answering that key, never by writing NVS.
+  **Predicted: 0 target-phase deviations.** The non-target deviation count is printed, not predicted.
+- **Its static check (host, with plants):** the answered info-field list equals the keys parsed from
+  `AircraftInfoFields.cpp`'s table, and the five "true" answers equal the members' compiled defaults parsed from
+  `AircraftManager.h`. Plants: one info key dropped reads red; one default flipped in a copy of the header reads red.
+- **And the guard that stays:** `lbl_draw` > 0 at p50 in every arm with contacts. Otherwise the label rows and P-CTRL
+  read INSTRUMENT.
+
 **OUTSIDE THE SET** (in addition to section 4's): the amendment's tree sha, image shas or flags differ from those
 pinned at the window. Stop, nothing is read.
 
