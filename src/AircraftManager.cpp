@@ -780,6 +780,15 @@ bool enqueueEnrich(QueueHandle_t queue, EnrichRequest* req)
 
 void AircraftManager::Initialise()
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    {   // the customer defaults (item 2): the KEEP-CURRENT members' initializers, before any parse can change them
+        const bool keepNow[framebench::kNumKeep] = {displayInfoText, displayTriangles, displayAirports, displayTrails,
+                                                    displayAltColor, displayHighlight};
+        framebench::SnapshotKeep(keepNow);
+    }
+#endif
+    // THE FRAME BENCH END
     // get centre point + radius
     const String latStr = configServer.GetStoredString("latitude");
     const String lonStr = configServer.GetStoredString("longitude");
@@ -2106,6 +2115,30 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
         }
         framebench::Record(frameUs, trackedAircraft.size());
         const uint32_t nowMs = millis();
+        // item 2's record, after a scene's Initialise(): what this scene draws with (counts and booleans only)
+        auto drawingLine = [&](int k) {
+            unsigned long fields = 0;
+            for (size_t i = 0; i < infoFieldEnabled.size() && i < 32; ++i)
+                if (infoFieldEnabled[i]) fields |= 1UL << i;
+#ifdef FEATURE_CLOUD_FEED
+            const int wx = wxLayerEnabled ? 1 : 0, look = (int)wxLook, lb = lbEnabled ? 1 : 0;
+#else
+            const int wx = -1, look = -1, lb = -1;
+#endif
+            Serial.printf("[frame-bench] drawing S%d: infotext=%d triangle=%d airports=%d apmin=%d trail=%d altcolor=%d "
+                          "highlight=%d scanline=%d fade=%d wx=%d look=%d mil=%d heli=%d spc=%d milvis=%d emgvis=%d "
+                          "visnight=%d nightclock=%d radarup=%d follow=%d followtrack=%d lookup=%d logbook=%d lb=%d "
+                          "autodim=%d bright=%u mqtt=%d ntfy=%d milalert=%d emgalert=%d lookalert=%d tones=%d kiosk=%d "
+                          "watch=%u fields=%lx meta=%d unit=%s zoom=%d/%d\n",
+                          k, displayInfoText, displayTriangles, displayAirports, (int)airportsMin, displayTrails,
+                          displayAltColor, displayHighlight, displaySweep, displayFade, wx, look, showMilitary,
+                          showHelicopters, showSpecial, (int)milVisual, (int)emgVisual, visualNightOverride,
+                          nightClockEnabled, radarUpDeg, followTarget.isEmpty() ? 0 : 1, followDrawTrack, showOverhead,
+                          logbookEnabled, lb, autoDim, (unsigned)configuredBrightness, mqttEnabled,
+                          ntfyTopic.isEmpty() ? 0 : 1, alertMilitary, alertEmergency, alertOverhead, tonesEnabled,
+                          kioskOn, (unsigned)watchlist.size(), fields, metadataNeeded, rangeUnit.c_str(), zoomIdx + 1,
+                          zoomLadder.n);
+        };
         if (!fb.done) {
             if (fb.scene < 0) {
                 if (nowMs >= framebench::START_AFTER_MS && framebench::Allocate()) {
@@ -2119,6 +2152,7 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                                   framebench::HomeName(0),
                                   (unsigned)framebench::kScenes[0].level, (unsigned)framebench::kScenes[0].rung);
                     Initialise();
+                    drawingLine(0);
                 }
             } else if (!fb.measuring) {
                 if (nowMs - fb.phaseStartMs >= framebench::SettleMs(fb.scene) && fb.dumpScene < 0) {
@@ -2130,6 +2164,15 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                 }
             } else if (nowMs - fb.phaseStartMs >= framebench::MeasureMs(fb.scene)) {
                 framebench::EndMeasure();
+                {   // item 2 (a): enrichment over the scene, and the tracked contacts it has filled (counts only)
+                    unsigned withType = 0, withRoute = 0;
+                    for (const auto& [icao, t] : trackedAircraft) {
+                        withType += t.typeCode.isEmpty() ? 0 : 1;
+                        withRoute += t.routeOrigin.isEmpty() ? 0 : 1;
+                    }
+                    Serial.printf("[frame-bench] enrich S%d: submits %lu tracked %u type %u route %u\n", fb.scene,
+                                  (unsigned long)fb.submits, (unsigned)trackedAircraft.size(), withType, withRoute);
+                }
                 const int next = fb.scene + 1;
                 if (next < framebench::kNumScenes) {
                     fb.scene = next;
@@ -2153,6 +2196,7 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                             ApplyZoom(i, radarzoom::Edge::None, "bench");
                             break;
                         }
+                    drawingLine(fb.scene);
                 }
             }
         }
@@ -10367,6 +10411,11 @@ void AircraftManager::RequestCloudEnrich(const String& icao24, const String& cal
     req->hasTrack = hasTrack;
     if (enqueueEnrich(enrichRequestQueue, req))
         enrichInFlight = true;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    framebench::S().submits++;   // item 2 (a): enrichment submits, counted per scene
+#endif
+    // THE FRAME BENCH END
 }
 
 void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e,

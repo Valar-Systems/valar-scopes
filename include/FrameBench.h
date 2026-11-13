@@ -111,6 +111,14 @@ static const char* const kHomeName[] = {"Bend", "KSFO"};
 static const char* const kHomeLat[] = {"44.06", "37.62"};
 static const char* const kHomeLon[] = {"-121.31", "-122.38"};
 
+// THE CUSTOMER DEFAULTS (the cloud reviewer's item 2, ruled 01:15:18Z): every scene but LIVE-OWN reads what a factory-
+// fresh board reads, which is "" for every key. kOwnKeys stay the board's own (they draw nothing); the six KEEP-CURRENT
+// keys, whose parse keeps the member's CURRENT value on "" (the board's saved one, after boot), answer the member's
+// initializer instead. FB-R11 holds both lists to the source.
+static const char* const kOwnKeys[] = {"cloud-url", "cloud-key", "cloud-key-fac", "opensky-id", "opensky-secret"};
+static const char* const kKeepKeys[] = {"infotext", "triangle", "airports", "trail", "altcolor", "highlight"};
+constexpr int kNumKeep = sizeof(kKeepKeys) / sizeof(kKeepKeys[0]);
+
 constexpr uint32_t START_AFTER_MS = 90000;    // the first scene starts 90 s after boot (Wi-Fi, clock, first fetch)
 constexpr uint32_t SETTLE_MS = 100000;        // A1: the trail's 90 s age plus a margin
 constexpr uint32_t MEASURE_MS = 120000;
@@ -153,6 +161,9 @@ struct State {
     uint32_t sceneStartMs = 0; // the scene's settle start (SURVEY, REC and REPLAY time their polls from it)
     bool delayed = false;      // this frame carried the planted delay (CTRL+10ms, and CTRL-IL's on blocks)
     int polls = 0;             // SURVEY and REC: polls seen in this scene's measured span
+    bool keep[kNumKeep] = {};  // the KEEP-CURRENT members' initializers (SnapshotKeep), in kKeepKeys' order
+    bool keepTaken = false;
+    uint32_t submits = 0;      // enrichment submits since the scene's settle began (RequestCloudEnrich's region)
 };
 inline State& S()
 {
@@ -164,6 +175,30 @@ inline uint16_t Ten(uint32_t us)
 {
     const uint32_t t = us / 10;
     return t >= 0xFFFF ? 0xFFFF : (uint16_t)t;
+}
+
+// Every key a scene does not set: nullptr (the board's own) for kOwnKeys; the snapshotted initializer for a KEEP-CURRENT
+// key; "" for every other key, which Initialise()'s own parse turns into its default.
+inline const char* CustomerDefault(const char* key)
+{
+    const State& s = S();
+    for (const char* own : kOwnKeys)
+        if (strcmp(key, own) == 0) return nullptr;
+    for (int i = 0; i < kNumKeep; ++i)
+        if (strcmp(key, kKeepKeys[i]) == 0) return !s.keepTaken ? nullptr : (s.keep[i] ? "true" : "false");
+    return "";
+}
+
+// Initialise()'s entry region, ONCE, before the first parse: the KEEP-CURRENT members' initializers, in kKeepKeys' order.
+inline void SnapshotKeep(const bool* v)
+{
+    State& s = S();
+    if (s.keepTaken) return;
+    for (int i = 0; i < kNumKeep; ++i) s.keep[i] = v[i];
+    s.keepTaken = true;
+    Serial.printf("[frame-bench] keep defaults: %s=%d %s=%d %s=%d %s=%d %s=%d %s=%d\n", kKeepKeys[0], s.keep[0],
+                  kKeepKeys[1], s.keep[1], kKeepKeys[2], s.keep[2], kKeepKeys[3], s.keep[3], kKeepKeys[4], s.keep[4],
+                  kKeepKeys[5], s.keep[5]);
 }
 
 // The keys Initialise() reads, answered for the current scene; nullptr means "the board's own setting". Only ever
@@ -184,7 +219,7 @@ inline const char* Override(const char* key)
         if (strcmp(key, "data-source") == 0) return "";
         if (strcmp(key, "local-url") == 0) return "";
         if (strcmp(key, "local-details") == 0) return "";
-        return nullptr;
+        return CustomerDefault(key);
     }
     if (strcmp(key, "latitude") == 0) return kHomeLat[sc.home];
     if (strcmp(key, "longitude") == 0) return kHomeLon[sc.home];
@@ -193,7 +228,7 @@ inline const char* Override(const char* key)
     if (strcmp(key, "data-source") == 0) return sc.kind == LIVE ? "" : "local";   // "" is the cloud on cloud builds
     if (strcmp(key, "local-url") == 0) return sc.kind == LIVE ? "" : s.url;
     if (strcmp(key, "local-details") == 0) return "";                           // Off: no detail lookups
-    return nullptr;
+    return CustomerDefault(key);
 }
 
 // main.cpp, just after FrameDone(): the present timestamp, then CTRL+10ms's planted delay inside the frame span.
@@ -285,6 +320,7 @@ inline void PrepareScene(int k)
              (unsigned)(kScenes[k].kind == REPLAY ? kShippingRadiusMi : kScenes[k].rung));
     s.sceneStartMs = millis();
     s.polls = 0;
+    s.submits = 0;
 }
 
 // THE CLOUD POLL's region (AircraftManager's fetch task, after ParseBlips parsed a /blips reply): the survey's counts

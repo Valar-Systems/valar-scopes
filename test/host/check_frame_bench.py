@@ -23,6 +23,10 @@
          the block's #endif
   FB-R10 (Z): ApplyZoom( appears exactly once in the bench regions, after the scene change's Initialise() and behind
          framebench::ViewRung(), and ViewRung answers a rung only for kind == REPLAY below kShippingRadiusMi
+  FB-R11 THE CUSTOMER DEFAULTS: kKeepKeys equals the keys whose parse in Initialise() keeps the current value on ""
+         (`if (!X.isEmpty()) m = ...`, X from GetStoredString), SnapshotKeep's argument passes their members in
+         kKeepKeys' order, kOwnKeys is exactly the five identity keys, and both Override() fall-throughs return
+         CustomerDefault(key)
     python -I check_frame_bench.py <tree>             the rows; exit 0 all pass, 1 any fails
     python -I check_frame_bench.py --selftest <tree>  each row planted red on a copy in memory, and the clean tree green"""
 import os
@@ -207,6 +211,35 @@ def rows(files, listing=None):
                             for j in range(vr, min(len(hdr), vr + 5)))
     res["FB-R10"] = (z_ok and vr_ok, f"bench zoom calls {len(zc)}; after Initialise() behind ViewRung {z_ok}; "
                                      f"ViewRung REPLAY-only {vr_ok}")
+    # FB-R11: the customer defaults held to the parses
+    ini = next((i for i, l in enumerate(am) if l.startswith("void AircraftManager::Initialise()")), -1)
+    ini_end = next((i for i in range(ini + 1, len(am)) if am[i].startswith("void AircraftManager::")), len(am)) \
+        if ini >= 0 else -1
+    var_key, keep_pairs = {}, []
+    for l in (am[ini:ini_end] if ini >= 0 else []):
+        m = re.search(r'const String (\w+) = configServer\.GetStoredString\("([a-z0-9-]+)"\);', l)
+        if m:
+            var_key[m.group(1)] = m.group(2)
+        m = re.search(r"if \(!(\w+)\.isEmpty\(\)\) (\w+) = ", l)
+        if m and m.group(1) in var_key:
+            keep_pairs.append((var_key[m.group(1)], m.group(2)))
+
+    def str_list(name):
+        line = next((l for l in hdr if f"static const char* const {name}[] = " in l), "")
+        return re.findall(r'"([a-z0-9-]+)"', line.split("=", 1)[1]) if line else []
+
+    keep_keys, own_keys = str_list("kKeepKeys"), str_list("kOwnKeys")
+    snap = next((i for i, l in enumerate(am) if "const bool keepNow[framebench::kNumKeep] = {" in l), -1)
+    snap_members = re.findall(r"\b(display\w+)\b", " ".join(am[snap:snap + 3])) if snap >= 0 else []
+    member_of = dict(keep_pairs)
+    ordered = [member_of.get(k) for k in keep_keys]
+    falls = sum(l.count("return CustomerDefault(key);") for l in hdr)
+    r11 = (sorted(keep_keys) == sorted(k for k, _ in keep_pairs) and len(keep_pairs) == len(set(k for k, _ in keep_pairs))
+           and ordered == snap_members and own_keys == ["cloud-url", "cloud-key", "cloud-key-fac", "opensky-id",
+                                                        "opensky-secret"] and falls == 2)
+    res["FB-R11"] = (r11, f"keep-current parses {len(keep_pairs)} {sorted(k for k, _ in keep_pairs)}; kKeepKeys "
+                          f"{keep_keys}; snapshot order matches {ordered == snap_members}; kOwnKeys {own_keys}; "
+                          f"fall-throughs {falls}")
     return res
 
 
@@ -324,6 +357,16 @@ def selftest(tree):
 
     rc |= plant("FB-R10, ViewRung no longer REPLAY-only", r10a, "FB-R10")
     rc |= plant("FB-R10, a second zoom call in the driver", r10b, "FB-R10")
+
+    def r11a(f):
+        f[HEADER] = [l.replace('"airports", ', '') if "kKeepKeys[] = " in l else l for l in f[HEADER]]
+
+    def r11b(f):
+        f[HEADER] = [l.replace('"opensky-secret"}', '"opensky-secret", "trail"}') if "kOwnKeys[] = " in l else l
+                     for l in f[HEADER]]
+
+    rc |= plant("FB-R11, a KEEP-CURRENT key dropped from kKeepKeys", r11a, "FB-R11")
+    rc |= plant("FB-R11, a drawing key added to kOwnKeys", r11b, "FB-R11")
     print("selftest " + ("PASSED" if rc == 0 else "FAILED"))
     return rc
 
