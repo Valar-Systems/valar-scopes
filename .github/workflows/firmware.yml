@@ -436,6 +436,11 @@ jobs:
       - name: Weather-look bench marker in its own image
         if: matrix.env == 'blipscope-s3-128-wxlook'
         run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
+      # THE CARD BENCH, THE SAME POSITIVE CONTROL (docs/card-nophoto-fix.md, section 5a): its image carries
+      # "[card-bench]" and no other bench marker, so that marker's absence from every slug-ful image means something.
+      - name: Card bench marker in its own image
+        if: matrix.env == 'blipscope-s3-128-cardbench'
+        run: bash scripts/check-no-bench-hooks.sh --expect "[card-bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
       # WEATHER IS NOT IN A SHIPPING IMAGE, THE POSITIVE CONTROL: this image has it, so every string the scan below looks for
       # must be here. Until the joint release turns [weather] layer on.
       - name: Weather strings in the bench image

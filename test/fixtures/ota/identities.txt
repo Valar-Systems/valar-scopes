@@ -8,3 +8,4 @@ missileer-photo eam- s3-128
 weatherscope-s3-128 weatherscope- s3-128
 blipscope-pro-s3-175-amoled - s3-175-amoled
 blipscope-s3-128-joindiag - s3-128
+blipscope-s3-128-cardbench - s3-128
