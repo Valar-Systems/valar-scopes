@@ -351,9 +351,15 @@ HEALTHZ_URL = {"production": "https://scopes.valarsystems.com/healthz",
                "staging": "https://scopes-staging.valarsystems.com/healthz"}
 
 
+# Cloudflare's edge answers the default `Python-urllib/3.x` User-Agent with 403 before the Worker sees the request
+# (measured 2026-11-13, docs/reconcile-fleet-healthz-ua.md): without a User-Agent this block read nothing on every run.
+UA = "Blipscope-ReconcileFleet/1 (+https://github.com/Valar-Systems/valar-scopes; support@valarsystems.com)"
+
+
 def read_healthz(env: str) -> str | None:
+    req = urllib.request.Request(HEALTHZ_URL.get(env, HEALTHZ_URL["production"]), headers={"User-Agent": UA})
     try:
-        with urllib.request.urlopen(HEALTHZ_URL.get(env, HEALTHZ_URL["production"]), timeout=20) as r:
+        with urllib.request.urlopen(req, timeout=20) as r:
             return r.read().decode("utf-8", "replace")
     except (urllib.error.URLError, OSError, ValueError):
         return None
