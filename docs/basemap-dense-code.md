@@ -4233,3 +4233,43 @@ Its import checks: in both trees it refused an unknown point after its imports r
 - **The package rows (5.6)** need QW4-1's references rebuilt by `pq4b`. Their harness is registered separately, before they run.
 
 **Outside the set: STOP and report.**
+
+**ACCEPTED (after 07:23Z), with one addition to SEA-MEM** (recorded, not graded): beside the graded ladder phase, print each no-sea build's cell-loop figure with P2-M's run-10 one. **Run 10 recorded P2-M only as per-phase differences (sea minus no-sea) and each build's peak**, never the no-sea build's absolute cell phase. So the comparison is made on those, the cell loop included.
+
+**A process failure first, mine: the first R-KMSP attempt (07:23:10Z) stopped at its own gate, before any build.**
+- The "no vitest or sabotage- process" query matched its OWN powershell command line, which holds the pattern. It read 1. Every match was shown to be the query itself.
+- **Fixed:** the query excludes its own text. `cm-run.py` 272c0a2b7bf8 → **8a9400a4af7b**; the old file is kept as `cm-run.272c0a2b7bf8.py`.
+- The same edit added a gate-only mode and the orchestrator's SEA-MEM line.
+- **The gate's control** (predictions `cm/gate-control-pred.txt` a597def69d5d, 07:24:18Z):
+  - with a dummy node process carrying "sabotage-gate-control" running, the gate read 1 and STOPPED;
+  - with the dummy killed and shown gone, it read 0 and passed. As predicted.
+
+**R-KMSP (07:24:35-07:24:40Z; output `cm/rkmsp.out`): AS PREDICTED.**
+- The comparison build is the row's: ε × 8 with no cap, rung 0, one step, tolerance 1,609,344 mm.
+- The control: `refusedBuilt` 2.
+- `collapsed.water` 273 = 273, and `refused` 0 = 0. Both equal the prototype's QW4-C1 figures (recorded).
+- KMSP's package: rung 3, 32,745 non-terrain bytes (5.6 predicts 32,745), 0 crossings.
+
+**R-D2 (07:24:47-07:25:15Z; `cm/rd2.out`): AS PREDICTED at New York's 4.** Each takes 2 steps (162 then 129.6 km), and the first step holds the call's largest sample:
+
+| point | step 1 | step 2 (MiB) |
+|---|---|---|
+| KJFK | 71.80 | 61.72 |
+| KLGA | 73.98 | 64.62 |
+| KEWR | 74.09 | 69.55 |
+| MIDTOWN | 71.15 | 63.33 |
+
+KJFK's no-sea package, ee8c834bc81a, is the one FT-SEA pins.
+
+**SEA-MEM (07:25:24-07:27:30Z, 34 builds; `cm/seamem.out` 4b9817bfc216, `cm/seamem-builds.json` 770f80633dbe): AS PREDICTED.**
+- **The plant control (u2), on `sea-obj` at KJFK:** cell +8.00; later phases -0.01 to 0.00; made 8,388,608 B, read back 10, not held to the end.
+- **The anchor:** all 16 sea packages equal SEA-PKG's shas.
+- **The graded row:** at all 16, sea minus no-sea at the ladder phase is inside ± 0.785 of P2-M's.
+- **The orchestrator's recorded comparison** (the code PR's difference [P2-M's]):
+  - **The cell loop differs, the ladder agrees:** KMIA, cell -1.54 [+0.29] and ladder +0.60 [+0.61]. KEWR and MIDTOWN read about 0.2 lower in the cell loop and agree at the ladder within 0.05. There the store difference stops before the graded phase.
+  - **From the tile phase on, and still at the ladder:** KSFO, tile -0.44 [+0.20] and ladder -0.25 [+0.40], with the cell loop agreeing (+0.16 [+0.15]). BUFFALO also, smaller: ladder +0.25 [+0.45].
+  - **Which side moved,** by the peaks (every one at the ladder): the code's SEA builds equal P2-M's sea builds, KSFO 41.15 against 41.16 and BUFFALO 45.14 against 45.14. The code's NO-SEA builds on the stores without a sea layer read **+0.64 at KSFO** (41.40 against 40.76) and +0.18 at BUFFALO, against pq4d's knob-off builds on `sea-obj`.
+  - **So at KSFO the store difference DOES reach the graded phase, by 0.64 MiB,** inside the instrument's ± 0.785.
+  - Also recorded: at KDTW, KMSP and ROUSES, BOTH of the code's builds read about 5 MiB above pq4d's: +5.35, +5.72 and +4.65, the same on both sides. So it cancels in SEA-MEM. It is the class of #639's unnamed KORD/KIND tree effect. The code PR at KMSP on `bm-obj`, 52.39, sits where QW4-1's pq4b did.
+  - Every other point agrees with P2-M's peaks to ± 0.05 on both builds.
+- **Put to the orchestrator (07:29Z), with the CM rows HELD, not started:** is KSFO's 0.64 MiB at the ladder the stop its sentence "if they differ at the ladder too, that's the stop" describes? Or is it a recorded reading on a row that passed? Its cause is not being investigated without a ruling.
