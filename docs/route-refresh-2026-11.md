@@ -240,6 +240,18 @@ Anything else there, such as a warning or an update notice in another form, is o
 **Deletes:** one per environment (the sentinel's cleanup). Lists: one verify listing of about 630 pages per verify,
 far inside the lists allowance.
 
+**P5 re-registered, and P6 added, before production (ruled 18:02:49Z, on D1 and D2 reading clean):**
+- **P5's new band:** **567,944 to 568,228 + 10,000 x retries + 100 per hour of the window.**
+  - The floor is 568,228 less 0.05%.
+  - That 0.05% is the undercount MEASURED on staging (0.039%: 245 of 628,958), rounded up. It is not assumed.
+  - Outside the band: stop.
+- **P6, new: production's D2 after P4,** with the same three controls first. It checks the values of production's
+  added and value-changed keys against the pinned source. **Predicted: 0 mismatched and 0 absent.**
+  - **If N > 0:** repair those N, then run P6 again, reporting counts. The tool has no single-key repair, so the
+    repair is `--force-shard` for exactly the shards that hold the N keys. Its writes are counted against P5's
+    retries line.
+  - Production is reported done only after P6.
+
 ## 5. Outcomes
 
 | outcome | meaning, and what happens |
@@ -273,3 +285,5 @@ reviewer's 17:17:05Z go: weatherscope's combined deploy was closed and verified 
 | S3 | verify, 17:44:55-17:49:13Z, exit 0:<br>- `expected: 1591 shards, 628956 distinct keys`; `actual: 629783 keys present under rt:` (= 628,956 + 827);<br>- `shards complete: 1591/1591`; `keys present: 628956/628956`;<br>- `RESULT: PASS -- every expected key present, in every shard`;<br>- 0 manufactured self-loops (38 genuine); `extra ... 827`;<br>- 0 per-shard failure lines; no stderr other than wrangler's config warnings | **as predicted. Staging VERIFIED at 17:49:13Z**: the loop closed at the first verify, with no repair |
 | S4 | staging `/healthz` at 17:55:33Z and 17:56:36Z (11 and 12 minutes after the seal, after S3's PASS), both HTTP 200, commit b7184243: `{"builtAt":"2026-11-13T17:44:25.919Z","ageDays":0,"rows":628956,"stale":false,"maxAgeDays":14}`; the two reads identical | **as predicted** (builtAt inside 17:44:23-17:44:27Z) |
 | S5 | the analytics API (`kvOperationsAdaptiveGroups`), window 17:25:00-17:45:00Z, read at 17:59:50Z and again at 18:00:56Z with identical results. Staging namespace: **write 628,713**, delete 1, list 2, read 57. Production in the same window: write 48, list 6, read 5,632. The reader's control: it read 11-09 as 67,301 production and 65,678 staging writes, equal to the per-day read | **OFF: 245 BELOW the 628,958-628,978 band.** The outcome table has no row for under, so "anything else": stopped before production, and reported for the ruling |
+| D1 (approved 18:02:49Z) | the same reader over 17:15:00-17:55:00Z at 18:03:30Z: staging write 628,713, the same as the run window. The sub-windows 17:15-17:25 and 17:45-17:55 hold no staging writes. The wider window's 1,256 staging lists are S1's and S3's two listings | **(b) excluded**: no write fell outside the run window |
+| D2 (approved 18:02:49Z) | every key's value read back with `kv bulk get` through the helper, 100 keys a call (380 calls, 18:04:45-18:07:28Z), compared byte for byte with the pinned source, built as the writer builds it. The controls ran first:<br>- (i) a known-correct key compared against a deliberately wrong value: exactly 1 mismatch;<br>- (ii) a made-up key `rt:ZZQQQQQX`: read `null`;<br>- (iii) 1,000 unchanged keys on a fixed stride: 1,000 match.<br>**added: 10,680 checked, 10,680 match, 0 mismatched, 0 absent. value-changed: 26,106 checked, 26,106 match, 0 mismatched, 0 absent.** | **(c) excluded for every key whose value matters.** What the data cannot exclude: dropped writes to UNCHANGED keys, which are harmless and look exactly like an analytics undercount. So the 245 (0.039%) is read as the analytics being imprecise, and P5 is re-registered below |
