@@ -222,8 +222,15 @@ that the source does not contain), so section 4's "model within +/-20%" of a fix
 
 ### The checks, graded after one read (one stated 7-day window)
 
-- **The weights:** each route's requests are `sum(_sample_interval x double4)`, because the proxy samples its own
-  cache hits at 0.1 and writes the weight in `double4` (`proxy/src/metrics.ts:238-241`). Never `count()`.
+- **The weights, per row family** (`blipscope_proxy` holds several kinds of row; the reviewer, 00:29:41Z):
+  - **Request rows:** `sum(_sample_interval x double4)`, over rows whose `index1` (= `blob1`) is a `KNOWN_ROUTES`
+    route. The proxy samples its own cache hits at 0.1 and writes the weight in `double4`: 10 when sampled, 1
+    otherwise (`proxy/src/metrics.ts:238-241`).
+  - **`err5xx` rows** (`doubles: [status]` only, no `double4`) are excluded by that filter, so a failed request is
+    never counted twice.
+  - **`enrich_gap` rows** write `doubles: [1]`, a constant that is not a sampling weight (`metrics.ts`,
+    `recordEnrichGap`). They are weighted by `_sample_interval` alone.
+  - Never `count()`.
 - **The measured side:** production `ENRICH_KV`'s reads and writes, from `kvOperationsAdaptiveGroups` filtered by
   its `namespaceId`. The account total is printed beside them.
 
