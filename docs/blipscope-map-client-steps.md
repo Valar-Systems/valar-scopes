@@ -5136,6 +5136,8 @@ Strong. The owner looks at Strong and Extra strong on E2:08 in a window of his o
     So it runs **A/B/A in one window**: before, step D, before.
   - The before-to-before spread is the noise the delta is read against. A delta inside it is reported as not
     separated from the between-session noise.
+  - **Refined (00:17:57Z):** the error bar is **E = max(spread, U95 = 1.54 ms)**, both for A/B/A and for D4's two Subtle
+    reads, so a lucky-small spread never narrows it below the instrument's floor. "Not separated" means |delta| ≤ E.
 
 **D5, the web build does not follow.**
 - The map is never compiled into the web renderer: `BLIPSCOPE_MAP_FETCH` requires `!defined(BLIPSCOPE_WEB_RENDERER)`
