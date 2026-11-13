@@ -150,6 +150,26 @@ row is graded before the next is read.
   registered where `p2p` is stamped under M3, with a control that a planted push delay shows in `p2p`. M3-0 is not
   re-graded.
 
+**M3-1b, READ 2026-11-13 01:43Z on E2:08 (a no-hands window under the owner's standing terms): AS PREDICTED.**
+- **The image:** `blipscope-s3-128-m3bench` at `3bc7ec26fe28`, sha256 `2ca8f914a729`. It was written app-only to ota_0
+  (0x020000..0x1FA98F) from a frozen build dir, with no rebuild, and the write was verified.
+- **The test:** map-client's `map_bench_read2d.py` (`9082be910ca0`), called through `m3_1b_trust.py`. T2 is
+  `dots_complete`, on the dots that this tree's `wx-fb-check.py` (`92d85ce4e711`) derives. Before the window, its
+  self-test read as predicted: a mid-draw synth with no dots was UNTRUSTWORTHY, the same frame with the tree's dots
+  drawn was TRUSTED, and one dot pixel short was UNTRUSTWORTHY.
+- **The read:** 3 real `/diag/fb` grabs were TRUSTED. 3 `/diag/fb-middraw` grabs, carrying the plant header and labelled
+  Finished, were UNTRUSTWORTHY by T2 ("screen dot 0: 0/37 px in its colour"). **Under M3, the frame-trust test still
+  rejects a grab labelled finished that is not.**
+- **The window's own failure, before the read:** the first run's script stopped at W3 on a PowerShell variable
+  collision ($H and $h are one variable). No grab had been taken and the board had not been touched. The
+  orchestrator ruled it an instrument failure, and the fixed script took the grabs on the running image.
+- **The restore:** v19, `f6d73e39`, was written and verified. The board fast-joined Wi-Fi in 3.7 s from its saved
+  settings, the portal never ran, and HTTP answered 200. Two of p4's boot-read predicates were off in FORM: they
+  expected `autoConnect() returned true` and no line containing "portal", but v19 joins by `TryFastJoin()` first,
+  and its "credentials saved: portal times out" line is a config print. The orchestrator recorded it as a prediction
+  miss, not a failed restore. Restore reads now use "[WiFi] CONNECTED" AND ("fast join OK" OR "autoConnect()
+  returned true"), AND zero portal-START lines.
+
 **M3-3 runs A/B/A (the orchestrator's rule for every before/after frame-time row, 00:11:47Z). Registered before C1.**
 - **The rule's reason.** blipscope-5c's FT2 path was untouched by its fix, yet it read +1.41 and +1.60 ms between two
   sessions with different flashes and boots. Its within-session A/A held at most 1.06. So an offset between sessions
