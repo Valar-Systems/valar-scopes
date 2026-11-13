@@ -3,6 +3,7 @@
 # docs/web-renderer.md).
 #
 #   tools/web-renderer/build.sh [s3-128|s3-21] [distdir]      default: s3-128 into tools/web-renderer/dist
+#   tools/web-renderer/build.sh web-720|web-960|web-1080|web-1280 [distdir]   the big-size check models, never published
 #
 #   SRC_ROOT=<tree>   build the firmware units from another checkout (a release tag's), with this tree's
 #                     tools/web-renderer; default: this tree
@@ -21,10 +22,14 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
 SRC_ROOT=$(cd "${SRC_ROOT:-$ROOT}" && pwd)
 SKU=${1:-s3-128}
+# web-<N>: the big-size check models (docs/web-renderer-big-sizes.md), the Pro 2.1's model at N px. Checks only, never
+# published; s3_21.h refuses any other N. The interim, until the screen size is a run-time value.
+SIZE_DEF=""
 case "$SKU" in
   s3-128) VARIANT=BLIPSCOPE_VARIANT_S3_128 ;;
   s3-21)  VARIANT=BLIPSCOPE_VARIANT_S3_21 ;;
-  *) echo "unknown SKU '$SKU' (s3-128 or s3-21)"; exit 2 ;;
+  web-720|web-960|web-1080|web-1280) VARIANT=BLIPSCOPE_VARIANT_S3_21; SIZE_DEF=-DBLIPSCOPE_WEB_SCREEN_SIZE=${SKU#web-} ;;
+  *) echo "unknown SKU '$SKU' (s3-128, s3-21, web-720, web-960, web-1080 or web-1280)"; exit 2 ;;
 esac
 DIST=${2:-$HERE/dist}
 OUT=$DIST/$SKU
@@ -50,6 +55,7 @@ DEFS=(-D"$VARIANT" -DBOARD_HAS_PSRAM -DFEATURE_CLOUD_FEED -DWX_LAYER_SHIPS '-DCL
       -DBLIPSCOPE_TLS_PSRAM -DBLIPSCOPE_EXPECT_BIG_NVS '-DBUILD_ENV="web-renderer"' -DBLIPSCOPE_WEB_RENDERER
       -DARDUINOJSON_ENABLE_ARDUINO_STRING=1 -DARDUINOJSON_ENABLE_ARDUINO_STREAM=0
       -DARDUINOJSON_ENABLE_ARDUINO_PRINT=0 -DARDUINOJSON_ENABLE_PROGMEM=1)
+[ -z "$SIZE_DEF" ] || DEFS+=("$SIZE_DEF")
 INCS=(-I"$HERE/shim" -I"$SRC_ROOT/include" -I"$SRC_ROOT/src" -I"$LIBDEPS/ArduinoJson/src" -I"$LIBDEPS/QRCode/src"
       -I"$LIBDEPS/LovyanGFX/src/lgfx/Fonts")
 CXXFLAGS=(-std=gnu++17 -O2 ${EXTRA_CXX:-} -fno-exceptions -Wno-unused-function -Wno-unused-variable)

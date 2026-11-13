@@ -1,10 +1,12 @@
 // Blipscope web renderer: the headless checks (docs/web-renderer.md, R3-R6), in Node, against a built model.
 //
-//   node tools/web-renderer/smoke.mjs [dist/s3-128] [--quick] [--r7-only]
+//   node tools/web-renderer/smoke.mjs [dist/s3-128] [--quick] [--r7-only] [--r0-only [--expect-size=<N>]]
 //
 // The firmware runs at ~60 frames a second of wall time. globalThis.fetch is replaced by a recorder that answers
 // from the synthetic scene (site/scene.js), so the renderer's OWN default fetch path is the one exercised --
 // including what it sends: every call's init object is kept and checked for headers.
+//   R0  the model draws at the size it was built for (docs/web-renderer-big-sizes.md). --r0-only runs it alone;
+//       --expect-size=<N> overrides the expected size, for R0's control only (the s3-21 build expected at 960: red)
 //   R3  the data path: /blips with the device's query, no header, ~12 a minute, contacts drawn; /config,
 //       /airports, photos and posts never fetched; every request under /api/v1/blipscope/
 //   R4  /enrich answered 404: each hex asked at most 3 times; no type line drawn
@@ -101,10 +103,46 @@ async function r7() {
   check("R7", /Aborted/.test(what) && said, "wx-layer on stops at the shim's setBuffer: an abort, with its message");
 }
 
+// R0 (docs/web-renderer-big-sizes.md): the model draws at the size it was built for. A web-<N> model expects N; any
+// other model expects the number its own variant header states (include/variants/<name, - as _>.h, from SRC_ROOT when
+// set), read from that header, never retyped here. --expect-size=<N> overrides it, for R0's control alone. Without R0,
+// a size define that did not take would pass every other check at 480 while its model claimed 960.
+function expectedSize() {
+  const o = args.find((a) => a.startsWith("--expect-size="));
+  if (o) return /^\d+$/.test(o.slice(14)) ? Number(o.slice(14)) : null;
+  const name = path.basename(dir), web = name.match(/^web-(\d+)$/);
+  if (web) return Number(web[1]);
+  const root = process.env.SRC_ROOT || path.join(HERE, "..", "..");
+  let h;
+  try { h = fs.readFileSync(path.join(root, "include", "variants", name.replace(/-/g, "_") + ".h"), "utf8"); } catch { return null; }
+  const m = [...h.matchAll(/constexpr int SCREEN_SIZE = (\d+);/g)];
+  return m.length === 1 ? Number(m[0][1]) : null;
+}
+
+async function r0() {
+  const want = expectedSize();
+  if (want === null) { console.log(`INSTRUMENT: R0 cannot name the size ${path.basename(dir)} was built for`); process.exit(2); }
+  delete require.cache[path.join(dir, loader)];
+  const mod = await require(path.join(dir, loader))({ print: () => {}, printErr: () => {} });
+  const got = mod._web_screen_size();
+  console.log(`R0: ${path.basename(dir)}; draws at ${got} px, built for ${want} px`);
+  check("R0", got === want, `the model draws at the size it was built for (${got} px, want ${want} px)`);
+}
+
 function verdict() {
   const ok = results.every(Boolean);
   console.log(ok ? "WEB RENDERER SMOKE AS PREDICTED" : `WEB RENDERER SMOKE: ${results.filter((x) => !x).length} NOT AS PREDICTED`);
   process.exit(ok ? 0 : 1);
+}
+
+if (args.includes("--r0-only")) {
+  try {
+    await r0();
+  } catch (e) {
+    console.log("INSTRUMENT: " + (e && e.stack || e));
+    process.exit(2);
+  }
+  verdict();
 }
 
 if (r7only) {
@@ -119,6 +157,7 @@ if (r7only) {
 
 const types = new Set(makeScene().planes.map((p) => p[2]));
 try {
+  await r0();
   // R3 + R5 (enrich answered), then R6 on the same module
   const a = await run("R3/R5", { enrich: true, seconds: quick ? 25 : 70 });
   const blips = a.scene.log.filter((r) => r.url.startsWith("/api/v1/blipscope/blips?"));
