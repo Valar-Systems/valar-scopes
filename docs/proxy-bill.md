@@ -354,6 +354,34 @@ ctx.waitUntil(/* today's read / compare / write, unchanged; then memo.set(dev, {
 `lastSeen` as liveness (`scripts/reconcile-fleet.py`) is unchanged: it is still at most `REFRESH_MS` plus the gap to the
 device's next request.
 
+**The cost, at the place it is paid: the A-B-A lateness lands on the `fw:` table's readers** (the reviewer, 00:55:29Z).
+A device rolled back from v20 to v19 can show v20 in the table for up to an hour, if the isolate it returns to still
+remembers v19 and another isolate recorded the v20. Every reader in the tree (found by grepping for `fw:`, `fleetKey`
+and `FleetRecord`):
+
+| reader | what it reports from `fw:` | what up to 1 h of A-B-A lateness changes |
+|---|---|---|
+| `scripts/reconcile-fleet.py`, the Instrument A block | the firmware spread; the `lastSeen` ages; the change-entry count (Run 1's baseline: "look for a NEW entry") | the spread can count a rolled-back device under the version it left, for up to 1 h. The rollback's change entry arrives up to 1 h late: counted late, never lost. The ages do not change |
+| `scripts/reconcile-fleet.py`, "Behind version.txt" (`ota_lines`) | devices below the published version, by their row's `fw` | a device rolled back below the published version can read "not behind" for up to 1 h |
+| `proxy/scripts/activation-coverage.ts` | `lastSeen` only | nothing |
+| `scripts/ota-latest-probe.sh`, `scripts/ota-download-count.sh` | no `fw:` read of their own; both point at Instrument A, which is read through `reconcile-fleet.py` | as `reconcile-fleet.py` |
+| `proxy/src/enrich.ts` (a comment), `proxy/test/publish-guard.test.ts` (`fw:1` as a key name) | no read of the table | nothing |
+
+**Where the reader sees it:** the code PR adds one line to `reconcile-fleet.py`'s Instrument A block, per CLAUDE.md's
+premise rule. In substance it says: since the `fw:` memo deployed (#688 step 4a), a device that returns within the hour
+to a firmware it reported before can show the one it left for up to 1 h, so a "still on v20" row during a rollback may
+be up to an hour behind.
+
+**Ruled on the design** (the reviewer, 00:55:29Z):
+- **Accepted:** the memo keyed to the stored `lastSeen`; C1-red, and C4 as an instrument independent of the counter.
+- **The budget line lands with the code PR.** A hand-added row would be overwritten, and a rebuild now would churn every
+  other figure for an estimate that is not deployable yet. The account totals below cover the owner's rule meanwhile.
+  `build_budget.py`'s scenarios are shared with uk-data's work, so blipscope-50 is told before the code PR touches them.
+- **One deploy** is recommended: C1 and C1-red prove the counter's wiring off production, and C4 catches an inverted or
+  misplaced counter in production.
+- **Whether the memo deploys at all is the owner's call.** It trades up to 1 h of `fw:` lateness, in the table above,
+  for the saving. The question goes to him once the code PR is green, with the cost table, and not before.
+
 ### The instrument: one double, appended
 
 - **The field.** `RequestMetric` gains `fwKvRead` (0 or 1), set synchronously at the decision above, so `record()`
@@ -444,3 +472,57 @@ Whether it lands there or with this design is the reviewer's decision.
 ### CI for this push (predicted before it)
 
 Docs only, against main `e03e6c4d1903` (unmoved since the registration): **32 = 30 / 2 / 0**, as section 6.
+
+## Step 3: lever (a), the documentation read (2026-11-13 ~01:00Z; reading only)
+
+**Read:** Cloudflare's documentation, through its documentation search, 2026-11-13 ~00:58Z. Each page is cited by
+heading; one short quote, the rest paraphrased.
+
+| section 3's question | what the documentation says | where |
+|---|---|---|
+| Does head sampling keep or drop a request's logs whole? | **Whole.** The rate decides which requests are logged, and for a logged request "All logs within the context of the request are collected." A single line cannot be exempted | Workers Logs, "Head-based sampling" |
+| Does `head_sampling_rate` affect `wrangler tail`? | **Not stated, either way.** The configuration reference describes the setting under the persisted Workers Logs. The real-time logs page says real-time logs do not store Workers Logs, and that a busy Worker's real-time logs can enter a sampling mode of their own and drop messages. Neither page says whether the head rate applies to a tail | Wrangler configuration, "Observability"; Real-time logs, "Limits" |
+
+**Graded against section 3:**
+- **(a1)'s premise is confirmed.** Keeping `evt:"breaker"` and `evt:"upstream_skip"` unsampled under head sampling
+  means moving them out of Workers Logs, which is (a2).
+- **The tail question is OUTSIDE its registered pair** (affected, or unaffected). The documentation is silent, so the
+  answer is stated as neither. Settling it takes an observation: a tail on staging at a rate below 1, with its lines
+  counted against Analytics Engine's request rows for the same minutes. That is a staging deploy (a slot from the
+  reviewer, the deployer lock confirmed first). It is proposed here, not run.
+
+**What the documentation adds that section 2 did not name** (named alternatives; not designs yet):
+- **(a3) `invocation_logs = false`.** Each invocation writes one invocation log (the request, the response and their
+  metadata), and this setting turns it off while every `console.log` line stays (Workers Logs, "Invocation Logs").
+  That removes one of the proxy's 3.175 events per invocation with no sampling at all, so the breaker and skip lines
+  stay unsampled by construction. Its cost is whatever reads the invocation log's fields today (status, path, timing);
+  step 2a's inventory has to say so per reader before it is designed.
+- **(a4) Choosing lines in code.** The proxy writes one `evt:"req"` line per request (`proxy/src/metrics.ts:229`), and
+  Analytics Engine already holds the same request as a row. Writing it only for errors, or sampling it in code, keeps
+  every breaker and skip line, since each is a line of its own. Its cost: the Logs readers that count `req` lines.
+- **From 2026-12-01 the unit is bytes.** Workers Logs moves to Cloudflare Observability pricing. On Paid, ingestion
+  beyond 50 GB a month is $0.25 a GB, and storage beyond 10 GB-month is $0.10 a GB-month (Observability, "Pricing", its
+  worked example). So a lever's December saving is its share of BYTES, not of events, and the events differ in size.
+
+### The next read, registered before it runs: the proxy's Workers Logs events by kind
+
+**What it reads.** One whole hour of the proxy's Workers Logs events, from the Workers Observability API, the way
+`tools/budget/logs_bytes.py` does. Each event is counted and sized ("API bytes", as that tool defines them) by kind:
+- the invocation log;
+- `evt:"req"`;
+- each other `evt` value the source writes (`upstream`, `upstream_skip`, `breaker`, `enrich_gap`, `tn_miss`, `lb_clamp`,
+  `incoherent_row`, `hold`, `error`, `nws`, `missileer_unconfigured`, `provision_mint`, `activation_admin`, `bm_build`);
+- the plain-text lines (`route_stale`, `enroll`);
+- anything else, as one "unnamed" bucket.
+
+The proxy's invocations in the same hour come from the analytics API. Read-only; counts and byte totals only; never an
+event, a value or a field; the token file's `observability-read` and `analytics-read`, never printed. The tool is
+committed with its sha before it runs. It refuses a sampled hour, as `logs_bytes.py` does.
+
+| row | predicted | if not |
+|---|---|---|
+| **E1** | invocation logs per proxy invocation: **1.00** (+/-0.01); the documentation says one per invocation | the event model is not what the documentation says: stop |
+| **E2** | `evt:"req"` lines per invocation: **0.95 to 1.00**. `record()` runs once per fetch request (`proxy/src/index.ts:453`), and non-fetch invocations write none | a request path skips or repeats `record()`: find it |
+| **E3** | everything else totals about **1.18** per invocation (3.175 measured, less E1 and E2), and **`upstream` is the largest part of it, at 0.8 or more** | the rest is something the source reading did not weight: report its kinds before any design |
+| **E4** | by bytes, the invocation log is the largest kind: **over 40%** of the proxy's Logs bytes | (a3) is worth less than its event share suggests; (a4) is weighed by its own bytes |
+| escape | an "unnamed" bucket over 1% of events; kinds summing more than 10% off the measured events per invocation; or a sampled hour | the instrument is unreliable at this scale: stop and report, with no reading |
