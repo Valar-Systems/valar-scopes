@@ -1,0 +1,1 @@
+pk digest control, predicted 2026-11-13T07:36:37Z: replaying cm/pk-out.json, KBOS's code digests against KJFK's reference digests differ in EVERY digested section (water, rivers, roads, places, terrain); KBOS against itself differs in none. Outside this: the digest comparison is blind -> stop.

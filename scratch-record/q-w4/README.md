@@ -37,6 +37,7 @@ shipped code, and nothing here reads a credential, a board or a production servi
 | `cm/seamem-builds.r4.json`, `cm-builds.r4.json` | 421312abd1fb, f4e7ce06c75e | the builds behind seamem and cm, floats rounded to 4 places. The full-precision files the doc cites (770f80633dbe, 373bc70b3512) stay in scratch: their 16-digit float tails trip the device-id hook |
 | `cm/rv-meas.log` | fc43b98c419e | #639's measurement run, CM-0's references (the only record of its cell phase) |
 | `cm/dr-q4c3.mts`, `pk-cp.mts`, `pk-grade.py` | b02b5a66d240, c9ac9a5c5a4f, 3d5f5c8a62f2 | the 5.6 package rows: QW4-C's child for pq4b's references, the code PR's twin, the grader |
+| `cm/pk.out`, `cm/pk-out.json`, `cm/pk-control-pred.txt` | 35be9b1b42a8, b90afd99effc, cb6757c99dcb | the 5.6 reading (equal at all 13), its builds, and the digest control's prediction |
 
 ## Regenerating
 
