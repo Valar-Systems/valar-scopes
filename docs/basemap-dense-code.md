@@ -4176,3 +4176,60 @@ All 16 packages are byte-identical to run 10's, every sha as frozen in d0's row.
   - The sources run 10 rendered against are unchanged: `sea-pieces.json` 8ad5d92fa7c7, last written by run 10's step 0 at 19:30:25Z, and `sea-obj`'s `index.json` d6945e124bfa.
 - **KB5** is bound by SEA-PKG's byte identity, as ruled.
 - **The KSEA guard, printed on the code PR's own KSEA package** (9bd5b34d6718: its water rings by `i2/pkg2json.mts`, its sea set from the code's report, rendered by run 10's `p2-render.py` kb4 against `sea-obj`) reads **frac 0.886081: PASS** against 0.886. That equals run 10's value to 6 places (cover 0.9192, 8,190 sea px). Its rings, origin and radius equal run 10's p21.
+
+### The instrument for R-KMSP, R-D2, SEA-MEM and the CM rows, registered before any of them runs
+
+**The predictions are the frozen rows'; nothing here changes one.** This fixes how each row is measured, and every choice the rows' text leaves open.
+
+**The two trees, each taken from its COMMIT** (blobs by `git show`, never a working tree): `cm/mk-cm.mjs` 751201f6d83f, the whole of `proxy/src`.
+- **The code PR's** (fa8ae1f6, `proxy/src/basemap` af4063428381) is byte-identical to its commit (`build.ts` 15c19c728dea). It carries its own phase hook, `buildHooks.phase`: six phase calls and D2's step line, null in production (above, "The harness's extras and the phase hook").
+- **Main's** (e03e6c4d, the merge-base, `proxy/src/basemap` 07649873ad4d) has only `mk-hooks.mjs`'s seven sampling lines added. The hooked `build.ts` is **f60ae55f45d9**: byte-identical to the hooked builder #639's measurement read (`docs/basemap-release.md`: "`f60ae55f45d9` for the PR's").
+- The generator refuses unless:
+  - every anchor matches once;
+  - the hooked file differs from its blob by those seven lines alone;
+  - every other file is byte-identical;
+  - both trees call the same six phases in the same order.
+- **Its refusals, shown:** given the code PR as "main", it refused (an anchor matched 0 times), and it refused a directory that was not fresh.
+
+**The child, `cm/dr-cm.mts` 3a98e065bd05:** `dr-p2m.mts` (7814abed9746, P2-M's) with three changes. The controls C1, C2′ and C3, the settled sampler, the phases and the per-step peaks are unchanged.
+1. **The tree by name** (`cp` or `main`). The same sampling function is set as the code PR's `buildHooks.phase` and as main's `globalThis.__mem`.
+2. **The 8 MiB plant is held by the child,** since the code PR has no knob. It is made after the baseline and before the build. At the first phase call past the cell loop it is read back (first + last byte = 10) and dropped BEFORE that sample. The control requires it made (8,388,608 B), read back (10), and not held to the end.
+3. **Mode `nocap8`** (R-KMSP's comparison build): ε × 8 (1,609,344 mm) with `capBytes` = `Number.MAX_SAFE_INTEGER`.
+
+Its import checks: in both trees it refused an unknown point after its imports resolved (exit 2), and without `--expose-gc` it refused (exit 3).
+
+**The driver, `cm/cm-run.py` 272c0a2b7bf8:** one group per invocation, in the ruled order: `rkmsp`, `rd2`, `seamem`, `cm`. It stops at the first off reading.
+- **Before each group:** TIME_WAIT under 2,000; no vitest or sabotage- process; C: at least 30 GB free; the two trees' `build.ts` re-hashed against the pins above.
+- **Every build STOPS the group** (as the instrument, not a reading) unless:
+  - its controls held;
+  - every sample settled;
+  - every object was local;
+  - it is at most 96 MB (CM-M's stop).
+
+**What each row reads:**
+- **R-KMSP**, on the no-sea store (`bm-obj`; d0 keeps R-KMSP there):
+  - **A** is KMSP at the client's query;
+  - **B** is KMSP at ε × 8 with no cap. B must read rung 0 and one step (an instrument row), or the comparison is not the row's.
+  - **Graded:** PROVENANCE's `collapsed.water`, and the report's `refused`, are equal between A and B.
+  - **The control:** A's `refusedBuilt` is at least 1.
+  - The prototype's QW4-C1 figures (`refused` 0, `refusedBuilt` 2, `collapsed.water` 273) are printed, not graded: the row grades A against B.
+- **R-D2**, at New York's 4 on the no-sea store (d0 keeps it there):
+  - **graded:** at most 2 radii, and step 1's peak is the largest of the steps' peaks;
+  - the instrument requires one step peak per radius.
+- **SEA-MEM:**
+  - **The sea build** is the code PR on `sea-obj`.
+  - **Its no-sea build** is the code PR on the stores with no sea layer: P2-M's "orig" (`bm-obj`, plus `lake-obj` and `zap-obj` at the three lake points).
+  - **The plant control (u2)** is on `sea-obj` at KJFK, first.
+  - **An anchor, added and graded:** each sea build's package equals SEA-PKG's sha. That proves the tree from the commit builds what SEA-PKG built.
+  - **A difference from P2-M's instrument, named before the run.** P2-M's no-sea build was pq4d with its sea knob OFF on `sea-obj` itself: cells that hold kind-6 features, decoded and skipped. The code PR has no knob, so its no-sea build reads cells without them.
+    - The graded phase, the ladder, comes after the cell loop. Each read is handed over as it is consumed, and in P2-M's no-sea build the skipped features never entered a layer set. So at the ladder phase neither no-sea build holds any sea, and the difference should not reach it.
+    - **If SEA-MEM reads off, this is the named alternative:** STOP, to the orchestrator, with no re-measurement without a ruling.
+- **The CM rows**, on the no-sea store, at the 13:
+  - **u4:** `proxy/src/basemap`'s tree at e03e6c4d and at main's head (fetched at run time) are printed, and must be equal.
+  - **CM-0's references** are #639's measurement run, `rv-meas.log` (fc43b98c419e). It is the only record of #639's cell phase per point (`rv-meas.json` holds the peaks only).
+  - **CM-0 also grades main's ANSWERS** against that log: Nov 8's shas at the 9, and #620's ladders at New York. This is an anchor added, the measurement's own.
+  - CM-P is KJFK on the code PR's builder, with the plant above.
+  - The memory rows and their worlds are as frozen ("The three points with two outcomes", point D).
+- **The package rows (5.6)** need QW4-1's references rebuilt by `pq4b`. Their harness is registered separately, before they run.
+
+**Outside the set: STOP and report.**
