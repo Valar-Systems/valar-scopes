@@ -96,3 +96,53 @@ unproven for the new one):
 - S-R1body-lv red `['LV6']`;
 - LV as predicted with LV6 green;
 - LV-S1 as before.
+
+## Amendment 2 (18:23:02Z, 2026-11-13), registered before the code changes and the re-run
+
+**The live read, as it went.**
+- **Instrument failure #1** (18:16:09Z): a `sed` that didn't match broke an `&&` chain. The output folder variable was
+  empty, the reader's stderr redirect failed, and bash never ran the reader. No KV call was made.
+- **Instrument failure #2** (18:16:37Z): that `sed` had still written `filter2.py` as a copy of the old filter. The run
+  went through, and the liveness line was dropped from view (105 stdout lines against day 2's 104).
+- **The re-run** (18:17:59Z), with the filter proven on a planted line, read as registered:
+  `of the 5 behind with last result ok: present every hour of the last 24 h 0, with gaps 0, no request 5 (AE sample
+  interval max none)`. K = 5 = the "ok" bucket, 0 + 0 + 5 = 5, and no 16-hex token.
+- A third instrument failure on this live read goes to the owner.
+
+**The gap it exposed.** "No request 5, S none" cannot tell five silent devices from a query that sees nothing: the line
+had no anchor. A count-only diagnostic of the same query (18:19:17Z) separated them:
+- 986 rows, all with the hour shaped `9999-99-99 99:99:99`;
+- 806 request rows in the window;
+- 17 devices with request points, 12 of them in all 24 hours.
+
+So the five made no Worker request in 24 h. (a) stays OPEN and is the most consistent reading, with "on, but not on
+the cloud feed" named beside it. **Analytics Engine sampled request rows at an interval up to 10.0,** so condition 2 is
+now measured, not assumed.
+
+**The changes** (ruled 18:21:12Z):
+1. **The anchor.** The line keeps its text and appends `; the query sees N device(s) with requests in the window, M in
+   every hour`.
+2. **S is the largest `_sample_interval` over ALL request rows in the window,** not only the K's. S > 1 warns. "S none"
+   now means the query saw no request row at all, and that adds the warning
+   `the liveness query saw no request in the window: "no request" proves nothing this run`.
+3. **The new rows:**
+
+| row | fixture | predicted |
+|---|---|---|
+| **LV1** (changed) | as before | `    of the 3 behind with last result ok: present every hour of the last 24 h 1, with gaps 1, no request 1 (AE sample interval max 1); the query sees 3 device(s) with requests in the window, 2 in every hour`, no warning |
+| **LV7** | the ok set is C alone (boot points only); the other devices' rows as in LV1 | `... of the 1 ...: ... 0, with gaps 0, no request 1 (AE sample interval max 1); the query sees 3 device(s) ..., 2 in every hour`, no warning |
+| **LV7-ctl** | the ok set A, B, C; the query returned NO rows | `... no request 3 (AE sample interval max none); the query sees 0 device(s) with requests in the window, 0 in every hour`, plus the "saw no request" warning |
+| **LV8** | the ok set is B alone (20 of 24 h), every row at sample interval 10 | `... of the 1 ...: ... 0, with gaps 1, no request 0 (AE sample interval max 10); the query sees 3 device(s) ..., 2 in every hour`, plus the sampling warning. Never "present every hour" |
+
+LV2, LV2-ctl, LV3, LV4, LV5 (now with the appended anchor), LV6 and LV-S1 are unchanged in what they assert. LV-S1's
+plant anchor is unchanged, because the anchor text is appended by a separate statement.
+
+**The re-run predicts:**
+- 0 rows off;
+- LV red none;
+- LV-S1, S-R1body and S-R1body-lv as before.
+
+**One more structural live read predicts:**
+- K = the "ok" bucket, X + Y + Z = K;
+- no 16-hex token, and S printed;
+- N >= 1 and M <= N, near the diagnostic's 17 and 12.
