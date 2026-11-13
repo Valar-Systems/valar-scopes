@@ -14,6 +14,9 @@ shipped code, and nothing here reads a credential, a board or a production servi
 | `dnw/src/basemap/frame.ts` | e1ab75e3cae9 | the dense-water prototype's `frame.ts`, the generator's fourth argument (tp's source) |
 | `pq4d-oldrows.mts` | ff6351759648 | the values for the code PR's rewritten MB / MN / MW13 rows, from pq4d on the pinned synthetic fixtures |
 | `oldrows-pq4d.json` | a5393eea0e57 | its output, as frozen in the registration |
+| `pq4d-seaci.mts` | 7a192acf82cb | the SEA-CI tests' values (and, in plant mode, the sabotages' predicted red sets) from pq4d on the tests' own fixtures |
+| `seaci/seaci-pq4d.json` | cbf66229187f | its clean output; `seaci/seaci-plant-*.json` its seven plant outputs |
+| `pq4d-xchk.mts` | 00129dbe7053 | xisland's repair line and xisland-tall's stop, from pq4d |
 | `cp-run.mts` | 2eaa14c28661 | one build by the code PR's builder over a local store (SEA-PKG's harness) |
 | `cp-seapkg.py` | e3bd13ca7f16 | SEA-PKG: the 16 packages against run 10's sha256s |
 
