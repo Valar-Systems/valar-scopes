@@ -115,6 +115,19 @@ EDITS = {
             "    -DFRAME_BENCH",
             "    -DFRAME_PROFILE"])),
     ],
+    # Section 0 (e), option (c) (map-client's, in writing): p4's own region after map-client's in GetStoredString.
+    # FRAME_BENCH-wrapped so FB1/FB2 hold; the variable is `pv` so C1-K's count of map-client's NoteKey line stays 1.
+    "src/ConfigurationWebServer.cpp": [
+        ("        framebench::NoteKey(key, v, true);\n        return String(v);\n    }\n#endif\n    // THE FRAME BENCH END\n"
+         "    Preferences prefs;\n    prefs.begin(\"config\", true);\n", "replace",
+         "        framebench::NoteKey(key, v, true);\n        return String(v);\n    }\n#endif\n    // THE FRAME BENCH END\n"
+         "    // THE FRAME BENCH BEGIN\n#ifdef FRAME_BENCH\n#if defined(FRAME_PROFILE)\n"
+         "    // P1's drawing keys at v20's defaults (docs/frame-profile.md section 0 (e)); p4's region, after map-client's\n"
+         "    if (const char* pv = framebench::InScene() ? framebench::ProfileOverride(key, framebench::S().scene) : nullptr) {\n"
+         "        framebench::NoteKey(key, pv, true);\n        return String(pv);\n    }\n#endif\n#endif\n"
+         "    // THE FRAME BENCH END\n"
+         "    Preferences prefs;\n    prefs.begin(\"config\", true);\n"),
+    ],
     "scripts/check-no-bench-hooks.sh": [
         ('"[m3-bench]" "[frame-bench]" )\n', "replace", '"[m3-bench]" "[frame-bench]" "[frame-profile]" )\n'),
     ],

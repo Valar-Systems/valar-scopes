@@ -16,3 +16,45 @@ static const Scene kScenes[] = {
 static const char* const kArmName[] = {"P0@20", "P0@40", "P0@60", "P1@20", "P1@40", "P-CTRL@40", "P1@60"};
 // P-CTRL's plant, per scene index: FrameProfile.h's PlantLabels() spins 5.0 ms inside lbl_draw once a frame.
 constexpr bool kLabelsPlant[] = {false, false, false, false, false, true, false};
+
+// THE DRAWING KEYS (docs/frame-profile.md section 0 (e)): the keys that touch a phase P5/P6 targets (outline, labels,
+// the sweep blend, weather, trails), answered in every scene at v20's defaults, the image's own parse in Initialise().
+// infotext / triangle / trail are answered "true", not "": they parse as `if (!x.isEmpty()) member = ...`, so an empty
+// answer would keep the BOARD's boot-time value (the KEEP-current trap). scanline and fade parse "" as on, but are
+// answered "true" too, the same value. wx-look "" is look A. The info-* keys parse `stored.isEmpty() ? defaultOn : ..`,
+// so "" is each field's compiled default. wx-layer is the scene's own (map-client's Override).
+static const char* const kTargetKey[] = {
+    "infotext", "triangle", "trail", "scanline", "fade", "wx-look",
+    "info-callsign", "info-type", "info-operator", "info-reg", "info-route", "info-icao", "info-country",
+    "info-speed", "info-vrate", "info-baroalt", "info-geoalt", "info-heading", "info-squawk", "info-category",
+    "info-possrc",
+};
+static const char* const kTargetAnswer[] = {
+    "true", "true", "true", "true", "true", "",
+    "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
+};
+constexpr int kTargetKeys = sizeof(kTargetKey) / sizeof(kTargetKey[0]);
+static_assert(kTargetKeys == 21, "section 0 (e) registers 21 target keys");
+static_assert(sizeof(kTargetAnswer) / sizeof(kTargetAnswer[0]) == (size_t)kTargetKeys, "one answer per target key");
+
+// Per scene, a bit per DISTINCT target key answered (the orchestrator's refinement: a key read twice cannot hide a
+// missing one). Written by ProfileOverride, read and printed by FrameProfile.h's Commit once per scene in the settle.
+inline uint32_t g_answered[sizeof(kScenes) / sizeof(kScenes[0])] = {};
+
+// Called only from p4's region in ConfigurationWebServer::GetStoredString, after map-client's, and only in a scene (the
+// caller gates on InScene(), which is declared after this file). nullptr: not a drawing key, the board's own applies.
+inline const char* ProfileOverride(const char* key, int scene)
+{
+    for (int i = 0; i < kTargetKeys; ++i) {
+        if (strcmp(key, kTargetKey[i]) != 0) continue;
+        if (scene >= 0 && scene < (int)(sizeof(g_answered) / sizeof(g_answered[0]))) g_answered[scene] |= 1u << i;
+        return kTargetAnswer[i];
+    }
+    return nullptr;
+}
+inline int Distinct(uint32_t bits)
+{
+    int n = 0;
+    for (; bits; bits &= bits - 1) ++n;
+    return n;
+}
