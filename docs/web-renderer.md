@@ -226,3 +226,75 @@ cookies or absolute URLs in the built files, with a planted control for each. Pr
 - **The prediction:** **40** checks, **36 success** and **4 skipped** (`version`, `promote`, `ship-alert`, and
   `publish`, since there is no tag on a pull request), **0 failed**.
 - **Outside the set:** stop and report.
+
+## Addendum, 2026-11-13 (blipscope-5c): no coordinate past 2 dp in the release set's JavaScript
+
+v19's render module carries its usage example's latitude and longitude at 4 decimal places, in its header comment.
+The comment never runs, but it is served with the site. The owner's ruling (2026-11-13, relayed by the orchestrator):
+- v19's vendored copy stays byte-identical;
+- the next web release rounds the example to 2 dp, his rule for a coordinate;
+- the pipeline gains a check that is seen red first, with a planted value.
+
+**The change:**
+- **`site/render.js`:** the example reads `44.06` / `-121.32`. One line, in a comment, so nothing runs differently.
+- **`check_site_rules.mjs`:** a fifth JS category, **coordinate**. It matches any number with 1-3 integer digits and 3
+  or more decimals, anywhere in the text: comments ship, and a bare pair has no key to find it by. A finding's
+  context is printed with every digit masked, so a real hit does not put the coordinate it found into a public CI log.
+- **`--selftest`:**
+  - two loader plants: a 4 dp number in code, and a 3 dp one in a comment;
+  - v19's own shape planted in the render module, which must give exactly two findings;
+  - the boundary: the same shape at 2 dp must pass;
+  - every coordinate finding must print no digit.
+
+**What it does not cover:**
+- **Only the release set's JavaScript is scanned for coordinates.** The wasm is held to its URL strings, and a
+  coordinate compiled as a double is invisible to a text scan.
+- **Checked once, by hand:** the published v19 s3-128 wasm holds neither of the example's values as f64, f32 or
+  ASCII. The control, pi/180 as an f64, was found in the same file. `web/web_scene.h` holds the same point as two
+  doubles, and it is not in `build.sh`'s `WEB` list.
+- **`site/app.js` and the test drivers carry the same example at 4 dp.** `app.js` is copied into the dist for the
+  preview page, but it is not in the release set.
+
+**Predictions, frozen 2026-11-13T20:52:12Z, before any run of the new checker.**
+- **The base:** main `fa3fabdf8e80`.
+- **RED:** v19's render module, s3-128 loader and wasm, from the site's vendored copy. It matches the v19 release
+  manifest (`sha256sum -c`, 5 of 5 OK). A probe pair comes from a local build.
+- **GREEN:** RED with the render module replaced by this branch's `site/render.js`.
+
+| | run | predicted |
+|---|---|---|
+| **C0** | main's checker on RED | exit 0: the gap. Today's checker cannot see a coordinate |
+| **C1** | the new checker on RED | exit 1; exactly 2 findings, both `coordinate`, both in `blipscope-web-render-v19.js`; no digit in either printed context |
+| **C2** | the new checker on GREEN | exit 0, 0 findings |
+| **C3** | the new `--selftest` on GREEN | the CONTROL passes. 15 JS plants (13 old, 2 coordinate) each exit 1 with exactly 1 finding in its own category, and the coordinate plants' contexts hold no digit. The wasm plant is caught. The render-module pair exits 1 with exactly 2 coordinate findings. The 2 dp boundary exits 0. The empty folder exits 2. Exit 0 |
+| **C4** | the new `--selftest` on RED | exit 2: "the real build must be clean" |
+| **C5** | sabotage A: a COPY of the new checker with the coordinate rule removed, `--selftest` on GREEN | exactly 3 BAD: the 2 coordinate JS plants and the render pair. The boundary row is still ok. Exit 1 |
+| **C6** | sabotage B: a COPY with the digit mask removed, `--selftest` on GREEN | exactly 3 BAD, the same 3 rows, on the mask assertion. Exit 1 |
+| **C7** | the diff | 3 files: `site/render.js` (line 8 only), `check_site_rules.mjs` and this doc. Nothing under `src/`, `include/`, `lib/` or `platformio.ini` |
+
+**Outside the set:** stop and report.
+
+**C8, CI on the PR, predicted before the push.** It is grounded on #709's head `b4c487bdc4f7`: 36 checks, 34 success
+and 2 skipped (`promote`, `version`).
+- **That run's 36:** `firmware` 32, `workers` 2, `device-ids` 1 and `no-traffic-captures` 1. `workers` ran because of
+  #709's `scripts/reconcile-fleet*.py`.
+- **This PR's paths** trigger `web-renderer` instead of `workers`: `build`, plus `publish`, which runs on a release
+  only.
+- **The prediction:** **36** checks, **33 success** and **3 skipped** (`promote`, `version`, `publish`), **0
+  failed**.
+- **In `build`:** the site-rules step reads 3 JS files and 2 wasm, with **0 findings**. The selftest ends "every
+  plant caught, exactly (17 plants and the 2 dp boundary)".
+- **Outside the set:** stop and report.
+
+### Results (2026-11-13, local; C8 waits on the PR's CI)
+
+| | read | verdict |
+|---|---|---|
+| **C0** | main's checker on RED: 2 JS files, 1 wasm, the probe pair; **0 findings**, exit 0 | **as predicted** |
+| **C1** | the new checker on RED: **2 findings**, both `coordinate: a number past 2 dp`, both in `blipscope-web-render-v19.js`, contexts `##.####` and `-###.####`; exit 1 | **as predicted** |
+| **C2** | the new checker on GREEN: **0 findings**, exit 0 | **as predicted** |
+| **C3** | `--selftest` on GREEN: the CONTROL passes. S-js-0 to S-js-14 each exit 1 with one finding in its own category. The render pair has 2 findings, exit 1. The boundary has 0 findings, exit 0. `evil.sh` is caught, and the empty folder exits 2. "every plant caught, exactly (17 plants and the 2 dp boundary)", exit 0 | **as predicted** |
+| **C4** | `--selftest` on RED: "the real build must be clean before plants mean anything", exit 2 | **as predicted** |
+| **C5** | sabotage A, its edit asserted applied (the needle found once, the line gone): **3 BAD** (S-js-13, S-js-14, the render pair); the boundary ok; exit 1 | **as predicted** |
+| **C6** | sabotage B, its edit asserted applied: **3 BAD**, the same rows, each "a digit in the printed context"; the boundary ok; exit 1 | **as predicted** |
+| **C7** | `git diff fa3fabdf8e80 --stat`: these 3 files; `render.js` one hunk, line 8; 0 files under `src/`, `include/`, `lib/` or `platformio.ini`. The only 3+ dp numbers added are the selftest's synthetic plants, in a file outside the release set | **as predicted** |
