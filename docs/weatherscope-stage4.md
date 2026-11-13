@@ -2091,3 +2091,82 @@ The first storing check was at 06:15:45Z. `mapPutErrors` was 0.
   frames are built into R2 but not served.
 - **X10 (S4.12.4):** the first full day's CPU ms per invocation and Class A, after 2026-11-14 06:16Z. Printed, then
   sent to uk-data.
+
+#### S4.27c, 2026-11-13: one proxy deploy carrying /wx/shsr (#683) and the routes age (#695), frozen before the owner answers (08:0xZ)
+
+**The ask.** At 08:00Z the reviewer asked for one combined registration. Main is `5b0d27fd5000` (#695 merged), so any
+proxy deploy from main ships both changes. The reviewer has asked the owner to approve ONE combined deploy and to name
+the session (weatherscope by default). **Nothing below runs until the owner answers in this session.** The
+shsr-only attempt at 06:40Z was refused by this session's permission check before it ran. Nothing was deployed then.
+
+**What deploys.** The proxy, from a clean detached checkout of main at the sha read at the run (`5b0d27fd5000` or
+later), through `proxy/scripts/deploy.sh`, staging first, then production. The claim is
+`proxy:staging,proxy:production`, taken right before and released after D5.
+
+**Carried, `e3c2508e` (production and staging today) to `5b0d27fd5000`: 25 commits.** Three touch the bundle or its
+config:
+
+| commit | PR | bundled files | runtime effect |
+|---|---|---|---|
+| `05746deca023` | #683 | `wx/products.ts` +13 (the shsr row), `metrics.ts` +1 (KNOWN_ROUTES), `wx/ingest-mrms-worker.ts` +45 (not reachable from the proxy's entry) | `/wx/shsr` served (index.ts:422-423 → handleWx → `productById` → region.ts:81 returns a non-cref request as itself); `/healthz` `wx.shsr` |
+| `4abb65082f5e` | #694 | `fleet.ts`: comment only (a runbook's two command lines) | none |
+| `5b0d27fd5000` | #695 | `index.ts` +6, `routeshealth.ts` +76 | `/healthz` gains top-level `routes` from `meta:routes` |
+
+- #693 is docs only.
+- Deploy machinery carried:
+  - `e4b41fff` #678, deploy.sh's per-target behind check (`deploy-inputs.mjs`). This is its first production proxy
+    deploy.
+  - #694's `session-claim.py` (the hook sees the helper).
+  - `smoke-prod.sh` gains #695's routes block, which is warn-only.
+- If main moves before the run, the list is re-read. Any further bundled commit is outside the set: stop and report.
+
+**Which deploy.sh.** The run uses the one on main at the run's commit.
+- At `5b0d27fd5000` it is #678's, which calls `npx wrangler` (allowlisted "migrates in PR B").
+- If #697 merges first, the run uses its helper-path deploy.sh, and does not start until 5c's staging rehearsal of it is
+  recorded as passed (the reviewer's hold).
+
+**Before (at the run, in this order):**
+
+| row | read | predicted |
+|---|---|---|
+| R-main | main's head, the carried list, the worktree | as above; clean at that sha |
+| **R0** (as sent by uk-data) | "before anything: production's current version id, re-read and recorded as the rollback target, by the deploying session." | `0f4cf9bb` at 100% (read 06:33:56Z and 06:40:08Z), unless it has moved; staging's id is recorded the same way |
+| **B0** (as sent by uk-data) | "the smoke BEFORE the deploy (main's smoke-prod.sh against production, as the test identity). Record PASS/FAIL/SKIPPED and the exit code. The new block runs against the OLD Worker, so it must read `RESULT: WARN -- /healthz has no routes field (a Worker before this change)   (mode warn)`, with the counts unaffected (warn mode is information only)." | my counts: PASS 38 / FAIL 0 / SKIPPED 0, exit 0 (06:34:22Z's run, the same checks). A SKIPPED from an empty sky over Bend is recorded and the run goes on: D-P3 compares with B0 itself. **Any FAIL in B0 stops the run before any deploy.** |
+| B-probe | `shsr_probe.sh` (smoke's Bend tile, the test identity) against production | shsr 404 `not_found`; cref 200 WXC1 with an ETag |
+| B-claim | `session-claim.py show`, `check`, `take` | free. If held by anyone: stop and tell the reviewer |
+
+**Staging:**
+
+| row | read | predicted |
+|---|---|---|
+| S1 | `deploy.sh staging` | exit 0; confirm-deploy settles on the sha |
+| **D-S1** (route-mirror-age.md §5) | staging `/healthz` `routes` | `builtAt` `2026-08-25T23:31:26.817Z`, `rows` 619103, `stale` true, `maxAgeDays` 14, `ageDays` = floor(t − builtAt), at the read's own time t (79 before 11-13T23:31:26Z, 80 after) |
+| S2 | staging `/healthz` `wx` | exactly one new line, the last: `wx.shsr routed=false age=<0..600> stale=false` |
+| S3 | `shsr_probe.sh` with BASE staging (test-key-staging; staging binds the same `blipscope-wx` bucket) | shsr 200 WXC1, an ETag, frame age ≤ 600 s; cref 200 WXC1 |
+
+Production starts only when S1, D-S1, S2 and S3 all hold.
+
+**Production:**
+
+| row | read | predicted |
+|---|---|---|
+| D1 | `deploy.sh production` | exit 0; confirm-deploy settles on the sha |
+| **D-P2** (route-mirror-age.md §5) | production `/healthz` `commit` | the deployed sha, by `healthz-commit.sh` |
+| **D-P1** (route-mirror-age.md §5) | production `/healthz` `routes` | `builtAt` `2026-08-26T17:25:54.476Z`, `rows` 619103, `stale` true, `maxAgeDays` 14, `ageDays` = floor(t − builtAt): 79 before 11-13T17:25:54Z, 80 after |
+| **D-P4** (as sent by uk-data) | "the RH8 control, in production: the body still carries the top-level `commit`, `upstreams`, `wx`, `basemap` and `weatherscope`, and `routes` is the only new top-level key." | keys {basemap, commit, ok, routes, upstreams, weatherscope, wx}; shsr adds none (it sits inside `wx`) |
+| D2 | production `/healthz` `wx` | exactly one new line, the last: `wx.shsr routed=false age=<0..600> stale=false`; the other 11 keep their routed/stale shape |
+| **D-P3** (as sent by uk-data) | "the smoke AFTER: the block reads `RESULT: WARN -- STALE: built 2026-08-26T17:25:54.476Z, A d old (limit 14 d)   (mode warn)`. PASS/FAIL/SKIPPED and the exit code are identical to B0." | **my delta to it is 0:** main's smoke-prod.sh has no shsr check; shsr adds one information line in the wx section and moves no count |
+| D4 | `shsr_probe.sh` against production, the first read after confirm | shsr 200 WXC1, ETag `wx1-shsr-<epoch>-44.06_-121.32_160`, frame age ≤ 600 s (the server's own `wx_stale` rule); frames have been in R2 since 06:15:45Z |
+| D5 | the probe 3 times, 150 s apart | shsr's `X-Wx-Frame` advances at least once (120 s cadence); cref 200 WXC1 at each read |
+
+**One rule for both, over every row above:**
+
+| reading | action |
+|---|---|
+| a fleet-facing red: deploy.sh nonzero after the upload; `/healthz` not settling on the sha in confirm-deploy's window; smoke FAIL > 0 or counts ≠ B0; `/wx/cref` not 200 WXC1 | **roll back first**, to R0's version (`node scripts/wrangler-run.mjs rollback <R0> --env production` from proxy/, under the held claim), then report |
+| any off reading in uk-data's rows (D-S1, D-P1, D-P2, D-P3, D-P4) | **roll back first**, then report (route-mirror-age.md §5: "Any off reading: roll back first, then report"); on staging, to staging's recorded version |
+| only shsr off (S2's or D2's shsr line, S3's or D4's shsr, D5's frame) | stop and report; **no rollback**: no device calls `/wx/shsr` |
+| anything else outside the set | stop and report; nothing is fixed before the ruling |
+
+- A crash is an instrument failure, never a red.
+- A count off from its own list: report both.
