@@ -3412,3 +3412,14 @@ ruling before any code depends on them. **All eleven were ruled as proposed:**
 
 So the build result carries, for the run's harness and nothing else, the drawn set's sea rings (their positions in the water section), the
 sea's bytes and every piece's fate, as the prototype's record did. None of it is on `bm_build` beyond R5's fields, and none is in the package.
+
+**The harness's extras and the phase hook (the orchestrator's question, after 01:49:43Z), answered before build.ts lands:**
+- **Always computed, on the production path.** R7 rules out knobs, so the build result's harness-only extras (the drawn set's sea ring
+  positions, the sea's bytes, every piece's fate) are computed on every build, exactly as the prototype computed its sea record whenever
+  the sea was on. They are not logged beyond R5's fields and not in the package, but they ARE in the builder's memory as it ships.
+- **So SEA-MEM and R-D2 measure the builder WITH them,** and that is the shape whose figures they predict: P2-M's recorded sea costs
+  (run 10) were measured on pq4d with its sea record computed on every build, so the extras are inside both the predictions and the
+  measurement.
+- **The phase hook** (QW4's instrument: `buildHooks.phase`, a named phase per build stage) is `null` in production, so each site is an
+  optional call that does nothing. Only the memory harness sets it, and what the hook does (its samples, its GC, its 8 MiB plant control)
+  is the instrument's own cost, as it was P2-M's. The hook changes no byte of any package.
