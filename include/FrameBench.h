@@ -255,6 +255,12 @@ inline uint32_t SettleMs(int k)
     default: return SETTLE_MS;
     }
 }
+// (Z): the rung a REPLAY scene zooms the default board's ladder to; 0 for every other scene, and for a REPLAY scene at
+// the shipping radius (the ladder's Top, the default view, which culls nothing).
+inline uint8_t ViewRung(int k)
+{
+    return (kScenes[k].kind == REPLAY && kScenes[k].rung < kShippingRadiusMi) ? kScenes[k].rung : 0;
+}
 inline const char* HomeName(int k)
 {
     const Scene& sc = kScenes[k];
@@ -273,7 +279,10 @@ inline void PrepareScene(int k)
 #else
     snprintf(s.url, sizeof s.url, "http://%s/aircraft.json?s=%d", FRAME_BENCH_HOST, k);
 #endif
-    snprintf(s.radius, sizeof s.radius, "%u", (unsigned)kScenes[k].rung);
+    // (Z): a REPLAY scene configures the shipping radius, so its live GET is the recorded query (r=161), and is zoomed
+    // to its rung after Initialise() as a swipe does (ViewRung); every other scene configures its rung
+    snprintf(s.radius, sizeof s.radius, "%u",
+             (unsigned)(kScenes[k].kind == REPLAY ? kShippingRadiusMi : kScenes[k].rung));
     s.sceneStartMs = millis();
     s.polls = 0;
 }

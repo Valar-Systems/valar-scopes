@@ -21,6 +21,8 @@
   FB-R9  in OnCloudPoll the replay block precedes the measuring gate (the replay runs in the settle too): no
          `s.measuring` test between the function's start and the replay block, and `if (!s.measuring) return;` after
          the block's #endif
+  FB-R10 (Z): ApplyZoom( appears exactly once in the bench regions, after the scene change's Initialise() and behind
+         framebench::ViewRung(), and ViewRung answers a rung only for kind == REPLAY below kShippingRadiusMi
     python -I check_frame_bench.py <tree>             the rows; exit 0 all pass, 1 any fails
     python -I check_frame_bench.py --selftest <tree>  each row planted red on a copy in memory, and the clean tree green"""
 import os
@@ -195,6 +197,16 @@ def rows(files, listing=None):
     r9 = fs >= 0 and rb > fs and not early and low > rend >= 0
     res["FB-R9"] = (r9, f"replay block at line {rb + 1 if rb >= 0 else None}; measuring tests above it {len(early)}; "
                         f"the gate below it at line {low + 1 if low >= 0 else None}")
+    # FB-R10: the (Z) zoom, once, after the scene change's Initialise(), behind ViewRung; ViewRung answers REPLAY only
+    am = code_files.get("src/AircraftManager.cpp", [])
+    zc = [i for a, b in regions(am) for i in range(a, b) if "ApplyZoom(" in am[i]]
+    z_ok = len(zc) == 1 and any(am[j].strip() == "Initialise();" for j in range(max(0, zc[0] - 9), zc[0])) \
+        and any("framebench::ViewRung(" in am[j] for j in range(max(0, zc[0] - 4), zc[0]))
+    vr = next((i for i, l in enumerate(hdr) if "inline uint8_t ViewRung(int k)" in l), -1)
+    vr_ok = vr >= 0 and any("kScenes[k].kind == REPLAY && kScenes[k].rung < kShippingRadiusMi" in hdr[j]
+                            for j in range(vr, min(len(hdr), vr + 5)))
+    res["FB-R10"] = (z_ok and vr_ok, f"bench zoom calls {len(zc)}; after Initialise() behind ViewRung {z_ok}; "
+                                     f"ViewRung REPLAY-only {vr_ok}")
     return res
 
 
@@ -299,6 +311,19 @@ def selftest(tree):
         del h[g]
 
     rc |= plant("FB-R9, the measuring gate moved back above the replay block", r9, "FB-R9")
+
+    def r10a(f):
+        f[HEADER] = [l.replace("kScenes[k].kind == REPLAY && kScenes[k].rung < kShippingRadiusMi",
+                               "kScenes[k].rung < kShippingRadiusMi") for l in f[HEADER]]
+
+    def r10b(f):
+        am = f["src/AircraftManager.cpp"]
+        a, b = next((a, b) for a, b in regions(am) if any(am[i].strip() == "Initialise();" for i in range(a, b)))
+        i = next(i for i in range(a, b) if am[i].strip() == "Initialise();")
+        am.insert(i + 1, '                    ApplyZoom(0, radarzoom::Edge::None, "bench");')
+
+    rc |= plant("FB-R10, ViewRung no longer REPLAY-only", r10a, "FB-R10")
+    rc |= plant("FB-R10, a second zoom call in the driver", r10b, "FB-R10")
     print("selftest " + ("PASSED" if rc == 0 else "FAILED"))
     return rc
 

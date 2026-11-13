@@ -2144,6 +2144,16 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     Serial.println("[frame-bench] run done; the board's own settings again");
                 }
                 Initialise();
+                if (!fb.done) {
+                    // (Z): a REPLAY scene below the shipping radius zooms the default ladder to its rung, as a swipe
+                    // does: the view culls (ZoomCulled) and the fetch keeps the shipping query (RadarZoom.h)
+                    const uint8_t vr = framebench::ViewRung(fb.scene);
+                    for (int i = 0; vr > 0 && i < zoomLadder.n; ++i)
+                        if (fabsf(zoomLadder.step[i] - (float)vr) < radarzoom::SAME_STEP_EPS) {
+                            ApplyZoom(i, radarzoom::Edge::None, "bench");
+                            break;
+                        }
+                }
             }
         }
         framebench::PumpDump();
