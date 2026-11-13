@@ -144,3 +144,45 @@ Docs only, from main `e03e6c4d1903`'s workflows: **32 = 30 / 2 / 0**:
 
 The path-filtered workflows (account-budget, workers, web-renderer, print-cards, provisioner) do not fire on
 `docs/proxy-bill.md`.
+
+## Results
+
+### Step 2a: the Workers Logs and tail inventory (2026-11-13 ~00:30Z, read-only, from the tree at `3eda7b1f7451`)
+
+Searched: `scripts/`, `proxy/` (scripts and src), `tools/`, `dashboard/`, `.github/`, the docs, and CLAUDE.md. A
+sampling change on the proxy reaches a reader only if it reads **the proxy's** logs. The setting is per Worker, so a
+reader of an ingest is untouched.
+
+| reader | reads | Worker | what a proxy rate r does |
+|---|---|---|---|
+| `tools/budget/budget_read.py` | event counts | the proxy, and every other Worker | the proxy's Logs events become a sample: scale by 1/r, or read Logs volume from billing |
+| `tools/budget/logs_bytes.py` | event bytes | the proxy, and `blipscope-wx-ingest` | the proxy's bytes per event are unchanged; its event count is a sample |
+| `tools/wx/account_cost_read.py` | event counts and bytes | the proxy, and `blipscope-wx-ingest-opuk` | as `budget_read.py` |
+| `tools/wx/logver.py` | version ids per product line | any Worker named as its argument; used on the ingests | none, unless pointed at the proxy |
+| `tools/wx/r3p.py`, `r3_reads.py`, `r3_minute_join.py`, `r3_5b.py` | the ingests' product lines, CPU | `blipscope-wx-ingest*` (`r3_5b.py` also `blipscope-wx`) | none |
+| `tools/wx/share_range.py` | product lines | `blipscope-wx-ingest-opuk` | none |
+| `tools/wx/m_clock.py`, `s_clock.py`, `s_reads.py` | product lines | `blipscope-wx-ingest-dev` | none |
+| `tools/wx/s_drive.py` | a `wrangler tail` | `blipscope-wx-ingest-dev` | none |
+| `proxy/scripts/confirm-deploy.sh` | `/healthz` only | the proxy | none: no logs read |
+| `proxy/scripts/smoke-prod.sh` | HTTP responses only | the proxy | none: no logs read |
+| CLAUDE.md (lines ~588, ~607): a person's production `wrangler tail` | individual events | the proxy | **depends on step 3's answer: whether head sampling applies to tail** |
+| docs runbooks (about 20, e.g. `docs/basemap-deploy.md`, `docs/wx-server.md`) | tails and Logs reads | mostly the ingests and the basemap Workers | each checked per Worker in step 3; a proxy tail depends on step 3's answer |
+
+- **False positive, excluded:** `scripts/wx-fb-check.py`. Its "tail" is the radar sweep beam's.
+- **`.github/` and `dashboard/`** read no Workers Logs and run no tail.
+- **So a proxy sampling rate below 1 changes three tools' numbers** (`budget_read.py`, `logs_bytes.py`,
+  `account_cost_read.py`), all of them counts that can be scaled. It also changes every person's proxy tail, if
+  sampling applies to tail.
+
+### Step 2b: the KV model, from the source (in progress)
+
+The per-request floor, read from `proxy/src/index.ts` and its imports:
+- **Every authenticated device request reads `fw:<device>` once** (`recordFleetFirmware`, `proxy/src/index.ts:384`
+  and `proxy/src/fleet.ts`, inside `waitUntil`). It writes back at most hourly per device (`REFRESH_MS` = 1 h), or on
+  a firmware change.
+- **Revocation** reads one aggregate key per isolate per 60 s (`proxy/src/revocation.ts`, `CACHE_TTL_MS`).
+- **Activation's** `act:<id>` read is on the enrolment and activation paths only, not on every request.
+- **The rate limiter** touches no KV.
+
+The route handlers' own reads (enrich, config, airports, leaderboard, photos, basemap) come next. Then the per-route
+weights and production `ENRICH_KV`'s measured operations, in one stated window, and the grading of KM1-KM3.
