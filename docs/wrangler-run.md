@@ -117,6 +117,19 @@ replacement asks the one question as a boolean:
 
     node proxy/scripts/wrangler-run.mjs kv key get "enr:dev:<id>" --binding ENRICH_KV --env production --remote > /dev/null && echo present || echo absent
 
+**Correction, 2026-11-13 (blipscope-5c), added below the proposal, which stands as written.** CLAUDE.md did not
+get this one-liner. Measured on wrangler 4.35.0 with the fake id `enr:dev:0000000000000000` only, it gets two things
+wrong:
+- **It prints the key.** On a missing key, wrangler's error line on stderr carries the request URL, key included.
+  `> /dev/null` hides only stdout.
+- **Every failure reads "absent".** A fake token answers HTTP 401. A run from the repo root never reaches the API,
+  because there is no `[env.production]` there. Both exit non-zero.
+
+CLAUDE.md's `kv_has` (#704) is what replaced the row. It counts only an HTTP 404 as absent, never shows stderr, runs
+from `proxy/`, and asks `meta:airports` first, an anchor in the same ENRICH_KV namespace. The same one-liner in
+`proxy/src/fleet.ts`'s runbook now points at `kv_has`. Its key list gains `--binding ENRICH_KV`, without which wrangler
+refuses before any API call.
+
 ### The clearances (2026-11-13, relayed before 07:00Z) and HP6 restated
 
 weatherscope cleared its lines, after checking every branch, worktree and PR of its own:
