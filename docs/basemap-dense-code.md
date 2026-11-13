@@ -4019,3 +4019,30 @@ Outside the set: stop.
 Every other prediction is as registered at c3e0faa0.
 
 Outside the set: stop.
+
+### SEA-STORE's sequence, registered with the fetch's conditions before it starts
+
+**MN7, read:**
+- **RED** on today's semantics, at 05:07:12Z: `AssertionError: expected 3 to be 4`, the control passing first. The red state is committed at 2e816fc3.
+- **GREEN** after the fix, at 05:07:47Z, committed at 4ac195bb6fa1.
+- As the owner worded it.
+
+**The order the ingest's own code imposes.** The dry run deletes `dry-run/`, and the coverage step writes into it; tiles are planned only once the coverage step has run.
+
+| # | command, from a fresh LF clone at the PR head (a clean tree, so F1's `builder` is that commit) | reads |
+|---|---|---|
+| 1 | `plan --cache <C>` | the publishers' listings |
+| 2 | `fetch --cache <C>` | the ingest's own pacing and resume; **the User-Agent the owner ruled** (05:01Z): the repo URL with support@valarsystems.com |
+| 3 | `coverage --cache <C>` | plans the terrain tiles (`tiles.json`) |
+| 4 | `fetch --cache <C>` again | the tiles |
+| 5 | **S-0** (the pins) and **S-1** (the drift), on the fetch log | STOP before step 6 if a pin fails |
+| 6 | `dry-run --cache <C>`, then every store file's sha256 recorded; `dry-run` again, the same | **S-2:** the two trees byte-identical, `sea-regions.json` and `sea-stats.json` included |
+| 7 | `coverage`, then `tile-bits` | **S-3:** the dry run's in-memory coverage (its summary's `coverageSha256`) equals the step's `coverage.bin` |
+| 8 | the store's cells decoded | **S-4** (graded by `verify2.py` with the dry run's `sea-stats.json`) and **S-5** |
+| 9 | `d1 --plan`; then with `sea-regions.json` moved aside; then restored, its sha256 checked | **S-6** and **S-7**. **No `--go`.** Nothing uploads |
+
+**The cache** `<C>` is a new directory outside every repository: `bm-cache-qw4`, beside this session's scratchpad. It is re-fetchable, so it is mine to remove under the disk rule once the code PR's runs are done.
+
+**Disk:** 48 GB free before the fetch; the fetch takes 5.57 GB, and each dry run's store tree is read from the dry run's own summary. **Under 30 GB free, nothing more is built.**
+
+**Outside the set: stop.**
