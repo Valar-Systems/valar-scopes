@@ -3477,3 +3477,70 @@ package below is `kOk`.
 | MG0, MG0b | every LAYER_ORDER layer read in Bend | the layers Bend's manifest holds, with a control pinning Bend's seven | part 2's "sea" in LAYER_ORDER; PROVENANCE unchanged for no-sea packages |
 
 **The run:** the tests are edited to these values, then the port runs them. A value off is a stop, as everywhere in this file.
+
+## SEA-CI: the code PR's host tests, registered with their values and their sabotages' red sets before any of them is written
+
+**The fixtures** are one module, `proxy/test/basemap-seaci-fixtures.ts` (pure data, no imports): the prototype's eight synthetic cases
+transcribed point for point from its driver (kb1, kb1c, edge2, kb2cross, tsea0 with and without the kb1 piece, bowtie as a sea piece,
+xisland and xisland-tall), QW4-3's bowtie water store (T-PROV-a), and two new fixtures. Every store is built as the prototype's driver
+built it (the water file always declared; the sea and roads files when used; regions the box +-170 km; coverage the origin's degree), at
+origin (0, 0), r 162 km, ε 201,168 mm.
+- **provB (T-PROV-b, KMSP's shape):** the water bowtie A(60,60) D(60,61) C(66,60) B(66,70), an outer part (signed area -27 in (E, -S),
+  QW4-3's sign), whose D sits 1.0 km off the chord A-C: kept at ε and ε × 2, where the ring crosses itself and is refused; dropped by
+  Douglas-Peucker at ε × 8, leaving the valid triangle A-C-B; and a 256-vertex circle. (A first design with equal lobes had zero signed
+  area, was not an outer part and never entered the build; it was replaced before any value was frozen.)
+- **d2 (T-D2):** one water square at the centre and one primary road at E 140..150 km, inside the 162 km square and outside 129.6 km;
+  its control adds a second primary at E 110..120 km, outside 103.68 km.
+
+**Frozen artifacts:** the fixtures module `basemap-seaci-fixtures.ts` **a82e2deba8f9** (committed with this section); on
+`map-server/scratch-record` at **dc4cac947084**: `pq4d-seaci.mts` **7a192acf82cb**, its clean output `seaci/seaci-pq4d.json` **cbf66229187f**,
+the seven plant outputs `seaci/seaci-plant-*.json`, and `pq4d-xchk.mts` (xisland's repair line rings 0,1 restored 2 rounds 2;
+xisland-tall's stop restored 2 rounds 3).
+
+**The values are the PINNED PROTOTYPE's, on these same fixtures** (`pq4d-seaci.mts`, which imports the fixtures module, so the geometry
+is the tests' own; ruled settings only, its refusal counter reset per build), never the code under test's. The caps were found on pq4d
+before freezing: provB's is the size of the package it builds at (rung 0's size - 1) = **458**, landing on rung 2; d2's is one under the
+162 km floor found with D2 off (601) = **600**. Every transcribed case reads its registered values (edge2 {405, 4045} on both pieces;
+kb2cross 0 crossings with 2 bridges; T-SEA0 0 / 0 without and 1 sea ring / 6 sea lines with; the bowtie refused; xisland repaired, 2
+vertices; xisland-tall `sea_repair_failed`; QW4-3's refused 1, refusedBuilt 3, collapsed.water 0, the square-alone package byte-identical).
+
+| test | fixture (cap) | asserts (pq4d's values) |
+|---|---|---|
+| **T-SEA0** | tsea0-without | kOk; 0 sea rings; 0 sea PROVENANCE lines |
+| **T-SEA0c** | tsea0-with | 1 sea ring; 6 sea lines (source, vintage, files, sha256, dropped, collapsed) |
+| **KB2** | kb1, kb1c, kb2cross, edge2, tsea0-with | 0 proper crossings in every water ring of every package |
+| **BRIDGES** | the same five | sea bridges: kb1 3, kb1c 3, kb2cross 2, edge2 0, tsea0-with 3; one drawn sea ring per piece (edge2 2, the others 1) |
+| **EDGE2** | edge2 | the two sea rings' quantised vertices on the meridian: [405, 4045] and [405, 4045], equal |
+| **KB7C** | bowtie; kb1 | bowtie: seaLost 1, seaRefused 1, the piece's fate "refused", 0 rings drawn; kb1: seaLost 0 |
+| **XISLAND** | xisland | 200; seaRepairs 1, seaRepairVertices 2; its one repair's counts rings 2, restored 2, rounds 2; the piece drawn; refused5 0; 0 crossings |
+| **XISLAND-TALL** | xisland-tall | 500 `sea_repair_failed`; the stop's counts restored 2, rounds 3 |
+| **REFUSED5** | kb1, kb1c, edge2, kb2cross, tsea0-with, bowtie | refused5 0 and seaRepairs 0 in each |
+| **T-PROV-a** | provA-both; provA-square | both: rung 0, steps 1, 1 ring, 0 crossings, refused 1, refusedBuilt 3, collapsed.water 0, and `buildLine` carries refused 1; square alone: 1 ring, refused 0, refusedBuilt 0, collapsed.water 0; **the two packages byte-identical** |
+| **T-PROV-b** | provB (458) | rung 2; collapsed.water 0 (the drawn ε × 8 set's); refused 0; refusedBuilt 2. **Its control, in the test, from the ε × 2 and ε × 8 layer sets themselves:** the ε × 2 set's count with its refusal counted as a collapse (the old rule) is 1, and the drawn set's count with that refusal inside is 1 -- both differ from 0 |
+| **T-D2** | d2 (600) | radii [162, 129.6] (steps 2); built at 129,600,000 mm; strictly decreasing from the request; the at-most-2 check holds |
+| **T-D2c** | d2-control (600) | radii [162, 129.6, 103.68] (3 steps): **the at-most-2 check FAILS on it**, as the control must |
+| **T-SEALOG** | xisland; xisland-tall | as registered after 01:50:28Z, with one change: **the stopping build is xisland-tall's `sea_repair_failed`** (the registration said `sea_repair_limit`; no synthetic reaches the 64-vertex limit without a plant, and a stop's line comes from the same counts whatever its code). Each build's production `sea_repair` lines are exactly one, each matches `^sea_repair rings \d+ restored \d+ rounds \d+$`, and neither they nor the build's `bm_build` line contains `/\d\.\d/` or `/\d+\/\d+/` |
+
+**KB1** (FillRing's raster of the bridged ring against the unbridged even-odd reference, 240 x 240, views r, r/2, r/4 x 8 rotations) is
+registered on its own once R8's parity step has run: the TypeScript port of FillRing's fill rule, shown equal to the Python reference on
+the synthetics' views first. Its red-set additions (S-KB-NOBRIDGE on kb1 and kb1c; S-KB-ORDER on kb1c) are registered then.
+
+**The sabotages (`proxy/scripts/sabotage-basemap.mjs`, R7):** each is an in-place edit of the shipped code asserted to apply once; the
+basemap SEA-CI file runs; **the set of RED tests must equal the registered set exactly**; every file is restored from a byte copy and
+its sha256 checked; a crash or an unreadable summary is an instrument failure, never a red. The predicted sets are read from pq4d under
+the matching prototype plant (`pq4d-seaci.mts` in plant mode, every fixture at the caps above):
+
+| sabotage | the edit | pq4d's plant | what pq4d read | **red set** |
+|---|---|---|---|---|
+| S-KB-CROSS | `bridge()` takes the nearest pair with no crossing test, and step 5 is skipped | `cross` | kb2cross 4 crossings | **{KB2}** |
+| S-KB-NOBRIDGE | islands go out as their own rings, unbridged | `nobridge` | ring counts up and 0 bridges at kb1, kb1c, kb2cross, tsea0-with, xisland | **{BRIDGES, T-SEA0c}** |
+| S-KB-ORDER | bridge BEFORE simplifying (no step 4a on that path) | `order` | edge2's sets differ; xisland unrepaired; xisland-tall builds (200, the piece refused) | **{EDGE2, XISLAND, XISLAND-TALL, T-SEALOG}** |
+| S-KB-EDGEUNLOCK | step 3 unlocked (no locked vertex) | `edgeunlock` | edge2's sets [405, 4045] and [405] | **{EDGE2}** |
+| S-KB-REPAIRLIMIT | `SEA_REPAIR_LIMIT` 64 -> 1 | `limit1` | xisland 500 `sea_repair_limit`; xisland-tall `sea_repair_limit` | **{XISLAND, XISLAND-TALL, T-SEALOG}** |
+| S-KB-REPAIROFF | step 4a removed ((C)'s control: the code before (B')) | (none; run 9's (C) read: xisland refused at step 5) | xisland refused at step 5; xisland-tall the same, no stop | **{XISLAND, XISLAND-TALL, T-SEALOG}** |
+| S-BACKSTOP-OFF | `waterQ4`, `waterQ4Locked` and step 5 never refuse | `Q4_BACKSTOP=0` | the sea bowtie drawn with 1 crossing; provA-both 2 rings, 1 crossing, refused 0; provB refusedBuilt 0 | **{KB7C, T-PROV-a, T-PROV-b}** |
+| S-PROV-OLD | the old counting rule: a refusal returns an empty ring (so it counts as collapsed), and rungs 2 and 5 keep the ε × 2 set's `collapsed.water` | `Q4_PROV` unset | the bowtie's fate "collapsed"; provA-both collapsed.water 1, refused 0; provB collapsed.water 1 | **{KB7C, T-PROV-a, T-PROV-b}** |
+| S-SEALOG-POINT | the production lines are the harness's full lines (record key, island point) | (none: the format is the port's) | -- | **{T-SEALOG}** |
+
+**Outside the set: stop.** A test that does not read as registered on the shipped code, a sabotage whose red set differs in either
+direction, an edit that does not apply exactly once, or a restore whose sha256 differs.
