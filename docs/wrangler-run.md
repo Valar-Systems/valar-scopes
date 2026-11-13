@@ -132,3 +132,47 @@ Both sets are migrated here: **23 more call sites**, each replacement counted ag
 |---|---|
 | **HP6, restated** | **0 direct, 0 stale.** **41 findings** sit behind **39 rows** in **13 files**, all of these kinds: PR B, the deploy path (27 rows); the sea-path PR, `basemap/d1.ts` (1); prose (4); test strings (7). A planted direct call in a newly migrated file (`tools/wx/m_clock.py`) read **direct 1**, and after a byte-exact restore read 0 |
 | **K4** | `check-wx-plant.mjs --selftest` through the helper ran the real `deploy --dry-run` builds of every wx target (PB1, PB2 and FB2 PASS; the three sabotages read FAIL as designed). `~/.wrangler/logs` read 34,092 before and after, with 0 temp dirs left |
+
+## PR B: the deploy path, and its staging rehearsal
+
+**Built (this PR):**
+- `proxy/scripts/deploy.sh`: both deploys (the proxy's, and the builder's), `secret list`, and the three printed hints
+  now go through the helper (`node scripts/wrangler-run.mjs`, run from `proxy/`, as before).
+- `proxy/scripts/deploy-inputs.mjs`: the dry-run's argv is `node proxy/scripts/wrangler-run.mjs deploy ... --dry-run
+  --outdir ...`, and its guard is unchanged. The helper joins DB17's machinery list, since `deploy.sh` now calls it on
+  both paths.
+- `proxy/scripts/rotate-staging-provision-token.sh`: `secret put` and `secret list`.
+- Local results:
+  - `deploy-inputs.mjs --selftest-guard`: DB18 AS PREDICTED.
+  - `--selftest`: DB1-DB18 all AS PREDICTED, with the real dry-run builds going through the helper. `~/.wrangler/logs`
+    read 34,093 before and after, with 0 temp dirs left.
+  - `--selftest-plants`: every plant reddens exactly its registered set. Run from the LF blob: with
+    `core.autocrlf=true` this file is CRLF on disk and six anchors read "found 0 times", the same trap HP5 met. The
+    file was restored byte for byte.
+- **Not yet built:** weatherscope's four deploy scripts (`tools/wx/ingest_deploy.sh`, `md_rollback.sh`, `s3_cycle.sh`,
+  `check_ingest_deploy.sh`). weatherscope asked to be told BEFORE the rehearsal, so they wait for its clearance.
+  `check_ingest_deploy.sh`'s rig fakes `npx` on PATH. Once `ingest_deploy.sh` calls the helper, that fake has to become
+  a `WRANGLER_RUN_BIN` stand-in, the mechanism the helper's own selftest uses.
+
+### The staging rehearsal: predictions (frozen 2026-11-13, before a slot is asked for)
+
+**Scope.** One `deploy.sh staging` of the PROXY, from this PR's head rebased on main, inside a slot the reviewer
+grants, with the deploy claim checked and taken first. The Worker bundle is main's: this PR changes scripts, not
+`src/`.
+
+**Not exercised (the record):**
+- the builder's deploy line (the same helper form; exercised by DB1-DB18's dry runs only);
+- `rotate-staging-provision-token.sh`, which would ROTATE a secret, so it is never run as a rehearsal;
+- weatherscope's scripts, which are exercised by its own next deploy after they migrate.
+
+| | prediction | if not |
+|---|---|---|
+| **B0** | **The rollback id is read first.** `node scripts/wrangler-run.mjs deployments status --env staging --json`, through the helper, exits 0 and names the version(s) serving staging. Version ids are recorded (they name no device). `~/.wrangler/logs` is counted twice, at least 60 s apart, and must read the same both times | stop: nothing is deployed |
+| **B1** | **The claim.** `session-claim.py take deploy --covers proxy:staging --until +45m` as `blipscope-5c` succeeds. Then `deploy.sh`'s own claim check passes, its behind-check reads 0 blocking, and `secret list` through the helper exits 0 with DEVICE_KEY_SECRET present | stop before the deploy; release the claim |
+| **B2** | **The deploy through the helper exits 0**, and `deploy.sh` prints no `wrangler-run:` line (the helper is quiet on success) | stop; B0's id is the rollback |
+| **B3** | **`~/.wrangler/logs` reads the same count after the deploy as before** (B0's two reads), and no `wrangler-log-*` dir is left in the temp folder | a NEW file in the logs folder: the deploy path wrote outside the helper. Find which call, then report |
+| **B4** | **`confirm-deploy.sh` settles on the staged sha**: staging's `/healthz` reports this PR's head, within its window (30 tries x 10 s = 5 min, HEALTHZ_ATTEMPTS / HEALTHZ_INTERVAL defaults) | roll back to B0's id, through the helper (a rollback is never refused); report |
+| **B5** | **The hook sees the helper form.** In this PR's tree, `scripts/claim-hook.py` is fed the Bash event for `node proxy/scripts/wrangler-run.mjs deploy --env staging`. Unnamed, it exits 2; named `blipscope-5c` while 5c holds the claim, it exits 0. This session's project dir has no live hook, so the event is fed to the script directly, exactly as the harness would | stop: the lock does not see the helper. Report |
+| **B6** | **The end state:** the claim is released, staging serves the staged sha (B4), and the logs folder is unchanged | |
+| **stop rule** | any B0-B2 red: nothing more is done. B3 or B4 red after the deploy landed: roll back to B0's version, through the helper, then read `/healthz` and report | |
+| **escape** | none of the above, or a reading the table does not name | stop. Report with no reading beyond what was observed; the reviewer decides |
