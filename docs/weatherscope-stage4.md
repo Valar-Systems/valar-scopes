@@ -2223,3 +2223,32 @@ the new deploy.sh (5c's staging rehearsal, which starts after this claim's relea
 - **Which deploy.sh:** the production deploy (D1) uses #697's deploy.sh, now rehearsed on staging.
 - **Rollback for staging:** none can be needed for a read. An off D-S1, S2 or S3 stops the run before production, and
   is reported.
+
+#### S4.27c″, 2026-11-13 16:33Z: the owner's go, and main one commit past the bundle (amended before any reading)
+
+**The owner's go, in this session, 15:35Z:** "go for the production proxy deploy carrying the SeamlessHSR route and
+the route-age line on the health page. Run it by the usual rules (predictions, rollback target, staging green, one
+deploy at a time) and not during Sunday Nov 15's bench slots (18:00-19:30Z and 20:00-20:50Z)." The run is on
+Friday 11-13, outside both windows.
+
+**Main moved, read at 16:31:50Z:** `aa40aa43d8c9` (#698), one commit past `b7184243fc60`.
+- It touches three files: `.github/workflows/workers.yml`, `docs/locate-page-chrome-wait.md` and
+  `proxy/scripts/check-locate-page.mjs`.
+- None is bundled.
+- None is in deploy-inputs.mjs's proxy machinery set.
+- smoke-prod.sh does not read any of them: `check-locate-page.mjs` is called only from `workers.yml`.
+- `git diff b7184243fc60 aa40aa43d8c9` over the bundle, config, package, machinery, smoke-prod.sh and test-identity.sh
+  paths: 0 files.
+- Push CI at `aa40aa43d8c9` finished: four workflows, 37 jobs = 35 success / 2 skipped / 0 failed (read 16:32Z).
+
+**So the bundle is the one staging already runs, and the run deploys main's head, `aa40aa43`:**
+
+| row | was (S4.27c′) | now |
+|---|---|---|
+| R-main | main at the run, carried list re-read | `aa40aa43d8c9`, clean detached; #698 is carried and outside the bundle. Any further commit on main before D1: re-read, and a bundled one stops the run |
+| S1 | staging's commit equals the run's sha (`b7184243`) | staging's `/healthz` commit is `b7184243`, the bundle-path diff `b7184243..aa40aa43` is empty (above), and staging's version is `1f1a0fae` at 100 unless it has moved. Staging is not redeployed |
+| D1 | `deploy.sh production` | from `aa40aa43`; deploy-inputs' behind check has nothing behind (HEAD = origin/main); exit 0; confirm-deploy settles on `aa40aa43` |
+| D-P2 | the deployed sha | `aa40aa43` |
+
+Every other row (R0, B0, B-probe, B-claim, D-S1, S2, S3, D-P1, D-P4, D2, D-P3, D4, D5), the rollback rule and the
+outcome table stand as in S4.27c and S4.27c′.
