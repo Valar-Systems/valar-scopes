@@ -13,7 +13,7 @@ import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync,
 import { unzipSync } from "fflate";
 import {
   type Box, type Cell, type CellIndexEntry, type Feature, type ManifestFile, PREDICATES, assignCells, bboxOf, cellKey, decodeFeature,
-  encodeCell, encodeFeature, featuresFrom, joinPopulation, pointsFrom, publishStore, reachOf, readDelimited, sortKeys, storeIdOf, verifyStore, writeManifest,
+  encodeCell, encodeFeature, f1Refusal, featuresFrom, joinPopulation, pointsFrom, publishStore, reachOf, readDelimited, sortKeys, storeIdOf, verifyStore, writeManifest,
 } from "./basemap/ingest-lib";
 import { CURRENT_KEY } from "../src/basemap/store";
 import { readShapefile, shapefileFromZip } from "./basemap/shapefile";
@@ -565,8 +565,9 @@ async function d1Cmd(cache: string): Promise<void> {
   const by = (p: string) => objects.filter((o) => o.key.includes(p)).length;
   console.log(JSON.stringify({ storeId, bucket: BUCKET, puts: objects.length + 1, objects: objects.length, cells: by("/cells/"), tiles: by("/terrain/9/"), bytes, manifestBuilder: manifest.builder, dryRun: run, builderKnown: known }, null, 1));
   if (planOnly) return;
-  if (run.dirtyTree || run.ingestCommit !== manifest.builder || run.storeId !== storeId || !known) {
-    throw new Error("the manifest was not written from a clean tree at a known commit that matches the dry run: re-run the dry run");
+  const refused = f1Refusal(run, manifest.builder, storeId, known);
+  if (refused) {
+    throw new Error(`the manifest was not written from a clean tree at a known commit that matches the dry run (${refused}): re-run the dry run`);
   }
   const bucket = new WranglerBucket(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
   let todo = objects;

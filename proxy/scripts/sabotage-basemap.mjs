@@ -38,6 +38,7 @@ const SETS = {
   sea: { files: ["test/basemap-sea.test.ts"] },
 };
 const SEA = "src/basemap/sea.ts";
+const SEA_PIECES = "scripts/basemap/sea-pieces.ts", USCONTAIN = "scripts/basemap/uscontain.ts";
 
 /** name: { file, edits: [[anchor, replacement]], expect: [case ids] } -- the sets are A1.7's, frozen. A plant that needs more than one
  *  file says `files: [[file, edits], ...]` instead (R12): every file is planted before the run and restored and checked after it. */
@@ -621,6 +622,22 @@ const SABOTAGES = {
             ["  if (r.status === 500 && r.repair) return [repairLine(r.repair)];\n", "  if (r.status === 500 && r.repair) return [r.why]; // SABOTAGE S-SEALOG-POINT\n"]],
     expect: ["T-SEALOG"],
   },
+  // The sea ingest's CI rows (registered at 883c52b1): F1 seen refusing, the US edge test, and the containment itself
+  "S-F1DIRTY": {
+    file: LIB, set: "all",
+    edits: [['  if (run.dirtyTree) return "the dry run\'s tree was dirty";\n', "  // SABOTAGE S-F1DIRTY: a dirty tree not refused\n"]],
+    expect: ["MI10"],
+  },
+  "S-USVERTS": {
+    file: USCONTAIN, set: "all",
+    edits: [['mode: "full" | "vertices" = "full"): boolean {', 'mode: "full" | "vertices" = "vertices"): boolean { /* SABOTAGE S-USVERTS: no edge test */']],
+    expect: ["C-BORDER-S"],
+  },
+  "S-KB7-NOUS": {
+    file: SEA_PIECES, set: "all",
+    edits: [["    if (whollyInside(USC, ps.map((p) => p.outer))) { inside++; continue; }\n", "    if (false && whollyInside(USC, ps.map((p) => p.outer))) { inside++; continue; } // SABOTAGE S-KB7-NOUS\n"]],
+    expect: ["KB7-a"],
+  },
   // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
   "C-LOADFAIL": {
     file: LAYERS, set: "all",
@@ -636,8 +653,8 @@ const COMMITTED_OUTPUT = new Set(["MD3a", "MD4"]);
 // A PK id may hold hyphens (A12.15's neg-terrain-count) and must end at the title's colon, so it is either whole or
 // UNNAMED, never a shorter id that looks real (A2.46: the hyphen-less pattern graded MV/PK-terrain-count as MV/PK-terrain).
 // BB<n> (docs/basemap-build-reads.md): the builder's read-line rows, named in #539's plan before this pattern knew them.
-// SEA-CI's 15 ids (R12 (a); KB1 registered at 667f7b6c): an EXACT list, each ending at the title's colon, so no title that was UNNAMED before gains an id by accident.
-const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+(?=:)|(?:T-SEA0c?|T-SEALOG|T-PROV-[ab]|T-D2c?|KB1|KB2|KB7C|BRIDGES|EDGE2|XISLAND(?:-TALL)?|REFUSED5)(?=:))/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
+// SEA-CI's 15 ids (R12 (a); KB1 registered at 667f7b6c) and the sea ingest's KB7-a and C-BORDER-S (883c52b1): an EXACT list, each ending at the title's colon, so no title that was UNNAMED before gains an id by accident.
+const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+(?=:)|(?:T-SEA0c?|T-SEALOG|T-PROV-[ab]|T-D2c?|KB1|KB2|KB7C|KB7-a|C-BORDER-S|BRIDGES|EDGE2|XISLAND(?:-TALL)?|REFUSED5)(?=:))/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
 
 // THE DUPLICATE-ID GUARD (ruled 2026-11-05 ~20:05Z, docs/basemap-a1.md). Grading is by case id, so two rows sharing an id
 // grade as one -- A1's first run, where a new MI8 met basemap-regions.test.ts's MI8 and baseline[all] read 158 for 159.
@@ -648,7 +665,7 @@ const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-
 // the driver never runs cannot grade as one of its rows, and #577's MP3 in wx-opera.test.ts stopped every run until then.
 function duplicateCaseIds(testDir = join(PROXY, "test")) {
   const byId = new Map();
-  const TITLE = /\bit(?:\.each\([\s\S]*?\))?\(\s*(["'`])((?:M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+|(?:T-SEA0c?|T-SEALOG|T-PROV-[ab]|T-D2c?|KB1|KB2|KB7C|BRIDGES|EDGE2|XISLAND(?:-TALL)?|REFUSED5)(?=:))[^"'`]*)\1/g;
+  const TITLE = /\bit(?:\.each\([\s\S]*?\))?\(\s*(["'`])((?:M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+|(?:T-SEA0c?|T-SEALOG|T-PROV-[ab]|T-D2c?|KB1|KB2|KB7C|KB7-a|C-BORDER-S|BRIDGES|EDGE2|XISLAND(?:-TALL)?|REFUSED5)(?=:))[^"'`]*)\1/g;
   for (const f of readdirSync(testDir).filter((n) => n.startsWith("basemap-") && n.endsWith(".test.ts")).sort()) {
     for (const m of readFileSync(join(testDir, f), "utf8").matchAll(TITLE)) {
       const title = m[2], id = caseOf(title);

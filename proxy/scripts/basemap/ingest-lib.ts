@@ -237,6 +237,17 @@ export const storeIdOf = async (manifestText: string) => (await sha256Hex(manife
 
 // ------------------------------------------------------------------------------------------------ write, verify, seal
 
+/** F1 (QW4-ID (a), docs/basemap-dense-code.md): why publishing must be refused, or null. The manifest's `builder` must name the commit of
+ *  the code that WROTE it, from a clean tree, as the dry run itself recorded; the dry run's store id must be this one; and the commit must
+ *  exist here. Extracted unchanged from d1Cmd's condition, so a test can see it refuse (MI10). */
+export function f1Refusal(run: { dirtyTree: boolean; ingestCommit: string; storeId: string }, builder: string, storeId: string, known: boolean): string | null {
+  if (run.dirtyTree) return "the dry run's tree was dirty";
+  if (run.ingestCommit !== builder) return "the manifest's builder is not the dry run's commit";
+  if (run.storeId !== storeId) return "the store id is not the dry run's";
+  if (!known) return "the manifest's builder is not a known commit";
+  return null;
+}
+
 export interface StoreBucket {
   put(key: string, bytes: Uint8Array): Promise<void>;
   get(key: string): Promise<Uint8Array | null>;
