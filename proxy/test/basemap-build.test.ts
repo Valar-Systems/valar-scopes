@@ -49,6 +49,14 @@ describe("MB, §6's budget", () => {
   it("MB7: B at 838 fits at rung 2: water at ε × 8 collapses ring 1", async () => expect(await mb("B", 838)).toMatchObject({ status: 200, totalBytes: 823, toleranceMm: 201_168, water: rings(2), roads: 9, roadPts: [2, 2, 2, 2, 2, 2, 2, 2, 3], dropped: "0 / 0", eps: "100.584" }));
   it("MB8a: A8 at 1,322 fits: the TERRAIN body is not counted", async () => expect(await mb("A8", 1322)).toMatchObject({ status: 200, totalBytes: 1346, toleranceMm: 100_584, water: rings(1), roads: 7, dropped: "0 / 0", eps: "100.584" }));
   it("MB8b: A8 at 1,321 fits at rung 2: water at ε × 8 collapses ring 1", async () => expect(await mb("A8", 1321)).toMatchObject({ status: 200, totalBytes: 1330, toleranceMm: 201_168, water: rings(2), roads: 7, dropped: "0 / 0", eps: "100.584" }));
+  // MB9 (R12, ruled after 03:49:01Z; values frozen from pq4d at 771afd34 before this row): the re-frozen MB3 drops all four secondaries,
+  // so this is the row that pins WHICH secondary goes first on the b path (S-ROADORDER's)
+  it("MB9: A at 795 fits at rung 3 by dropping only the shortest secondary (3 km)", async () => {
+    const r = await mb("A", 795);
+    expect(r).toMatchObject({ status: 200, totalBytes: 785, toleranceMm: 201_168, water: rings(2), roads: 6, dropped: "0 / 1", eps: "100.584" });
+    // which 6: the primaries (10, 11, 12 km) and the 4, 5 and 6 km secondaries -- the 3 km one is the one dropped
+    expect(r.roadEnds).toEqual([10, 11, 12, 4, 5, 6].map(roadEnd));
+  });
 });
 
 // MN (docs/basemap-dense.md, step 0): what §6's ladder measured, carried on build()'s 200 and 422 for the builder's

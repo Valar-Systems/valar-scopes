@@ -215,43 +215,45 @@ const SABOTAGES = {
   "S-BTWICE": {
     file: BUDGET, set: "all",
     edits: [["export const EPS_STEP = 2;\n", "export const EPS_STEP = 4; // SABOTAGE S-BTWICE\n"]],
-    expect: ["MB2", "MB3", "MB5", "MB6", "MB7", "MB8b"],
+    // R12 (b), from pq4d under this plant (docs/basemap-dense-code.md, "R12"): was {MB2, MB3, MB5, MB6, MB7, MB8b} on the old ladder
+    expect: ["MB2", "MB3", "MB4", "MB5", "MB6", "MB7", "MB8b", "MB9", "MN3", "T-PROV-b"],
   },
+  // R12 (c): the four below are re-anchored to the SAME defect in the b path's dropSeq (rungs 3-4 and 6-7), their sets read from pq4d
+  // under the same plant. Their old-ladder anchors and sets stay on record in this file at 6bf83d64d7dd.
   "S-DROPORDER": {
     file: BUDGET, set: "all",
-    // anchors moved with fitBudget's bisection (A2.37); every plant below is unchanged in what it does
-    edits: [["  const wOrder = dropOrder(rings.map(ringArea2));\n", "  const wOrder = dropOrder(rings.map((r) => -ringArea2(r))); // SABOTAGE S-DROPORDER: largest first\n"]],
-    expect: ["MB2", "MB7", "MB8b"],
+    edits: [["    const w0 = dropOrder(rings0.map(ringArea2));\n", "    const w0 = dropOrder(rings0.map((r) => -ringArea2(r))); // SABOTAGE S-DROPORDER: largest first\n"]],
+    expect: ["MB3", "MB4"],
   },
   "S-NOCOUNT": {
     file: BUDGET, set: "all",
-    // dropped.water never counts a drop, in every place the bisection sets it. Re-anchored for step 0
-    // (docs/basemap-dense.md): the attempt now records the full drop's bytes; the defect is the same
-    edits: [["const w = smallestFit(rings.length, (k) => { d.water = k; const got", "const w = smallestFit(rings.length, (k) => { d.water = 0; /* SABOTAGE S-NOCOUNT */ const got"],
-            ["  if (w) { d.water = w.k; return", "  if (w) { d.water = 0; return"],
-            ["  d.water = rings.length;\n", "  d.water = 0;\n"]],
-    expect: ["MB2", "MB3", "MB5", "MB7", "MB8b"],
+    // dropped.water never counts a drop, in every place dropSeq sets it
+    edits: [["    const w1 = smallestFit(rings0.length, (k) => { d.water = k; return", "    const w1 = smallestFit(rings0.length, (k) => { d.water = 0; /* SABOTAGE S-NOCOUNT */ return"],
+            ["    if (w1) { d.water = w1.k; return", "    if (w1) { d.water = 0; return"]],
+    expect: ["MB3", "MB4", "MB5"],
   },
   "S-ROADORDER": {
     file: BUDGET, set: "all",
-    edits: [["  const rOrder = dropOrder(secondary.map((i) => roadLength(roads[i]!.pts))).map((k) => secondary[k]!);\n",
-             "  const rOrder = dropOrder(secondary.map((i) => -roadLength(roads[i]!.pts))).map((k) => secondary[k]!); // SABOTAGE S-ROADORDER: longest first\n"]],
-    expect: ["MB3"],
+    edits: [["    const order0 = dropOrder(sec0.map((i) => roadLength(roads0[i]!.pts))).map((k) => sec0[k]!);\n",
+             "    const order0 = dropOrder(sec0.map((i) => -roadLength(roads0[i]!.pts))).map((k) => sec0[k]!); // SABOTAGE S-ROADORDER: longest first\n"]],
+    // R12's finding: on the b path only MB9 (ruled in after 03:49:01Z) pins which secondary goes first; without it this set was empty
+    expect: ["MB9"],
   },
   "S-PRIMARYDROP": {
     file: BUDGET, set: "all",
-    // Re-anchored for step 0 (docs/basemap-dense.md): the same step, after the "no secondary" line. Its set grows by MN1
-    // and MN6, which read A at 623 as a 422
-    edits: [["  if (nt.length < 4) nt.push(nt[2]!); // no secondary to drop: the value before it\n",
-             "  if (nt.length < 4) nt.push(nt[2]!); // no secondary to drop: the value before it\n" +
-             "  // SABOTAGE S-PRIMARYDROP: primaries droppable after the secondaries\n" +
-             "  const base2 = withRoads(rOrder.length), r2 = base2.roads ?? [];\n" +
-             "  const prim = r2.map((x, i) => [x, i] as const).filter(([x]) => x.cls === 1).map(([, i]) => i);\n" +
-             "  const pOrder = dropOrder(prim.map((i) => roadLength(r2[i]!.pts))).map((k) => prim[k]!);\n" +
-             "  const withPrim = (k: number): C => { const gone = new Set(pOrder.slice(0, k)); return { ...base2, roads: r2.filter((_, i) => !gone.has(i)) }; };\n" +
-             "  const p = smallestFit(pOrder.length, (k) => { d.roads = rOrder.length + k; return fits(withPrim(k), tol); });\n" +
-             "  if (p) { d.roads = rOrder.length + p.k; return done(3, { content: withPrim(p.k), toleranceMm: tol, dropped: d, sections: p.got }); }\n"]],
-    expect: ["MB4", "MN1", "MN6"],
+    // primaries droppable after the secondaries and the rings: a third bisection, shortest primary first, before dropSeq gives up
+    edits: [["    if (w1) { d.water = w1.k; return done(rB, { content: noWater0(w1.k), toleranceMm: tolH, dropped: d, sections: w1.got }); }\n    return null;\n",
+             "    if (w1) { d.water = w1.k; return done(rB, { content: noWater0(w1.k), toleranceMm: tolH, dropped: d, sections: w1.got }); }\n" +
+             "    // SABOTAGE S-PRIMARYDROP: primaries droppable after the secondaries and the rings\n" +
+             "    d.water = rings0.length;\n" +
+             "    const c2p = noWater0(rings0.length), r2 = c2p.roads ?? [];\n" +
+             "    const prim = r2.map((x, i) => [x, i] as const).filter(([x]) => x.cls === 1).map(([, i]) => i);\n" +
+             "    const pOrder = dropOrder(prim.map((i) => roadLength(r2[i]!.pts))).map((k) => prim[k]!);\n" +
+             "    const withPrim = (k: number): C => { const gone = new Set(pOrder.slice(0, k)); return { ...c2p, roads: r2.filter((_, i) => !gone.has(i)) }; };\n" +
+             "    const p = smallestFit(pOrder.length, (k) => { d.roads = order0.length + k; return fits(withPrim(k), tolH); });\n" +
+             "    if (p) { d.roads = order0.length + p.k; return done(rB, { content: withPrim(p.k), toleranceMm: tolH, dropped: d, sections: p.got }); }\n" +
+             "    return null;\n"]],
+    expect: ["MB4", "T-D2", "T-D2c"],
   },
   "S-TERRCAP": {
     file: BUDGET, set: "all",
@@ -423,24 +425,23 @@ const SABOTAGES = {
     edits: [["      console.log(JSON.stringify(buildLine(r, stat, Date.now() - t0)));", "      console.log(JSON.stringify({ ...buildLine(r, stat, Date.now() - t0), lat0Micro: q.lat0Micro })); // SABOTAGE S-BB3"]],
     expect: ["BB3"],
   },
-  // Step 0 (docs/basemap-dense.md): the ladder's own defects, each with its registered set
-  "S-LADDER": {
-    file: BUDGET, set: "all",
-    edits: [["if (k === rOrder.length) nt[3] = lastBytes;", "if (k === rOrder.length) nt[3] = nt[0]!; /* SABOTAGE S-LADDER: the first value for the last */"]],
-    expect: ["MN1", "MN6"],
-  },
+  // Step 0 (docs/basemap-dense.md): the ladder's own defects, each with its registered set.
+  // S-LADDER (nt[3] = nt[0], {MN1, MN6}) is RETIRED by R12 (c): the b path has no nt ladder, so the defect has no place to live. Its
+  // entry stays on record in this file at 6bf83d64d7dd.
   "S-RUNG": {
     file: BUDGET, set: "all",
     edits: [["return done(2, {", "return done(1, { /* SABOTAGE S-RUNG */"]],
-    expect: ["MN3"],
+    // R12 (b), from pq4d: was {MN3}; T-PROV-b asserts rung 2 too
+    expect: ["MN3", "T-PROV-b"],
   },
   "S-SECSUM": {
     file: BUDGET, set: "all",
     // A BLOCK comment (Q-ST0, ruled ~19:43Z): the anchor sits inside a one-line loop, and the first run's `//` comment
     // swallowed the loop's closing brace, so the planted file did not compile and read BLIND (my miss, kept on record)
     edits: [["if (k) b[k] += sectionSize(s);", "if (k) b[k] += k === \"provenance\" ? 0 : sectionSize(s); /* SABOTAGE S-SECSUM */"]],
-    // Corrected before any run: BB4's control (secProv over 0) catches it too
-    expect: ["MN6", "BB4"],
+    // Corrected before any run: BB4's control (secProv over 0) catches it too. R12 (b), from pq4d: + MN1, which now asserts the
+    // 422's layer bytes (PROVENANCE's 511)
+    expect: ["MN6", "BB4", "MN1"],
   },
   // A1's (docs/basemap-a1.md): each plant as #551 froze it. S-MS1's and S-MS8's sets were corrected before any run:
   // KV's store id feeds every MS path but MS5 and MS9, and MS3 and MS6 read the package key back.
