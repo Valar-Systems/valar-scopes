@@ -98,16 +98,33 @@ customer defaults, and P5/P6 are sized from it.
   - The 15 info-field keys (`info-callsign` ... `info-possrc`, `AircraftInfoFields.cpp`) are answered **""**. Their parse
     is `stored.isEmpty() ? defaultOn : ...`, so "" gives each field's compiled `defaultOn`.
   - `wx-layer` is the scene's own (`kScenes[k].wx`).
-- **The mechanism:** one FRAME_PROFILE line in `framebench::Override`, calling `ProfileOverride(key)` from p4's
-  `FrameProfileScenes.h`. `FrameBench.h` is map-client's, and C1-L is frozen, so the line is map-client's to place or
-  to allow. That is a named dependency.
+- **The mechanism, settled in writing with map-client (its option (c), 2026-11-13):** NOT a line in map-client's
+  `framebench::Override`. map-client declined both an edit to its header (the one-owner split) and a new frozen sha.
+  - Instead, p4's OWN region sits in `src/ConfigurationWebServer.cpp`'s `GetStoredString`, directly after
+    map-client's (after :4694 at `40f02c0fa812`). It is FRAME_BENCH- and FRAME_PROFILE-wrapped, so FB1/FB2 hold.
+  - The region calls `framebench::ProfileOverride(key, S().scene)` from p4's `FrameProfileScenes.h`, under an
+    `InScene()` gate, and then `NoteKey`. The variable is named `pv`, so C1-K's count of map-client's line stays 1.
+  - map-client's Override answers no drawing key, so the order is safe, and C1-L is untouched.
+  - The code is `bench/frame-profile-p1-levels` at `6979d2d7ff5b`.
 - **The non-target drawing keys stay the board's own.** They are `airports`, `airports-min`, `altcolor`, `highlight`,
   `mil-show`, `heli-show`, `spc-show`, `mil-visual`, `emg-visual`, `watchlist` and `follow`. The reader records each
   one from map-client's keys record and prints every deviation from the default, and the run goes ahead.
-- **THE ROW, read before the run** from the settle's keys record: every target key reads "bench" (answered). A target
-  key read as the board's own is a STOP BEFORE THE RUN, fixed by answering that key, never by writing NVS.
-  **Predicted: 0 target-phase deviations.** The non-target deviation count is printed, not predicted.
-- **Its static check (host, with plants):** the answered info-field list equals the keys parsed from
+- **THE ROW, corrected before any run (map-client's fact; the orchestrator's refinement):**
+  - **Why "every target key reads bench" was replaced:** map-client's `NoteKey` writes "bench" only for a Sensitive
+    key, and the VALUE for any other key. So a bench "true" and a board "true" read identically. A row reading
+    "bench" would have read off on a correct run, and a value check cannot tell who answered.
+  - **The row grades a marker only the profile's override can produce.** `ProfileOverride` sets one bit per
+    DISTINCT target key per scene. A key read twice cannot hide a missing one: `Initialise()` re-reads every key on a
+    config save, `:840`/`:1004`. The 21 keys are read only in `Initialise()`: `:912`, `:913`, `:922`, `:932`, `:944`,
+    `:961`, and the info-* loop `:968-969` (map-client's read at `40f02c0f`).
+  - The profile's `Commit` prints `[frame-profile] answered S<k> <distinct> of 21; missing: <keys|none>` once per scene,
+    in the settle.
+  - **The row:** 21 of 21, "missing: none", in all seven scenes. **Predicted: 21 of 21 in every scene, so 0
+    target-phase deviations.** A scene below 21 is not graded, and the missing key is fixed by answering it, never
+    by writing NVS, before a re-run. The non-target deviation count is printed, not predicted.
+  - **Its plants (host, `test/host/test_frame_profile_answers.cpp`, g++ 13.3):** one key dropped reads 20; one key
+    answered twice and another dropped reads 20; the control reads 21. All three read as predicted, 11 checks, 0 off.
+- **Its static check (host, with plants; `test/host/check_frame_profile_keys.py`, K1-K3 ok, selftest PASSED):** the answered info-field list equals the keys parsed from
   `AircraftInfoFields.cpp`'s table, and the five "true" answers equal the members' compiled defaults parsed from
   `AircraftManager.h`. Plants: one info key dropped reads red; one default flipped in a copy of the header reads red.
 - **And the guard that stays:** `lbl_draw` > 0 at p50 in every arm with contacts. Otherwise the label rows and P-CTRL
