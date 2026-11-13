@@ -52,10 +52,19 @@ So one lever, the KV reads, is near-term and not only a fleet-scale saving.
 
 A sampling rate below 1 changes what every one of these tools sees: a count read from Logs becomes a sample.
 
-- **Workers Logs readers found by a search of `scripts`, `proxy`, `tools`** (2026-11-13 ~00:20Z):
+- **Workers Logs readers found by a first search of `scripts`, `proxy`, `tools`** (2026-11-13 ~00:20Z):
   - `tools/wx/`: `r3p.py`, `r3_reads.py`, `r3_minute_join.py`, `r3_5b.py`, `logver.py`, `m_clock.py`, `s_clock.py`,
     `s_drive.py`, `s_reads.py`, `share_range.py`, `account_cost_read.py`;
   - `tools/budget/`: `budget_read.py`, `logs_bytes.py`.
+- **Widened before step 2 reads anything** (amendment (3), the reviewer, 00:19:28Z):
+  - also searched: `.github/`, `dashboard/`, and every runbook in `docs/` that tells a person to read Workers Logs or
+    tail the proxy;
+  - CLAUDE.md's own "the first production tail after the deploy";
+  - `proxy/scripts/confirm-deploy.sh` and `proxy/scripts/smoke-prod.sh`, each read for what they observe;
+  - **every `wrangler tail` user** gets its one line too.
+- **A named alternative to settle in step 3, not an assumption:** whether `head_sampling_rate` affects `wrangler
+  tail` at all. It is stated from Cloudflare's documentation, with the passage cited. If tail is unaffected, the tail
+  users keep working at any rate, and only the Logs readers change.
 - **The proxy's own event lines:**
   - `evt:"breaker"`, at `proxy/src/upstreams/types.ts:85`;
   - `evt:"upstream_skip"`, at `proxy/src/upstreams/chain.ts:350` and again at `proxy/src/weatherscope/fetch.ts:42`.
@@ -73,6 +82,8 @@ untouched, because the setting is per Worker.
 - **(a2) The two lines move to Analytics Engine,** with a control. A deliberately tripped breaker, on staging, must
   appear as an Analytics Engine row exactly once per transition, as `test/` already asserts for the log line, and be
   read back by the same query a person would run.
+  - **That staging control is a deploy** (amendment (4)). When step 3 reaches it, it needs a slot from the reviewer
+    and the deployer lock confirmed first, before any `deploy.sh` runs, dev or staging included.
 
 The design picks (a2) unless the reading in this section finds a reason not to.
 
@@ -85,12 +96,26 @@ from the source, including any per-isolate caching. Then:
 - KV reads a month = the sum over routes of (gets per request x that route's monthly requests, from Analytics Engine);
 - the same for puts.
 
+**The window and the counts** (amendment (2)):
+- The per-route weights and the measured KV side come from **the same 7-day window**, stated by its start and its
+  end (UTC).
+- Analytics Engine samples at volume, so a route's request count is **`sum(_sample_interval)`, never `count()`**.
+
+**The measured side is the PROXY's namespace, not the account** (amendment (1)):
+- `docs/account-budget.md`'s 7.226 M is account-wide. Other Workers (the ingests, the weather server, basemap-builder)
+  and staging's `ENRICH_KV` count toward it, while the model covers only the production proxy. A proxy model checked
+  against an account total could pass or fail for reasons outside the model.
+- So KM1 and KM2 are graded on **production `ENRICH_KV`'s own operations**, from the GraphQL KV operations dataset
+  split by namespace id. The account total is printed beside them.
+- If the per-namespace split cannot be read, that is said. Then either the model covers every Worker that binds KV,
+  or KM1 and KM2 read **INSTRUMENT**.
+
 **The check that makes the model usable** (frozen now, graded when it is built):
 
 | row | predicted | if not |
 |---|---|---|
-| **KM1** | the model's KV reads are within **+/-20%** of the measured total (`docs/account-budget.md`'s 7-day read, 7.226 M a month) | the source reading has missed a read path: find it before designing (b) |
-| **KM2** | the model's production KV writes are within +/-20% of the measured production namespace's writes | the same, for (c) |
+| **KM1** | the model's KV reads are within **+/-20%** of production `ENRICH_KV`'s measured reads, in the same window | the source reading has missed a read path: find it before designing (b) |
+| **KM2** | the model's KV writes are within **+/-20%** of production `ENRICH_KV`'s measured writes, in the same window | the same, for (c) |
 | **KM3** | one or two key families account for **more than half** of the reads | if none does, no single cache moves the line, and (b)'s design says so |
 | escape | anything the rows above don't name | stop and report |
 
