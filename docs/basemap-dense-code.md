@@ -3365,6 +3365,11 @@ the sea rings, record 18, and the water and roads the ladder drops to fit them.
     the device does not draw while a primary road is in view (MapLayer's S1, which the bench prints), so the pair draws the same frame:
     **it is printed beside the graded deltas every run as that run's live noise reading,** and if it ever exceeds 3.08 ms the run is the
     instrument's: STOP, and nothing in it is graded.
+  - **The A/A's condition (the orchestrator, after 01:32Z):** "S1 draws no secondaries" is a count, and an A/A needs the same FRAME. In
+    FT-SEA's window, each KORD package's frame is grabbed THREE times (finished frames, per the bench's frame-trust test), and the two
+    packages' frame hashes must be EQUAL. Equal: the pair is a true A/A and stands as the live noise reading. Different: it is not an
+    A/A, that reading is INSTRUMENT, and a literal same-bytes pair (KORD's no-sea package twice) runs instead, in the same window. The
+    window is requested when the images are frozen.
   - FT-HR (docs/basemap-hudson-rule.md, #682) carries the same amendment.
 
 ## #652's CI, predicted (the docs-only shape from main 099f1946, the orchestrator's 19:06:30Z announcement)
