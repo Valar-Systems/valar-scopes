@@ -51,6 +51,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -245,6 +246,7 @@ def ota_breakdown(published: int, rows: dict, points: list) -> dict:
         elif fw < published:
             behind.append(dev)
     buckets: dict = {}
+    ok_devs: list = []
     for dev in behind:
         if dev in newest:
             tok = newest[dev][0]
@@ -253,7 +255,9 @@ def ota_breakdown(published: int, rows: dict, points: list) -> dict:
         else:
             tok = NO_POINT
         buckets[tok] = buckets.get(tok, 0) + 1
-    return {"behind": len(behind), "total": len(rows), "unknown": unknown, "buckets": buckets}
+        if tok == "ok":
+            ok_devs.append(dev)
+    return {"behind": len(behind), "total": len(rows), "unknown": unknown, "buckets": buckets, "ok_devs": ok_devs}
 
 
 def ota_lines(published, rows: dict, points, why_unread: str = "") -> tuple:
@@ -345,6 +349,94 @@ def read_ota_points(env: str, token: str) -> tuple:
     return [(str(x.get("dev", "")), str(x.get("result", "")), str(x.get("t", ""))) for x in rows if x.get("dev")], ""
 
 
+# --- Were the behind-but-"ok" devices awake at their 03:00? (docs/ota-liveness-read.md) ------------------------------
+# v19's step 8 day 2: five devices behind version.txt with "ok" as their last OTA result did not take v19 overnight. This
+# line can EXCLUDE one cause per device -- off, or making no request, at the local 03:00 update check. Any 24 consecutive
+# whole UTC hours hold exactly one local 03:00 for every zone, so a device with a request in all 24 was awake at the last
+# 03:00 it faced. No zone is inferred, ever: a zone would come from a location. A gap is evidence of NO REQUEST, not of
+# power-off -- an OpenSky or local-feed device sends no /v1/blips and can be on and silent -- so the words are "present
+# every hour", "with gaps" and "no request", never "offline". Counts only: the ids never leave this block.
+LIVE_HOURS = 24
+LIVE_ROW_LIMIT = 10000
+
+
+def live_window(now: float) -> list:
+    """The LIVE_HOURS whole UTC hours before `now`, oldest first, as 'YYYY-MM-DD HH:00:00'."""
+    end = int(now // 3600) * 3600
+    return [time.strftime("%Y-%m-%d %H:00:00", time.gmtime(end - 3600 * k)) for k in range(LIVE_HOURS, 0, -1)]
+
+
+def _hour_key(h) -> str:
+    return str(h).replace("T", " ")[:13]  # 'YYYY-MM-DD HH', whatever separator and seconds come back
+
+
+def liveness_lines(ok_devs: list, rows, why: str, hours: list) -> tuple:
+    """(lines, warnings). rows: (device, hour, index1, sample interval) or None = unread."""
+    okset = set(ok_devs)
+    k = len(okset)
+    if k == 0:
+        return ["    of the 0 behind with last result ok: nothing to read"], []
+    if rows is None:
+        return (["    liveness unread: %s" % why],
+                ["the liveness of the behind-but-ok devices could not be read: %s" % why])
+    want = {_hour_key(h) for h in hours}
+    seen: dict = {d: set() for d in okset}
+    si: list = []
+    for dev, h, idx, s in rows:
+        hk = _hour_key(h)
+        # Request points only, selected positively by route: every routeTemplate value starts with "/". Boot, OTA,
+        # usage, error and gap points are not presence -- a boot row carries the device in blob5 too.
+        if dev in okset and hk in want and str(idx).startswith("/"):
+            seen[dev].add(hk)
+            si.append(float(s))
+    x = sum(1 for d in okset if len(seen[d]) == len(want))
+    z = sum(1 for d in okset if not seen[d])
+    y = k - x - z
+    s_txt = "%g" % max(si) if si else "none"
+    line = ("    of the %d behind with last result ok: present every hour of the last %d h %d, with gaps %d, no request %d"
+            " (AE sample interval max %s)" % (k, LIVE_HOURS, x, y, z, s_txt))
+    warn = []
+    # Analytics Engine's adaptive sampling can only DROP points: it can turn presence into a gap, never invent presence.
+    if si and max(si) > 1:
+        warn.append("Analytics Engine sampled this window (interval up to %s): a gap may be sampling, not silence" % s_txt)
+    return [line], warn
+
+
+def liveness_report(ok_devs: list, fetch, hours: list) -> tuple:
+    """No query when no behind device has "ok"."""
+    if not ok_devs:
+        return liveness_lines([], None, "", hours)
+    rows, why = fetch()
+    return liveness_lines(ok_devs, rows, why, hours)
+
+
+def read_liveness_rows(env: str, token: str) -> tuple:
+    """(rows, "") or (None, reason): one row per (device, UTC hour, route) over the last LIVE_HOURS + 2 hours."""
+    sql = ("SELECT blob5 AS dev, toStartOfInterval(timestamp, INTERVAL '1' HOUR) AS h, index1 AS idx, "
+           "max(_sample_interval) AS si FROM %s WHERE timestamp > NOW() - INTERVAL '%d' HOUR AND blob5 != '' "
+           "GROUP BY dev, h, idx LIMIT %d"
+           % (DATASET.get(env, DATASET["production"]), LIVE_HOURS + 2, LIVE_ROW_LIMIT))
+    req = urllib.request.Request("https://api.cloudflare.com/client/v4/accounts/%s/analytics_engine/sql" % ACCOUNT,
+                                 data=sql.encode("utf-8"), method="POST", headers={"Authorization": "Bearer " + token})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            body = json.loads(r.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as e:
+        return None, "Analytics Engine refused the liveness query (%d): %s" % (e.code, e.read().decode("utf-8", "replace").strip()[:300])
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        return None, "Analytics Engine unreachable (%s)" % type(e).__name__
+    data = body.get("data")
+    if not isinstance(data, list):
+        return None, "Analytics Engine's answer has no data list"
+    if len(data) >= LIVE_ROW_LIMIT:
+        return None, "the %d-row cap was reached, so a device's hours may be cut" % LIVE_ROW_LIMIT
+    try:
+        return [(str(x.get("dev", "")), str(x.get("h", "")), str(x.get("idx", "")), float(x.get("si", 1)))
+                for x in data if x.get("dev")], ""
+    except (TypeError, ValueError):
+        return None, "Analytics Engine's answer has a sample interval that is not a number"
+
+
 # The rt: route mirror's age (docs/route-mirror-age.md), read from the Worker's own /healthz, where the limit lives too
 # (`maxAgeDays`). It sat 79 days old with nothing printing it; this tool is where every fleet question already looks.
 HEALTHZ_URL = {"production": "https://scopes.valarsystems.com/healthz",
@@ -402,6 +494,11 @@ def report_ota_reader(env: str, detail: dict) -> list:
     if token and published is not None and detail:
         points, why = read_ota_points(env, token)
     lines, warn = ota_lines(published, detail, points, why)
+    if points is not None and published is not None and detail:
+        ok_devs = ota_breakdown(published, detail, points)["ok_devs"]
+        lv_lines, lv_warn = liveness_report(ok_devs, lambda: read_liveness_rows(env, token), live_window(time.time()))
+        lines[-1:-1] = lv_lines  # under "by last OTA result", before the coverage note
+        warn += lv_warn
     for line in lines:
         print(line)
     print()
