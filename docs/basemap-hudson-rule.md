@@ -198,6 +198,30 @@ crossed; a plant passing under its sabotage; any of the 11 other points changing
 **This PR merges only after:** the owner's pick written into OPTION with that option's rows; (b)'s KBOS measured and frozen, if (b);
 and FT-HR's reading inside M. Its base is re-carried by tree at that moment.
 
+### 5a. The owner's pick, open between two forms, and both scratch builds registered before either runs
+
+**The owner (06:01Z 2026-11-13, relayed verbatim):** "5. The Hudson (#682): (b), coarser lines (1.6 km) in all four New York maps."
+
+That sentence fits two forms, which differ at KLGA and KBOS:
+
+| form | coarsens (E1) | unchanged |
+|---|---|---|
+| **(b) the RULE** (as written above) | KEWR, MIDTOWN, KJFK and **KBOS** | **KLGA** |
+| **the FIXED LIST** (this file's named alternative: the four New York maps, a place list in code) | KEWR, MIDTOWN, KJFK and **KLGA** | **KBOS** (it keeps the rule as is, 9af5f9e0ce25, as under (a) and (c)) |
+
+The question is with the owner, at the top of his digest. **Nothing goes into OPTION until he answers.** Each form's one unmeasured build is registered here, and **only the chosen one runs**.
+
+| build | form | how | predicted | then |
+|---|---|---|---|---|
+| **HR-KBOS-E1** | the rule | the Hudson prototype on the prototype's sea store (`sea-obj`, store e9ef04165ba2), KBOS at the client's query, E1 forced (eps × 8 lines) | 162 km; **rung 9; nothing dropped** (every water ring kept); kOk; at most 32,768 non-terrain bytes; 0 proper crossings; the 2-ring 6.7 km² body whole | its sha is frozen as (b)'s KBOS row and staged for FT-HR; HR-MEM-E1 at KBOS **at most +2.0 MiB** |
+| **HR-KLGA-E1** | the fixed list | the same, KLGA, E1 tried as at KEWR (rungs 8-10) | 129.6 km; **a rung from 8 to 10**; `dropped.water` **at most 106**, the rule-as-is KLGA's (section 3's table); kOk; at most 32,768; 0 proper crossings; every split inland body whole or wholly dropped, never in part | its sha is frozen as the list's KLGA row and staged for FT-HR in place of e7f0af9d9fba; HR-MEM-E1 at KLGA **at most +2.0 MiB** (the memory table's "no option takes E1 there" becomes this bound) |
+
+**Under the fixed list,** FT-HR's packages are: KLGA the new build; KBOS 9af5f9e0ce25 (the rule as is); KEWR, MIDTOWN and KJFK as under (b); KORD the control.
+
+**Outside the set: stop and report, no reading.**
+
+**The bench (held after 06:04Z):** one shared no-hands window for FT-SEA and FT-HR on E2:08, 11-16 04:00-07:30Z, after map-client's v20 bench. It is granted on a frozen manifest. The packages are frozen once the chosen build reads.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
