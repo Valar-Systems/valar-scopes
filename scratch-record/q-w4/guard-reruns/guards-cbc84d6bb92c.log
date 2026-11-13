@@ -1,0 +1,7 @@
+=== guards at cbc84d6bb92c0576befb02748d4240c2d8874878, run 2026-11-13T05:16:43Z
+=== check_device_ids exit=0
+OK: 2314 tracked files, no real device id at HEAD
+=== check_wifi exit=0
+wifi check: 2314 tracked, 1647 scanned, 667 binary; 209 network contexts seen, 203 passing; 16 allowlist entries; findings name 0, bssid 0, lan 0; stale 0, idle 0, unreadable 0; OK
+=== check_macs exit=0
+mac check: 2314 tracked, 1647 scanned, 667 binary; 376 OUIs, 9 products; 13 documentation-range MAC(s) seen; 0 allowed by entry; findings 0, stale 0, unreadable 0; OK
