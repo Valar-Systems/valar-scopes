@@ -2198,3 +2198,28 @@ left nothing in `~/.wrangler/logs`. The next production ingest deploy may use it
 
 **Not affected:** the proxy. Its combined deploy (S4.27c) waits for the owner's answer and for the lift of the hold on
 the new deploy.sh (5c's staging rehearsal, which starts after this claim's release).
+
+#### S4.27c′, 2026-11-13 ~08:55Z: S1 made read-only (staging already runs the bundle), amended before the run
+
+**The hold is lifted** (the reviewer, 08:53:50Z): 5c's staging rehearsal of #697's deploy.sh passed B0-B6 at
+08:48-08:53Z. S4.27c now waits only on the owner's answer in this session.
+
+**The fact, read by me at 08:54:23Z:**
+- Staging's `/healthz` reports commit `b7184243`, with top-level keys {basemap, commit, ok, routes, upstreams,
+  weatherscope, wx}.
+- `deployments status --env staging`, through the helper, reads `1f1a0fae` at 100.
+- Main is `b7184243fc60`. `git diff --quiet 5b0d27fd5000 b7184243fc60` over every bundle and config path passes: #697
+  touched none of them.
+
+**So staging already runs the exact bundle production would get, and S1 changes. The other staging rows stand:**
+
+| row | was | now |
+|---|---|---|
+| S1 | `deploy.sh staging`: exit 0, confirm-deploy settles on the sha | **read only:** staging's `/healthz` commit equals the run's sha (`b7184243`), and its version is the one recorded at the run (`1f1a0fae` unless it has moved). If the run's main has any bundled commit beyond `b7184243`, it is outside the set (as S4.27c already says) |
+| D-S1, S2, S3 | as in S4.27c | unchanged; read on staging as it stands |
+
+- **Carried, at `b7184243`:** #697 joins the deploy machinery: deploy.sh and deploy-inputs.mjs on the helper,
+  rotate-staging-provision-token.sh, and my three `tools/wx` scripts. It adds nothing to the bundle.
+- **Which deploy.sh:** the production deploy (D1) uses #697's deploy.sh, now rehearsed on staging.
+- **Rollback for staging:** none can be needed for a read. An off D-S1, S2 or S3 stops the run before production, and
+  is reported.
