@@ -212,6 +212,23 @@ file. What gets reported is counts only, because its failure lines carry sample 
 - `cleanup: rt:ZZ.....S deleted`;
 - exit 0.
 
+**Amendment to P2, ruled by the reviewer 2026-11-13 17:45:09Z, before production runs.** S2 printed five lines this
+section did not list. They are wrangler's own output from the meta write, which runs with inherited stdio
+(`ingest-routes.ts:763-766`; the data puts pipe theirs away). P2 now also expects, between the last canary line and
+`meta written`, exactly these five, as S2 read them:
+1. a blank line;
+2. `(weather emoji) wrangler 4.35.0 (update available 4.162.0)`;
+3. a separator line of box-drawing characters;
+4. `Resource location: remote`;
+5. `Success!`.
+
+Anything else there, such as a warning or an update notice in another form, is outside the set: stop.
+- **Ruled 17:51Z:**
+  - `wrangler 4.35.0` must match exactly. Any other installed version is outside the set: stop.
+  - The `(update available X)` clause may carry any number, or be absent. It describes the npm registry at run time,
+    not the run. It is reported either way and is not a stop.
+  - The other four lines must match exactly.
+
 **S3 / P3, the verify after the write.**
 - `expected: 1591 shards, 628956 distinct keys`.
 - `shards complete: 1591/1591` and `keys present: 628956/628956`.
@@ -243,4 +260,16 @@ far inside the lists allowance.
 
 ## 7. Results
 
-(Appended as each row is read.)
+The deploy claim was taken at 2026-11-13T17:17:41Z, covering enrich-kv:staging and enrich-kv:production, after the
+reviewer's 17:17:05Z go: weatherscope's combined deploy was closed and verified at 17:16:40Z. The reviewer ruled at
+17:19:40Z that it is held through the staging-to-production gap.
+
+| row | read | verdict |
+|---|---|---|
+| S0 | staging `/healthz` at 17:17:47Z and 17:18:50Z, both HTTP 200, commit b7184243: `{"builtAt":"2026-08-25T23:31:26.817Z","ageDays":79,"rows":619103,"stale":true,"maxAgeDays":14}`; the two reads identical | **as predicted** |
+| S1 | pre-verify, 17:18:59-17:23:20Z, exit 1:<br>- `expected: 1591 shards, 628956 distinct keys`; `actual: 619103 keys present under rt:`;<br>- `shards complete: 1018/1591`; `keys present: 618276/628956`;<br>- `RESULT: FAIL -- 10680 keys missing across 573 shard(s)`;<br>- 0 manufactured self-loops (38 genuine); `extra ... 827`.<br>Staging holds exactly the old corpus, with no runtime rows. The sample callsigns in the FAIL lines were kept in a local file, not reported | **as predicted** (missing 10,680 in 10,500-10,680; complete 1,018 in 1,018-1,040; extra 827, at least 827) |
+| S2, attempt 1 | 17:23:46-17:23:50Z, exit 1. The five pre-write lines are exactly as predicted (airports 6413/0; 1591 shards, 628956 usable; rule rev 3, 8994; previous manifest 1575; `diff: 1591/1591 shards changed -> 628956 keys to write`; the 644 NOTE). Then `REFUSING: no test identity`: **`BLIPSCOPE_TOKEN_FILE` was not exported in the background shell, my omission.** It stopped at the gate before the sweep, the anchor or any write. Staging's `meta:routes`, read afterwards, is byte-identical to the copy saved at 16:53Z; with the variable exported, the test identity resolves for both environments (a check that prints source names only) | **OFF: a refusal before any write**. Stopped and reported |
+| S2, attempt 2 | re-run on the reviewer's 17:25Z ruling, with `BLIPSCOPE_TOKEN_FILE set: true` printed before the start; 17:25:21-17:44:28Z, exit 0.<br>- the five pre-write lines are identical to attempt 1's, and there is no `swept` line;<br>- `anchor: ZZ.....A is absent`;<br>- 63 bulk-put chunks (the last 8957, 628957/628957, at 17:43:58), 0 retries;<br>- `wrote 628956 route keys (+1 sentinel)`;<br>- the sentinel's provenance proved on attempt 1, after 1 s;<br>- `sample: 12/12`;<br>- canaries 5/5 (LHR-JFK, DFW-HND, DXB-JFK, FRA-JFK, SYD-LHR);<br>- `meta written: rows=628956 written=628956 sentinel=OK canaries=5/5` at 17:44:27, so **the seal fell between 17:44:23 and 17:44:27**;<br>- `cleanup: ... deleted`.<br>Five lines of wrangler banner from the meta put were outside the predicted set; they were accepted at 17:45:09Z, and P2 is amended above | **as predicted** (ruled 17:45:09Z). Staging is **sealed, unverified** until S3 |
+| S3 | verify, 17:44:55-17:49:13Z, exit 0:<br>- `expected: 1591 shards, 628956 distinct keys`; `actual: 629783 keys present under rt:` (= 628,956 + 827);<br>- `shards complete: 1591/1591`; `keys present: 628956/628956`;<br>- `RESULT: PASS -- every expected key present, in every shard`;<br>- 0 manufactured self-loops (38 genuine); `extra ... 827`;<br>- 0 per-shard failure lines; no stderr other than wrangler's config warnings | **as predicted. Staging VERIFIED at 17:49:13Z**: the loop closed at the first verify, with no repair |
+| S4 | staging `/healthz` at 17:55:33Z and 17:56:36Z (11 and 12 minutes after the seal, after S3's PASS), both HTTP 200, commit b7184243: `{"builtAt":"2026-11-13T17:44:25.919Z","ageDays":0,"rows":628956,"stale":false,"maxAgeDays":14}`; the two reads identical | **as predicted** (builtAt inside 17:44:23-17:44:27Z) |
+| S5 | the analytics API (`kvOperationsAdaptiveGroups`), window 17:25:00-17:45:00Z, read at 17:59:50Z and again at 18:00:56Z with identical results. Staging namespace: **write 628,713**, delete 1, list 2, read 57. Production in the same window: write 48, list 6, read 5,632. The reader's control: it read 11-09 as 67,301 production and 65,678 staging writes, equal to the per-day read | **OFF: 245 BELOW the 628,958-628,978 band.** The outcome table has no row for under, so "anything else": stopped before production, and reported for the ruling |
