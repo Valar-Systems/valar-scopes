@@ -10,10 +10,28 @@ staffing 2 (docs/speed-plan.md 2b on `p4/big-screens-plan`).
 
 ## 0. Common to both
 
-**The tree.** map-client's `bench/frame-bench-c1` at **`<the sha map-client confirms>`**: M3 plus the step-C bench
-exemption, map off. Weather compiles there under `${cloud.prod}` + `WX_LAYER_SHIPS`; main and the v19 bench refuse it.
-Everything here is **measured WITHOUT step C**, as C1 is. P5's and P6's bench branches start from that sha, and every
-reading names it.
+**The tree.** map-client's `bench/frame-bench-c1` at **`bfcb47e01c3d767b770ee4c26d18676e7c590e33`**, frozen
+(map-client, after 03:48Z: no further push to that branch). C1's acknowledged images were built from it (c1-A
+`5eb7c4ad525d`, c1-B `1132863bd0df`, tree `efe82e49c8b6`). Its parent is p4's M3 tree `3bc7ec26fe28`, not main.
+- It is M3 plus the step-C bench exemption, map off. Weather compiles there under `${cloud.prod}` + `WX_LAYER_SHIPS`;
+  main and the v19 bench refuse it.
+- Everything here is **measured WITHOUT step C**, as C1 is.
+- P5's and P6's bench branches start from that sha, and every reading names it.
+
+**Three constraints of that tree, each a row** (map-client):
+- **The kind tables.** `kKindName` and `kPushDelayMs` (`include/FrameBench.h:43-44`, 4 entries each) are looked up by
+  `Kind`, and `PushDelayMs()` indexes the delays by the scene's kind. On image B a missing entry becomes a vTaskDelay
+  in the push task.
+  - Every new kind gets an entry in BOTH, with 0 delay.
+  - A `static_assert` makes both arrays' length equal the kind count, so a kind without an entry fails the build.
+  - `DelayOn()` adds the loop's +10 ms only for `C1_LOOP10`; no new kind touches it.
+- **`kScenes` is compiled twice:** image B's list with `BLIPSCOPE_PUSH_TASK`, and image A's (`{C1}`) without. P5's
+  and P6's kinds go into image B's list, the shipping shape with the push task. Image A is not used.
+- **The step-C exemption** (`BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT`, a FRAME_BENCH region in `src/AircraftManager.h`) is
+  on that branch, and CI refuses it on every PR since #691 (main `b7e7fdd99884`).
+  - So a bench branch is never a PR. It is pushed as a record only.
+  - **The winning path lands in its own change from main,** without the exemption and without the old path. I-3 is
+    read on that change.
 
 **The switch, inside one image (the orchestrator's ruling, after 03:44Z).**
 - Each bench image gains scene kinds in `include/FrameBench.h`'s `kScenes`: the same scene with the OLD path and with
