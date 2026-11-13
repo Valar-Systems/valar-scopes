@@ -4121,3 +4121,33 @@ R12 is closed. The first run's two OFF readings stay on the record above.
 - **The guard (GRADED), so the exception cannot hide anything.** All 51 GNIS files changed, so a file-level test would pass trivially. The guard is therefore feature-level:
   - Every peaks difference must be explained by a summit (`feature_class` Summit) whose STORED record differs between the old store's cells (`bm-obj`) and the new store's cells: added, removed, renamed or moved, within that point's square.
   - **A difference with no such summit is a STOP.** In particular, a point whose square holds no changed summit must have a byte-identical peaks section.
+
+### The store-independent runs (ruled after 06:52Z): SEA-PKG read; SEA-FIG's grading fixed before it runs
+
+**SEA-PKG re-read at 82113178 (06:53:58-06:54:05Z; `cp-seapkg.py` e3bd13ca7f16, `cp-run.mts` 2eaa14c28661, output f73cfc9b84e6): AS PREDICTED.**
+All 16 packages are byte-identical to run 10's, every sha as frozen in d0's row. KB5 is therefore bound by this identity (scope ruling u1).
+
+**SEA-FIG: what "run 10's figures" are, taken from run 10's own instrument before the code's figures are graded.**
+
+- **Run 10's sea counts are `dr-p2c.mts` (55ab458ce281) line 57's:**
+  - `drawn`, `refused`, `collapsed`, `outside` and `dropped` are COUNTS OF FATES, taken after the ladder has relabelled as "dropped" every drawn piece whose ring the package lost;
+  - `islandsDropped`, `islandsSmall`, `bridges`, `refused5`, `repairs` and `repairVertices` are the sea step's own counts;
+  - `bytes` is the sea rings' bytes, and `rings` is the number of sea rings in the water section.
+- **The code PR's report uses the same names for a different quantity.** Its `sea.drawn` (and `refused`, `collapsed`, `outside`) are `SeaCounts`', counted BEFORE the ladder. So the code's `sea.drawn` is run 10's `drawn` plus `dropped`. SEA-PKG's printout shows this at KJFK: 16 = 14 + 2.
+  - This is a difference between the two harnesses, not between the two builders. Both build the report as `{ ...sw.n, dropped, ... }`, and the code relabels a lost piece "dropped" exactly as the prototype does (`build.ts:261`).
+  - **So SEA-FIG is graded with run 10's definitions,** computed from the code's own `report.sea.fates`, the length of `report.sea.ringIdx`, and the named counts.
+- **Two further GRADED checks, so the mapping above cannot hide anything:**
+  - **Consistency:** the code's `sea.drawn` equals fate-drawn plus fate-dropped; its `sea.dropped` equals fate-dropped; its `refused`, `collapsed` and `outside` each equal their fate counts. **If any fails,** the two definitions do not relate as stated, and the run STOPS.
+  - **Run 10's own pieces:** `p2-out/<home>-sea-p21.json` holds every piece's (file, record, fate) and the sea rings' positions. It was written at 19:31:49-19:32:16Z, inside run 10's 19:30:23-19:34:40Z window. At each point the code's list must equal it exactly, IN ORDER, as must `ringIdx` against its `seaIdx`. **A difference only in order is outside the set: STOP.**
+- **Where each figure comes from:**
+
+  | figure | run 10's figure | points |
+  |---|---|---|
+  | rung, radius, the sea counts, `refused5`, `repairs`, `repairVertices` | the P2-1 rows of `p2-read.run10.out` (fffce461d302), lines 56-71 | all 16 |
+  | non-terrain bytes, `dropped.water`, the water rings | the (B') rows, lines 74-77 | KJFK, KLGA, KEWR, MIDTOWN |
+  | `dropped.water` | VISIBLE COSTS, line 211: 45 | KBOS |
+  | D2's steps (`radii.length`, R3) | the registration itself: 2 at New York, 1 elsewhere. Run 10 printed none | all 16 |
+  | non-terrain bytes and `dropped.water` at the other 11 | **run 10 printed none, so they are not graded separately.** Both are functions of the package bytes, which SEA-PKG proved identical. Printed | 11 |
+
+  `repairLog` is printed beside run 10's and recorded, not graded: the row names `repairs` and the vertices only.
+- **Outside the set: STOP,** and report to the orchestrator. That covers any figure that differs, a missing p21 file, or a grader error.
