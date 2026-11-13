@@ -40,7 +40,22 @@ be the expected result, not a stop.
 - **The loop's phases** become: `wait` (`pushtask::TakeForDrawing()`, the loop waiting for a free buffer), `upd`,
   `under`, `sweep` (split three ways with weather on), `static`, `contacts`, `outline`, `lbl_layout`, `lbl_draw`, `rest`,
   `handover` (`pushtask::HandOver()`), and `flush`.
-- **Accounting:** the loop's phases sum to `fr` within **± 1.0 ms** at p50. A larger gap is a stop, as before.
+- **Accounting: REMOVED as a check (p4's correction, accepted by the orchestrator, 2026-11-13).** The code
+  (`bench/frame-profile-p1` at `ef79bf8282fd`) marks the loop's boundaries back to back with `micros()`, from
+  `frameStartUs` to `RecordFrameUs`. So "the loop's phases sum to `fr`" is TRUE BY CONSTRUCTION and cannot fail. It
+  stays as a property of the code, never as a graded row. **The checks that CAN fail replace it:**
+  1. `contacts` and `rest`, the two remainders, are **≥ −0.05 ms** on every measured frame. A frame below that means a
+     timer double counts; such frames are counted per scene (`neg-contacts`, `neg-rest` in the scene's end line), and
+     more than 0 is a stop.
+  2. The sweep split, `sw_raster` + `sw_blend` + `sw_beam`, is within **0.3 ms** of `sweep` at p50 on every weather
+     arm.
+  3. **0 partial frames** (a loop boundary missing) in every measured span (`partial` in the scene's end line).
+
+  Each gets a data-side plant that must read red: a record with one remainder below −0.05 ms, a sweep split off by
+  0.5 ms, and one partial frame.
+- **What the phases include:** wall time on the loop's core. The push task runs one priority above the loop on the
+  same core, so its short bursts (the cache write-back, the DMA set-up, the 1 ms polls) land in whichever phase is
+  running. They are not separated out. M3-4 bounds them (design (i): < 1 ms a frame).
 - **`push`** is read from the push task, in the same B-only region as C1's histogram: t2 − t0 per push, as a per-scene
   average and a 1 ms-bin histogram. It is reported beside the loop's phases, never summed into them.
 - **Predicted:** `push` **25.8 ± 1.0 ms** (`sync` reported, expected < 1.0); `wait` **< 0.5 ms at p50** in a draw-bound
@@ -175,7 +190,7 @@ phase, and nothing after it is read.
 Otherwise the arm measured weather OFF: it reads **INSTRUMENT**, and none of its rows is graded. This is map-client's
 guard row (3) for its own bench, applied to the profile, so "weather off by accident" can never pass as a fast frame.
 
-**Accounting (every arm):** the phases' sum equals the bench's `fr` within **± 1.0 ms** at p50. A larger gap means
+**Accounting (every arm), SUPERSEDED by section 0 (c): a construction property under contiguous marks, not a check.** The phases' sum equals the bench's `fr` within **± 1.0 ms** at p50. A larger gap means
 time the profile does not see. Stop.
 
 | quantity (p50, 40 aircraft) | predicted | basis |
