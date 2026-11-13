@@ -1584,3 +1584,86 @@ grabs by `fetch_c1.py` at 120, 140 and 160 s after the trace opens (inside S0's 
 never from the live log); read-mac recovers the download mode. W2 B the same, ~18 min (4 scenes), grabs in S0's settle. W3
 A again (A2), ~6 min, grabs. W4 the v19 restore, its boot read (the accepted tokens), read-mac, HTTP 200, release, END.
 About 39 min; the ungraded 100 % stress pair runs only if the graded set and the restore still fit.
+
+## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
+
+**What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
+arms need the (a) table at 20, 40 and 60 aircraft, and its P0 arms need weather OFF in the same image. C1 serves 40
+only, with weather on. **The rulings (the orchestrator, 2026-11-13):**
+- after 03:48:17Z: OK to start, on a NEW bench branch from `bfcb47e01c3d`; kLevel per scene; TBL-HOST pins Sum for 20,
+  40 and 60; one check row plus its plants; full rigour;
+- after 03:50:55Z: also (a), a per-scene `wx` field defaulting to true, answered through `Override("wx-layer")`, and
+  (b), a FRAME_PROFILE-only include of p4's `FrameProfileScenes.h`, one owner per line;
+- **the condition on (a)/(b):** C1's scene-list lines and the Kind enum and its arrays are BYTE-IDENTICAL to
+  `bfcb47e01c3d`, shown by a diff printed as "0 lines differ" plus a no-control that reads non-zero;
+- **the time-box:** frozen, with a sha to p4, by 11-13 ~18:00Z. If it is not, A0a runs at 40 only, with its slope
+  rows named as dropped, and the branch waits. If (a)/(b) are unfinished then, the level part ships alone.
+
+**Untouched:** `bench/frame-bench-c1` stays at `bfcb47e01c3d` (C1's frozen tree; Weatherscope's P5/P6 and p4's P1
+pin it), and nothing here touches the recording window's set or C1's (images, manifests, `win_*.ps1`, readers,
+`tbl_host.py`).
+
+### The change, on `bench/frame-bench-levels` (from `bfcb47e01c3d`)
+
+`include/FrameBench.h`:
+- `kLevel` (40) moves above `Scene`, which gains `uint8_t level = kLevel;` and `bool wx = true;`. Default member
+  initializers, so C1's lists `{{C1}, ...}` are unchanged and mean what they meant.
+- C1's five-line block (`#if defined(BLIPSCOPE_PUSH_TASK)`, image B's list, `#else`, image A's list, `#endif`) is
+  wrapped, not edited: `#if defined(FRAME_PROFILE)` / `#include "FrameProfileScenes.h"` / `#else` / the block /
+  `#endif`. p4 owns that file and defines `kScenes` there. Its scenes use Kind C1 (no push delay, no loop +10), and its
+  +5 ms plant lives in its own FRAME_PROFILE region by scene index, so the Kind enum, `kKindName` and `kPushDelayMs`
+  are never extended. Everything stays inside `#ifdef FRAME_BENCH`, so a profile env defines both.
+- `Level()` is the current scene's level (`kLevel` outside a scene). `MaxLevel()` is the largest level in the list.
+  `kTableMax = 60` is the rows TBL-HOST verifies.
+- The (a) hook's loop and its `table served n` line use `Level()`.
+- `IsSceneHex` compares with `MaxLevel()`, never the current level. A scene that drops from 60 to 20 leaves fb0014 to
+  fb003b tracked until they are evicted (`graceMs` ≤ 30 s, AircraftManager.cpp:4049, inside the 100 s settle), and they
+  must still never be enriched.
+- `PrintTable` prints one TBL-DEV line per distinct level, in the order of first appearance. With C1's lists that is
+  the one n = 40 line it printed before.
+- `Allocate()` refuses, printing once, when a scene's level is outside 1..`kTableMax`, so no scene starts.
+- `Override("wx-layer")` answers the scene's `wx` ("true" or "false"). Initialise reads it at AircraftManager.cpp:940,
+  and false closes the fetch gate (:3389). Buffers allocated earlier stay allocated: before S0 the board's own setting
+  applies (absent means ON on this tree), so record flag bit 2 is the per-arm reading of whether weather was shown.
+
+`src/AircraftManager.cpp` (the driver's region): the two scene lines print the scene's level and weather, `scene S<k>
+<kind> home=Bend level=<n> wx=<on|off> rung=25mi settle`.
+
+`test/host/check_frame_bench.py`: one row, **C1-L**, which needs all of the following:
+- Scene's two default members;
+- the FRAME_PROFILE include, once, wrapping C1's block;
+- the (a) hook's loop on `Level()`;
+- `IsSceneHex` on `MaxLevel()`;
+- `Override`'s wx-layer line on the scene's `wx`;
+- `Allocate`'s level refusal;
+- the driver's two scene lines on the scene's level;
+- `kLevel` named nowhere else in code.
+
+### The predictions (frozen here, before the code)
+
+| id | what is read | predicted |
+|---|---|---|
+| L-TBL | `tbl_host_lv.py` (new; `tbl_host.py`'s comparison, plus the C++ `Sum` at n = 20, 40, 60 against the Python's), the levels tree | 360 rows compared, rows off 0, worst \|Δ\| 1.1e-13 (`FrameBenchTable.h` is unchanged, so C1's figure); sums equal: n = 20 `05c015b4`, n = 40 `b1ace60e`, n = 60 `c9381f54` |
+| L-TBL selftest | the same, with C1's phase plant (`0.414214` → `0.414215`) | clean exit 0; plant exit 1, rows off 354, all three sums DIFFER |
+| L-ROWS | `check_frame_bench.py` on the levels tree | 14 rows, 0 failed |
+| L-ROWS selftest | the 13 rows' existing plants, plus C1-L's six: the served loop on `kLevel`; `IsSceneHex` on `Level()`; the wx-layer answer fixed at "true"; `Allocate`'s refusal removed; the FRAME_PROFILE include removed; a scene line printing `kLevel` | each existing plant reads exactly its own row red; each of C1-L's reads exactly {C1-L}; PASSED |
+| L-SAME | `c1_lines_diff.py` (new): the Kind enum line, C1's five-line block, `kNumScenes`, `kKindName`, `kPushDelayMs` from `FrameBench.h` at `bfcb47e01c3d` against the levels tree, byte for byte | "9 lines compared, 0 lines differ"; the no-control (`kPushDelayMs`'s 60 → 61 in a copy): "9 lines compared, 1 lines differ" |
+| L-BUILD | `build_lv.ps1` (new; `build_c1.ps1`'s recipe: the path mapping and the pinned build time), each `pio` exit | the levels tree's `-framebench-c1a` and `-framebench-c1b` build, exit 0; a scratch FRAME_PROFILE compile (c1b's env + `-DFRAME_PROFILE`, in a separate worktree at the same commit, with a scratch `FrameProfileScenes.h` holding p4's seven arms as named in its 03:52Z message, sha logged, never committed) builds, exit 0 |
+| L-ART | the c1b image's ELF strings | the new scene format (`level=%d wx=%s rung=%dmi settle`) and the level refusal's text present, the old `level=%d rung=%dmi settle` absent; the no-control, C1's frozen c1-B ELF: the old present, the new absent |
+| L-I3 | the shipping `blipscope-s3-128` from the levels tree against m3-Dp (`fae94d2f70c3`), `bindiff_elfhash.py` | "length 1933952 in both; differing bytes: app_elf_sha256 32, image SHA-256 32, checksum 1, elsewhere 0" |
+
+The Python's three sums came from `fixed_traffic.py` (`b530faf4`) through `tbl_host.py`'s own `py_sum`, at 03:51:30Z,
+before any code. Its n = 40 reproduces C1's pinned `b1ace60e`, which is the control. The C++ side is the prediction.
+
+**For p4's run, graded by p4's reader, not mine** (what this branch makes true on a board):
+- one `table h=bend n=<N> t=1794441386 sum=<hex>` line per distinct level, in the order of first appearance:
+  `05c015b4`, `b1ace60e`, `c9381f54` for 20, 40, 60;
+- each scene line carries its level and its weather;
+- `table served n <level>`;
+- tracked == drawn == level on every measured frame;
+- `fb submits` 0 in every scene;
+- in a weather-off arm, flag bit 2 clear on every measured frame and no `wx served` line.
+
+**The escape hatch:** any reading outside the table above stops the work, reported unread to the orchestrator, with no
+fix before its ruling (a second off reading on a row goes to the owner). If the default member initializers or the
+include do not compile, that is such a reading.
