@@ -324,6 +324,50 @@ function parseSource(tarPath: string, tmp: string, label = ""): ParsedSource {
   return { root, commit: (rootDirs[0] as string).slice("standing-data-".length), shards, totalRows };
 }
 
+type Meta = Record<string, unknown> & { shards: Record<string, string> };
+/**
+ * Read meta:routes through the helper. "Absent" and "cannot read" never collapse into one branch: a clean not-found is
+ * returned as absent, and anything else -- auth, network, config, an unparsable value -- refuses here, printing why.
+ * Shared by the full mode and the key-level mode (moved unchanged out of main(), 2026-11-13).
+ */
+function readMeta(env: string): { kind: "absent" } | { kind: "ok"; meta: Meta } {
+  const cmd = ["node", KV_CLI, "kv", "key", "get", q(META_KEY),
+    "--binding=ENRICH_KV", `--env=${env}`, "--remote"].join(" ");
+  let raw: string;
+  try {
+    raw = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (e) {
+    const err = e as { status?: number; stdout?: string; stderr?: string };
+    const blob = `${err.stdout ?? ""}\n${err.stderr ?? ""}`;
+    // wrangler's not-found wording, matched loosely because it has changed
+    // between releases. Everything else -- auth, network, config -- is fatal.
+    const notFound = /not found|does not exist|key .* not/i.test(blob);
+    if (!notFound) {
+      console.error(`REFUSING: could not read ${META_KEY} from ${env}, and this is NOT a`);
+      console.error("clean not-found. Treating it as a first run would blind-write every key.");
+      console.error(`exit status: ${err.status ?? "?"}`);
+      console.error(`--- wrangler output ---\n${blob.trim()}\n-----------------------`);
+      process.exit(1);
+    }
+    return { kind: "absent" };
+  }
+  // A successful exit still has to yield the shape we expect. wrangler has
+  // been known to put a banner on stdout ahead of the value; a parse failure
+  // here is a reason to stop, not a reason to assume a first run.
+  try {
+    const parsed = JSON.parse(raw) as Meta;
+    if (!parsed || typeof parsed !== "object" || !parsed.shards) {
+      throw new Error("no `shards` field in the meta value");
+    }
+    return { kind: "ok", meta: parsed };
+  } catch (e) {
+    console.error(`REFUSING: ${META_KEY} read back but did not parse as a manifest.`);
+    console.error(`reason: ${(e as Error).message}`);
+    console.error(`--- first 200 bytes ---\n${raw.slice(0, 200)}\n-----------------------`);
+    process.exit(1);
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.dryRun && !args.env) {
@@ -365,42 +409,10 @@ async function main() {
   // spend the next hour bisecting a silent empty string.
   let prevManifest: Record<string, string> = {};
   if (args.env) {
-    const cmd = ["node", KV_CLI, "kv", "key", "get", q(META_KEY),
-      "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" ");
-    let raw: string | null = null;
-    try {
-      raw = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-    } catch (e) {
-      const err = e as { status?: number; stdout?: string; stderr?: string };
-      const blob = `${err.stdout ?? ""}\n${err.stderr ?? ""}`;
-      // wrangler's not-found wording, matched loosely because it has changed
-      // between releases. Everything else -- auth, network, config -- is fatal.
-      const notFound = /not found|does not exist|key .* not/i.test(blob);
-      if (!notFound) {
-        console.error(`REFUSING: could not read ${META_KEY} from ${args.env}, and this is NOT a`);
-        console.error("clean not-found. Treating it as a first run would blind-write every key.");
-        console.error(`exit status: ${err.status ?? "?"}`);
-        console.error(`--- wrangler output ---\n${blob.trim()}\n-----------------------`);
-        process.exit(1);
-      }
-      console.log(`no ${META_KEY} in ${args.env} -- confirmed absent, so this is a FULL build`);
-    }
-    if (raw !== null) {
-      // A successful exit still has to yield the shape we expect. wrangler has
-      // been known to put a banner on stdout ahead of the value; a parse failure
-      // here is a reason to stop, not a reason to assume a first run.
-      try {
-        const parsed = JSON.parse(raw) as { shards?: Record<string, string> };
-        if (!parsed || typeof parsed !== "object" || !parsed.shards) {
-          throw new Error("no `shards` field in the meta value");
-        }
-        prevManifest = parsed.shards;
-      } catch (e) {
-        console.error(`REFUSING: ${META_KEY} read back but did not parse as a manifest.`);
-        console.error(`reason: ${(e as Error).message}`);
-        console.error(`--- first 200 bytes ---\n${raw.slice(0, 200)}\n-----------------------`);
-        process.exit(1);
-      }
+    const m = readMeta(args.env);
+    if (m.kind === "absent") console.log(`no ${META_KEY} in ${args.env} -- confirmed absent, so this is a FULL build`);
+    else {
+      prevManifest = m.meta.shards;
       console.log(`previous manifest: ${Object.keys(prevManifest).length} shards`);
     }
   }
