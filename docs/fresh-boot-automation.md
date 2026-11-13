@@ -148,3 +148,81 @@ the run exactly as they did on v19. **The automation changes who acts, never wha
 
 `X-Blipscope` is a CSRF guard, not authentication. Anything on the LAN can already `POST /factory-reset` with the
 confirmation word, and this plan doesn't change that. It only uses it.
+
+## Amendment 1: the driver as built, the end state, and the rehearsal's predictions (frozen 2026-11-13 ~02:30Z, before any window is asked for)
+
+### Who acts (ruled 2026-11-13 02:03:41Z)
+
+A session never types the owner's real password into a form, and never changes a Wi-Fi profile on this PC. So answer
+(a) now means **"his PC provisions it, on his command"**: step 2 is ONE command he runs, `scripts/fresh-boot-wifi-join.ps1`.
+- It reads his file and finds exactly one `Blipscope-XXXXXX` network on the adapter he names.
+- It adds a temporary open profile, joins, and posts `s=`/`p=` to the portal in-process.
+- It always removes the profile.
+- It prints neither the setup network's name (part of the board's MAC), his network nor his password.
+
+`scripts/fresh-boot-auto.sh` drives everything else, and stops at his two commands and his one tap.
+
+### The test's location (ruled 02:03:41Z)
+
+**A PUBLIC airport reference point, committed in the driver:** Seattle-Tacoma, `47.45, -122.31` (stored by the board as
+`47.4500` / `-122.3100`, which K-loc reads back). It guarantees traffic for his claim tap, and carries nothing about him.
+
+### The end state (the plan above was silent on it; v19 was "set up again by Daniel", `docs/v19-cut.md`)
+
+A factory reset clears `wifi, wifi-fast, config, logbook`, so EVERY setting goes back to its default, not only the
+location. Accepted 02:0xZ:
+- **R0 (the driver, read-only, before step 1).** `GET /`, turned into the config form's own body by
+  `scripts/fresh-boot-form.py`. It is written ONLY to `%USERPROFILE%\.config\blipscope\e208-snapshot`, never printed.
+  The NAMES of any masked secret fields go into the report BEFORE step 1, so he knows what he'd re-enter by hand.
+- **R1 (his command, after the grades).** It posts the snapshot back to `/save`. The command names the board's address,
+  so it is written to `e208-restore.cmd` beside the snapshot, and only that path is printed.
+- **R2 (the driver, read-only).** `GET /` compared with the snapshot field by field, printing "N of M fields equal" and
+  the NAMES that differ, never a value.
+  - **All equal (masked secrets aside):** the snapshot and the command file are removed, and the window may close.
+  - **Anything else:** the window is NOT closed, the snapshot is kept for him, and the report says where.
+- **Not restorable, stated:**
+  - masked secrets come back masked and the save skips them (R0 names them);
+  - the logbook's collection (NVS is never read from the PC);
+  - Wi-Fi comes back through step 2's own join, to the same network.
+- **No value reaches any output.** `fresh-boot-form.py --selftest` F7 runs a planted sentinel (asserted planted) through
+  every printing and error path and finds it in none, while the count and names lines still print.
+
+### What was built (this PR)
+
+| file | what | checked by |
+|---|---|---|
+| `scripts/fresh-boot-cadence.py` | the hands-on cadence; exit 0 allowed, 1 due, 2 instrument | `--selftest`: K-due-count, K-due-code, K-due-func, K-not-due, K-counter, as registered (in CI) |
+| `scripts/fresh-boot-form.py` | `form#cfg`'s FormData: `body`, `compare`, `field-equals` | `--selftest` F1-F7 (in CI) |
+| `scripts/fresh-boot-auto.sh` | the driver: preflight, R0, steps 1-6, the grades, R1/R2; `--controls`, `--sabotage skip-reset/skip-off`, `--dry-run` | `--selftest` W1-W2, P1-P2, locally. Its dry-run runs the real cadence check, which needs the release tags CI's shallow checkout lacks |
+| `scripts/fresh-boot-wifi-join.ps1` | his step-2 command; `-Control WrongPassword` for K-wifi | parsed with no errors. **Never run by a session** |
+
+### The rehearsal window: what it needs
+
+- **E2:08**, reserved, on YKUSH port 3 (confirmed by the owner, 2026-11-11 ~18:31Z), running the candidate under test.
+  Every switch is logged: port, label, UTC off and on, session, window.
+- **His file** `%USERPROFILE%\.config\blipscope\bench-wifi`, present.
+- **His hands, five times:**
+  - K-wifi's wrong-password command;
+  - step 2's command;
+  - the claim tap, three times (the full run, S-noreset's run, and S-nooff's run);
+  - R1's command after each run.
+- **About 90 minutes:** three runs of about 25 minutes, plus the controls.
+
+The rehearsal is three runs:
+1. `--controls`: the full run, with K-guard, K-reset and K-wifi in place;
+2. `--sabotage skip-reset`;
+3. `--sabotage skip-off`.
+
+### The rehearsal's predictions
+
+| row | predicted | if not |
+|---|---|---|
+| **RH0** | preflight passes: cadence ALLOWED on the candidate, both selftests and the acceptance's `--selftest` pass, `bench-wifi: present`, E2:08 in the listing and reserved | stop before anything is touched (exit 2), and report which |
+| **RH1** | R0: `GET /` by its mDNS name reads 200, and the snapshot is written. The masked-field names are a READING, reported before step 1, not predicted | if mDNS does not resolve from this shell, R0 refuses with nothing changed; the driver then takes the address another way, in a new amendment |
+| **RH2** | K-guard 403; K-reset refused, with no reset; step 1 POST 200 and `[reset] tier=factory` within 90 s | stop: the board is in the state the report names |
+| **RH3** | K-wifi: no `[WiFi] CONNECTED` for 90 s after the wrong password. Step 2: his command prints `save: HTTP 200` and `profile removed: yes`, and `[WiFi] CONNECTED` follows within 15 min | stop: the board is in its portal, for his phone |
+| **RH4** | step 2b: POST 200 and K-loc equal | stop |
+| **RH5** | the full run: the acceptance's ten checks all pass, as on v19 (`--assert-only`), and `--grade-boots` reads one POWERON | a red check is a FINDING about the automation's equivalence to the hands-on run; it is reported, not re-run |
+| **RH6** | S-noreset: the step-1 check reads RED and the rest pass. S-nooff: the step-6 check reads RED and the rest pass | the sabotage did not show: the acceptance cannot see that step, so stop and report |
+| **RH7** | R2 after each run: every field equal, masked secrets aside; the snapshot removed after the last | the window is NOT closed: E2:08 is left as it is for him, with the snapshot kept |
+| escape | anything the rows above do not name | stop and report, with no reading, and E2:08 left as it is |
