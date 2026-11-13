@@ -113,6 +113,14 @@ steps inside `workers.yml`'s existing job, so the check-run total is expected un
 | **CI-C1** | **36 check-runs = 34 success + 2 skipped (promote, version) + 0 other,** across four `pull_request` workflows, all success: device-ids, firmware, no-traffic-captures, workers. The baseline: main's last workflow change is #698 (aa40aa43), whose head ran 36 = 34 + 2. There is none since, on main 287dc5ec. `typecheck:scripts`, which covers the new and changed scripts, passed locally |
 | outside the set | any other total or split: stop and decide |
 
+**CI-C1, read: AS PREDICTED.** The head 66b6af9f ran 36 = 34 success + 2 skipped, 0 other, finished and stable at
+19:12:12Z. The workers checkout log: `HEAD is now at ac0d449 Merge 66b6af9f... into 287dc5ec...`.
+
+**CI-C2, the FK1 push (predicted 2026-11-13 ~19:13Z, before the push):** **36 = 34 success + 2 skipped + 0 other,**
+across the same four workflows. The push changes `proxy/scripts/ingest-routes.ts` and `docs/` only. Main is now
+e9aa69a1 (#706, #707), and neither changed a workflow; the last workflow change is still #698. Outside the set: stop and
+decide.
+
 The new selftest (`routes-guards.selftest.mts`) is NOT yet a CI step. W7 wires it into `workers.yml` in a later
 commit, with its own prediction.
 
