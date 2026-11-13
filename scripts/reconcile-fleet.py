@@ -381,24 +381,31 @@ def liveness_lines(ok_devs: list, rows, why: str, hours: list) -> tuple:
                 ["the liveness of the behind-but-ok devices could not be read: %s" % why])
     want = {_hour_key(h) for h in hours}
     seen: dict = {d: set() for d in okset}
+    every: dict = {}  # ALL devices with request points in the window: the anchor, so "no request" can be believed
     si: list = []
     for dev, h, idx, s in rows:
         hk = _hour_key(h)
         # Request points only, selected positively by route: every routeTemplate value starts with "/". Boot, OTA,
         # usage, error and gap points are not presence -- a boot row carries the device in blob5 too.
-        if dev in okset and hk in want and str(idx).startswith("/"):
-            seen[dev].add(hk)
-            si.append(float(s))
+        if hk in want and str(idx).startswith("/"):
+            every.setdefault(dev, set()).add(hk)
+            si.append(float(s))  # over ALL request rows, so "S none" cannot hide sampling
+            if dev in okset:
+                seen[dev].add(hk)
     x = sum(1 for d in okset if len(seen[d]) == len(want))
     z = sum(1 for d in okset if not seen[d])
     y = k - x - z
     s_txt = "%g" % max(si) if si else "none"
     line = ("    of the %d behind with last result ok: present every hour of the last %d h %d, with gaps %d, no request %d"
             " (AE sample interval max %s)" % (k, LIVE_HOURS, x, y, z, s_txt))
+    line += "; the query sees %d device(s) with requests in the window, %d in every hour" % (
+        len(every), sum(1 for v in every.values() if len(v) == len(want)))
     warn = []
     # Analytics Engine's adaptive sampling can only DROP points: it can turn presence into a gap, never invent presence.
     if si and max(si) > 1:
         warn.append("Analytics Engine sampled this window (interval up to %s): a gap may be sampling, not silence" % s_txt)
+    if not every:
+        warn.append('the liveness query saw no request in the window: "no request" proves nothing this run')
     return [line], warn
 
 

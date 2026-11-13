@@ -146,3 +146,22 @@ plant anchor is unchanged, because the anchor text is appended by a separate sta
 - K = the "ok" bucket, X + Y + Z = K;
 - no 16-hex token, and S printed;
 - N >= 1 and M <= N, near the diagnostic's 17 and 12.
+
+## Results (2026-11-13, Windows `python -I`)
+
+| step | read | verdict |
+|---|---|---|
+| red-first, the rows against main's script | LV1-LV5, LV2-ctl and LV-S1 BLIND; nothing else off | as registered |
+| the first code run | S-R1body BLIND, "its anchor was found 2 times" | **OFF**, which led to amendment 1 |
+| after amendment 1 | 0 off; S-R1body red `['R1h']`; S-R1body-lv red `['LV6']`; LV red none | as amendment 1 predicted |
+| the first live read | two instrument failures of mine, then a re-run reading `no request 5 (AE sample interval max none)` | recorded in amendment 2 |
+| after amendment 2 | 0 off; LV red none (LV7, LV7-ctl and LV8 included); LV-S1, S-R1body and S-R1body-lv as before; `SELFTEST PASSED` | as amendment 2 predicted |
+| the structural live read (18:24:08Z) | `of the 5 behind with last result ok: present every hour of the last 24 h 0, with gaps 0, no request 5 (AE sample interval max 10); the query sees 17 device(s) with requests in the window, 12 in every hour`, 0 16-hex tokens in the line, plus the sampling warning | as amendment 2 predicted |
+
+- **The structure holds:** K = 5 = the "ok" bucket; 0 + 0 + 5 = 5; S is printed; N = 17 >= 1 and M = 12 <= N.
+- **What the values mean** (day 3 grades them): the five behind-but-"ok" devices made no Worker request in the 24 hours
+  before 18:00Z, while 17 other devices did.
+- **Cause (a) stays open** and is the most consistent reading: off, or making no request, at their local 03:00. "On,
+  but not on the cloud feed" is named beside it. Nothing here separates (b) from (c).
+- **`~/.wrangler/logs`** read 34085 before and after.
+- **Not run locally:** WSL `python3`. CI's workers job runs the selftest on Ubuntu.

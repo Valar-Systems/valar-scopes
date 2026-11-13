@@ -380,8 +380,9 @@ else:
 # every hour but is not in the ok set, and one of A's points falls outside the window.
 LA, LB, LC, LD = "d4" * 8, "e5" * 8, "f6" * 8, "a7" * 8
 LV_HOURS = ["2026-11-13 %02d:00:00" % h for h in range(24)]
+LV_ANCHOR3 = "; the query sees 3 device(s) with requests in the window, 2 in every hour"
 LV_WANT1 = ("    of the 3 behind with last result ok: present every hour of the last 24 h 1, with gaps 1, no request 1"
-            " (AE sample interval max 1)")
+            " (AE sample interval max 1)" + LV_ANCHOR3)
 LV_HEX16 = r"(?<![0-9a-fA-F])[0-9a-fA-F]{16}(?![0-9a-fA-F])"
 
 
@@ -423,6 +424,21 @@ def lv(mod) -> dict:
     finally:
         mod.urllib.request.urlopen = real
     res["LV6"] = rows6 is None and "422" in why6 and "EXAMPLE: unable to find type" in why6
+    # LV7: the ok device made no request while others did -- the anchor is non-zero, so "no request" stands.
+    l7, w7 = mod.liveness_lines([LC], lv_rows(), "", LV_HOURS)
+    res["LV7"] = l7 == ["    of the 1 behind with last result ok: present every hour of the last 24 h 0, with gaps 0, "
+                        "no request 1 (AE sample interval max 1)" + LV_ANCHOR3] and w7 == []
+    # LV7-ctl: the query returned nothing at all -- the anchor reads 0 and the line says "no request" proves nothing.
+    l7c, w7c = mod.liveness_lines([LA, LB, LC], [], "", LV_HOURS)
+    res["LV7-ctl"] = (l7c == ["    of the 3 behind with last result ok: present every hour of the last 24 h 0, with gaps 0, "
+                              "no request 3 (AE sample interval max none); the query sees 0 device(s) with requests in the "
+                              "window, 0 in every hour"]
+                      and len(w7c) == 1 and "proves nothing" in w7c[0])
+    # LV8: gaps under sampling read as "with gaps" plus the sampling warning, never "present every hour".
+    l8, w8 = mod.liveness_lines([LB], lv_rows(si=10), "", LV_HOURS)
+    res["LV8"] = (l8 == ["    of the 1 behind with last result ok: present every hour of the last 24 h 0, with gaps 1, "
+                         "no request 0 (AE sample interval max 10)" + LV_ANCHOR3]
+                  and len(w8) == 1 and "sampl" in w8[0])
     return res
 
 
