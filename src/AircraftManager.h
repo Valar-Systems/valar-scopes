@@ -42,6 +42,10 @@
 #include "MapQuery.h"       // the request for the stored config (pure; CA1-CA3)
 #endif
 // THE MAP FETCH END
+// SCRATCH PLANT (PR #691's red, never merged): the frame bench's exemption, defined as the bench branch does
+#ifdef FRAME_BENCH
+#define BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT 1
+#endif
 // THE MAP DRAW BEGIN
 // CB10 (docs/blipscope-map-client-steps.md, step B): step B draws the map under the radar, and until step C the
 // sweep's wedge erases it wherever the beam passes. The joint release turns WX_LAYER_SHIPS on for every shipping env
