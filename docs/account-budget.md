@@ -189,6 +189,102 @@ below are labelled "API bytes".
 - **The checker is not changed by this.** December's GB allowances join the data file in their own change, registered
   before 12-01.
 
+### 5.3 The three hours, read: stopped at the third, one figure outside its band
+
+`tools/budget/logs_bytes.py`, the 21:00Z, 03:00Z and 09:00Z hours, each read at five past the next hour.
+
+| hour (Z) | ABR | pages | proxy B/event | ingests B/event | overall B/event | events/inv, proxy | events/inv, ingests | ingests' share of events |
+|---|---|---|---|---|---|---|---|---|
+| 11-12 21:00 | 1 | 9 | 1,744.9 | 818.2 | 1,638.9 | 3.25 | 3.03 | 11.44% |
+| 11-13 03:00 | 1 | 6 | 1,765.9 | 814.0 | 1,587.0 | 3.13 | 3.01 | 18.79% |
+| 11-13 09:00 | 1 | 5 | 1,717.0 | 826.2 | **1,496.0: OFF** | 3.29 | 3.01 | 24.81% |
+| band (5.2) | 1 | | 1,500-1,900 | 800-2,500 | 1,500-1,850 | 2.9-3.4 | 2.5-3.5 | not registered |
+
+Hour 3's overall figure is 4.0 B per event under the band's foot. Every other figure in all three hours is inside its
+band. As 5.2 requires, the read stopped there and was reported. December's projection has not been computed.
+
+**Cause: the mix of the two services, which the overall band did not model.** The overall figure is the
+event-weighted mean of two services whose bytes per event differ by about a factor of two. The ingests run on a
+schedule, so their events per hour hardly move (1,978, 2,160, 2,160). The proxy's events follow the fleet's traffic
+(15,305, 9,334, 6,545). At 09Z the ingests are 24.81% of events. At that hour's per-service figures, the overall
+figure drops below 1,500 once their share passes 24.36%. The band came from two single hours of the overall figure
+(1,714 and 1,650), with no share attached.
+
+**The alternatives, and what excludes each:**
+- **The proxy's events got smaller.** Excluded: 1,717.0 is inside its band and within 2.8% of the other two hours.
+- **The read lost pages.** Excluded on three counts:
+  - In every hour the page count fits the event count at 2,000 a page (9, 6, 5).
+  - Every hour is unsampled.
+  - Events per invocation, which checks events against an independent count (the analytics API's invocations), is
+    in band for both services. A lost page would lower it, and the proxy's 3.29 is the highest of the three hours.
+- **A third script pulled the figure down.** Hour 3's "all" row has 2 events and 1 invocation more than the proxy
+  and the ingests together. They come from a script that is neither. The tool prints groups, not scripts, so it is
+  not named here; naming it means re-reading the hour, which waits for the ruling. Excluded as the cause: the proxy
+  and the ingests alone give 1,495.96.
+
+**Proposed fix, for the ruling.** Grade hours by service, and drop the per-hour overall band. The per-service bands
+held in all three hours. The overall figure moves with the time of day by construction. The projection needs the
+month's mix, not an hour's: today's budget has the ingests at 18.14% of the month's events (cref, the ten silent,
+wx-dev: 1,518,231 of 8,368,065) and the proxy at 78.42%. The other 3.44% (kiosk, proxy staging, basemap staging:
+287,763) is on scripts that none of the three hours measured.
+
+**Ruled by the reviewer, 2026-11-13 (after 10:12Z):**
+- Hour 3's overall figure stays **OFF on the record** (1,496.0 against 1,500-1,850). It is not re-graded.
+- **From now on, Logs-bytes hours are graded by service:** the proxy's and the ingests' bytes per event and events per
+  invocation, each against its own band. The per-hour overall band is dropped, because it assumed a mix that an hour
+  cannot hold.
+- The third script is not named. Its 2 events do not move the verdict, and a re-read just to name it is not worth it.
+
+### 5.4 December's projection: the method, frozen before its arithmetic (frozen in 8cfc6477 before any figure; approved by the reviewer 2026-11-13)
+
+Both methods are computed and reported. Neither is picked after the figures are seen.
+- **A, as 5.2 reads:** the mean of the three hours' overall bytes per event x 8,368,065 events a month.
+- **B, by service:** three products, each from its own measured mean:
+  - the proxy's three-hour mean x 6,562,071;
+  - the ingests' three-hour mean x 1,518,231;
+  - the 287,763 unmeasured events at the proxy's mean. That is the larger of the two figures, so the error is on the
+    high side.
+- **The figure quoted as December's estimate is B,** because it follows the month's mix and not three hours' mix.
+  This choice is frozen here, before either figure exists.
+- **Units and scenarios:**
+  - GB means 10^9 bytes, the unit 5.2's own band arithmetic uses (8.3 M x 1,500-1,850 B = 12.5-15.4 GB).
+  - Storage is ingest x 7/30.
+  - The OPERA-running and OPERA + shsr scenarios use the same method on their own events.
+- **Bands, unchanged from 5.2:** ingest 12-16 GB and storage 2.8-3.7 GB at today's fleet; $0 in every scenario.
+
+**Outcomes:**
+
+| outcome | meaning |
+|---|---|
+| A and B both inside both bands, $0 everywhere | as predicted |
+| one of A and B inside, the other outside | both are reported, then stop |
+| either one outside a band, or any scenario not $0 | stop and report |
+| none of the above (for example, the budget's events change before the arithmetic) | the inputs moved; stop and decide |
+
+### 5.5 December's projection, computed: as predicted
+
+**Means of the three hours:** overall 1,573.97 B per event (A); proxy 1,742.60 and ingests 819.47 (B).
+
+**Events:** from `docs/account-budget.json` at main b7184243, the same 8,368,065 that 5.4 froze. shsr runs as
+`blipscope-wx-ingest-shsr`, one of the ingests, so in B its 137,106 events take the ingests' mean.
+
+| scenario | events a month | of them, ingests | A: ingest GB | A: storage GB | **B: ingest GB** | **B: storage GB** | $ |
+|---|---|---|---|---|---|---|---|
+| today (the ten silent) | 8,368,065 | 1,518,231 | 13.17 | 3.07 | **13.18** (26.4% of 50) | **3.08** (30.8% of 10) | 0 |
+| OPERA running | 8,358,635 | 1,508,801 | 13.16 | 3.07 | **13.17** (26.3% of 50) | **3.07** (30.7% of 10) | 0 |
+| OPERA running + shsr | 8,495,741 | 1,645,907 | 13.37 | 3.12 | **13.29** (26.6% of 50) | **3.10** (31.0% of 10) | 0 |
+
+**Outcome: the first row of 5.4, as predicted.**
+- At today's fleet, A and B are both inside both bands: ingest 12-16 GB, storage 2.8-3.7 GB.
+- Every scenario costs $0.
+- A and B differ by at most 0.09 GB, because the month's ingest share (18.14%) sits close to the three hours' average.
+
+**December's estimate (B): 13.2 GB ingested and 3.1 GB stored a month at today's fleet, $0.**
+
+**What this still cannot see (from 5.2).** These are API bytes. The billed bytes may differ, and only December's
+dashboard or invoice settles that. December's GB allowances join `docs/account-budget.json` in their own change,
+registered before 12-01.
+
 ## 6. The table (rendered by the checker, from the next commit)
 
 <!-- account-budget:begin (rendered by scripts/account_budget.py --render; do not edit) -->
