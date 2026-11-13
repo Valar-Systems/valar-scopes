@@ -698,6 +698,24 @@ and 5 and 10 nmi views are drawn centred on that HOME, today's package and 2-L's
 **Outside the set:** a 5 or 10 mi difference: STOP, and it goes to the owner (the orchestrator, 18:17:57Z). A 10 nmi comparison that
 reads EQUAL somewhere: reported, not re-ranged. Anything else: stop and decide.
 
+**The proof's run (18:23:23Z, `hb-offset-check.py` 6bd76dc2f9bd, stdout 69820cefa8c0): AS PREDICTED in every row** (accepted by the
+orchestrator, 18:24:34Z).
+- **5 mi and 10 mi: road and river pixels EQUAL at all 20 worst homes** (4 corners x 5 maps; 40 comparisons); the furthest reach from
+  a package centre 16.790 km; secondaries drawn in neither.
+- **5 nmi: EQUAL at all 20.**
+- **10 nmi: DIFFERS at all 20**, by 2 to 238 px (KLGA 2-23 px; KBOS 123-238).
+- The largest home-to-centre offset over these cells: 0.697 km.
+
+**What goes to the owner (the orchestrator, recommending YES):** r_f = 19.4 km, covering the 10 nmi step, about 45-117 B per map. If he
+picks it: re-register, rebuild, re-stage and re-freeze FT-HR's manifest before 11-15 18:00Z.
+
+**The coupling, UNCONFIRMED:** the map's draw call is map-client's and not on main; the orchestrator is asking map-client whether it
+projects about the same 4-dp home the fetch rounds from.
+
+**FT-HR re-staged** (`C:\Github\_handoffs\map-server\frame-row-packages-hudson\`, sha256 read back after the copies): KBOS-2L
+8676f6bd0df6, KJFK-2L 63d5ce513c7d, MIDTOWN-2L c7d812acf174, KEWR-2L e7f15057f238, KLGA-2L 51caf64fd419, and today's KORD-A0
+cb59bb06a506 as the A/A control. The manifest names these six unless the owner picks r_f = 19.4 km.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
