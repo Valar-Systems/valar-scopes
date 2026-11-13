@@ -96,4 +96,12 @@ steps inside `workers.yml`'s existing job, so the check-run total is expected un
 3. **Staging:** the run, verify PASS (presence, values, absence), seal. Its KV writes and deletes are read from
    analytics against the prediction before production is scheduled (condition 5).
 4. **Production:** the same, attended.
-5. **The schedule enabled,** in a one-line PR, before about 11-24 01:30Z.
+5. **The final row, S-ON: turning the schedule on is its OWN step** (ruled 18:23:38Z). It is a one-line PR that
+   un-comments the `schedule:` trigger. It is made only after the first attended run's verify PASS (presence, values
+   and absence) in BOTH environments, and merged only with the reviewer's approval at its exact sha. It is the change
+   that makes production writes happen weekly with no person present, so nothing else rides in it. It must land before
+   about 11-24 01:30Z, or the alert fires.
+
+**The owner's deadline** (in his digest): the `routes-refresh` environment, `ROUTES_KV_TOKEN` and `ROUTES_NTFY_TOPIC`
+must exist by about **11-22**, leaving margin before the 11-24 alert. Without them the first attended run cannot
+happen, and the alert firing is correct.
