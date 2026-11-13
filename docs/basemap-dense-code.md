@@ -4356,3 +4356,90 @@ KJFK's no-sea package, ee8c834bc81a, is the one FT-SEA pins.
 
 - **36 check runs: 34 success, 2 skipped** (firmware's `version` and `promote`, release-only), **0 failures.**
 - **Outside that: STOP, and read which job before anything else.** That means a different count, or any failure.
+
+**CI on that push: AS PREDICTED.** 36 check runs: 34 success, 2 skipped (`version`, `promote`), 0 failures (read 08:02Z; the tested merge was 66fed334, 64813991 into main cd011676). The reading was held for this commit, as agreed: a doc-only push re-runs all 36.
+
+### The census files: four rounds refused; the mirror switch in form (d), registered before it runs
+
+**The retry is untouched** (the 10-28 ruling's path, the ingest's own `retry`).
+- Rounds ran at 06:38, 07:38, 09:38 and 12:38Z, one file a minute.
+- **32 attempts, 32 refused.** Each was a 200 served as `text/html`, the rejection page. 0 files fetched.
+- Still to come: ~18:38Z and 11-14 ~06:38Z. A file any round fetches gets no mirror.
+
+**The first prepared form put the mirror URL in the manifest's url field. It is set aside for what it costs.**
+- A feature names its source by the file's INDEX in the URL-sorted manifest (`store.ts:9`, RD2), and features draw in that order (`layers.ts:25`).
+- `https://ftp2.census.gov/…` sorts before every other URL. So that form reindexes **15,880 of the store's 16,036 files** (`mirror/shift.py` adfe0780ceb9):
+  - all water, sea, peaks, places and terrain;
+  - 3,041 of 3,144 rivers.
+- That rewrites nearly every cell, with no change to any geometry or attribute.
+- **KBOS (44007, Providence RI) and KJAC (56029, Park WY)** are the two of the 16 points whose square meets a mirrored county, by build.ts's own region test on bm-obj's index (`mirror/met.mts` de3ac090e0a7). The closest miss is KJFK: its square's east edge is -71.857, against 44007's west edge at -71.799. At those two points:
+  - PROVENANCE's `source.water` becomes `https://`, 46 B shorter;
+  - `sha256.water` changes;
+  - the 46 B freed could move the ladder's rung.
+- All of that for a transport detail.
+
+**Form (d), the orchestrator's (after 12:53:29Z): fetch from the mirror, prove the file is the primary's, record it under the PRIMARY url.**
+- **The departure, named.** The 10-28 ruling says "record the mirror URLs as their URLs, with a note in the manifest". Form (d) keeps the primary URL and moves the mirror into the note.
+  - The note still says truthfully where each file came from.
+  - **The orchestrator's explicit ruling that (d) replaces that clause is asked for before the switch.**
+- **No code change to this PR.** What the code shows:
+  - **Every reader takes the url as the file's identity:** the cache path (`cachePath`, `verifiedBytes`, d1's tiles, `basemap-check.ts`), the regions, PROVENANCE's `source`/`sha256` lines, and MI4b's notes check.
+  - **Nothing reads it as "where it was fetched",** except the fetch itself (`fetchOne`, `adopt`'s HEAD), and a logged record skips both.
+  - **A plan entry's `note` has one reader,** the manifest (`ingest-basemap.ts` L379).
+  - **The transport survives in one field only:** the retry record's `lastModified`, as ftp2 serves it. It enters no manifest and no store, since TIGER's vintage comes from the path.
+- **The steps** (`mirror/switch_d.py` 361161bdc565), only after the retry's schedule has ended:
+  1. **`apply`:** the 8 plan entries' url becomes the mirror url, so the ingest's own retry can fetch them. The original plan is kept by its bytes, f12d3eb56040. It refuses while any ingest-basemap process runs, and if a round fetched a primary file.
+  2. **The fetch:** the ingest's own `retry --schedule-min 0 --urls <8 mirror urls>`, through `runlog.sh`. One round, one file a minute, with the UA. Its guards (length, `checkBody`) run on every file.
+  3. **`check`,** per file:
+     - the same name as the primary;
+     - a PK zip;
+     - bytes AND sha256 equal to bm-obj's record for the PRIMARY url (store 4c0875738f38, fetched from www2 in October);
+     - vintage 2024.
+  4. **`rekey`:** refuses unless `check` passed. Each file is copied to the primary path, its sha checked again. Each record moves to the primary url. plan.json goes back to its original bytes, plus one `note` per entry. Every write is read back.
+  5. **`final`:** plan = the original + 8 notes; no entry names ftp2; no mirror-url record is left; each primary record, its file and bm-obj's record agree.
+  6. **`m4-strip` / `m4-restore`:** around M-4's control dry run, the original plan bytes go in, then the noted plan comes back, checked by sha.
+- **The note, exactly** (MI4b's form; `mirror/notes_d.mts` 6ba47d942b07):
+
+  `<primary url>: fetched via the Census Bureau's mirror <mirror url> after www2.census.gov's firewall refused it; its bytes and sha256 equal this url's record in store 4c0875738f38`
+  - **Its CONTROL ran first:** the dated wording ("… the record of 2026-10-28") was REFUSED, "a manifest note holds a wall-clock time".
+  - Then this PR's `writeManifest` took the 8 notes: round trip true, every note on a primary url.
+- **Rehearsed** on a copy of the plan, with synthetic mirror files. The predictions were written first (`mirror/rehearse_d.pred` 858bf291f013, `mirror/rehearse_m4.pred` 9a2fdc777c08), and the scripts are `mirror/rehearse_d.sh` f0c1a03a6314 and `mirror/rehearse_m4.sh` 54260e633170. **Every row read AS PREDICTED**, on the final script:
+  - the process guard refused: 9 processes, every one this retry's;
+  - the rehearsal flags refused on the real cache;
+  - `check` read 8 DIFFERS, and `rekey` refused on it with nothing changed;
+  - `rekey`, with identity skipped (a rehearsal-only flag), and `final` passed;
+  - a tampered copy read 1 NOT OK;
+  - `m4-strip` and `m4-restore` round-tripped, and each refused out of order;
+  - the real plan stayed f12d3eb56040.
+
+**The base rate for `check`.** Every census.gov file held both by bm-obj and by this ingest's fetch is byte-identical (`mirror/shift.py`):
+- water 3,140 / 3,140, rivers 3,140 / 3,140, roads 51 / 51;
+- states, counties, places and population 1 / 1 each;
+- terrain 9,638 / 9,638.
+
+Only GNIS differs (51 / 51, recorded at S-1).
+
+**Predictions, registered before the switch:**
+
+| row | expected |
+|---|---|
+| **M-1**, `check` | all 8 SAME as bm-obj's records, in bytes and sha256 |
+| **M-2**, `final` | passes: the plan is f12d3eb56040 + 8 notes |
+| **M-3**, the dry run's manifest | 16,036 entries; the 8 byte-equal to bm-obj's entries; keys `builder,files,notes,predicates`; `notes` exactly the 8 above |
+| **M-4**, the store against a primary-fetched one: one extra dry run, FIRST, on the original plan bytes (`m4-strip`), then `m4-restore`, then S-2's two | the trees are identical except `store/manifest.json` (the notes key) and `dry-run.json` (its `storeId`, `manifestBytes` and `vectorStoreBytes`) |
+| **M-5**, the rows after it | SEA-OWN, I2, KB7-b and KB7-c-real as registered. The switch moves no url, so it moves nothing at KBOS or KJAC |
+
+**Outside this set:**
+
+| reading | then |
+|---|---|
+| any mirror fetch refused, a 404, or another error | nothing is logged: STOP and report. No local copy exists to fall back on (Temp and `C:\Github` searched) |
+| any file fetched but not SAME | STOP before `rekey`. Its record stays under the mirror url, unused without a ruling |
+| M-3 or M-4 not as above | STOP before S-3 |
+| anything else | stop and decide |
+
+**CI for this push, predicted from the workflows at the merged head.**
+- Main moved to b7184243 (#695, #697). Its one workflow change adds a STEP to `workers.yml`, not a job. This PR's files are unchanged.
+- `git merge-tree` with main: clean.
+- #694's wrangler check on the merged tree: direct 0, stale 0.
+- **Predicted: 36 check runs, 34 success, 2 skipped, 0 failures.** Outside that: STOP, and read which job before anything else.
