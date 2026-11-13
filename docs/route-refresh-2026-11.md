@@ -153,6 +153,21 @@ sample and the canaries. The full per-shard verify runs after that. There is no 
 
 Whichever is chosen, `builtAt` is the time of the LAST successful ingest's seal, including a repair's.
 
+**Ruled by the reviewer, 2026-11-13 16:50:35Z.**
+- **Cost: option (i).** The owner, 16:49Z, verbatim: "Route refresh at ~$4.50: fine, it's under the $10 allowance.
+  Proceed under your ruling." The write-count stop before production stands as registered.
+- **Seal: option (a), for (A) only, on five conditions:**
+  1. The run is done at verify PASS, or at a force-shard repair followed by a second verify PASS. Between the seal and
+     that PASS it is reported as **"sealed, unverified"**, never as done.
+  2. If anything interrupts between the seal and the PASS, the first act on resuming is the verify. Nothing else touches
+     enrich-kv until it passes.
+  3. The healthz-after rows (S4, P4) wait for verify PASS **and** for at least 11 minutes after the seal.
+  4. Production starts only after staging's verify PASS and both of S4's reads.
+  5. **This is a recorded deviation from CLAUDE.md's KV rule:** "write -> verify -> force-shard repair -> verify, and only
+     then seal the meta key". `ingest-routes.ts` seals inside its run, before the full verify. That is accepted for
+     (A) only, because a person runs the loop to the end.
+- **The weekly job (C) must seal last by construction:** a `--no-seal`/`--seal-only` or equivalent, red-first.
+
 ## 4. Predictions, per environment
 
 Each run is stamped line by line in UTC, with stderr kept in its own file. Verifier output is kept whole in a local
