@@ -709,8 +709,18 @@ orchestrator, 18:24:34Z).
 **What goes to the owner (the orchestrator, recommending YES):** r_f = 19.4 km, covering the 10 nmi step, about 45-117 B per map. If he
 picks it: re-register, rebuild, re-stage and re-freeze FT-HR's manifest before 11-15 18:00Z.
 
-**The coupling, UNCONFIRMED:** the map's draw call is map-client's and not on main; the orchestrator is asking map-client whether it
-projects about the same 4-dp home the fetch rounds from.
+**The coupling, answered by map-client (relayed after 18:27:06Z):** the draw (#659 5f13cc21, `AircraftManager.cpp` 3823-3824) centres
+on the stored home at full precision, and places the package by its HEADER origin shifted by origin - home (`MapLayer.h` `AffineFor`
+103-124). **So the bound holds only if the header origin is exactly the 2-dp request point. CONFIRMED from the builder, read-only:**
+- shipping (main 287dc5ece2bc): `handler.ts` 145 parses the request; `query.ts` 62-63 sets `lat0Micro = Math.round(c.lat * 100) *
+  10,000` from `crop.ts` `quantise` (28, `Math.round(x * 100) / 100`), the identity on a 2-dp value; `handler.ts` 92 passes it to the
+  build worker and `worker.ts` 43-46 passes it through unchanged; `build.ts` 63 REFUSES an origin that is not a two-decimal point;
+  82's coverage test only tests; **196 writes the header with `q.lat0Micro`/`q.lon0Micro` exactly.** No snap to a grid, tile or store
+  cell. The same at #696's builder (`build.ts` 106, 266) and in the prototype the packages came from (`pqo/src/basemap/query.ts` 62-63,
+  `pqo/src/wx/crop.ts` 28, `pqo/src/basemap/build.ts` 71, 237).
+- **The built packages' headers** (bytes 8-15, read from the staged files): KBOS-2L 42,360,000 / -71,010,000 for the request "42.36" /
+  "-71.01"; KJFK-2L 40,640,000 / -73,780,000; MIDTOWN-2L 40,750,000 / -73,990,000; KEWR-2L 40,690,000 / -74,170,000; KLGA-2L 40,780,000 /
+  -73,870,000: **each EQUAL to its request centre x 10^6.** So the origin never moves, and nothing adds to the 0.785 km bound.
 
 **FT-HR re-staged** (`C:\Github\_handoffs\map-server\frame-row-packages-hudson\`, sha256 read back after the copies): KBOS-2L
 8676f6bd0df6, KJFK-2L 63d5ce513c7d, MIDTOWN-2L c7d812acf174, KEWR-2L e7f15057f238, KLGA-2L 51caf64fd419, and today's KORD-A0
