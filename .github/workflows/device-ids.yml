@@ -78,3 +78,7 @@ jobs:
       - run: python3 scripts/fresh-boot-cadence.py --selftest
       # The config form as the browser posts it (step 6, R0-R2, K-loc), and F7: a sentinel value reaches no output.
       - run: python3 scripts/fresh-boot-form.py --selftest
+      # The owner's PC adapter, pinned to "Wi-Fi" (never its virtual copy "Wi-Fi 5"): the reader prints four facts and never
+      # netsh's own text (a MAC, a network name); and step 2's exact-name parser (no prefix match).
+      - run: python3 scripts/fresh-boot-wlan.py --selftest
+      - run: pwsh -NoProfile -File scripts/fresh-boot-wifi-join.ps1 -SelfTest

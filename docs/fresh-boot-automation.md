@@ -226,3 +226,38 @@ The rehearsal is three runs:
 | **RH6** | S-noreset: the step-1 check reads RED and the rest pass. S-nooff: the step-6 check reads RED and the rest pass | the sabotage did not show: the acceptance cannot see that step, so stop and report |
 | **RH7** | R2 after each run: every field equal, masked secrets aside; the snapshot removed after the last | the window is NOT closed: E2:08 is left as it is for him, with the snapshot kept |
 | escape | anything the rows above do not name | stop and report, with no reading, and E2:08 left as it is |
+
+### Addendum (2026-11-13 ~06:20Z): his terminal, the pinned adapter, two slots
+
+These change who presses what, and where. They do not change what is graded: RH1-RH7 and the escape row stand as
+frozen, and RH0 gains one refusal (below).
+
+- **He runs the driver in his own terminal** (the owner, 06:01Z). That means Git Bash, launched by its full path
+  (`C:\Program Files\Git\bin\bash.exe`). It is never a bare `bash` from PowerShell, which can resolve to WSL's.
+  - The driver reads his Enter from the terminal it runs in (stdin first).
+  - It copies everything it prints to `bench-logs/fresh-boot-auto-<stamp>.log`, and the session grades from that file.
+  - `--by` stays `blipscope-5c`, because the window and the reservation are the session's.
+- **The PC adapter is pinned to "Wi-Fi"** (the owner, 06:06Z). His internet is on Ethernet, and "Wi-Fi 5" is a
+  virtual copy of the same card.
+  - Step 2's script no longer takes an adapter argument, and it matches the adapter by its exact name.
+  - `scripts/fresh-boot-wlan.py` reads `netsh wlan show interfaces` in-process. It prints four facts only: whether
+    "Wi-Fi" is listed, its state, its radios, and whether "Wi-Fi 5" is listed. netsh's own text carries a MAC and,
+    when connected, a network name, and none of it is printed.
+  - **RH0 now also refuses** unless "Wi-Fi" is listed and disconnected, with both radios on.
+  - Step 2's script refuses at its own start unless "Wi-Fi" is listed and disconnected.
+  - Read at 06:08:41Z: "Wi-Fi" was listed, disconnected, with both radios on; "Wi-Fi 5" was also listed.
+- **R1 is a file he runs**, not a line he copies.
+  - It is a batch file. In a batch file `%%` is one `%`, so `-w "%{http_code}"` survives.
+  - The driver's W3 runs one against a closed port and requires `000` with an empty stderr.
+  - Three broken shapes each read red: a single `%`, a missing data file, and both together.
+- **Two slots** (the owner, relayed 06:04Z):
+  - 18:00-19:30Z: run 1 (`--controls`), then p4.
+  - 20:00-20:50Z: run 2 (`skip-reset`, ~20 min), then run 3 (`skip-off`, ~30 min).
+  - Run 3 starts only if it can finish R2 by 20:50Z, so it must start by 20:20Z. Otherwise it waits for another slot,
+    for time, not failure.
+  - Run 2's R0 snapshots the board as p4 hands it back, so p4's restore is the check on that hand-back.
+- **New controls, each shown red once before being trusted:**
+  - The reader's F1 (no MAC, network name or BSSID reaches its output), under an in-memory plant that appends the
+    address.
+  - Step 2's J4 (with only "Wi-Fi 5" present, "Wi-Fi" reads as not listed), under a planted prefix match.
+  - Both selftests run in `device-ids.yml`.

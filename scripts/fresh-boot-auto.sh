@@ -22,6 +22,13 @@
 #   ./scripts/fresh-boot-auto.sh --by <session> --window "<the owner's window words>" [--candidate <ref>] [--dry-run]
 #   ./scripts/fresh-boot-auto.sh --selftest
 #
+# THE OWNER RUNS IT IN HIS OWN TERMINAL (2026-11-13 06:01Z): Git Bash, launched by its full path, never a bare `bash`
+# from PowerShell (that can resolve to WSL's). It stops for his Enter at K-wifi and R1, reading the terminal it runs
+# in. Everything it prints is copied to bench-logs/fresh-boot-auto-<stamp>.log, which the session grades from.
+#
+# THE PC ADAPTER IS PINNED: "Wi-Fi", never "Wi-Fi 5" (a virtual copy of the same card; the owner, 06:06Z). The
+# preflight refuses unless scripts/fresh-boot-wlan.py reads it listed, disconnected and with both radios on.
+#
 # Exit 0 graded and restored; 1 a check or the restore read red; 2 refused before anything was touched (cadence due,
 # a preflight failed); 3 stopped mid-run (a timeout, a failed POST) -- the report says what state the board is in.
 set -u
@@ -59,6 +66,20 @@ done
 say() { printf '%s %s\n' "$(date -u +%H:%M:%SZ)" "$*"; }
 die() { say "STOPPED: $*"; exit "${2:-3}"; }
 
+# wait_enter: the owner's Enter, from the terminal the script runs in (stdin first: in his own terminal that is the
+# terminal; /dev/tty only when stdin is not one).
+wait_enter() {
+  if [ -t 0 ]; then read -r _; return $?; fi
+  read -r _ < /dev/tty 2>/dev/null
+}
+
+# write_r1 <host> <snapshot, as a Windows path> <out.cmd>: R1 as a BATCH FILE he runs by its path. In a batch file
+# `%%` is one `%` and %USERPROFILE% expands; the selftest runs one against a closed port and requires "000".
+write_r1() {
+  printf '@curl -s -o NUL -w "%%%%{http_code}" -H "X-Blipscope: 1" -H "Content-Type: application/x-www-form-urlencoded" --data-binary "@%s" http://%s/save\r\n@echo.\r\n' "$2" "$1" > "$3"
+}
+winpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
+
 # wait_log <log> <regex> <after-line> <timeout-s>: the first matching line number after <after-line>, or empty.
 wait_log() {
   local log="$1" re="$2" after="$3" t="$4" end n
@@ -88,15 +109,24 @@ if [ "$MODE" = "selftest" ]; then
   n="$(wait_log "$T/log" '\[WiFi\] CONNECTED' 3 15)"; ok "W1 wait_log: a line appended later, past the given line (line $n)" "$([ "$n" = "4" ] && echo 0 || echo 1)"
   # W2: it times out rather than matching an old line.
   n="$(wait_log "$T/log" '\[claim\]' 0 3)"; ok "W2 wait_log: no match -> times out, empty" "$([ -z "$n" ] && echo 0 || echo 1)"
+  # W3: R1's batch file, run by cmd.exe against a closed port: "000" exactly means -w expanded and the data file was
+  # read (a missing one makes curl say so on stderr, which must be empty). Windows only: it needs cmd.exe.
+  if command -v cmd >/dev/null 2>&1; then
+    printf 'x=1\n' > "$T/snap"; write_r1 "127.0.0.1:9" "$(winpath "$T/snap")" "$T/r1.cmd"
+    o="$(cmd //c "$(winpath "$T/r1.cmd")" 2>"$T/r1.err" | tr -d '\r\n')"
+    ok "W3 R1's batch file runs: printed '$o', stderr $(wc -c < "$T/r1.err") bytes" "$([ "$o" = "000" ] && [ ! -s "$T/r1.err" ] && echo 0 || echo 1)"
+  else
+    echo "SKIP W3 (no cmd.exe)"
+  fi
   # P1: the password-file presence check prints present/absent only, and refuses on a missing line.
   # Placeholder-shaped values (<...>): scripts/check_wifi.py refuses a bare network name after ssid[=] in any tracked
   # file, and a placeholder passes it (docs/wifi-scrub.md). They still carry the SENTINEL the check looks for.
   mkdir -p "$T/cfg"; printf 'ssid=<SENTINEL-NET>\npassword=<SENTINEL-PW>\n' > "$T/cfg/bench-wifi"
-  out="$(FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"
   ok "P1 the dry run prints no part of the password file" "$(printf '%s' "$out" | grep -q SENTINEL && echo 1 || echo 0)"
   ok "P1-control: it does print the presence line" "$(printf '%s' "$out" | grep -q 'bench-wifi: present' && echo 0 || echo 1)"
   printf 'ssid=<SENTINEL-NET>\n' > "$T/cfg/bench-wifi"
-  out="$(FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
   ok "P2 a missing password line refuses (exit 2), saying 'absent'" "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -q 'bench-wifi: absent' && echo 0 || echo 1)"
   rm -rf "$T"
   [ $bad -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED: $bad"
@@ -105,11 +135,24 @@ fi
 
 [ -n "$BY" ] && [ -n "$WINDOW" ] || { echo "usage: $0 --by <session> --window \"<the owner's window words>\" [--candidate <ref>] [--dry-run] | --selftest" >&2; exit 2; }
 
+if [ -z "${FBA_SELFTEST_NO_WLAN:-}" ]; then
+  mkdir -p "$ROOT/bench-logs"
+  RUNLOG="$ROOT/bench-logs/fresh-boot-auto-$(date -u +%Y%m%dT%H%M%SZ).log"
+  exec > >(tee -a "$RUNLOG") 2>&1
+  say "run log: $(winpath "$RUNLOG")"
+fi
+
 # ------------------------------------------------------------------------------------------------------- preflight
 say "PREFLIGHT (nothing on the board is touched yet; window: \"$WINDOW\")"
 "${PY[@]}" "$ROOT/scripts/fresh-boot-cadence.py" --candidate "$CAND" || die "the cadence check did not allow an automated run (above)" 2
 bash "$ROOT/scripts/fresh-boot-acceptance.sh" --selftest >/dev/null 2>&1 || die "the acceptance's own --selftest failed" 2
 "${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" --selftest >/dev/null 2>&1 || die "the form helper's --selftest failed" 2
+"${PY[@]}" "$ROOT/scripts/fresh-boot-wlan.py" --selftest >/dev/null 2>&1 || die "the adapter reader's --selftest failed" 2
+if [ -n "${FBA_SELFTEST_NO_WLAN:-}" ]; then
+  say "adapter check SKIPPED (the driver's own selftest)"
+else
+  "${PY[@]}" "$ROOT/scripts/fresh-boot-wlan.py" check || die "the PC adapter \"Wi-Fi\" is not free for step 2 (above): absent, connected to something, or a radio off" 2
+fi
 if [ -f "$WIFI_FILE" ] && [ "$(grep -c '^ssid[=].' "$WIFI_FILE")" = "1" ] && [ "$(grep -c '^password=.' "$WIFI_FILE")" = "1" ]; then
   say "bench-wifi: present"
 else
@@ -165,14 +208,15 @@ if [ "$SABOTAGE" = "skip-reset" ]; then
   IP="$HOST"   # still on its own network: no join, so no CONNECTED line to read an address from
 else
   if [ $CONTROLS -eq 1 ]; then
-    say "K-wifi FIRST (rehearsal only): the owner runs the step-2 command with -Control WrongPassword. The board must STAY in"
-    say "its setup portal: no [WiFi] CONNECTED for 90 s after his command prints 'save: HTTP 200'. Press Enter once it has."
-    read -r _ < /dev/tty || die "K-wifi: no terminal to wait on"
+    say "K-wifi FIRST (rehearsal only). In a second window (PowerShell) the owner runs:"
+    say "    powershell -ExecutionPolicy Bypass -File \"$(winpath "$ROOT/scripts/fresh-boot-wifi-join.ps1")\" -Control WrongPassword"
+    say "The board must STAY in its setup portal: no [WiFi] CONNECTED for 90 s after it prints 'save: HTTP 200'. Press Enter here once it has."
+    wait_enter || die "K-wifi: no terminal to wait on"
     if wait_log "$LOG" '\[WiFi\] CONNECTED' "$L1" 90 >/dev/null; then die "K-wifi: the board JOINED on a wrong password" 1; fi
     say "K-wifi: a wrong password left the board in its portal"
   fi
-  say "STEP 2 IS THE OWNER'S. In his own PowerShell, on the PC adapter that is NOT carrying the LAN, he runs:"
-  say "    powershell -ExecutionPolicy Bypass -File \"$ROOT\\scripts\\fresh-boot-wifi-join.ps1\" -Adapter \"<that adapter's name>\""
+  say "STEP 2 IS THE OWNER'S. In the second window (PowerShell) he runs, on the PC adapter \"Wi-Fi\" (pinned in the script):"
+  say "    powershell -ExecutionPolicy Bypass -File \"$(winpath "$ROOT/scripts/fresh-boot-wifi-join.ps1")\""
   say "It joins Blipscope-XXXXXX, saves his network from his file, and removes the temporary profile. Waiting ${T_WIFI}s for [WiFi] CONNECTED."
   L2="$(wait_log "$LOG" '\[WiFi\] CONNECTED' "$L1" $T_WIFI)" || die "step 2: no [WiFi] CONNECTED after the reset within ${T_WIFI}s; the board is reset and in its setup portal"
   IP="$(sed -n "${L2}p" "$LOG" | sed -n 's/.*IP=\([0-9.]*\).*/\1/p')"
@@ -227,11 +271,11 @@ bash "$ROOT/scripts/fresh-boot-acceptance.sh" --assert-only "$LOG"; GRADE=$?
 # The command names the board's address, which is never logged (board-port.py --host: "for a tool to hold, not to
 # log"), so it goes into a file beside his snapshot and only the file's path is printed.
 R1CMD="$CFGDIR/e208-restore.cmd"
-printf 'curl -s -o NUL -w "%%{http_code}" -H "X-Blipscope: 1" -H "Content-Type: application/x-www-form-urlencoded" --data-binary "@%%USERPROFILE%%\\.config\\blipscope\\e208-snapshot" http://%s/save\r\n' "$HOST" > "$R1CMD"
-say "R1 IS THE OWNER'S: his settings back onto $LABEL. In his own Command Prompt he runs the one line in:"
-say "    $R1CMD"
+write_r1 "$HOST" '%USERPROFILE%\.config\blipscope\e208-snapshot' "$R1CMD"
+say "R1 IS THE OWNER'S: his settings back onto $LABEL. In the second window he runs the file (PowerShell: with & in front):"
+say "    & \"$(winpath "$R1CMD")\""
 say "Press Enter here once it has printed 200."
-read -r _ < /dev/tty || die "R1: no terminal to wait on; the snapshot is kept at $SNAP"
+wait_enter || die "R1: no terminal to wait on; the snapshot is kept at $SNAP"
 s="$(get_page "$HOST" "$WORK/after.html")"; [ "$s" = "200" ] || die "R2: GET / read $s; the snapshot is kept at $SNAP"
 MASKED="$(grep -o 'masked secret fields: .*' <<<"$("${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" body "$WORK/before.html" "$WORK/scratch.body")" | sed 's/masked secret fields: //; s/none//; s/,//g')"
 if "${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" compare "$SNAP" "$WORK/after.html" ${MASKED:+--ignore $MASKED}; then

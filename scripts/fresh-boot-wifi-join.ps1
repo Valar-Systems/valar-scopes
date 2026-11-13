@@ -4,22 +4,79 @@
 # It is his command, not a session's, because it does two things no session does on his behalf: it saves his real
 # bench Wi-Fi password into the board's setup form, and it adds (then removes) a Wi-Fi profile on this PC.
 #
-# What it does, on the adapter he names (the one NOT carrying the LAN):
+# THE ADAPTER IS PINNED to "Wi-Fi" (the owner, 2026-11-13 06:06Z: his internet is on Ethernet, so "Wi-Fi" is free;
+# "Wi-Fi 5" is a virtual copy of the same card and is never used). Matched by its EXACT name, so "Wi-Fi 5" can never
+# answer for it. What it does:
+#   0. refuses unless "Wi-Fi" is listed and disconnected;
 #   1. reads ssid= and password= from %USERPROFILE%\.config\blipscope\bench-wifi (never printed);
 #   2. finds exactly one open setup network named Blipscope-XXXXXX (waits up to 120 s; refuses if two are in range);
 #   3. adds a temporary open profile for it and connects;
 #   4. posts the save form to the board's portal (192.168.4.1/wifisave: s=, p=), in-process, never on a command line;
 #   5. disconnects and removes the profile, ALWAYS (finally), so the PC is left as it was.
 # It prints only what happened: never the setup network's name (it carries part of the board's MAC), his network's
-# name or his password.
+# name, his password, or anything else `netsh` says (which includes the adapter's own MAC).
 #
-#   powershell -ExecutionPolicy Bypass -File scripts\fresh-boot-wifi-join.ps1 -Adapter "Wi-Fi 2"
+#   powershell -ExecutionPolicy Bypass -File scripts\fresh-boot-wifi-join.ps1
 #   ... -Control WrongPassword     K-wifi, rehearsal only: posts a fixed WRONG password (never his), so the board must
 #                                  stay in its setup portal; then run it again without -Control
-param([Parameter(Mandatory = $true)][string]$Adapter, [ValidateSet("", "WrongPassword")][string]$Control = "")
+#   ... -SelfTest                  the interface parser against synthetic text only; touches no adapter, no file
+param([ValidateSet("", "WrongPassword")][string]$Control = "", [switch]$SelfTest)
 $ErrorActionPreference = "Stop"
+$Adapter = "Wi-Fi"
 
 function Say([string]$m) { Write-Host ("{0} {1}" -f (Get-Date).ToUniversalTime().ToString("HH:mm:ssZ"), $m) }
+
+# The block of `netsh wlan show interfaces` whose Name is EXACTLY $name, as @{Name; State; Ssid}, or $null.
+# In-process only: that text carries a MAC, and when connected a network name.
+function Get-WlanBlock([string]$text, [string]$name) {
+  $cur = $null; $hit = $null
+  foreach ($raw in ($text -split "`r?`n")) {
+    $line = $raw.Trim()
+    if ($line -match '^Name\s*:\s*(.*)$') {
+      $cur = @{ Name = $Matches[1].Trim(); State = ""; Ssid = "" }
+      if ($cur.Name -eq $name) { $hit = $cur }
+      continue
+    }
+    if ($null -eq $cur) { continue }
+    if ($line -match '^State\s*:\s*(.*)$') { $cur.State = $Matches[1].Trim() }
+    elseif ($line -match '^SSID\s*:\s*(.*)$') { $cur.Ssid = $Matches[1].Trim() }
+  }
+  return $hit
+}
+
+if ($SelfTest) {
+  # Synthetic only: a locally administered address and <...> placeholders (scripts/check_macs.py, check_wifi.py).
+  $sample = @"
+    Name                   : Wi-Fi
+    Physical address       : 02:00:5e:fb:a0:01
+    State                  : {0}
+    SSID                   : {1}
+    AP BSSID               : <FBA-SENTINEL-BSSID>
+    Radio status           : Hardware On
+                             Software On
+
+    Name                   : Wi-Fi 5
+    Physical address       : 02:00:5e:fb:a0:02
+    State                  : connected
+    SSID                   : <FBA-SENTINEL-OTHER>
+"@
+  $bad = 0
+  function Ok([string]$n, [bool]$c) { if ($c) { Write-Host "PASS $n" } else { Write-Host "FAIL $n"; $script:bad++ } }
+  $b = Get-WlanBlock ($sample -f "disconnected", "") "Wi-Fi"
+  Ok "J1 'Wi-Fi' found by exact name, disconnected" ($b -and $b.State -eq "disconnected" -and $b.Name -eq "Wi-Fi")
+  $b = Get-WlanBlock ($sample -f "connected", "<FBA-SENTINEL-AP>") "Wi-Fi"
+  Ok "J2 connected to the setup network reads as joined" ($b -and $b.State -eq "connected" -and $b.Ssid -eq "<FBA-SENTINEL-AP>")
+  Ok "J3 the virtual copy's network never answers for 'Wi-Fi'" ($b.Ssid -ne "<FBA-SENTINEL-OTHER>")
+  $only5 = ($sample -f "x", "") -split "(?m)^\s*$" | Where-Object { $_ -match "Wi-Fi 5" }
+  Ok "J4 only 'Wi-Fi 5' present -> 'Wi-Fi' not listed (no prefix match)" ($null -eq (Get-WlanBlock ($only5 -join "`n") "Wi-Fi"))
+  Ok "J5 'AP BSSID' is never read as the SSID" ((Get-WlanBlock ($sample -f "connected", "") "Wi-Fi").Ssid -eq "")
+  if ($bad -eq 0) { Write-Host "SELFTEST PASSED"; exit 0 } else { Write-Host "SELFTEST FAILED: $bad"; exit 1 }
+}
+
+$blk = Get-WlanBlock ((netsh wlan show interfaces) -join "`n") $Adapter
+if (-not $blk) { Say "adapter `"$Adapter`": not listed. Nothing done."; exit 2 }
+if ($blk.State -ne "disconnected") { Say "adapter `"$Adapter`": not free (it must be disconnected at the start). Nothing done."; exit 2 }
+Say "adapter `"$Adapter`": listed, disconnected"
 
 $file = Join-Path $env:USERPROFILE ".config\blipscope\bench-wifi"
 if (-not (Test-Path $file)) { Say "bench-wifi: absent. Nothing done."; exit 2 }
@@ -36,7 +93,7 @@ while (-not $ap -and (Get-Date) -lt $end) {
   if ($found.Count -gt 1) { Say "two or more Blipscope setup networks are in range: refusing to guess. Nothing done."; exit 2 }
   if ($found.Count -eq 1) { $ap = $found[0] } else { Start-Sleep -Seconds 5 }
 }
-if (-not $ap) { Say "no Blipscope setup network on adapter '$Adapter' within 120 s. Nothing done."; exit 2 }
+if (-not $ap) { Say "no Blipscope setup network on adapter `"$Adapter`" within 120 s. Nothing done."; exit 2 }
 Say "setup network found (1)"
 
 $xml = Join-Path $env:TEMP ("fba-" + [guid]::NewGuid().ToString("N") + ".xml")
@@ -57,8 +114,8 @@ try {
   netsh wlan connect name="$ap" ssid="$ap" interface="$Adapter" | Out-Null
   $joined = $false; $end = (Get-Date).AddSeconds(30)
   while (-not $joined -and (Get-Date) -lt $end) {
-    $block = (netsh wlan show interfaces) -join "`n"
-    $joined = $block -match ("(?s)Name\s*:\s*" + [regex]::Escape($Adapter) + ".*?State\s*:\s*connected.*?SSID\s*:\s*" + [regex]::Escape($ap))
+    $b = Get-WlanBlock ((netsh wlan show interfaces) -join "`n") $Adapter
+    $joined = [bool]($b -and $b.State -eq "connected" -and $b.Ssid -eq $ap)
     if (-not $joined) { Start-Sleep -Seconds 2 }
   }
   if (-not $joined) {
