@@ -2334,7 +2334,7 @@ Not re-running B0 to get 38/0/0 was right: that would have been choosing the dat
 | S1 (c″) | staging commit `b7184243`; version `1f1a0fae` unless moved | `b7184243`; `1f1a0fae` at 100 (re-read 17:05:06Z). As predicted |
 | D-S1 | builtAt 2026-08-25T23:31:26.817Z, rows 619103, stale true, maxAgeDays 14, ageDays 79 before 23:31:26Z | 17:04:48Z: exactly those, ageDays 79. As predicted |
 | S2 | one new line, the last: `wx.shsr routed=false age=<0..600> stale=false` | `wx.shsr routed=false age=169 stale=false`, last of 12; the other 11 keep B0's shape. As predicted |
-| S3 | shsr 200 WXC1, an ETag, age ≤ 600 s; cref 200 WXC1 | 17:04:04Z+: shsr 200 WXC1, ETag `wx1-shsr-1794589320-44.06_-121.32_160`, age 184 s; cref 200 WXC1 (test-key-staging). As predicted |
+| S3 | shsr 200 WXC1, an ETag, age ≤ 600 s; cref 200 WXC1 | 17:05:04Z: shsr 200 WXC1, ETag `wx1-shsr-1794589320-44.06_-121.32_160`, age 184 s; cref 200 WXC1 (test-key-staging). As predicted |
 | D1 (c″) | exit 0; behind check does not block; confirm-deploy settles on `aa40aa43` | 17:05:20Z to 17:05:31Z: exit 0. "1 commit(s) behind origin/main touch nothing under proxy/ or in the machinery (not blocking)". Version `69072b90`. "confirmed: /healthz reports commit=aa40aa43". As predicted |
 | D-P2 (c″) | `aa40aa43` | 17:05:47Z: `aa40aa43`. As predicted |
 | D-P1 (c‴) | 78 before 17:25:54.476Z; builtAt 2026-08-26T17:25:54.476Z, rows 619103, stale true, maxAgeDays 14 | 17:05:47Z (Cloudflare Date 17:05:48Z, outside ±60 s): ageDays 78 and exactly those fields. As predicted |
@@ -2362,3 +2362,27 @@ Not re-running B0 to get 38/0/0 was right: that would have been choosing the dat
 >
 > Run D4 and D5 as registered. Off on shsr (FAIL 0 on the other 37 already stands): your registered rollback rule
 > applies. As predicted: release the claim and send "closed and verified" with the production version 69072b90.
+
+**Closing rows:**
+
+| row | predicted | read |
+|---|---|---|
+| D4 | shsr 200 WXC1, ETag `wx1-shsr-<epoch>-44.06_-121.32_160`, frame age ≤ 600 s | 17:10:38Z: shsr 200 WXC1, ETag `wx1-shsr-1794589680-44.06_-121.32_160`, age 158 s; cref 200 WXC1. As predicted |
+| D5 | three reads 150 s apart; shsr's `X-Wx-Frame` advances at least once; cref 200 WXC1 each time | 17:10:51Z, 17:13:25Z, 17:15:59Z: frames `1794589680`, then `1794589800`, then `1794590040`, so it advanced twice (ages 171, 205, 119 s); cref 200 WXC1 at all three. As predicted. The third cref read took 22 s (information) |
+| read-back | production `aa40aa43`, `69072b90` | 17:16:33Z: `/healthz` commit `aa40aa43`; `69072b90` at 100 |
+
+**Closed and verified, 17:16:40Z.** The claim was released at 17:16:40Z (deploy free) and the reviewer was told.
+- Production runs `69072b90` (`aa40aa43`), with `/wx/shsr` served and `/healthz` carrying `routes`.
+- Staging runs `1f1a0fae` (`b7184243`): the same bundle, untouched.
+- No rollback was needed. The rollback target was `0f4cf9bb`.
+- `/v1/photo` is verified on the new Worker.
+- uk-data's route refresh, (A), was gated on this report.
+
+**Off-set events in this run, and how each was settled before its row was graded:**
+1. Main moved twice: #698, then #699. Both are unbundled, so the run deployed `aa40aa43` as registered in c″.
+2. D-P1's day counts were one day off, in the registration. Corrected in c‴ before any production `routes` read, and
+   ruled at 16:45:28Z.
+3. B0's photo SKIPPED was outside the set. Stopped; ruled at 17:02:15Z.
+4. D-P3's titles carried live tokens. Stopped without a rollback; ruled at 17:08:43Z as check identity.
+
+(The S3 row's time above was first written "17:04:04Z+"; it is 17:05:04Z, from the probe's own stamp.)
