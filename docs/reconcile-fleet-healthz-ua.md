@@ -92,3 +92,10 @@ The STALE line is the reading the block exists for: the route mirror is 79 days 
 this change, no run of this tool could show it.
 
 Not run locally: WSL `python3`. CI's workers job runs the selftest on Ubuntu.
+
+## CI (#705, recorded after the merge so the approved head did not move)
+
+At `2a6ce38ed3f8c339bee19ebb6f5724682896115d`, read by full sha at 17:57:46Z and 17:59:00Z: **36 = 34 success / 2
+skipped / 0 other**. The registration predicted 35 = 33/2/0 "as #679", so the count is **OFF by one**. The differing
+job is `build (blipscope-s3-128-cardbench)`, #674's matrix row, which merged after #679's run. The registration's
+guess (#694/#695) was wrong. It is not a defect: every check passed. Merged as 287dc5ece2bc.
