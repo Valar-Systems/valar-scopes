@@ -162,8 +162,12 @@ row is graded before the next is read.
   scene with the same settle and the same measured span, inside one E2:08 window. The images are built first and the
   sha of each is recorded before the first flash.
 - **The noise:** N = |p95(A2) − p95(A1)|, read before B is graded.
+- **The error bar (the orchestrator's refinement, 00:15:35Z):** E = max(N, U). A single A1/A2 pair can land close by
+  luck, and that must not shrink the bar below the instrument's own floor. U is the bench's within-session U95:
+  **1.54 ms**, I-6's measured p95 noise on map-client's bench (`baseline_b.out`, `29d24028cec9`), or the same
+  window's own CTRL repeat |Δp95| if the run carries one, whichever is larger.
 - **M3's cut:** cut = mean(p95(A1), p95(A2)) − p95(B).
-- **The grade.** C1's band (≥ 20 on track; 10-20 partial; < 10 failed) is assigned only if cut − N and cut + N fall
+- **The grade.** C1's band (≥ 20 on track; 10-20 partial; < 10 failed) is assigned only if cut − E and cut + E fall
   in the SAME band. If they straddle a boundary, the row reports the straddle with both ends and goes to the
   orchestrator. It is not rounded into a band.
 - **The stop: N > 5 ms.** That is the escape hatch speed-plan 2a uses for the same bench. The bench then cannot grade a
