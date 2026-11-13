@@ -532,6 +532,14 @@ const SABOTAGES = {
     edits: [["keyed: nameKeyOf(env.BASEMAP_NAME_KEY) !== undefined };\n", "keyed: true }; // SABOTAGE S-NKHEALTH\n"]],
     expect: ["NK6"],
   },
+  // MN7's plant (the owner's red-first ruling, 05:01Z; registered at 1c44790b): today's tolerance-indexed sum put back. Under EPS_STEP 2
+  // the four tolerances are distinct, so only MN7 (two sets at one tolerance) sees it; S-BTWICE is the second catcher
+  "S-RBMAP": {
+    file: BUILD, set: "all",
+    edits: [["  for (const s of sets) n += (s.refusedW ?? 0) + (s.seaW?.n.refused3 ?? 0);\n",
+             "  const byTol: Record<number, (typeof sets)[number]> = {}; for (const s of sets) byTol[s.tolMm] = s; // SABOTAGE S-RBMAP\n  for (const s of Object.values(byTol)) n += (s.refusedW ?? 0) + (s.seaW?.n.refused3 ?? 0);\n"]],
+    expect: ["MN7"],
+  },
   "S-MX1": {
     file: BUILD, set: "all",
     edits: [["export const READ_AHEAD = 6;", "export const READ_AHEAD = 1; // SABOTAGE S-MX1: one at a time"]],
@@ -589,7 +597,9 @@ const SABOTAGES = {
     // pq4d "limit1": the repair's limit 64 -> 1 (its one use is step 4a's repairRings call)
     file: FRAME, set: "sea",
     edits: [["export const SEA_REPAIR_LIMIT = 64;", "export const SEA_REPAIR_LIMIT = 1; // SABOTAGE S-KB-REPAIRLIMIT"]],
-    expect: ["XISLAND", "XISLAND-TALL", "T-SEALOG"],
+    // Re-registered before the re-run (c3e0faa0), the off reading kept: under limit 1 each build still yields exactly one counts-only
+    // line (the 500's), so T-SEALOG stays green; S-SEALOG-POINT, S-KB-REPAIROFF and S-KB-ORDER catch it. {..., T-SEALOG} stays on record
+    expect: ["XISLAND", "XISLAND-TALL"],
   },
   "S-KB-REPAIROFF": {
     // (C)'s control, the code before (B'): step 4a removed (run 9's reading: xisland refused at step 5)

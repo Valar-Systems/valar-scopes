@@ -35,7 +35,8 @@ interface FetchRecord { bytes: number; sha256: string; lastModified: string | nu
 type FetchLog = Record<string, FetchRecord>;
 
 /** Every request says who is asking (ruled 2026-10-28, after census.gov's firewall refused two files). */
-const UA = { "User-Agent": "BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes)" };
+// The owner (05:01Z 2026-11-13, superseding the 2026-10-28 ruling): "add support@valarsystems.com, and keep the repo's web address beside it"
+const UA = { "User-Agent": "BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes; support@valarsystems.com)" };
 
 /** The fetch log, with the retry's own records merged in read-only (the retry writes only retry-fetched.json,
  *  so two processes never write one file). A merged record is used only where the main log has none. */

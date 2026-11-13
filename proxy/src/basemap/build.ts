@@ -93,10 +93,9 @@ export function squareBox(f: Frame, rMm: number): Box {
  * can be handed in (MN7; the owner's ruling, 05:01Z).
  */
 export function refusedBuiltOf(sets: Array<{ tolMm: number; refusedW?: number; seaW?: { n: { refused3: number } } }>): number {
-  const byTol: Record<number, (typeof sets)[number]> = {};
-  for (const s of sets) byTol[s.tolMm] = s;
+  // each set once: NOT indexed by tolerance, where two sets at one tolerance would hold one entry (S-BTWICE's catch; ruled (i) after 05:0xZ)
   let n = 0;
-  for (const s of Object.values(byTol)) n += (s.refusedW ?? 0) + (s.seaW?.n.refused3 ?? 0);
+  for (const s of sets) n += (s.refusedW ?? 0) + (s.seaW?.n.refused3 ?? 0);
   return n;
 }
 interface Content { water?: Pt[][]; roads?: Road[]; rivers?: Rivers; collapsed: Partial<Record<Layer, number>>; refusedW?: number; seaW?: WaterRings["sea"] }
