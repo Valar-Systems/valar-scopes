@@ -26,12 +26,14 @@ makes it urgent is piece (B).
 4. **Who reads it, ruled:**
    - a failed or refused run opens or updates a GitHub issue labelled `route-refresh`;
    - `reconcile-fleet.py` prints the count of open `route-refresh` issues;
-   - ntfy to the owner's phone is offered to him as an option, not built by default.
+   - ntfy to the owner's phone: **the owner said yes, on failure only** (18:16Z). The topic is a secret, and the
+     message carries no ids and no positions (section 2.2, SC4).
 5. **Cost is checked on staging first:** a key-level staging run's writes are predicted, then read from analytics,
    before production is scheduled.
 6. **`ROUTES_FREEZE_UNTIL`:** the plan states who sets it and how, and a red-first test proves that a set freeze
    actually skips the run. A freeze that is quietly ignored is worse than none.
-7. **The test identity as CI secrets is the owner's call** (a credential), and has been put to him.
+7. **The test identity as CI secrets:** **the owner said yes, on conditions** (18:16Z). Section 2.2 lists the
+   secrets and SC1-SC5, the checks that prove the conditions.
    - Until he answers, (C) runs with the live-path read-back off, and that step reports **"not run"**. It is never
      skipped silently.
 8. **The weekly verify checks VALUES for every changed and added key, not only presence** (ruled 18:02:49Z).
@@ -89,12 +91,41 @@ exact set difference is 827.
   time it writes nothing and says so in the step summary. Whoever schedules a recording sets it, because a route
   change mid-recording alters the cards being recorded.
 
-### 2.2 Credentials: the owner's gate
+### 2.2 Credentials: the owner said yes, on conditions (2026-11-13 18:16Z, relayed verbatim)
 
-| what | where it comes from |
-|---|---|
-| KV writes | the existing repository secret `CLOUDFLARE_API_TOKEN` (Workers KV Storage: Edit), which `refresh-data.yml` already uses every Monday. No new KV credential. |
-| the live-path read-back (the ingest's sentinel and canaries) | the **test identity**, which today exists only in the token file (`resolveTestIdentity` has no CI path). It needs three new secrets (`test-device`, `test-key`, `test-key-staging`), written by the job into a 0600 token file outside the workspace. **Putting the test identity into CI is the owner's decision.** Without it, the job can prove its writes only by direct KV reads, which the ingest's rule 3 calls the weaker proof. |
+> "5. Yes, GitHub Actions secrets in one environment, with these conditions:
+>    - deployment limited to main;
+>    - no workflow triggered by pull_request_target or a fork can use it;
+>    - a new token made only for this job, with the smallest scope it needs;
+>    - I enter it in GitHub's settings page myself, and no session handles the value;
+>    - nothing echoes it in logs.
+>  ntfy: yes, on failure only. The topic name goes in a secret, and the message carries no ids or positions."
+
+**The environment** is a GitHub Actions environment named `routes-refresh`. Only `routes-refresh.yml`'s two jobs name
+it. **Every secret below is new, made only for this job, and entered by the owner on GitHub's settings page. No
+session ever sees a value.**
+
+| secret | what the owner creates | the smallest scope, and what it still allows |
+|---|---|---|
+| `ROUTES_KV_TOKEN` | a NEW Cloudflare API token, preferably account-owned (it outlives any one user). It is not `refresh-data.yml`'s `CLOUDFLARE_API_TOKEN`. Expiry date: the owner's choice, with a calendar reminder | **Account > Workers KV Storage > Edit, on this one account, nothing else.** Wrangler's `kv` commands need no other permission: `account_id` is in `wrangler.toml`, and `refresh-data.yml` runs the same commands on a KV-only token. **Stated plainly:** Cloudflare offers no per-namespace KV scope, so this token can read and write EVERY KV namespace on the account, not only the two route namespaces. Client-IP filtering is not usable, because GitHub's runners have no fixed IPs. |
+| `ROUTES_TEST_DEVICE`, `ROUTES_TEST_KEY`, `ROUTES_TEST_KEY_STAGING` | a NEW test identity for this job alone, minted by the OWNER with `proxy/scripts/mint-test-identity.ts` into a scratch token file of his own, never the shared one. The values go from that file into GitHub's page. The script prints booleans and lengths only | a device identity whose id is no board's: a fresh random MAC with the locally-administered bit set (`docs/test-identity.md`). Device keys have no per-route scope, so it can call every device endpoint (`/v1/*`), and nothing administrative, no KV and no deploy. **One consequence:** the new id enrols like any device, so `reconcile-fleet.py` must leave it out as it leaves out `test-device`. The owner adds a `ci-test-device` line to his own token file, and reconcile excludes both. |
+| `ROUTES_NTFY_TOPIC` | the ntfy topic name | used on FAILURE only (section 4) |
+
+The workflow's own `GITHUB_TOKEN` gets `issues: write` and `contents: read`, and nothing else, for the
+`route-refresh` issue.
+
+**The rows that prove the conditions:** each is red-first, with its control, in the code registration.
+
+| row | condition | the check |
+|---|---|---|
+| **SC1** | "no workflow triggered by pull_request_target or a fork can use it" | a static check over EVERY file in `.github/workflows/`. Any file that names `environment: routes-refresh`, or any `ROUTES_*` secret, must have triggers that are a subset of {`schedule`, `workflow_dispatch`}. No `pull_request`, `pull_request_target`, `workflow_run` or `push`. Each job using the environment has `if: github.ref == 'refs/heads/main'`. **Red-first:** a copy with `pull_request_target:` planted reads red; so does a second, otherwise clean workflow that names the environment. **Control:** the real file reads green |
+| **SC2** | "deployment limited to main" | after the owner sets it, read from the API as booleans: `GET /repos/.../environments/routes-refresh` has `deployment_branch_policy.custom_branch_policies == true`; `GET .../deployment-branch-policies` gives a branch-policy name list that `== ["main"]`; the environment's secret NAMES equal the five above (names only; the API never returns values). Printed as `main-only: true`, `secrets: 5 of 5`. Until the owner sets it, it prints `not set` and the workflow does not run |
+| **SC3** | "nothing echoes it in logs" | a static scan of `routes-refresh.yml`: `${{ secrets.* }}` may appear only as an `env:` value, never inside `run:` text. No `set -x`, `printenv`, bare `env`, `echo $ROUTES_*`, `cat` of the token file, or any transform of a secret (base64, cut, sed), because GitHub masks only the exact secret string. **Red-first:** planted `run: echo ${{ secrets.ROUTES_KV_TOKEN }}` and planted `set -x` each read red. **Control:** the real file reads green. GitHub's masking is the second layer |
+| **SC4** | ntfy "no ids or positions" | the message is a FIXED template: `route refresh <env>: <failure class>; writes <n>, deletes <n>; refused by <guard or none>`. The failure class is one of a closed set. A test renders every class and asserts that no 16-hex run (`[0-9a-f]{16}`) and no coordinate (`-?\d{1,3}\.\d{2,}`) appears. **Control:** every rendered message is non-empty and names its class |
+| **SC5** | "a new token made only for this job" | the workflow reads ONLY the five `ROUTES_*` secrets. A static check finds no other `secrets.` reference in `routes-refresh.yml`, so `CLOUDFLARE_API_TOKEN` can never be reached by mistake. **Red-first:** a planted `secrets.CLOUDFLARE_API_TOKEN` reads red |
+
+**Until the owner has entered the secrets,** SC2 reads `not set`, the job refuses to start, and the plan's "read-back
+not run" path (condition 7) stays the design for any attended run made before then.
 
 ### 2.3 The writer: key-level, not shard-level
 
