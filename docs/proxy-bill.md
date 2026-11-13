@@ -633,3 +633,47 @@ reader is committed with its sha before it runs, and it runs twice, at least 60 
 | escape | an id, state or reason outside the source's lists; the two reads disagree; a sampled hour | the instrument is unreliable at this scale: stop and report, with no reading |
 
 **The reader:** `tools/bill/breaker_skip_read.py`, blob **`f73b98e55a6b`**, committed here before it runs. Its 10-minute slices need an event timestamp; it counts any event without one, and prints that count.
+
+**Read, and graded** (reader blob `f73b98e55a6b`; the hour `[2026-11-13T00:00Z, 01:00Z)`; reads at 01:10:51Z and
+01:12:12Z, 66 s after the first ended, **identical**; unsampled; no event without a timestamp).
+
+| `breaker` (id, state) | count | max consecutiveFailures | per 10-minute slice |
+|---|---|---|---|
+| `adsb_lol_route`, reopened | 324 | 113 | 62, 54, 61, 60, 41, 46 |
+| `adsb_lol_route`, open | 25 | 3 | 4, 4, 5, 5, 4, 3 |
+| `adsb_lol`, reopened | 10 | 13 | 0, 10, 0, 0, 0, 0 |
+| `adsb_lol_b`, reopened | 1 | 4 | 0, 1, 0, 0, 0, 0 |
+| `adsb_lol`, open | 1 | 3 | 0, 1, 0, 0, 0, 0 |
+| `adsb_lol_b`, open | 1 | 3 | 0, 1, 0, 0, 0, 0 |
+| any id, closed | **0** | | |
+
+| `upstream_skip` (id, reason) | count | per 10-minute slice |
+|---|---|---|
+| `adsbdb_route`, disabled_by_config | 733 | 146, 130, 127, 129, 93, 108 |
+| `adsb_lol_route`, breaker_open | 304 | 66, 57, 48, 52, 33, 48 |
+| `adsb_fi_b`, hold_4xx | 104 | 9, 37, 46, 2, 8, 2 |
+| `adsb_fi`, hold_4xx | 34 | 0, 12, 22, 0, 0, 0 |
+
+**Grades:**
+- **B1: HOLDS.** `closed` is **0** of 362; `reopened` is 335 (92.5%). **Nothing flapped.**
+- **B3: HOLDS.** `adsb_lol_route` carries 349 of 362 (96.4%).
+- **S1: HOLDS.** `(adsbdb_route, disabled_by_config)` is 733 of 1,175 (62.4%).
+- **S2: HOLDS.** adsb.fi's holds reach the chains: 34 skips on `adsb_fi`, 104 on `adsb_fi_b`.
+- **Escape: not taken.** No id, state or reason outside the source's lists; the two reads are identical; the hour was
+  unsampled.
+
+**What the shape says, by the table registered above:**
+- **`adsb_lol_route` (adsb.lol's routeset) was in a CONTINUING OUTAGE for the whole hour.** It matches the "isolate
+  starts during a continuing outage" row on every column:
+  - `open` scattered evenly across the slices (one per isolate that met it);
+  - `reopened` steady across the slices;
+  - no `closed` at all;
+  - one isolate saw 113 failures in a row.
+- **Its effect:** with adsbdb's route switched off by config, a route lookup that misses the `rt:` mirror reaches no
+  upstream that answers.
+- **This is a different failure from the one CLAUDE.md records.** There the routeset answered 201 with an empty body,
+  which the breaker counts as SUCCESS ("alive but empty"). Every probe in this hour FAILED.
+- Why it fails, and since when, this read cannot tell.
+- **Recorded, not read:**
+  - `adsb_lol` and `adsb_lol_b` (the aircraft feed, both relays) had one short episode, in the 00:10-00:20 slice;
+  - adsb.fi's 4xx holds were concentrated in 00:10-00:30.
