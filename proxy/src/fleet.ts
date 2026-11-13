@@ -51,7 +51,8 @@
 // of names: fw: keys are device ids, and a name printed reaches the transcript (docs/wrangler-run.md):
 //
 //     node scripts/wrangler-run.mjs kv key list --binding ENRICH_KV --prefix fw: --env production --remote | python -c "import json,sys; print(len(json.load(sys.stdin)))"
-//     kv_has "fw:<device>"    # CLAUDE.md's evidence table: present / absent / cannot tell, never the key
+//     kv_has "fw:$id"         # CLAUDE.md's evidence table: present / absent / cannot tell, never the key;
+//                             # the id from a variable or a file, never typed (a typed id lands in the transcript)
 //
 // Not `kv key get ... > /dev/null && echo present || echo absent`: on a missing key wrangler's stderr carries the key
 // in the request URL, and every failure (a 401, a missing --binding) reads as "absent" (docs/wrangler-run.md).

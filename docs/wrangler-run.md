@@ -125,8 +125,9 @@ wrong:
 - **Every failure reads "absent".** A fake token answers HTTP 401. A run from the repo root never reaches the API,
   because there is no `[env.production]` there. Both exit non-zero.
 
-CLAUDE.md's `kv_has` (#704) is what replaced the row. It counts only an HTTP 404 as absent, never shows stderr, runs
-from `proxy/`, and asks `meta:airports` first, an anchor in the same ENRICH_KV namespace. The same one-liner in
+CLAUDE.md's `kv_has` (#704, then the pipe form in #706) is what replaced the row. It counts only an HTTP 404 as absent,
+never shows stderr, reads it through a pipe so nothing reaches disk, runs from `proxy/`, and asks `meta:airports`
+first, an anchor in the same ENRICH_KV namespace. The same one-liner in
 `proxy/src/fleet.ts`'s runbook now points at `kv_has`. Its key list gains `--binding ENRICH_KV`, without which wrangler
 refuses before any API call.
 

@@ -1426,24 +1426,35 @@ The check is always available:
 | "this id is a real device" | the registry, asked as one yes/no: `kv_has`, under this table. Never a key list on `enr:dev:`, which prints every device id |
 | "this annotation is a record" | nothing — **which is the point.** If provenance cannot be established, it is prose |
 
-The registry row prints present, absent or "cannot tell", never the key or its value
-([docs/wrangler-run.md](docs/wrangler-run.md)). A plain `kv key get ... > /dev/null` gets two
-things wrong: on a missing key wrangler's error line on stderr carries the request URL, key
-included; and a 401 or a missing `wrangler.toml` exits non-zero too, so "non-zero means absent"
-answers absent for every id. Only an HTTP 404 is absent, and only after the anchor says present:
+The registry row prints present, absent or "cannot tell", never the key or its value, and
+`kv_has` itself writes nothing to disk ([docs/wrangler-run.md](docs/wrangler-run.md)). A plain
+`kv key get ... > /dev/null` gets two things wrong: on a missing key wrangler's error line on
+stderr carries the request URL, key included; and a 401 or a missing `wrangler.toml` exits
+non-zero too, so "non-zero means absent" answers absent for every id. Only an HTTP 404 is absent,
+and only after the anchor says present. Three details are load-bearing:
+
+- `err=$(...)` is a plain assignment. `local err=$(...)` resets `$?` to 0, and every id would read
+  "present".
+- grep is fed by `printf`, never a here-string (`<<<`): bash before 5.1 writes a here-string to a
+  temp file, which is the copy on disk this form exists to avoid. `err` is unset after.
+- The id comes from a variable or a file, never typed into the call: a typed id lands in the
+  session transcript, on disk.
 
 ```sh
-kv_has() {  # present / absent / cannot tell; never the key, never the value
-  e=$(mktemp)
-  (cd "$(git rev-parse --show-toplevel)/proxy" && node scripts/wrangler-run.mjs kv key get "$1" \
-     --binding ENRICH_KV --env production --remote) >/dev/null 2>"$e"; rc=$?
-  s=$(grep -o -E ' - [0-9]{3}: ' "$e" | head -1 | tr -dc 0-9); rm -f "$e"
+kv_has() {  # present / absent / cannot tell; never the key, never the value, nothing on disk
+  err=$( (cd "$(git rev-parse --show-toplevel)/proxy" && node scripts/wrangler-run.mjs kv key get "$1" \
+     --binding ENRICH_KV --env production --remote) 2>&1 >/dev/null ); rc=$?
+  s=$(printf '%s\n' "$err" | grep -o -E ' - [0-9]{3}: ' | head -1 | tr -dc 0-9); unset err
   if [ $rc -eq 0 ]; then echo present; elif [ "$s" = 404 ]; then echo absent
   else echo "cannot tell: exit $rc, HTTP ${s:-none}"; fi
 }
-kv_has meta:airports    # the anchor, same namespace: present, or the next line proves nothing
-kv_has "enr:dev:<id>"   # the question
+kv_has meta:airports                 # the anchor, same namespace: present, or the next line proves nothing
+read -r id < "$ID_FILE"              # one id, from a file outside the repo; never typed
+kv_has "enr:dev:$id"; unset id       # the question
 ```
+
+The helper still gives wrangler's own debug log a per-call temp folder and removes it when the call
+ends. That folder is wrangler-run.mjs's to close, not `kv_has`'s.
 
 Corollary, which is the fix for the third row: **unlabelled real data is a trap
 with the sign flipped.** The RMA annotation cost an hour precisely because nobody
