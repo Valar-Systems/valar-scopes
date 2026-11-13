@@ -639,6 +639,65 @@ corridor number.** No corridor reading is claimed for any option.
   unplanted geometry first), +-0.05 km, with a sanity range of 10.0-14.5 px (the frozen 11.0-14.5 assumed straddling).
 - C1, C2's member count and "unchanged" rows, C2b, C3 and C4 as frozen in 5g otherwise.
 
+### 5i. The owner picks option 2-L; his 17 km check, answered from the code, and its proof registered before it runs
+
+**The owner (18:16Z 2026-11-13, relayed verbatim by the orchestrator at 18:17:57Z):**
+
+> "3. Hudson: option 2-L. I've looked at all ten pictures.
+>    - KLGA 2-L: +386 km2, nothing dropped, 5/10 mi identical to today.
+>    - Option 3 adds 21 km2 more but makes 5/10 mi roads straight and doubled.
+>    - Plain option 2 at KLGA drops 25 bodies, the Hudson among them.
+>    One check before it ships: is the 17 km measured from the point the screen centres on? If it's from the package centre, an off-centre home's 10 mi view can reach the coarse lines. Option 1 isn't needed for the Hudson; bring it back later as a byte saving if it earns one.
+> 4. Park the road-width measure. Line changes are decided on 5/10/25/50/100 mi pictures (S8)."
+
+**OPTION: 2-L** (pending the check below). Option 1 is shelved for the Hudson. The road-width measure is PARKED by the owner; S8 and
+A2.49 are pictures at 5/10/25/50/100 mi. The code PR carries condition (a) (graded detail distinguishable in the header or the grader,
+plus an MB case).
+
+**1. The point r_f is measured from: the PACKAGE CENTRE,** the frame origin (`simplifyGraded` measures from (0, 0) of
+`makeFrame(q.lat0Micro, q.lon0Micro, ...)`). **Where the guarantee comes from:**
+- the device keeps its home at 4 dp and sends the basemap fetch `lat`/`lon` = `wireloc::Center(home)` (`AircraftManager.cpp`
+  3524-3525 set `req->lat/lon` from the home; 2959-2960 send them), i.e. **rounded to 2 dp, half away from zero**
+  (`include/WireLocation.h` `Round2`, `Center`);
+- the Worker quantises again with `Math.round(x * 100) / 100` (`proxy/src/wx/crop.ts` `quantise`), a no-op on a 2-dp value, and
+  keys the package by those 2-dp strings (`query.ts` `queryKey`);
+- **so a package is shared only by the homes of one 0.01 deg cell, each within 0.005 deg of its centre on each axis**; no package is
+  ever shared by homes further apart.
+
+**2. The bound:** the worst home-to-centre distance is the cell's corner, 0.005 deg on each axis: **0.697 km at 40.7 N, 0.690 km at
+42.36 N, and 0.785 km at the equator (the fleet-wide maximum)**, all under r_f minus 10 mi = 17 - 16.093 = **0.907 km**.
+
+**4. Other paths that show more than 16.093 km from the home "at the 10 zoom":**
+- **Corners: none.** Every shipping panel is round (`include/variants/s3_128.h` 79, `s3_146.h` 51, `s3_175_amoled.h` 61,
+  `s3_21.h` 77: "round; square bounding box"), and the map's in-view test is a distance from the centre (`MapLayer.h` 147).
+- **Pan: none.** The zoom is a view scale about the home (`RadarZoom.h`); nothing moves the centre.
+- **NAUTICAL MILES: YES.** The radius unit can be `nmi` (`ConfigurationWebServer.cpp` 735), and the zoom steps {5, 10, 25, 50} are in
+  the user's unit (`RadarZoom.h` 26). **The 10 nmi step is 18.52 km, past 17 km**: a nautical-mile user's 10 step reaches the coarse
+  lines in its outer ring.
+- **A CONFIGURED RADIUS between about 10.1 and 25 mi (16.2-40 km): YES.** The ladder's top step is the configured radius itself
+  (`RadarZoom.h` `BuildLadder`), so such a user's DEFAULT view shows coarse lines beyond 17 km, as every 25 mi view does by design.
+- **The draw call is not on main yet** (the map's draw path is map-client's): the view centre is the home only if that code projects
+  about the same `lat`/`lon` the fetch rounds. Named as a coupling for map-client to confirm, not verified here.
+
+**A remedy for the owner, priced (`hb-o2-estimate.py` 7cbe453af9d2, the same estimator):** r_f = 19.4 km (10 nmi + the fleet-wide
+0.785 km + margin) costs about 45-117 B more per map than 17 km (KBOS 600 B vs 483, KEWR 290 vs 245, MIDTOWN 360 vs 256, KJFK 180 vs
+125, KLGA 316 vs 261); every map but KEWR keeps it inside the room measured in 5f (KEWR, already past its 50 B, drops more single rings,
+no body). Not built; the owner's call.
+
+**3. The proof on a build, registered here before it runs (`hb-offset-check.py` 6bd76dc2f9bd).** The package for any home of a cell is
+the cell centre's package (the wire carries only the 2-dp centre), so the 2-L packages already built ARE the packages for the worst
+homes. For each of the five maps, the four worst homes of its cell (the 4-dp corners that still round to the centre), the 5 and 10 mi
+and 5 and 10 nmi views are drawn centred on that HOME, today's package and 2-L's, and the road-and-river pixel sets compared:
+
+| view | reach from the package centre | predicted |
+|---|---|---|
+| **5 mi and 10 mi** | at most 16.093 + 0.697 = 16.79 km, under 17 | **EQUAL at every corner of every map** (40 comparisons); secondaries drawn in neither |
+| **5 nmi** | at most 9.26 + 0.70 km | EQUAL at every corner of every map |
+| **10 nmi** | 18.52 + up to 0.70 km, past 17 | **DIFFER at every corner of every map** (lines lie in the 17-19 km ring at all five) |
+
+**Outside the set:** a 5 or 10 mi difference: STOP, and it goes to the owner (the orchestrator, 18:17:57Z). A 10 nmi comparison that
+reads EQUAL somewhere: reported, not re-ranged. Anything else: stop and decide.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
@@ -667,9 +726,10 @@ GitHub-side re-run rule applies. Anything else: stop and report.
 - **Read at e8cbe2fe709f:** 33 = 31 / 2 / 0 as predicted (stable at 17:30:58Z), tested on "Merge e8cbe2fe709f... into 86077c7fe9f2...".
 - **4af70320e13f got no CI run:** its push returned a GitHub-side 500 after updating the ref; the PR stayed at e8cbe2fe until the next ordinary push re-synced it.
 - **Read at a6b1291416ab:** 33 = 31 / 2 / 0 as predicted (stable at 17:54:17Z), tested on "Merge a6b1291416ab... into b0c9412f71a8...".
-- **Predicted for the section 5c-5h head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
+- **Read at 815148dd52b4:** 33 = 31 / 2 / 0 as predicted (stable at 18:17:55Z), tested on "Merge 815148dd52b4... into eb35add21c03...".
+- **Predicted for the section 5i head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
   either: `workers.yml` filters on proxy/, dashboard/ and the wx fixtures, `account-budget.yml` on its own paths): **33 = 31 / 2 / 0**,
-  on main as it then stands (eb35add21c03 at this writing).
+  on main as it then stands (287dc5ece2bc at this writing).
 
 ## 7. Where the measurements are (scratch, sha256 first 12)
 
