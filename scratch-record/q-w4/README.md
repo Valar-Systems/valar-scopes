@@ -38,6 +38,8 @@ shipped code, and nothing here reads a credential, a board or a production servi
 | `cm/rv-meas.log` | fc43b98c419e | #639's measurement run, CM-0's references (the only record of its cell phase) |
 | `cm/dr-q4c3.mts`, `pk-cp.mts`, `pk-grade.py` | b02b5a66d240, c9ac9a5c5a4f, 3d5f5c8a62f2 | the 5.6 package rows: QW4-C's child for pq4b's references, the code PR's twin, the grader |
 | `cm/pk.out`, `cm/pk-out.json`, `cm/pk-control-pred.txt` | 35be9b1b42a8, b90afd99effc, cb6757c99dcb | the 5.6 reading (equal at all 13), its builds, and the digest control's prediction |
+| `runlog.sh` | 7abc356134d1 | every selftest and driver run: stdout and stderr to their own logs, printed whole, the exit read from the process (never a pipe) |
+| `wr/pred.txt`, `wr/runlog-pred.txt` | 1898498b44b8, 2752401c46d9 | the d1.ts wrangler-run migration's predictions (M1-M3), and runlog's control |
 
 ## Regenerating
 

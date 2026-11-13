@@ -1,0 +1,1 @@
+runlog control, predicted 2026-11-13T07:46:14Z: (a) a command printing ok to stdout and err to stderr then exiting 3 -> runlog prints both whole and 'exit 3 (the process's own)', and runlog's own exit is 3; (b) the check selftest -> exit 0 and 13 PASS. Outside: stop.

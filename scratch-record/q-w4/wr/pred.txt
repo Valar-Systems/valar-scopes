@@ -1,0 +1,5 @@
+d1.ts migration to wrangler-run, predicted before the edit (2026-11-13T07:41:21Z), on the branch after merging main (1137cdf3):
+M1  d1.ts:68 changed to the helper, the allowlist row KEPT: check_wrangler_calls.py exit 1, "direct 0, stale allowances 1" (the d1.ts row)
+M2  the row dropped: exit 0, "direct 0, stale allowances 0"
+M3  check_wrangler_calls.py --selftest passes; wrangler-run.mjs --selftest passes
+Outside this: stop and report.
