@@ -4071,3 +4071,15 @@ Outside the set: stop.
 - **(u4) "Main's builder" is the PR's merge-base, e03e6c4d.** At run time, the run prints `proxy/src/basemap`'s tree hash at e03e6c4d and at main's head (b7e7fdd9 when this was ruled) and shows them equal. **If they differ, stop and report.**
 
 Outside the set: stop.
+
+### R12 (d)'s re-run, read (05:10-06:20Z, at 4ac195bb6fa1; record 67ba2dcfdb20): AS PREDICTED throughout
+
+- **The basemap driver** (exit 0):
+  - baseline[ingest] 12 cases in 1 file; baseline[mv, -t MV] 31 in 1; baseline[all] 195 in 19; baseline[sea] 15 in 1;
+  - **93 of 93 sabotages AS PREDICTED.**
+  - Among them: **S-BTWICE against its ORIGINAL registered set** (T-PROV-a green, as ruled (i) makes it); **S-RBMAP {MN7}**; S-KB-REPAIRLIMIT {XISLAND, XISLAND-TALL} as re-registered at c3e0faa0; S-KB-NOBRIDGE and S-KB-ORDER with KB1; S-F1DIRTY {MI10}; S-USVERTS {C-BORDER-S}; S-KB7-NOUS {KB7-a}; and C-LOADFAIL BLIND.
+  - 97 runs, 0 runtime failures; the highest TIME_WAIT at a run's start was 7,967 (gate 8,000); porcelain 0 after.
+- **The smoke driver** (exit 0): CONTROL 1096 passed, 1 skipped, of 1097; S-SQ and S-SQP as registered; **ALL AS REGISTERED**; every restore byte-identical.
+- **The credits driver** was not run, as ruled: nothing it touches has changed.
+
+R12 is closed. The first run's two OFF readings stay on the record above.
