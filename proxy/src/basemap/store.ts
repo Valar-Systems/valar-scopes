@@ -2,7 +2,7 @@
 // the tile-source bits and the Terrarium PNG decode. The ingest WRITES these (scripts/basemap/ingest-lib.ts
 // re-exports the codec) and the builder READS them, so both sides use one definition. Pure: Web APIs only.
 
-export type FeatureKind = "water" | "rivers" | "roads" | "peaks" | "places";
+export type FeatureKind = "water" | "rivers" | "roads" | "peaks" | "places" | "sea"; // sea: kind 6, the Natural Earth sea layer (docs/basemap-dense-code.md, part 2)
 
 export interface Feature {
   kind: FeatureKind;
@@ -17,7 +17,7 @@ export interface Feature {
 export type Box = [minLon: number, minLat: number, maxLon: number, maxLat: number];
 
 const te = new TextEncoder();
-const KIND_CODE: Record<FeatureKind, number> = { water: 1, rivers: 2, roads: 3, peaks: 4, places: 5 };
+const KIND_CODE: Record<FeatureKind, number> = { water: 1, rivers: 2, roads: 3, peaks: 4, places: 5, sea: 6 };
 
 /** One feature's bytes in a cell object: kind, source-order key, attributes, then f64 vertices. */
 export function encodeFeature(f: Feature): Uint8Array {
@@ -28,6 +28,7 @@ export function encodeFeature(f: Feature): Uint8Array {
   else if (f.kind === "rivers") t(f.attrs["FULLNAME"]);
   else if (f.kind === "roads") { t(f.attrs["MTFCC"]); t(f.attrs["FULLNAME"]); }
   else if (f.kind === "peaks") { nums.push(Number(f.attrs["feature_id"])); t(f.attrs["feature_name"]); }
+  else if (f.kind === "sea") { nums.push(Number(f.attrs["area"])); t(f.attrs["src"]); } // a sea piece: its area and its source
   else { t(f.attrs["GEOID"]); t(f.attrs["NAME"]); nums.push(Number(f.attrs["pop"])); }
   const len = 1 + 2 + 4 + 2 + 1 + 1 + nums.length * 8 + texts.reduce((s, x) => s + 2 + x.length, 0) + 4 + f.xy.length * 8;
   const out = new Uint8Array(len);
@@ -47,7 +48,7 @@ export function encodeFeature(f: Feature): Uint8Array {
 }
 
 const td = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false });
-const KIND_OF: Record<number, FeatureKind> = { 1: "water", 2: "rivers", 3: "roads", 4: "peaks", 5: "places" };
+const KIND_OF: Record<number, FeatureKind> = { 1: "water", 2: "rivers", 3: "roads", 4: "peaks", 5: "places", 6: "sea" };
 
 /** The inverse of encodeFeature, at `o`; returns the feature and where the next one starts. A record that
  *  runs past the buffer, or an unknown kind, is refused. */
@@ -73,6 +74,7 @@ export function decodeFeature(buf: Uint8Array, o: number): { f: Feature; end: nu
     kind === "water" ? { AWATER: nums[0]! } : kind === "rivers" ? { FULLNAME: texts[0]! }
     : kind === "roads" ? { MTFCC: texts[0]!, FULLNAME: texts[1]! }
     : kind === "peaks" ? { feature_id: nums[0]!, feature_name: texts[0]! }
+    : kind === "sea" ? { area: nums[0]!, src: texts[0]! }
     : { GEOID: texts[0]!, NAME: texts[1]!, pop: nums[0]! };
   return { f: { kind, file, record, part, attrs, xy }, end: o };
 }
