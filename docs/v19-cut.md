@@ -20,7 +20,7 @@ The order is for the reviewer to confirm.
 | 2 | **the candidate:** `FW_VERSION` 18 -> 19, merged by the rule. Its squash, called **C** below, is the commit that gets tagged | ruled; `RELEASING.md` 1-2 | **done:** #631, C = `3a322758eadc`, 2026-11-11 01:15:48Z |
 | 3 | **the pre-tag reads on C:** `check-tag-workflow.sh`, and "is this cut R?" | `RELEASING.md` 3 and its R gate | **done** ~01:17Z, as predicted: the cut is R |
 | 4 | **the fresh-boot acceptance on E2:08, on C's image** | `RELEASING.md` 0 | **passed**, accepted ~05:04Z, on image `5048a7223d63` (see "Step 4's result") |
-| 5 | **O11 on C**, on E2:08 | ruled; A12.172 | step 2, an announced window |
+| 5 | **O11 on C**, on E2:08 | ruled; A12.172 | **held:** C2 stopped in window 2, and the defect it exposed in C's head read is with the owner (see "Step 5 so far") |
 | 6 | **Daniel's OK, in plain words,** on the four consequences, asked in the reviewer chat | ruled; `RELEASING.md`'s R gate | steps 3-5 |
 | 7 | **tag C, create the release as a prerelease, bench-flash from it, then approve `promote`** | ruled; `RELEASING.md` 4-5 | step 6 |
 | 8 | **the week after:** A3.1's reader daily; the four boards behind 18 read again | ruled ~20:34Z | step 7 |
@@ -80,6 +80,527 @@ bump PR. The gate passes locally on full history.
 **Step 5, O11:** A12.172's rows C0-C3 exactly as frozen there. Image B is uploaded directly as an asset on `ota-preflight-v6`,
 never through a tag or the workflow, with the snapshot and restore reads around it. E2:08 is restored by Q112 (a) inside the window.
 A bench image ends no window.
+
+**Step 5 so far (2026-11-11).** X1-X4, C0 and C1's first-boot refusal (`refused foreign: requested=s3-128 image=s3-21`) read as
+frozen. C1's power-cycle row stopped twice: each time the trace's open reset the chip (`rst:0x15`), so the boot it read was the
+trace's, not the power-on's. The ruling (~16:52Z) was to grade the power-on boot at the Worker, with nothing open on the port.
+- **The re-read before freezing it stopped (~17:05Z) at two differences, both my misses.** The bench prerelease held its originals,
+  which I had restored at 06:02:56Z under O11's "stop, restore, report" without reporting it. E2:08 was up on bench image A rather
+  than in download mode: a USB boot reached the Worker at 06:00:05Z, before the report that said otherwise was written.
+- **Observations, not graded:** six Worker `ota` rows from the C1 boots, all `refused-foreign` 19->20, one with `reset=POWERON`
+  (05:57:34Z, the power cycle's own boot, which checked in before the trace's open reset it). Two later `POWERON` boots, at 17:35:26Z
+  (a power cycle outside any frozen row) and 18:10:43Z (the board moved onto a switchable USB hub), each with no `ota` row, because
+  the prerelease said 6.
+- **Where the OTA result lands, from code at C:** the update check runs in `setup()` before the cloud source starts, so the refusal
+  is already recorded when the first check-in is built. That check-in is the config fetch, which carries both `X-Blip-OTA-Mem` and
+  `X-Blip-Boot`, and the Worker writes a `boot` point and an `ota` point for it. The boot reason is retried until a check-in is
+  acknowledged; the OTA report is cleared on read and never retried.
+
+**Step 5's power-cycle row, C1-PC (ruled ~18:20Z; frozen here, before the cut).**
+- **Before the cut,** inside the announced O11 window: `ota-preflight-v6` holds F as `firmware-s3-128.bin` (`42c8124fb01e`) and
+  `version.txt` = "20" (`f5ca38f748a1`), each read back by sha256; `releases/latest` is v18; the reservation stands; E2:08 answers
+  on image A. **E2:08 has no boot or `ota` row after its 18:10:43Z `POWERON` boot.** The ruling named 17:35:26Z; the 18:10:43Z boot
+  (the move onto the hub) came after it, so the later row is the anchor.
+- **The cut:** E2:08's hub port off, then on, with both UTC times logged; or, if the hub is not used, the owner's hands, with the
+  owner's stated time. The window starts at the off time, or at the first of three missed pings. Nothing opens the port until the
+  rows are read.
+- **Predicted:**
+  - the board answers ping within about 60 s of power-on;
+  - E2:08's Worker `boot` rows since the cut: exactly one, `POWERON`;
+  - its `ota` rows since the cut: exactly one, `refused-foreign` 19->20, `reset=POWERON`, at the same second as that boot row.
+- **The read:** 60 s after the board answers, then again until two reads 30 s apart agree.
+- **Anchors:** the same queries still return the earlier rows (boots: `SW` 11:00:17Z, `POWERON` 17:35:26Z and 18:10:43Z; `ota`:
+  the six from 05:51:03Z to 06:00:05Z), or the reading is UNTRUSTWORTHY.
+- **Outside the set, stop and report:** a `POWERON` boot row with no `ota` row (the one-shot report was lost, or the instrument);
+  any other result or version; more than one boot, or another reason; no boot row within 10 minutes; a failed query or a missing
+  anchor; anything else. Nothing is improvised.
+- **Then C2, as frozen.** The window ends after C2, or at any stop: the originals go back on `ota-preflight-v6` by sha256
+  (`firmware-s3-128.bin` `b12e184d4570`, `version.txt` `e7f6c011776e`), read back, and `releases/latest` is never touched.
+
+**Window 2 (2026-11-11, 18:38:00Z to 19:03Z), opened on the owner's own words.** The cycle went through a YKUSH switchable
+USB hub. Its tool is Yepkit's `ykushcmd` v1.4.0: installer `ykushcmd-installer-64bit.exe` from
+`github.com/Yepkit/ykush/releases/download/v1.4.0/`, sha256 `e40cf7a66ae838fd228622a5bea8077484be50c8ac7da48c9db4837d3b4e3d3c`,
+signed by YEPKIT LDA; the installed `ykushcmd.exe` is sha256 `d32ff453df1e9356d961ed885e35ec70110a10f85502208f50c599e07bc64d56`.
+The hub's ports were mapped from Windows' USB location paths without switching any, and confirmed against the printed port numbers.
+- **Before the cut, as frozen:** F and "20" uploaded at 18:38:02Z and read back by API digest and by download; `releases/latest`
+  v18; the reservation held; E2:08 answering on image A, still on the hub's port 3, with no boot or `ota` row after 18:10:43Z.
+- **C1-PC, as predicted.** The switch: port 3 (E2:08) OFF 18:39:12Z, ON 18:39:17Z, each confirmed by the tool's own state read.
+  The board answered ping 14 s after power-on. Two Worker reads 33 s apart agreed: exactly one boot, `POWERON`, and exactly one
+  `ota` row, `refused-foreign` 19->20 `reset=POWERON`, both at 18:39:44Z. The anchors were all returned, and no port was opened.
+- **C2 stopped off its prediction.** The sabotage image S (the parse shifted by one byte) was flashed, accounted against the
+  checked S (five regions only), and B was uploaded and read back. The graded boot, read in one trace open, refused B as
+  **`refused truncated: requested=s3-128 image=-`**, not the predicted `refused no-record`. S's first boot after its flash,
+  against F, read `refused-truncated` too (Worker, 18:48:12Z). "Truncated" was not in C2's frozen set, so the window stopped
+  and was restored. C3 did not run.
+- **The restore, as frozen.** The prerelease's originals went back at 18:52:57Z, read back by digest and by download, and matched
+  the reviewer's own baseline. B's download count read 0, a lagging counter, recorded and not a stop. `releases/latest` read v18
+  at 18:53:03Z and 19:00:24Z. E2:08 went back to C by Q112 (a): C4-0 and C4-1 as predicted (four regions, `0x0`, `0x8000`,
+  `0x1E000`, `0x20000`, none in NVS), and the written image was byte-identical to `5048a7223d63`. C4-2: `running=app0
+  @0x020000`, Wi-Fi from saved credentials with no portal, and an authenticated config check-in. The reservation was released
+  at 19:02:41Z.
+
+**What C2's stop found (read-only, from images saved in the window).**
+- **S differs from A by one byte outside the hash regions:** the immediate of `ParseRecord`'s first argument in
+  `MaybeUpdateFirmware`, `head + 0x120` -> `head + 0x121`. It is the only differing instruction there, and every function's name
+  and size is identical. In `Decide` the truncated test comes before the parse, so the plant never ran: on both of S's boots
+  the head read returned fewer than 352 bytes, possibly none.
+- **Excluded by that measurement:** the plant changing the decision or the read; a wrong image or asset; the outcome token.
+  **Not excluded at the time:** an intermittent short read that fell on both of S's boots, or something else about those boots.
+
+**Step 1's read of the mechanism (read-only, at C `3a322758eadc`, framework-arduinoespressif32 3.3.9):**
+- `ReadHead` (`include/OtaInstall.h:69-78`) stops on the first read that returns 0.
+- That read is `StreamSource::read`, which is `Stream::readBytes` (`src/OtaUpdater.cpp:189-192`). Through the virtual call it
+  becomes `NetworkClient::readBytes`, which stops at once when the client's `read()` returns a negative.
+- `NetworkClientSecure::read` returns -1 whenever nothing is buffered yet, and the TLS socket is non-blocking. So "nothing has
+  arrived yet" and "the stream ended" reach `ReadHead` as the same 0, immediately, and a body that is merely late is refused as
+  truncated.
+- `writeRest`, which reads the rest of an accepted image from the same source, already waits: 300 empty reads, 100 ms apart. The
+  head read does not. The path is new in #552 (`84409651`); v18 updated through `httpUpdate`.
+- **What it means for v19:** an update from v19 to anything later can be refused as `refused-truncated`. Nothing is drawn, and
+  the board retries at its next check, so it delays an update and cannot brick a board. Updates from v18 to v19 use v18's old
+  path and are unaffected. How often it fires on real networks is unmeasured.
+- **Held for the owner's decision, as a release question:** C3, C2's re-run, steps 6 and 7, and any fix.
+
+**Step 2 of that decision: C's head-read rate, registered before the window (the owner, 19:39:40Z: "measure C's rate
+first").** A new measurement, not a re-run of C2.
+- **Why through image A.** C checks `releases/latest` for updates (`OTA_RELEASE_BASE`'s default, `src/OtaUpdater.cpp:105-106`),
+  which says 18, so C makes no update attempt and writes no `ota` row. Only a bench build pins the bench prerelease.
+  - **The premise that makes A's rate C's:** window 1's X2 found A and C with identical function (name, size) sets, 8,770 each:
+    two strings moved and no code. X3 and X4 showed the pin is the only difference the scanners see. A's `ReadHead`, its
+    `StreamSource` and the TLS client under them are C's code.
+- **The window, in order:**
+  1. Reserve E2:08.
+  2. Flash A with bench-flash `-AppOnly` (app0 is already selected). Five-region accounting against the checked A
+     (`f57ab3556b37`): 0 bytes outside.
+  3. F (`42c8124fb01e`) and `version.txt` "20" (`f5ca38f748a1`) on `ota-preflight-v6`, read back by API digest and by download.
+  4. The re-reads:
+     - E2:08 is on Hub_#0009 port 3, and the port reads ON;
+     - its config page reads env `blipscope-s3-128-otatest`;
+     - the anchors, read twice at least 60 s apart: boot rows at 18:58:08Z and 19:00:50Z (USB), no `ota` row after 18:50Z,
+       plus A's own boot after the flash, read and named before the first cut.
+  5. 20 cycles of port 3 only, each logged with its off and on times in UTC, about 80 s apart so each boot's check-in lands
+     before the next cut. No serial port is opened at any point.
+  6. The grade (below).
+  7. The restore: the originals back by sha256, read back against the reviewer's 18:36:15Z baseline (`b12e184d4570`,
+     `e7f6c011776e`); `releases/latest` untouched; E2:08 back to C by bench-flash `-AppOnly`, accounted against
+     `5048a7223d63` and graded over the network only (ping, the config page's env `blipscope-s3-128`, a boot row with no
+     `ota` row), so no trace and no download mode; the reservation released.
+- **Predicted, and what each result means:**
+
+  | reading over the 20 cycles | means |
+  |---|---|
+  | exactly 20 `POWERON` boot rows, each with one `ota` row at the same second, every one `refused-foreign` | **0 of 20 truncated:** C's head read is reliable at this rate |
+  | the same 20 pairs, **1 or more** `refused-truncated` (and the rest `refused-foreign`) | C ships the defect. The count goes to the owner |
+  | a boot row with no `ota` row; an `ota` result other than those two; a boot count other than 20 or a reason other than `POWERON`; no ping within 180 s of power-on; a missing anchor or a failed query | **stop,** restore, report |
+  | anything else | the instrument is unreliable at this scale: stop, restore, decide |
+
+- **What the count can say.** 0 of 20 bounds the per-check refusal rate below about 14% at 95% (3/20, the rule of three). It
+  is not proof of absence. It is the BEFORE half of the fix's own test.
+
+**Window 3, step 2's run (2026-11-11), opened on the owner's own words ~19:45Z.**
+- **The true start was 19:45:36Z,** the flash of A, 54 s before the announced 19:46:30Z. The wait that should have held it
+  read a `...Z` string as local time; every later wait read `date -u`. The owner's words and the reservation (19:45:23Z) both
+  came first.
+- **Before the cuts, as registered:**
+  - A flashed (`afd83c332fae`, five regions only against `f57ab3556b37`);
+  - F and "20" read back by digest and by download;
+  - E2:08 on Hub_#0009 port 3, ON, env `-otatest`;
+  - the anchors identical on two reads 63 s apart, including A's own boot at 19:47:42Z (USB, no `ota` row).
+- **The 20 cycles:** 19:50:24Z to 20:17:37Z, port 3 only, every switch confirmed by the tool's state read. The board answered
+  ping 12-20 s after each power-on. No serial port was opened.
+- **The grade stopped, as registered.** Exactly 20 `POWERON` boot rows, one in each cycle's slot, but **19 `ota` rows: cycle
+  12's boot (20:06:42Z) has none.** A boot without an `ota` row is a registered stop, so the table's verdict is not claimed.
+  - **As read:** of the 19 rows, **13 `refused-truncated`** (cycles 3-8, 10, 13-15, 17, 19, 20) and **6 `refused-foreign`**
+    (1, 2, 9, 11, 16, 18), all 19->20 with `reset=POWERON`, each at its boot's second. The delays from power-on to the boot
+    row overlap between the two kinds; no pattern is claimed.
+  - **Cycle 12's missing row:** a failed version check, so no attempt; or the one-shot report lost on a failed first check-in;
+    or a report the Worker dropped as off-shape; or an Analytics Engine write lost. None of these can be excluded from the
+    Worker's rows. A late row and a pairing error are excluded.
+  - **Named for later, not widened here:** if the one-shot report can be lost (it is cleared when read and never retried,
+    while the boot reason is retried until acknowledged), that is a second gap in what the Worker can see. It is separate from
+    `ReadHead`, and it would make the fleet's count of OTA results an undercount.
+- **The restore:** the originals back at 20:20:34Z, matching the reviewer's baseline; `releases/latest` v18; E2:08 back on C,
+  byte-identical to `5048a7223d63`, and graded over the network (ping, env `blipscope-s3-128`, a boot row with no `ota` row).
+  The reservation was released at 20:25:03Z.
+- **What it says for v19:** on this bench network, C's head read refused a correct update as truncated on 13 of the 19 checks
+  that reported. The fix's description goes to the owner next; nothing is registered for it yet.
+
+**Step 4' on C', the fresh-boot acceptance: steps and predictions, frozen before it runs (2026-11-12).**
+- **Why it runs.** C' is `7b943ae0b5d1` (`release/v19`, #651's squash on C). The owner's standing skip for a fix-only candidate
+  did not apply. The source half of `docs/ota-head-patience.md` section 6's check read in scope, but the artifact half could not
+  decide, and the reviewer ruled (A): step 4 runs with the owner.
+- **The image:** C''s `blipscope-s3-128`, built clean in a worktree at detached C' (tree `9a5223e6c57b`, porcelain 0), sha256
+  `cb9c05d92d3b`, 1,932,192 bytes. Identified as ruled (i): its size; every byte that differs from the `ed0d660b` build of
+  the same code sits in the five rebuild regions (74 bytes, by a comparator whose four controls read first); the identity
+  record `s3-128` at `0x120` passes; and `ota::ReadSome<StreamSource>` is present in C' and absent in C. The banner is read off
+  the board below, not out of the file (it is a runtime `printf`).
+- **Before the window:**
+  - E2:08 is reserved by this session (`board-port.py --reserve blipscope-bench`), with its port resolved from its USB
+    serial and printed beside it;
+  - E2:08 is on C (`5048a7223d63`), and nothing else holds its port;
+  - the acceptance's own `--selftest` has passed (00:12:52Z).
+- **The window opens on the owner's own words; steps 1-3, 5 and 6 are his hands and his phone.** In order:
+  1. **The flash, Q112 (a)'s way.** `bench-flash.ps1 -PioEnv blipscope-s3-128 -Board blipscope-bench -DanielApproved -By
+     claude-1402464d -Label "v19 step 4 C'" -NoCapture`, run from that worktree. `-NoCapture` keeps the acceptance's capture
+     the only open on the port. Predicted:
+     - the serial is printed beside the port before anything is written;
+     - four regions are written (`0x0`, `0x8000`, `0x1E000`, `0x20000`), none in NVS, each "Hash of data verified";
+     - the build directory's `firmware.bin` reads `cb9c05d92d3b` before and after the run, so `pio` rebuilt nothing.
+     - **W1's reading (2026-11-12, 03:38:34Z to 03:41:56Z, in the owner's window):**
+       - The serial was printed beside the port (COM18). Four regions were written (19,984 / 3,072 / 8,192 / 1,932,192
+         bytes), each "Hash of data verified", none in NVS, and `-NoCapture` was honoured. All as predicted.
+       - **"Rebuilt nothing" read OFF, my miss.** `bench-flash.ps1`'s `pio run -t upload` did a full rebuild (260 compile
+         and link lines), so the image after the run was `abc34056c95f`. This record's own step-7 entry already says
+         `bench-flash.ps1` rebuilds before it writes.
+       - **The 75-byte accounting.** Same tree, detached C' with porcelain 0. The same five-region comparator, its four
+         controls proven, places every differing byte between `cb9c05d92d3b` and `abc34056c95f` (1,932,192 bytes each):
+         app_elf_sha256 32, checksum 1, image SHA-256 32, `__TIME__` at `0x3138` 5 (16:04:12 -> 19:40:28), and `__TIME__`
+         at `0x1006e` 5 (16:05:11 -> 19:41:23).
+       - **Ruled (i) by the reviewer, 03:43Z:** `abc34056c95f` is C''s image for step 4', identified by the same standard as
+         `cb9c05d92d3b` (P5 and P7 hold by that equality). The shipping image is CI's own rebuild, differing in exactly those
+         regions. Writing the identified file exactly, a new procedure with a second flash, was rejected. Everything after
+         W1 runs as frozen.
+  2. **The capture:** `fresh-boot-acceptance.sh --capture-only <port>`. It is the script's own single-open pyserial capture,
+     DTR and RTS false, and it is never reopened. Predicted: `[capture] attached`.
+  3. **Step 1, factory reset on the glass.** Predicted in the capture:
+     - `[reset] tier=factory cleared=wifi,wifi-fast,config,logbook preserved=cloud-key-fac`;
+     - then the banner, `[build] env=blipscope-s3-128 fw=v19 features=...`, which is read and recorded here;
+     - then `[logbook] loaded 0 types`.
+     - **Frozen addition (reviewer, 00:18Z, before the window).** The script's check "step 1: a FACTORY reset happened"
+       greps `[reset] tier=factory`, and the UI's own `[reset] tier=factory selected -- confirm or cancel`
+       (`src/AircraftManager.cpp:9971`) matches that too. So step 1 ALSO requires FactoryReset's execution line in the
+       capture: a line beginning `[reset] tier=factory cleared=` whose `cleared=` list includes `config`. It is printed by
+       `src/FactoryReset.cpp:109` only after the reset has run, and `config` is listed only once that namespace was cleared
+       (`:99-100`). The capture starts after the flash, so any such line is post-flash. **A step-1 PASS without that line
+       is OFF: stop.** The script is not changed for this run; its fix is filed after v19.
+     - The formats come from source at C': `[reset]` from `src/FactoryReset.cpp:109-111`, the banner from
+       `include/BuildIdentity.h:125` (`FW_VERSION` 19), `[logbook] loaded` from `src/Logbook.cpp:166`, and `[claim] %s
+       claimed (%u/%u types)` from `src/AircraftManager.cpp:5876`.
+     - **Still open from step 4's first freeze: does E2:08's cloud key survive?** Predicted yes. E2:08 was enrolled through
+       the enrolment page, the only writer of `cloud-key-fac`, and that is the one key the factory tier carries across
+       (`src/FactoryReset.cpp:15-30`).
+       - **The `[reset]` line can't settle it.** It prints `preserved=cloud-key-fac` whenever `config` was cleared, whether
+         or not the key was there (`:99-101`).
+       - **The evidence is the post-reset check-in:** aircraft on the radar by step 3, and the step-1 boot row that the
+         boots check needs as its anchor.
+       - **If the key is gone, that is outside the set: stop.** Re-enrolling (the activation gate is in watch mode, and it
+         mints the same key) then waits for a ruling. It is not improvised in the window.
+  4. **Steps 2 and 3:** Wi-Fi through the portal, the location on the config page, then wait for aircraft and claim one.
+     Predicted: `[claim] <TYPE> claimed`.
+  5. **Step 4:** Collection opened within about a minute of the claim. `--probe-claim <log>` runs right after the claim.
+  6. **Step 5:** `--grade-cut <log>` is started BEFORE the cut. The cut is the owner's hands (the cable pulled), or, if he
+     prefers, E2:08's hub port off and on by this session, both UTC times logged, and not during a flash or an OTA write.
+     The capture ends at the cut, by design.
+  7. **Step 6:** the logbook turned off and saved, then Collection looked at. `--grade-off <log>`, then `--grade-boots <log>`.
+  8. `--assert-only <log>`.
+- **Predicted: `10 passed, 0 failed`, exit 0.** These are the script's own ten checks, by name:
+  1. "the build banner was captured";
+  2. "step 1: a FACTORY reset happened";
+  3. "step 1: the reset emptied the logbook";
+  4. "step 3: a claim landed";
+  5. "step 4: the FIRST Collection view after the claim included it";
+  6. "step 4: Collection was opened after the claim";
+  7. "step 5: the claim is on the owner's Collection page after the power cut";
+  8. "step 6: the logbook was turned off (config page)";
+  9. "step 6: the claim is still on the Collection page with the logbook off";
+  10. "boots: exactly ONE boot at the Worker from the cut to the end of step 6, and it is POWERON".
+- **No `--collect`.** It reopens serial, ending a trace puts an S3 into ROM download mode (CLAUDE.md), and the grading needs
+  none of it.
+- **Recorded here afterwards: counts and verdicts only.** No device id, no network name, no LAN address. The capture log
+  stays local.
+- **The window ends with:**
+  - E2:08 on C', set up by the owner (Wi-Fi and location, the logbook as he leaves it after step 6);
+  - the reservation released;
+  - the result sent to the reviewer.
+- **Outside the set, at any step: stop and report.** The window ends there, with E2:08 left on C'.
+
+**Step 4' on C', the result: PASSED, 10 of 10, as predicted** (the owner's window, opened on his words stamped 2026-11-12
+03:04Z; run 03:38Z to 03:57Z).
+- **W1, the flash:** as recorded above. The image is a rebuild, `abc34056c95f`, ruled (i). "Rebuilt nothing" is my miss.
+- **W2, the capture:** attached 03:44:50Z, ended at the cut ("port dropped ... NOT reopening") at 03:50:30Z, and never
+  reopened. No `--collect`.
+- **Step 1 (03:45:36Z to 03:45:38Z):** the UI's "selected" and "confirmed on device" lines, then `[reset] tier=factory
+  cleared=wifi,wifi-fast,config,logbook preserved=cloud-key-fac`. **The frozen addition is met.**
+  - The post-reset banner: `[build] env=blipscope-s3-128 fw=v19 features=cloud cloud=https://scopes.valarsystems.com`, reset
+    reason SW.
+  - `[logbook] loaded 0 types (0 claimed), ...` printed after the Wi-Fi join, because the portal blocks `setup()` before the
+    logbook loads.
+- **The cloud key survived, as predicted.** `[cloud] no key override; using the factory-provisioned key`, then an
+  authenticated config fetch.
+- **Steps 3 and 4:** `[claim] R22 claimed (1/2 types)` at 03:48:54Z. The probe's first `/logbook.json` after the claim read
+  CLAIMED (http 200, first view) at 03:49:07Z, and then the owner opened Collection.
+- **Step 5, the cut, by the owner's choice:**
+  - E2:08's hub port 3 OFF at 03:50:30Z and ON at 03:50:41Z, each confirmed by the tool's state read.
+  - The page after the cut read CLAIMED (4 tries).
+  - **The boot after the cut, at the Worker:** one row, POWERON at 03:51:05Z, read twice 30 s apart. Before the cut: USB at
+    03:42:12Z (the flash) and SW at 03:48:09Z (the portal's restart).
+- **Step 6:** the logbook OFF on the config page, and R22 still on Collection (CLAIMED).
+- **Boots:** n=1 (POWERON), with 2 anchor rows before the cut, so ONE_POWERON.
+- **`--assert-only`: `10 passed, 0 failed`.** The ten checks are the ten named above. The script's info line gives the first
+  save after the claim, the same second as the claim.
+- **E2:08 ends on C'** (`abc34056c95f`), with the owner's Wi-Fi and location set. The logbook is OFF, as he left it after
+  step 6. Nothing held its port afterwards, and the reservation was released at 03:56:59Z.
+
+**Step 5' on C', O11 with B-AFTER and B-STALL: steps and predictions, frozen before it runs (2026-11-12).**
+- **Who opens it:** the reviewer, under gate 5. The owner confirmed it at 03:04Z: no-hands windows on hub boards, port 1
+  never switched. It opens only after the reviewer has sequenced it against uk-data's production deploy.
+  - Every step runs without the owner's hands. Flashes go by USB through `bench-flash.ps1`; power cycles go through
+    E2:08's hub port 3 only.
+  - One holder: this session, with E2:08 reserved for the window.
+  - The board and the bench prerelease are restored at the end. The window is announced to the reviewer.
+- **The rows, not restated:**
+  - A12.172's X1-X4 and C0-C3, with its verdict table, and A12.174's C4-0 to C4-2 (Q112 (a)), as frozen in
+    `docs/weatherscope-stage3.md` at `2295faba`;
+  - window 2's C1-PC (above);
+  - `docs/ota-head-patience.md` section 5's B-AFTER and B-STALL.
+  - C1's power cycle was "Daniel's hands" in A12.172. Here it is port 3, under gate 5.
+- **A12.172's re-open check, read at C'.** Its rows were read at `dce333dbf667`, and a move of `src/OtaUpdater.cpp`,
+  `include/OtaInstall.h` or `include/OtaIdentity.h` re-opens them. C' moves the first two.
+  - In `src/` and `include/`, the only printed line added or removed is the bench-only `[ota-bench] head stall` line, under
+    `OTA_BENCH_HEAD_STALL`.
+  - `include/OtaIdentity.h` is unchanged: S's anchor at `:99`, `return ParseRecord(head + kRecordOffset, out);`, is still
+    there, once.
+  - `[env:blipscope-s3-128-otatest]` exists.
+  - So every line the rows grade is unchanged, and the rows stand.
+- **What the fix changes in the reading:** on C, C2 stopped at `refused-truncated`, the head-read race. On C', A12.172's own
+  C2 prediction applies unchanged: `[ota] refused no-record: requested=s3-128 image=-`. C3, never run on C, runs as frozen.
+- **The images, all from C' (`7b943ae0b5d1`).** Built in a worktree switched to detached C'. Every edit is asserted by
+  `edit.py` and restored by bytes, and none is committed.
+
+  | image | how it differs |
+  |---|---|
+  | R | `blipscope-s3-128`, the step-4' image's ELF |
+  | A' | `blipscope-s3-128-otatest` |
+  | B' | A' with `FW_VERSION` 20 |
+  | S' | A' with the S plant |
+  | F' | `blipscope-pro-s3-21` |
+  | A'-stall | A' built with `OTA_BENCH_HEAD_STALL` defined by `PLATFORMIO_BUILD_FLAGS`; no file is edited |
+
+  - **X1-X4 run on these before the window,** host only. Added for the stall image: `[ota-bench]` occurs in A'-stall and 0
+    times in A', B', S' and R.
+  - **Flashed images** (A', S', A'-stall and the restore) go through `bench-flash.ps1`, which rebuilds. Each is identified
+    against its checked image by the five-region comparator, never by sha.
+  - **Uploaded images** (F', B') are the files themselves, verified by the release API's digest after the upload.
+- **The order:**
+  1. **Before-reads** (A12.172's "around the run"): `isPrerelease` true; `releases/latest` v18; `latest/download/version.txt`
+     "18", read twice a few minutes apart.
+     - The snapshot is already on disk: `firmware-s3-128.bin` `b12e184d4570` (1,691,984 B) and `version.txt` `e7f6c011776e`.
+     - Both equal the prerelease's current digests, read by API on 2026-11-12.
+  2. **C0:** A' flashed. Read by `read-mac` chained with one `bench-trace` open.
+  3. **C1:** F' as `firmware-s3-128.bin`, and "20", uploaded. Read the same way.
+  4. **C1-PC:** port 3 off, then on. Graded at the Worker: one `POWERON` boot row, with one `ota` row `refused-foreign`
+     19->20 at the same second.
+  5. **B-AFTER:** the same setup; 20 port-3 cycles, with no serial port opened. Predicted as section 5 says: 20 `POWERON`
+     rows, each with one `ota` row, all `refused-foreign`, so **0 of 20 truncated**. Step 2's stops apply.
+  6. **B-STALL:** A'-stall flashed, then one port-3 cycle. Predicted as section 5 says:
+     - one boot row and one `ota` row, `refused-truncated`;
+     - the boot row 52-65 s after power-on;
+     - the board answers ping throughout, and no second boot row arrives.
+
+     Graded at the Worker only.
+  7. **C2:** S' flashed; B' as `firmware-s3-128.bin` ("20" stays). Read by trace.
+  8. **C3:** A' flashed; B' stays. Read by trace through the update and the next boot. The next check-in's `ota` result is
+     `ok`.
+     - **Re-frozen before it runs (ruled (a), reviewer, 05:24Z), found by me after C2 and before C3.** As first written,
+       the flash's own reset boot would install B' at once, with B' and "20" live, before any trace was open. C3's graded
+       lines would go unobserved. Only verified assets are used, in this order:
+       1. `version.txt` <- the original "6" from the snapshot (`e7f6c011776e`), read back by digest;
+       2. A' flashed app-only, and identified by five regions. **Guard:** its boot (not graded otherwise) must show
+          `latest=6` and no update, C0's line. If it does anything else (a download, an install), stop and restore, because
+          then the setup failed, not C3;
+       3. `version.txt` <- "20" (`f5ca38f748a1`), read back; B' stays;
+       4. `read_mac` plus one trace of 5 minutes, graded exactly as A12.172's C3 (`progress 0` and `progress 100`, "update
+          installed; restarting", then the v20 / `app1` boot);
+       5. the Worker's next `ota` row: `ok`.
+     - Grading C3 from the Worker's `ok` alone was rejected: it reads less than frozen.
+  9. **C4 (Q112 (a)):** C4-0, C4-1 and C4-2 as frozen, back to `blipscope-s3-128` at C'. Identified by the five-region
+     comparator against `abc34056c95f`.
+  10. **Restore the prerelease:**
+      - F'/B' replaced by the two originals from the snapshot, verified by digest and by download;
+      - the three before-reads repeated, where any difference is a stop;
+      - B''s download count recorded: A12.172 predicts 2, which here means C2 and C3. Another value is not a stop.
+- **Ending a trace drops the board into ROM download mode.** That is expected, and recovered by the next flash, `read-mac`
+  or port-3 cycle. It is not a reading.
+- **Predicted:** every row as frozen. That is the verdict table's first row: "the path works end to end, and the release
+  may go on to Daniel's R gate".
+- **Outside any frozen set: stop, restore (C4 and the prerelease), report.** Nothing is improvised. The window ends with
+  E2:08 on C', its boot read, and the reservation released.
+
+**Step 5' on C', the result: every row AS PREDICTED** (the reviewer's gate-5 window, opened at 04:18:47Z on the owner's
+04:18Z words; run 04:19Z to 05:50Z against production `68dc169a`, with no deploy during it).
+- **Before-reads:** 04:19:22Z and 04:27:44Z. The prerelease held its originals (`b12e184d4570`, `e7f6c011776e`);
+  `releases/latest` v18; `version.txt` "18" both times.
+- **X1-X4 and the stall marker,** host only, before the window: all as predicted.
+- **C0:** A' (identified by five regions) gave `[build] env=blipscope-s3-128-otatest fw=v19`, `running=app0 @0x020000`,
+  `[ota-id] board=s3-128 scope=- (record v1)`, and `current=19 latest=6`, with no update.
+- **C1:** F' and "20" uploaded, each verified by digest and download. The boot logged `latest=20`, then downloading, then
+  `[ota] refused foreign: requested=s3-128 image=s3-21`, with 0 screen lines. At the Worker: `refused-foreign 19->20`.
+- **C1-PC:** port 3 OFF at 04:33:10Z and ON at 04:33:15Z. One POWERON boot row, with one `refused-foreign 19->20
+  reset=POWERON` at the same second.
+- **B-AFTER:** 20 port-3 cycles, 04:36:30Z to 05:03:41Z. The Worker held 20 POWERON boot rows, each paired with one
+  `refused-foreign` row: **0 of 20 truncated**, where C's head read refused 13 of 19.
+- **B-STALL:** A'-stall was identified by five regions, and `[ota-bench]` appears once in it. Port 3 OFF at 05:11:26Z and
+  ON at 05:11:31Z.
+  - One POWERON boot row at +55 s (predicted 52-65), with one `refused-truncated 19->20 reset=POWERON`.
+  - 0 missed pings after the first answer, and no second boot row.
+- **C2:** S' was identified by five regions, and B' uploaded and verified. The boot logged `[ota] refused no-record:
+  requested=s3-128 image=-`, with 0 screen lines, at fw=19.
+- **C3, as re-frozen:**
+  - The guard held. At the Worker, the flash boot left no `ota` row; a traced guard boot read `current=19 latest=6`.
+    Compared against S', the flashed A' build shows exactly one byte outside the five regions: it is A', not S'.
+  - The traced update: `progress 0`, `progress 100`, "update installed; restarting", then `fw=v20`, `running=app1
+    @0x660000`, and `current=20 latest=20`.
+  - At the Worker: `ok 19->20`.
+- **C4:**
+  - C4-0: the extra images are at exactly `0x0`, `0x8000` and `0x1E000`.
+  - C4-1: the stubbed write list is `0x0`, `0x8000`, `0x1E000`, `0x20000`, with none in NVS; COM99 "could not open".
+  - C4-2: four regions written and verified. The boot read `running=app0 @0x020000`; Wi-Fi joined from saved credentials
+    (fast join, 0 portal lines); and the check-in authenticated (the factory key, config fetched).
+  - **One method deviation:** the restored image was identified against `cb9c05d92d3b` (76 bytes, all placed), not
+    against the named `abc34056c95f`. That file had been overwritten in the build directory and not kept, and
+    `abc34056c95f` was itself identified against `cb9c05d92d3b` by the same comparator.
+- **The restore:**
+  - B''s download count read 3 before it was replaced (A12.172 predicts 2, and says this is not a stop). My two
+    read-back downloads also count.
+  - The originals are back, `b12e184d4570` and `e7f6c011776e`, by digest and by download.
+  - After-reads at 05:46:59Z and 05:50:13Z: prerelease true, latest v18, `version.txt` "18".
+- **The close:**
+  - E2:08 ended on C' (`blipscope-s3-128`, app0). The last trace's end left it in ROM download mode; a `read_mac` with
+    no trace recovered it, and it answered ping at 05:47:30Z and checked in at 05:47:37Z.
+  - Port 3 ON, nothing holding COM18, and the reservation released at 05:50:31Z.
+
+**Step 6: the owner's OK, recorded (his words, stamped 2026-11-12 15:07Z).** He accepts `RELEASING.md`'s consequences,
+quoted to him in their own words:
+- once a device is on v19, nothing older reaches it over the air, in any scope; a fix is a new build that carries the
+  record, and USB still works;
+- board identities and the record's format are fixed from now on;
+- the v18 factory image has no check, so once on v19 a device can't go back to it over the air, only by cable; future
+  factory images are built at or after v19.
+
+His go for steps 7 and 8: "once uk-data's production deploy reads green (the orchestrator confirms), never alongside it.
+Tag C' = release/v19 7b943ae0b5d1, then the prerelease, the bench flash from it, verify-release.sh, and promote. On any off
+reading before promote: stop and report."
+
+**Step 7 on C': predictions, frozen before anything is tagged.** It starts only on the reviewer's confirmation that
+uk-data's production deploy reads green and has closed.
+- **7.0, before the tag:**
+  - `check-tag-workflow.sh 7b943ae0b5d1` prints `ok: promote needs version, runs in environment release ...`;
+  - no tag `v19` exists and no release `v19`;
+  - `releases/latest` is v18.
+- **7.1, the prerelease:** `gh release create v19 --target 7b943ae0b5d1e7b0f6ad8254ecc4bcdeb38c8dff --prerelease
+  --title v19`.
+  - The notes are `docs/CHANGES-customer.md`'s v19 prose at C', **verbatim**, as the owner approved it in the bump PR
+    (#631). No new customer text is written.
+  - Predicted: `isPrerelease` true, and `releases/latest` stays v18.
+- **7.2, the release run** (the release event runs the workflow from the tag):
+  - every row of `skus.yml` builds;
+  - the **one** shipping SKU at C', `s3-128`, gets its set attached after `scan_image.py` passes: `firmware-s3-128.bin`,
+    `firmware-s3-128.factory.bin`, `flash-manifest-s3-128.json`, the three region files, and `factory-scan-s3-128.json`;
+  - the receipt check finds its receipt;
+  - `version.txt` on the prerelease reads `19`;
+  - the run **pauses at `promote`**, waiting for review in the `release` environment;
+  - the web set is named `-v19`.
+  - The prerelease's `firmware-s3-128.bin`, under `check_ota_identity.py blipscope-s3-128`, reads `PASS`, record
+    `s3-128` at `0x120`.
+- **7.3, the bench flash at the `promote` pause, exactly the asset, with no build step** (the ruling of ~04:48Z):
+  - **Before:** E2:08 reserved, the start time sent to the reviewer, and the asset downloaded. Its sha256 must equal the
+    release API's digest before anything is written.
+  - **The write:** `app-only-write.py --port <resolved by serial> --build-dir <a folder holding the asset as
+    firmware.bin, plus partitions.bin from C''s build>`. E2:08 boots `ota_0`. Predicted: "checks ok", and "verified".
+  - **The read-back:** `esptool verify_flash 0x20000 <the asset>`, predicted "verify OK (digest matched)". This is the
+    chip comparing its own flash against the file. `read_flash` of the app region has died part-way on another board
+    over this USB-Serial-JTAG link (Q86), so this record uses `verify_flash`.
+  - **The boot**, `read_mac` plus one trace, with each line from source at C':
+    - `[build] env=blipscope-s3-128 fw=v19 features=...` (`include/BuildIdentity.h:125`);
+    - `[ota-slot] boot running=app0 @0x020000`;
+    - `[ota] channel=s3-128 current=19 latest=18` (`src/OtaUpdater.cpp:648`), and no "newer firmware" line. "Already up
+      to date" is a code comment at `:650`, not a printed line.
+  - **The About tab,** over HTTP: the config page carries `<span>Firmware</span><b>v19</b>`
+    (`src/ConfigurationWebServer.cpp:1151`).
+  - **After:** the trace's end recovered by a `read_mac` with no trace; then ping and a Worker check-in; the reservation
+    released; the end time sent to the reviewer.
+- **7.4, `verify-release.sh v19`, run from a tree at C', before promote.** Its check 2 compares
+  `releases/latest/download/version.txt` with the tree, so before promote it reads, **by construction**, `FAIL published
+  version.txt = 18 but the tree is 19`, with its recall-condition lines.
+  - **That one FAIL is predicted, not a stop.** Every other check must PASS: 1 (`tree FW_VERSION = 19`), 3 (the pilot's
+    binary on the tag), 5 (the shipped binary carries the backend), and 6 (the square library, with its own anchor
+    control).
+  - **Any other FAIL, or check 6 unable to read, is off: stop and report.** Promote does not go.
+- **7.5, promote:** only if 7.0 to 7.4 all read as above, the pending `release` deployment on the run is approved, on the
+  owner's words. Predicted: `promote` reads `version.txt` from the release's own URL as 19, then moves `latest`.
+- **After promote:**
+  - `releases/latest` is v19, and `releases/latest/download/version.txt` reads `19`, twice a few minutes apart;
+  - `verify-release.sh v19` is run again and now reads **0 failed**, with check 2 `published version.txt = 19, matches
+    the tree`.
+- **Outside the set before promote: stop and report.** The prerelease stays as it is unless a ruling says otherwise, and
+  `latest` does not move.
+
+**Step 7's two exactness additions (the reviewer's asks, 15:19Z), made before 7.3 and 7.4 run.**
+- **7.4, exact.** `verify-release.sh v19` runs from the worktree detached at C', printing HEAD ==
+  `7b943ae0b5d1e7b0f6ad8254ecc4bcdeb38c8dff` and its own `tree FW_VERSION = 19` line.
+  - **What check 6 needs, set up:** it runs `npx wrangler` from `proxy/`. That worktree has no `node_modules`, so
+    `proxy/node_modules` is a junction to another of my worktrees whose `proxy/package-lock.json` is byte-identical.
+    Nothing is downloaded, and the link is git-ignored, so the tree stays porcelain 0.
+  - **The inputs, from C':** `FULLBLEED_MIN_FW = 7` and the `s3-128` panel at 240 (`proxy/src/photos.ts`). Before
+    promote, `PREV` is the second full release, v17, which had 2 firmware binaries (v18 also has 2).
+  - **A read-only pre-read** of the four keys check 6 probes, using its own command shape and printing only yes or no:
+    `pptr:t:B738` resolves (the anchor), `pptr:t:B738:s240` resolves, and `pptr:t:B505:s240` and `pptr:t:B505` are both
+    absent.
+  - **Predicted before promote, each line verbatim:**
+    - PASS (8): `tree FW_VERSION = 19 (src/OtaUpdater.h)`; `firmware-s3-128.bin present (the pilot SKU)`; `version.txt
+      attached`; `2 firmware binaries (previous release v17 had 2)`; `downloaded firmware-s3-128.bin (<n> bytes)`; `cloud
+      base URL present IN THE BINARY (scopes.valarsystems.com)`; `control string found -- the binary grep is working`;
+      `B738: square pointer pptr:t:B738:s240 resolves`.
+    - FAIL (1): `published version.txt = 18 but the tree is 19`, with its two recall-condition lines.
+    - WARN (1): `B505: NOT IN THE LIBRARY at all (no square, no rectangle, no alias).`
+    - Closing: `=== 8 passed, 1 failed, 1 warnings ===`, then `DO NOT START A FLASH RUN.`, and exit 1.
+  - **Predicted after promote:** `=== 9 passed, 0 failed, 1 warnings ===`. Check 2 becomes `published version.txt = 19,
+    matches the tree`, check 4 becomes `previous release v18 had 2`, then `Release v19 is safe to flash against.`, exit 0.
+  - **A stop:** any second FAIL, any other WARN, a `PROBE BROKEN`, or a different exit code.
+- **7.3, the literals with their sources:**
+  - `checks ok: table matches ... Writing ota_0 only.` (`scripts/app-only-write.py:112`), and `write attempt 1: rc 0,
+    verified; Wrote ... at 0x00020000` (`:117`). Both appeared on every app-only flash in step 5''s window. The write is
+    `ota_0` only: no factory image, no erase, nothing written to NVS.
+  - **The read-back:** esptool 5.3.0's `verify-flash` prints **`Verification successful (digest matched).`**
+    (`tool-esptoolpy/esptool/cmds.py:2281`). **This corrects the frozen `verify OK (digest matched)` above, which is
+    esptool v4's wording.** This version doesn't print it.
+  - **The boot read** also shows Wi-Fi rejoining from saved credentials (`[WiFi] fast join OK` / `[WiFi] CONNECTED`),
+    with 0 portal lines.
+  - **The flash starts only when `session-claim.py show` lists no deploy claim.** That output is quoted to the reviewer
+    with the start. If a claim is held, the flash waits.
+
+**Step 7 on C', the result: v19 RELEASED, every reading as predicted (2026-11-12).** It started at 15:19Z, on the
+reviewer's confirmation that uk-data's production deploy read green and had closed.
+- **7.0, 15:19:47Z:** `check-tag-workflow.sh` printed `ok: promote needs version ...`; there was no v19 tag and no v19
+  release; latest was v18.
+- **7.1, 15:20:18Z:** the prerelease `v19` was created at `7b943ae0b5d1e7b0f6ad8254ecc4bcdeb38c8dff`. Its notes are
+  `docs/CHANGES-customer.md`'s v19 prose, verbatim. Latest stayed v18.
+- **7.2:**
+  - **The run (43246698138):** every build succeeded (11 rows), along with `version` and `publish-receipts`, and the run
+    paused at `promote`. Both `host-tests` legs and their aggregate also succeeded, before promote was approved.
+  - **The assets:** 14 on the release. They are the `s3-128` set, `version.txt` reading "19", and the web set named
+    `-v19`.
+  - **The image:** `firmware-s3-128.bin` is 1,931,840 B, with sha256 `f6d73e391631`, equal to the API digest. Its
+    identity check reads PASS, record `s3-128` at `0x120`.
+- **7.3, 15:33:22Z to 15:37:14Z:**
+  - **Before:** `session-claim.py show` read "deploy: free / merge: free", and E2:08 was reserved.
+  - **The write:** `app-only-write.py` printed `checks ok ... Writing ota_0 only.` and `write attempt 1: rc 0, verified`.
+    The read-back, `verify-flash 0x20000`, printed `Verification successful (digest matched).`.
+  - **The boot:** `[build] env=blipscope-s3-128 fw=v19`, `running=app0 @0x020000`, and `[ota-id] board=s3-128`. Wi-Fi
+    rejoined by fast join, with 0 portal lines. Then `[ota] channel=s3-128 current=19 latest=18`, with 0 "newer firmware"
+    lines.
+  - **The About tab:** `<span>Firmware</span><b>v19</b>`.
+  - **After:** E2:08 was recovered and answered ping, and the reservation was released.
+- **7.4, 15:37:36Z, from the worktree at C':** `=== 8 passed, 1 failed, 1 warnings ===`, `DO NOT START A FLASH RUN.`, exit
+  1. The one FAIL was check 2's, as pre-registered, and the one WARN was B505's.
+- **7.5:**
+  - **The approval:** the `release` deployment was approved at 15:38:25Z, on the owner's words.
+  - **Promote:** it succeeded at 15:38:46Z. Its own read was `releases/download/v19/version.txt=19`.
+- **After promote:** latest is v19 (`isPrerelease` false), and `latest/download/version.txt` read `19` at 15:38:48Z and
+  15:41:50Z. `verify-release.sh v19` then read `=== 9 passed, 0 failed, 1 warnings ===` and `Release v19 is safe to flash
+  against.`, exit 0.
+- **E2:08** runs the v19 release asset `f6d73e391631`.
+- **Step 8, the week after:** A3.1's reader, read daily, and the four boards behind 18 read again.
 
 **Step 6:** Daniel's OK on `RELEASING.md`'s four consequences, quoted to him in its own words. A green CI run is not that OK.
 
