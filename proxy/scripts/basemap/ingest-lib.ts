@@ -25,7 +25,9 @@ export const PREDICATES = [
 
 /** Whether a source record passes the store's predicate for its layer. A malformed number is refused, not
  *  read as 0 or NaN-false: a record we cannot read is a finding about the file. */
-export function filterRecord(kind: FeatureKind, a: Record<string, string>): boolean {
+// The sea (kind 6) is never filtered here: its pieces come from the sea ingest's own path (scripts/basemap/sea-pieces.ts), selected by
+// area and the US containment at selection, so it has no predicate column (docs/basemap-dense-code.md, part 2, "Stored as a NEW kind").
+export function filterRecord(kind: Exclude<FeatureKind, "sea">, a: Record<string, string>): boolean {
   // A MISSING column is refused; an empty value is not. Returning false for an absent key once read a
   // pipe-delimited Gazetteer as tab-delimited and kept 0 of 32,350 places without a word.
   const need = { water: "AWATER", rivers: "FULLNAME", roads: "MTFCC", peaks: "feature_class", places: "LSAD" }[kind];
