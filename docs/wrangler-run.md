@@ -83,3 +83,14 @@ the narrow ruling as given; the limit above still covers them.
 | **HP5** | `--sabotage`: every plant **AS PREDICTED**: S-CL-HOOK {CL12} (its anchor updated), new S-CL-READ {CL13}, the other four unchanged | |
 | **HP6** | `check_wrangler_calls.py` reads **0 direct and 0 stale** on the finished tree. Its `--selftest` passes, and a planted direct call in a scanned file reads 1 | |
 | escape | none of the above, or a row red that the table does not name | the instrument is not trustworthy at this point: stop, report, decide |
+
+### Graded (2026-11-13, in the order frozen above)
+
+| | result |
+|---|---|
+| **HP1** | AS PREDICTED: exactly CL12 red. The unnamed helper-form deploy returned **0** where 2 was wanted, and the helper rollback was not logged |
+| **HP2** | AS PREDICTED: every row passes |
+| **HP3** | AS PREDICTED: exactly CL13 red. All five direct forms returned 0 |
+| **HP4** | AS PREDICTED: every row passes |
+| **HP5** | AS PREDICTED: all eight plants, with S-CL-HOOK {CL12} and S-CL-READ {CL13}. **Run from an LF export of the staged files**: on a Windows checkout with `core.autocrlf=true` the `.py` files are CRLF on disk and every `.py` anchor reads "found 0 times" (this predates this PR; CI checks out LF) |
+| **HP6** | graded with the migration, below |
