@@ -1,3 +1,4 @@
 PARITY-CODE (docs/basemap-dense-code.md, registered at 894437c6): the shipped sea module on step 2's pinned inputs.
 The pieces file (2,626,156 B) is not copied: it is byte-identical to step 2's det-1.json (09db20fc5a86), which is the record of it.
 ctl.out is recorded with its hausdorff_max cut to 12 significant digits: the device-id hook refuses a 16-digit run.
+v2-alt.out (PC-C') is recorded with its hausdorff_max cut to 12 significant digits, as ctl.out.
