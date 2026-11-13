@@ -3727,3 +3727,15 @@ The driver's `all` set is a path filter. So the 76 also grade the rows this PR r
 | C-LOADFAIL | all | BLIND | BLIND | pq4d: fails to load |
 
 No driver runs before MB9 is ruled: it decides S-ROADORDER's and S-BTWICE's sets and the `all` and smoke counts.
+
+**MB9 ruled in (the orchestrator, after 03:49:01Z), frozen here before its test is written and before (d) runs.** Its values are pq4d's,
+from the clean instrument output (`clean.json` on the record at bdfe76d5d35f, object `A@795`), as proposed above:
+
+> **MB9: A at 795 fits at rung 3 by dropping only the shortest secondary (3 km).** `mb("A", 795)` matches
+> `{ status: 200, totalBytes: 785, toleranceMm: 201_168, water: rings(2), roads: 6, dropped: "0 / 1", eps: "100.584" }`, and its
+> roadEnds are `[10, 11, 12, 4, 5, 6].map(roadEnd)` = [-20268, -19930, -19593, -22295, -21957, -21619]: the three primaries and the
+> 4, 5 and 6 km secondaries, the 3 km one dropped.
+
+So: **S-ROADORDER = {MB9}**; **S-BTWICE** = {MB2, MB3, MB4, MB5, MB6, MB7, MB8b, MB9, MN3, T-PROV-b}; no other plant reaches MB9
+(pq4d). The predicted counts are the +MB9 ones: baseline[all] **190** cases seen in 18 files; the smoke CONTROL **1091 passed, 1 skipped,
+of 1092**. The other baselines, sets and the credits prediction are unchanged. Outside the set: stop.
