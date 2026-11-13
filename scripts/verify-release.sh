@@ -220,7 +220,7 @@ else
   # error page, a prompt, a truncated read -- fails both tests.
   kvget() {
     local out rc
-    out="$( ( cd proxy && npx wrangler kv key get "$1" \
+    out="$( ( cd proxy && node scripts/wrangler-run.mjs kv key get "$1" \
                 --binding=ENRICH_KV --env=production --remote --text ) 2>>"$KV_ERR" )"
     rc=$?
     [ "$rc" -ne 0 ] && return 0

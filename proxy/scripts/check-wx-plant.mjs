@@ -25,6 +25,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PROXY = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// Every wrangler call goes through the helper (docs/wrangler-run.md), run by this node: no npx, no shell.
+const WRANGLER_RUN = join(PROXY, "scripts", "wrangler-run.mjs");
 const PROD_TOML = "wx-ingest.wrangler.toml";
 const DEV_TOML = "wx-ingest-dev.wrangler.toml";
 const OPERA_TOML = "wx-ingest-opera.wrangler.toml";
@@ -46,10 +48,10 @@ function dryRun(config, env = null, script = null) {
   const key = `${config}|${env}|${script}`;
   if (cache.has(key)) return cache.get(key);
   const out = mkdtempSync(join(tmpdir(), "wx-plant-"));
-  const args = ["wrangler", "deploy", "--dry-run", "--outdir", out, "-c", config];
+  const args = [WRANGLER_RUN, "deploy", "--dry-run", "--outdir", out, "-c", config];
   if (env) args.push("-e", env);
   if (script) args.push(script);
-  const r = spawnSync("npx", args, { cwd: PROXY, encoding: "utf8", shell: process.platform === "win32" });
+  const r = spawnSync(process.execPath, args, { cwd: PROXY, encoding: "utf8" });
   const js = existsSync(out) ? readdirSync(out).filter((f) => f.endsWith(".js")).map((f) => readFileSync(join(out, f), "utf8")).join("\n") : "";
   rmSync(out, { recursive: true, force: true });
   const res = { code: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "", js };

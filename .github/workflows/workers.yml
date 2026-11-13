@@ -38,6 +38,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      # The KV gets go through proxy/scripts/wrangler-run.mjs (docs/wrangler-run.md), which runs the LOCKFILE's
+      # wrangler. `npx wrangler` here used to download whatever wrangler was latest.
+      - name: install the proxy's wrangler (the lockfile's)
+        working-directory: proxy
+        run: npm ci
       # SKIPPED LOUDLY, NEVER SILENTLY, when the token is absent -- a PR from a
       # fork gets no secrets, and a check that quietly passes in that case is
       # worse than one that is not there, because the green is read as an answer.

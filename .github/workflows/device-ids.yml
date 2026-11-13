@@ -77,3 +77,8 @@ jobs:
       - run: python3 tools/token_file_sabotage.py
       - run: python3 scripts/check_token_file_readers.py --selftest
       - run: python3 scripts/check_token_file_readers.py
+      # Every in-tree wrangler call goes through proxy/scripts/wrangler-run.mjs (docs/wrangler-run.md): the check, its
+      # planted shapes, and the helper's own selftest against a stand-in wrangler (no network, no account).
+      - run: python3 scripts/check_wrangler_calls.py --selftest
+      - run: python3 scripts/check_wrangler_calls.py
+      - run: node proxy/scripts/wrangler-run.mjs --selftest

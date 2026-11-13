@@ -86,7 +86,8 @@ const PROXY_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
  * failureText (ids masked, the known config warning dropped), so a failure names its cause and never an id.
  */
 function wrangler(argv: string[]): string {
-  const r = spawnSync(["npx", "wrangler", ...argv].join(" "), { cwd: PROXY_DIR, shell: true, encoding: "utf8" });
+  // through the helper (docs/wrangler-run.md): wrangler's debug log would otherwise keep the key names listed here
+  const r = spawnSync(["node", "scripts/wrangler-run.mjs", ...argv].join(" "), { cwd: PROXY_DIR, shell: true, encoding: "utf8" });
   if (r.status !== 0) {
     refuse(`wrangler ${argv.slice(0, 3).join(" ")} failed (exit ${r.status}):\n` +
       failureText(String(r.stdout ?? ""), String(r.stderr ?? "")));

@@ -1,5 +1,5 @@
 """Plan S's driver (docs/wx-opuk.md, "How each phase is ended"): deploy one phase of blipscope-wx-ingest-dev, count
-its invocations live through `wrangler tail`, and park on `off` at the phase's count. A trigger, not a reading: the
+its invocations live through a tail (`wrangler-run.mjs tail`), and park on `off` at the phase's count. A trigger, not a reading: the
 graded reading is s_reads.py. Deploys only from the clean checkout at the merged commit.
 
   PLAN_S_WANT=<merged sha> python -I s_drive.py <env> <label> <count> <max_minutes> [s4] [--first S] [--park ENV]
@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 
 SCRATCH = r"C:\Users\DanielFrenkel\AppData\Local\Temp\claude\c--Github-Blipscope\fb8462e7-ee3a-4757-8b09-2d0165eb9254\scratchpad"
 PROXY = os.path.join(SCRATCH, "wt-plan-s", "proxy")
-WRANGLER = os.path.join(PROXY, "node_modules", "wrangler", "bin", "wrangler.js")
+WRANGLER = os.path.join(PROXY, "scripts", "wrangler-run.mjs")   # every call through the helper (docs/wrangler-run.md)
 WANT = os.environ.get("PLAN_S_WANT", "")   # the merged commit the copy deploys from (refused if unset)
 CFG = "wx-ingest-dev.wrangler.toml"
 now = lambda: datetime.now(timezone.utc).strftime("%H:%M:%S.%f")[:-3] + "Z"

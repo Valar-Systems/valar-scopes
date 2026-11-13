@@ -119,14 +119,14 @@ def die(msg: str, code: int = 2) -> None:
     sys.exit(code)
 
 
-def npx() -> str:
-    """On Windows npx is npx.cmd, and CreateProcess will not find a bare "npx"
-    without a shell. Resolve it here rather than reaching for shell=True, which
-    would put every argument through cmd's quoting rules as well."""
-    p = shutil.which("npx") or shutil.which("npx.cmd")
+def wrangler() -> list[str]:
+    """Every wrangler call goes through proxy/scripts/wrangler-run.mjs (docs/wrangler-run.md): it moves wrangler's
+    debug log, which would otherwise keep every key name listed here, into a temp dir it removes. node is resolved
+    here rather than reaching for shell=True, which would put every argument through cmd's quoting rules."""
+    p = shutil.which("node") or shutil.which("node.exe")
     if not p:
-        die("npx not found on PATH -- cannot reach wrangler, so KV cannot be read")
-    return p
+        die("node not found on PATH -- cannot reach wrangler, so KV cannot be read")
+    return [p, str(PROXY / "scripts" / "wrangler-run.mjs")]
 
 
 def kv_list_names(prefix: str, env: str, errfile: Path) -> list[str]:
@@ -140,7 +140,7 @@ def kv_list_names(prefix: str, env: str, errfile: Path) -> list[str]:
     a 401. Knowing a result is untrustworthy is only half an answer; this is the
     other half.
     """
-    cmd = [npx(), "wrangler", "kv", "key", "list", "--binding", "ENRICH_KV",
+    cmd = [*wrangler(), "kv", "key", "list", "--binding", "ENRICH_KV",
            "--env", env, "--prefix", prefix, "--remote"]
     with errfile.open("w", encoding="utf-8") as ef:
         # encoding="utf-8": wrangler prints UTF-8, and a cp1252 locale's default decode crashed the reader thread
@@ -149,7 +149,7 @@ def kv_list_names(prefix: str, env: str, errfile: Path) -> list[str]:
                            text=True, encoding="utf-8", errors="strict", timeout=180)
     err = errfile.read_text(encoding="utf-8", errors="replace").strip()
     if r.returncode != 0:
-        die("wrangler kv key list failed for prefix %s (exit %d).\n--- stderr ---\n%s"
+        die("the key list (wrangler-run.mjs) failed for prefix %s (exit %d).\n--- stderr ---\n%s"
             % (prefix, r.returncode, err or "(empty)"))
     try:
         rows = json.loads(r.stdout)
@@ -173,7 +173,7 @@ def kv_list(prefix: str, env: str, errfile: Path) -> list[str]:
 
 
 def kv_get(dev_id: str, env: str, errfile: Path) -> dict | None:
-    cmd = [npx(), "wrangler", "kv", "key", "get", "fw:" + dev_id, "--binding", "ENRICH_KV",
+    cmd = [*wrangler(), "kv", "key", "get", "fw:" + dev_id, "--binding", "ENRICH_KV",
            "--env", env, "--remote"]
     with errfile.open("w", encoding="utf-8") as ef:
         r = subprocess.run(cmd, cwd=PROXY, stdout=subprocess.PIPE, stderr=ef,
@@ -187,7 +187,7 @@ def kv_get(dev_id: str, env: str, errfile: Path) -> dict | None:
 
 
 def kv_get_raw(key: str, env: str, errfile: Path) -> str | None:
-    cmd = [npx(), "wrangler", "kv", "key", "get", key, "--binding", "ENRICH_KV",
+    cmd = [*wrangler(), "kv", "key", "get", key, "--binding", "ENRICH_KV",
            "--env", env, "--remote"]
     with errfile.open("w", encoding="utf-8") as ef:
         r = subprocess.run(cmd, cwd=PROXY, stdout=subprocess.PIPE, stderr=ef,
@@ -592,8 +592,9 @@ def main() -> None:
             "        Refusing to judge: an empty listing cannot be told apart from a probe\n"
             "        that cannot read KV (wrong cwd, wrong namespace, expired token).\n"
             "        If the fleet is genuinely empty this is still the right answer --\n"
-            "        confirm by hand, from %s:\n"
-            "          npx wrangler kv key list --binding ENRICH_KV --env %s --prefix %s --remote\n"
+            "        confirm by hand, from %s, as a COUNT (device-prefix names never on screen):\n"
+            "          node scripts/wrangler-run.mjs kv key list --binding ENRICH_KV --env %s --prefix %s --remote"
+            " | python -c \"import json,sys; print(len(json.load(sys.stdin)))\"\n"
             "--- captured stderr ---\n%s"
             % (args.prefix, PROXY, args.env, args.prefix,
                errfile.read_text(encoding="utf-8", errors="replace").strip() or "(empty)"))
