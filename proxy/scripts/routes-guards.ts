@@ -19,6 +19,9 @@ export interface GuardResult {
   reason: string;
   /** G1 only: the source itself is untrustworthy, so nothing is written either. */
   refuseAll?: boolean;
+  /** G3/G4: the shard file names concerned (airline files: public, never a callsign), so an attended run can name
+   * them in an override. */
+  names?: string[];
 }
 
 /** The ingest's own sane band on the row count, re-used, plus a floor relative to the previous snapshot. */
@@ -67,7 +70,7 @@ export function g3SurvivingShare(prevByShard: Map<string, Set<string>>, newBySha
     for (const k of before) if (!after.has(k)) lost++;
     if (lost > SHARD_KEYS && lost / before.size > SHARD_SHARE && !allowShards.has(shard)) offenders.push(shard);
   }
-  if (offenders.length > 0) return { ok: false, reason: `G3: ${offenders.length} surviving shard(s) would lose more than ${SHARD_SHARE * 100}% and more than ${SHARD_KEYS} keys` };
+  if (offenders.length > 0) return { ok: false, names: offenders, reason: `G3: ${offenders.length} surviving shard(s) would lose more than ${SHARD_SHARE * 100}% and more than ${SHARD_KEYS} keys` };
   return { ok: true, reason: "G3: no surviving shard over its bound" };
 }
 
@@ -77,7 +80,7 @@ export function g4Removed(prevByShard: Map<string, Set<string>>, newByShard: Map
   const keys = removed.reduce((n, s) => n + (prevByShard.get(s)?.size ?? 0), 0);
   const maxShards = Math.max(MAX_REMOVED_SHARDS, allowRemoved);
   if (removed.length > maxShards || (keys > MAX_REMOVED_KEYS && allowRemoved < removed.length)) {
-    return { ok: false, reason: `G4: ${removed.length} shard(s) removed, holding ${keys} keys (bounds ${MAX_REMOVED_SHARDS} and ${MAX_REMOVED_KEYS})` };
+    return { ok: false, names: removed, reason: `G4: ${removed.length} shard(s) removed, holding ${keys} keys (bounds ${MAX_REMOVED_SHARDS} and ${MAX_REMOVED_KEYS})` };
   }
   return { ok: true, reason: `G4: ${removed.length} shard(s) removed, holding ${keys} keys` };
 }

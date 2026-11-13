@@ -94,6 +94,7 @@ import { join } from "node:path";
 import { putWithBackoff } from "./chunk-retry";
 import { sleepSync } from "./exec-retry";
 import { RULE_REV, routeEndpoints } from "./routerule";
+import * as G from "./routes-guards";
 import { q, sh } from "./shquote";
 import { TokenFileError, resolveTestIdentity } from "./token-file";
 
@@ -138,15 +139,38 @@ interface Args {
   dryRun: boolean;
   file?: string;
   forceShards: string[];
+  // the key-level mode (docs/route-weekly-code.md, W2)
+  keyLevel: boolean;
+  prev?: string;
+  prevAlso?: string;
+  prevManifest?: string;
+  noSeal: boolean;
+  sealOnly: boolean;
+  receipt?: string;
+  readback: "on" | "off";
+  maxDeletes?: number;
+  allowShards: string[];
+  allowRemoved: number;
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dryRun: false, forceShards: [] };
+  const a: Args = { dryRun: false, forceShards: [], keyLevel: false, noSeal: false, sealOnly: false, readback: "on", allowShards: [], allowRemoved: 0 };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--dry-run") a.dryRun = true;
     else if (argv[i] === "--env") a.env = argv[++i];
     else if (argv[i] === "--file") a.file = argv[++i];
     else if (argv[i] === "--force-shard") a.forceShards.push(argv[++i] as string);
+    else if (argv[i] === "--key-level") a.keyLevel = true;
+    else if (argv[i] === "--prev") a.prev = argv[++i];
+    else if (argv[i] === "--prev-also") a.prevAlso = argv[++i];
+    else if (argv[i] === "--prev-manifest") a.prevManifest = argv[++i];
+    else if (argv[i] === "--no-seal") a.noSeal = true;
+    else if (argv[i] === "--seal-only") a.sealOnly = true;
+    else if (argv[i] === "--receipt") a.receipt = argv[++i];
+    else if (argv[i] === "--readback") a.readback = argv[++i] === "off" ? "off" : "on";
+    else if (argv[i] === "--max-deletes") a.maxDeletes = Number(argv[++i]);
+    else if (argv[i] === "--allow-shard") a.allowShards.push(argv[++i] as string);
+    else if (argv[i] === "--allow-removed") a.allowRemoved = Number(argv[++i]);
   }
   return a;
 }
@@ -243,7 +267,7 @@ function rows(text: string): Record<string, string>[] {
 interface ParsedSource {
   root: string;
   commit: string;
-  shards: Map<string, { hash: string; pairs: [string, string][] }>;
+  shards: Map<string, { hash: string; plainHash: string; pairs: [string, string][] }>;
   totalRows: number;
 }
 
@@ -293,7 +317,7 @@ function parseSource(tarPath: string, tmp: string, label = ""): ParsedSource {
 
   // ---- parse the route shards, hashing each --------------------------------
   const shardFiles = csvFiles(join(root, "routes")).sort();
-  const shards = new Map<string, { hash: string; pairs: [string, string][] }>();
+  const shards = new Map<string, { hash: string; plainHash: string; pairs: [string, string][] }>();
   let parsed = 0;
   let skipped = 0;
   let rotations = 0;
@@ -303,6 +327,9 @@ function parseSource(tarPath: string, tmp: string, label = ""): ParsedSource {
     // RULE_REV is part of the hash, not just the bytes: a rule change must
     // re-diff every shard, or the fix silently writes nothing.
     const hash = createHash("sha256").update("rule" + RULE_REV).update(raw).digest("hex").slice(0, 16);
+    // The pre-rule hash, sha256(raw) alone: the scheme of manifests written before RULE_REV was folded in (staging's
+    // 08-25 build). Used only to PROVE such a manifest against its snapshot (--prev-also); the diff never uses it.
+    const plainHash = createHash("sha256").update(raw).digest("hex").slice(0, 16);
     const pairs: [string, string][] = [];
     for (const r of rows(raw)) {
       parsed++;
@@ -316,7 +343,7 @@ function parseSource(tarPath: string, tmp: string, label = ""): ParsedSource {
       if (legs.length > 2 && legs[0] === legs[legs.length - 1]) rotations++;
       pairs.push([`rt:${cs}`, JSON.stringify({ o: code(oIcao), d: code(dIcao) })]);
     }
-    shards.set(name, { hash, pairs });
+    shards.set(name, { hash, plainHash, pairs });
   }
   const totalRows = [...shards.values()].reduce((n, s) => n + s.pairs.length, 0);
   console.log(`${label}routes: ${shardFiles.length} shards, ${parsed} rows parsed, ${skipped} skipped, ${totalRows} usable`);
@@ -368,8 +395,110 @@ function readMeta(env: string): { kind: "absent" } | { kind: "ok"; meta: Meta } 
   }
 }
 
+function refuse(code: number, ...lines: string[]): never {
+  for (const l of lines) console.error(l);
+  process.exit(code);
+}
+
+/**
+ * THE KEY-LEVEL MODE (docs/route-weekly-refresh.md 2.3-2.5; docs/route-weekly-code.md, W2). It writes only the keys
+ * whose value changed, deletes only keys the mirror itself wrote that the source has dropped, and NEVER seals in-run:
+ * meta:routes is written by a later --seal-only, after a full verify (seal last, by construction).
+ *
+ * The previous snapshot is not trusted, it is PROVEN: --prev must hash, shard for shard, to the current meta:routes,
+ * and --prev-also (the first run's older snapshot) to a saved manifest. The delete list is computed from those proven
+ * snapshots and never from a KV listing of rt:, which also holds the Worker's TTL'd runtime rows.
+ *
+ * Stage 1 (this commit) is the dry run: the proofs, the diff and G1-G6, printing counts only. The write, delete and
+ * seal steps follow in their own commits, each red-first.
+ */
+async function keyLevelMain(args: Args) {
+  if (!args.env) refuse(2, "REFUSING: the key-level mode needs --env <staging|production>");
+  if (!args.file || !args.prev) refuse(2, "REFUSING: the key-level mode needs --file <the new source> and --prev <the snapshot meta:routes was built from>");
+  const scheduled = process.env.GITHUB_EVENT_NAME === "schedule";
+  const overrides = args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved > 0;
+  if (scheduled && overrides) refuse(5, "REFUSING: an override was passed to a scheduled run. A scheduled run can never override a guard (G5).");
+  if (args.sealOnly) refuse(2, "REFUSING: --seal-only is not built yet (stage 1 is the dry run).");
+  if (!args.dryRun) refuse(2, "REFUSING: only --dry-run is built in stage 1; the write, delete and seal steps follow, each red-first.");
+
+  const nw = parseSource(args.file, mkdtempSync(join(tmpdir(), "routes-new-")), "new: ");
+  const pv = parseSource(args.prev, mkdtempSync(join(tmpdir(), "routes-prev-")), "prev: ");
+
+  // ---- proof 1: --prev IS the snapshot the current meta:routes was built from ---------------------------------
+  const m = readMeta(args.env as string);
+  if (m.kind === "absent") refuse(1, "REFUSING: no meta:routes, so --prev cannot be proven. The key-level mode needs a proven previous snapshot.");
+  const manifest = (m as { kind: "ok"; meta: Meta }).meta.shards;
+  const names = new Set([...Object.keys(manifest), ...pv.shards.keys()]);
+  let eq = 0;
+  for (const n of names) if ((manifest[n] ?? "").split(":")[0] === pv.shards.get(n)?.hash) eq++;
+  console.log(`prev proof: ${eq}/${names.size} shard hashes equal meta:routes (manifest ${Object.keys(manifest).length} shards, prev ${pv.shards.size})`);
+  if (eq !== names.size) refuse(1, "REFUSING: --prev is not the snapshot meta:routes was built from, so a diff against it would be wrong. Nothing written.");
+
+  // ---- proof 2 (the first run only): --prev-also against its saved manifest, under ONE hash scheme for all -------
+  let also: ParsedSource | null = null;
+  if (args.prevAlso) {
+    if (!args.prevManifest) refuse(2, "REFUSING: --prev-also needs --prev-manifest <the saved meta:routes it was built into>");
+    also = parseSource(args.prevAlso, mkdtempSync(join(tmpdir(), "routes-also-")), "prev-also: ");
+    const man = (JSON.parse(readFileSync(args.prevManifest as string, "utf8")) as Meta).shards;
+    const all = new Set([...Object.keys(man), ...also.shards.keys()]);
+    let eqRule = 0, eqPlain = 0;
+    for (const n of all) {
+      const h = (man[n] ?? "").split(":")[0];
+      if (h === also.shards.get(n)?.hash) eqRule++;
+      if (h === also.shards.get(n)?.plainHash) eqPlain++;
+    }
+    console.log(`prev-also proof: ${Math.max(eqRule, eqPlain)}/${all.size} shard hashes equal its manifest (${eqRule === all.size ? "rule-hashed" : eqPlain === all.size ? "pre-rule plain hash" : "NEITHER scheme whole"})`);
+    if (eqRule !== all.size && eqPlain !== all.size) refuse(1, "REFUSING: --prev-also is not the snapshot its manifest records. Nothing written.");
+  }
+
+  // ---- the diff ---------------------------------------------------------------------------------------------------
+  const valuesOf = (p: ParsedSource) => new Map([...p.shards.values()].flatMap((s) => s.pairs));
+  const byShard = (p: ParsedSource) => new Map([...p.shards].map(([n, s]) => [n, new Set(s.pairs.map(([k]) => k))]));
+  const newVal = valuesOf(nw), prevVal = valuesOf(pv);
+  const newKeys = new Set(newVal.keys()), prevKeys = new Set(prevVal.keys());
+  const alsoKeys = also ? new Set(valuesOf(also).keys()) : new Set<string>();
+  const ours = new Set([...prevKeys, ...alsoKeys]); // every key the mirror is proven to have written
+  const newByShard = byShard(nw);
+  const unionByShard = new Map<string, Set<string>>();
+  for (const src of [also ? byShard(also) : new Map<string, Set<string>>(), byShard(pv)]) {
+    for (const [n, ks] of src) unionByShard.set(n, new Set([...(unionByShard.get(n) ?? []), ...ks]));
+  }
+  let added = 0, changed = 0;
+  for (const [k, v] of newVal) { if (!prevVal.has(k)) added++; else if (prevVal.get(k) !== v) changed++; }
+  const deletes = [...ours].filter((k) => !newKeys.has(k));
+  const removedShards = new Set([...unionByShard.keys()].filter((n) => !newByShard.has(n)));
+  let fromRemoved = 0;
+  for (const n of removedShards) for (const k of unionByShard.get(n) ?? []) if (!newKeys.has(k)) fromRemoved++;
+  console.log(`sources: new ${nw.commit.slice(0, 12)}, prev ${pv.commit.slice(0, 12)}${also ? `, prev-also ${also.commit.slice(0, 12)}` : ""}`);
+  console.log(`key-level writes: ${added + changed} (added ${added}, value changed ${changed}); deletes: ${deletes.length} (${deletes.length - fromRemoved} from surviving shards, ${fromRemoved} from ${removedShards.size} removed shard(s))`);
+
+  // ---- the guards ---------------------------------------------------------------------------------------------
+  const g1 = G.g1Completeness(pv.totalRows, nw.totalRows);
+  console.log(`  ${g1.ok ? "ok  " : "FAIL"} ${g1.reason}`);
+  if (!g1.ok) refuse(1, "REFUSING EVERYTHING (G1): the new source is not whole. Nothing would be written or deleted.");
+  const anchors = (JSON.parse(readFileSync("scripts/routes-anchors.json", "utf8")) as { anchors: string[] }).anchors;
+  const verdicts = [
+    G.g2Anchors(anchors, prevKeys, newKeys),
+    G.g3SurvivingShare(unionByShard, newByShard, new Set(args.allowShards)),
+    G.g4Removed(unionByShard, newByShard, args.allowRemoved),
+    G.g5Cap(deletes.length, { scheduled, maxDeletes: args.maxDeletes }),
+    G.g6ShapeAndProvenance(deletes, ours),
+  ];
+  for (const v of verdicts) {
+    console.log(`  ${v.ok ? "ok  " : "FAIL"} ${v.reason}`);
+    if (!v.ok && v.names) console.log(`       shard(s): ${v.names.join(", ")}`);
+  }
+  const deletesAllowed = verdicts.every((v) => v.ok);
+  console.log(`plan: write ${added + changed}; ${deletesAllowed ? `delete ${deletes.length}` : `delete NONE (refused), so the run would NOT seal`}; seal: never in-run (--seal-only after a verify PASS)`);
+  console.log("--dry-run: stopping before any write");
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.keyLevel || args.sealOnly) return keyLevelMain(args);
+  const keyLevelOnly = args.noSeal || args.prev || args.prevAlso || args.prevManifest || args.receipt || args.readback === "off"
+    || args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved > 0;
+  if (keyLevelOnly) refuse(2, "REFUSING: --no-seal, --prev, --prev-also, --prev-manifest, --receipt, --readback and the overrides belong to --key-level.");
   if (!args.dryRun && !args.env) {
     console.error("refusing to run: pass --env <staging|production> or --dry-run");
     process.exit(2);
