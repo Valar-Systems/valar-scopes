@@ -3782,3 +3782,18 @@ Both print, per view, the differing and island pixel counts and a sha256 prefix 
 **KB1 itself** is registered after the parity step, from pq4d on the shared fixtures, with its red-set additions:
 - S-KB-NOBRIDGE on kb1 and kb1c;
 - S-KB-ORDER on kb1c.
+
+**R8's parity step, read (04:03:57Z, at ace8fff2c1ab):**
+- **P1: 144 of 144 view rows equal**, AS PREDICTED.
+- **P2: every total AS PREDICTED:** kb1 0, kb1c 0, kb1-nobridge 20,818, kb1-order 0, kb1c-nobridge 15,388, kb1c-order 128. The registration attached run 3's off-bridge breakdown (4 / 24 / 96 = 124) to the total. That was my slip in the text; the total by view radius reads 4 / 24 / 100 = 128.
+- **C1:**
+  - the 26 on kb1 in exactly the registered views, AS PREDICTED;
+  - **OFF: 141 of 144 rows equal, not 144.** The three rows are one event: kb1 at (162 km, 45°), on kb1's three inputs. The reference mask differs by 2 pixels (268 vs 270 island pixels), and the drawn masks are equal.
+- **Ruled (the orchestrator, after 04:04Z):** C1 stays off. KB1 may proceed, because its premises held: P1 under the rule KB1 uses, and the 26. The diagnostic runs as registered.
+
+**The diagnostic (04:06Z; `r8/mapbits.py` 43f84f807353, `r8/mapbits.mts` 704491face8c) reads (a).** It compares the mapper's output, as float64 bits, for kb1's outer and three islands at (162 km, 45°):
+- `cos(45°)` is equal in both languages.
+- **`sin(45°)` is one ulp apart:** CPython's libm (the MSVC CRT here) gives the float64 whose bits end `...667f3bcd`, and V8 gives `...667f3bcc`, the last bit apart.
+- So **9 of 32** vertex coordinates differ in their last bits, and the old rule turns that into a 2-pixel flip at an exact tie.
+
+**What this does and does not show, for any future cross-runtime comparison:** under the pinned rule the two raster masks agreed on every input and view here, despite those ulp differences. These inputs do not show that the lower-endpoint rule is tie-robust in general. An alternative is not excluded: the rule's lower endpoint may simply have been one of the bit-equal coordinates where the old rule's first endpoint was not. So a comparison across runtimes can meet a tie under either rule. KB1 avoids the question by comparing two rasters made by the port in one runtime.
