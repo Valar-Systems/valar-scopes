@@ -89,11 +89,13 @@ if [ "$MODE" = "selftest" ]; then
   # W2: it times out rather than matching an old line.
   n="$(wait_log "$T/log" '\[claim\]' 0 3)"; ok "W2 wait_log: no match -> times out, empty" "$([ -z "$n" ] && echo 0 || echo 1)"
   # P1: the password-file presence check prints present/absent only, and refuses on a missing line.
-  mkdir -p "$T/cfg"; printf 'ssid=SENTINEL-NET\npassword=SENTINEL-PW\n' > "$T/cfg/bench-wifi"
+  # Placeholder-shaped values (<...>): scripts/check_wifi.py refuses a bare network name after ssid[=] in any tracked
+  # file, and a placeholder passes it (docs/wifi-scrub.md). They still carry the SENTINEL the check looks for.
+  mkdir -p "$T/cfg"; printf 'ssid=<SENTINEL-NET>\npassword=<SENTINEL-PW>\n' > "$T/cfg/bench-wifi"
   out="$(FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"
   ok "P1 the dry run prints no part of the password file" "$(printf '%s' "$out" | grep -q SENTINEL && echo 1 || echo 0)"
   ok "P1-control: it does print the presence line" "$(printf '%s' "$out" | grep -q 'bench-wifi: present' && echo 0 || echo 1)"
-  printf 'ssid=SENTINEL-NET\n' > "$T/cfg/bench-wifi"
+  printf 'ssid=<SENTINEL-NET>\n' > "$T/cfg/bench-wifi"
   out="$(FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
   ok "P2 a missing password line refuses (exit 2), saying 'absent'" "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -q 'bench-wifi: absent' && echo 0 || echo 1)"
   rm -rf "$T"
@@ -108,7 +110,7 @@ say "PREFLIGHT (nothing on the board is touched yet; window: \"$WINDOW\")"
 "${PY[@]}" "$ROOT/scripts/fresh-boot-cadence.py" --candidate "$CAND" || die "the cadence check did not allow an automated run (above)" 2
 bash "$ROOT/scripts/fresh-boot-acceptance.sh" --selftest >/dev/null 2>&1 || die "the acceptance's own --selftest failed" 2
 "${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" --selftest >/dev/null 2>&1 || die "the form helper's --selftest failed" 2
-if [ -f "$WIFI_FILE" ] && [ "$(grep -c '^ssid=.' "$WIFI_FILE")" = "1" ] && [ "$(grep -c '^password=.' "$WIFI_FILE")" = "1" ]; then
+if [ -f "$WIFI_FILE" ] && [ "$(grep -c '^ssid[=].' "$WIFI_FILE")" = "1" ] && [ "$(grep -c '^password=.' "$WIFI_FILE")" = "1" ]; then
   say "bench-wifi: present"
 else
   say "bench-wifi: absent"; die "step 2 needs the owner's file (docs/fresh-boot-automation.md): it falls back to his phone" 2

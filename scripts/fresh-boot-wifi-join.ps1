@@ -24,7 +24,7 @@ function Say([string]$m) { Write-Host ("{0} {1}" -f (Get-Date).ToUniversalTime()
 $file = Join-Path $env:USERPROFILE ".config\blipscope\bench-wifi"
 if (-not (Test-Path $file)) { Say "bench-wifi: absent. Nothing done."; exit 2 }
 $lines = Get-Content -LiteralPath $file
-$s = @($lines | Where-Object { $_ -match '^ssid=.' }); $p = @($lines | Where-Object { $_ -match '^password=.' })
+$s = @($lines | Where-Object { $_ -match '^ssid[=].' }); $p = @($lines | Where-Object { $_ -match '^password=.' })   # ssid[=]: scripts/check_wifi.py
 if ($s.Count -ne 1 -or $p.Count -ne 1) { Say "bench-wifi: malformed (needs exactly one ssid= and one password= line). Nothing done."; exit 2 }
 $ssid = $s[0].Substring(5); $pw = $p[0].Substring(9)
 Say "bench-wifi: present"
