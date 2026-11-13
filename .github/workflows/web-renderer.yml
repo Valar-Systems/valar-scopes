@@ -128,6 +128,16 @@ jobs:
           source ~/emsdk/emsdk_env.sh >/dev/null
           node tools/web-renderer/sabotage_setbuffer.mjs web-dist/s3-128
 
+      # T-web, the no-photo detail card (#670; docs/card-nophoto-fix.md, section 3): a tap on a scene contact's label
+      # opens its card, and its route, type and operator rows must be drawn. EVERY model runs before the step decides
+      # (exit = the worst of them), so one model's failure never hides another's result. Last of the checks, so
+      # every check above still reports while a model is red.
+      - name: T-web, the no-photo card's rows, every model
+        run: |
+          rc=0
+          for sku in $BUILT; do node tools/web-renderer/card_nophoto.mjs "web-dist/$sku" || { r=$?; [ "$r" -gt "$rc" ] && rc=$r; }; done
+          exit "$rc"
+
       - uses: actions/upload-artifact@v4
         with:
           name: blipscope-web-v${{ steps.ver.outputs.fw }}

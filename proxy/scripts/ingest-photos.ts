@@ -113,7 +113,7 @@ type Exec = (cmd: string) => void;
 const realExec: Exec = (c) => { execSync(c, { stdio: "inherit" }); };
 function wranglerPut(env: string, key: string, opts: { value?: string; path?: string }, exec: Exec = realExec): void {
   assertAllowedKey(key);
-  const parts = ["npx", "wrangler", "kv", "key", "put", q(key)];
+  const parts = ["node", "scripts/wrangler-run.mjs", "kv", "key", "put", q(key)];
   if (opts.value !== undefined) parts.push(q(opts.value));
   if (opts.path !== undefined) parts.push("--path", q(opts.path));
   parts.push("--binding=ENRICH_KV", `--env=${env}`, "--remote");

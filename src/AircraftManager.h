@@ -491,6 +491,9 @@ private:
 #ifdef TOUCH_WEDGE_BENCH
     void PollTouchBench();   // bench-only dead-chip switch (TouchBench.h)
 #endif
+#ifdef CARD_BENCH
+    void PollCardBench();    // bench-only chosen detail card, opened with no hands (AircraftManager.cpp)
+#endif
     unsigned long lastNotifyCheck = 0;
 
     // Special-aircraft detection. Every class is derived offline from the live

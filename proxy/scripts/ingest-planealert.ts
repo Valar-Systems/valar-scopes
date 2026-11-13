@@ -154,7 +154,7 @@ async function main(): Promise<void> {
     writeFileSync(path, JSON.stringify(chunk));
     console.log(`bulk put ${chunk.length} rows (${i + chunk.length}/${rows.length}) ...`);
     execSync(
-      ["npx", "wrangler", "kv", "bulk", "put", q(path), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
+      ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "put", q(path), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
       { stdio: "inherit" },
     );
   }
