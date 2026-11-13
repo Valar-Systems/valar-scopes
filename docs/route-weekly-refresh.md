@@ -1,7 +1,39 @@
 # The weekly route refresh: a plan (no code before the reviewer's review)
 
-**Status: PLAN.** Nothing here runs, and no code is written until the reviewer has read this. The one-off refresh it
-follows is `docs/route-refresh-2026-11.md`, piece (A). The 10-day alert that makes it urgent is piece (B).
+**Status: PLAN, accepted in direction by the reviewer at 2026-11-13 17:04:02Z, on seven conditions (below).** Nothing
+here runs yet. The one-off refresh it follows is `docs/route-refresh-2026-11.md`, piece (A). The 10-day alert that
+makes it urgent is piece (B).
+
+**Accepted as written:**
+- the key-level writer, which is mandatory;
+- deletes only from the mirror's own proven snapshots;
+- seal last by construction;
+- G1-G6, each red-first, with removed shards as their own case;
+- a refused delete means no seal;
+- no override on a scheduled run;
+- the schedule: Tuesday 05:47Z, staging then production through `needs:`.
+
+**The conditions:**
+1. **Code is registered before it is written.** The key-level writer, the delete path and `--no-seal`/`--seal-only`
+   each get red-first rows, then CI, then a staging rehearsal, then production. It writes production on a schedule,
+   so it gets full rigour.
+2. **The first run is attended,** through `workflow_dispatch` with the registered overrides (G3, G4, G5), never the
+   schedule.
+   - Its delete count (about 830, as a count) and its write count are predicted.
+   - Afterwards the deleted keys are verified ABSENT, because a bulk delete can drop silently too.
+3. **The deadline:** the first run finishes before the 10-day alert fires, about 11-24 01:30Z if (A)'s production run
+   lands after 11-14 01:30Z. If it slips, the alert firing is correct.
+4. **Who reads it, ruled:**
+   - a failed or refused run opens or updates a GitHub issue labelled `route-refresh`;
+   - `reconcile-fleet.py` prints the count of open `route-refresh` issues;
+   - ntfy to the owner's phone is offered to him as an option, not built by default.
+5. **Cost is checked on staging first:** a key-level staging run's writes are predicted, then read from analytics,
+   before production is scheduled.
+6. **`ROUTES_FREEZE_UNTIL`:** the plan states who sets it and how, and a red-first test proves that a set freeze
+   actually skips the run. A freeze that is quietly ignored is worse than none.
+7. **The test identity as CI secrets is the owner's call** (a credential), and has been put to him.
+   - Until he answers, (C) runs with the live-path read-back off, and that step reports **"not run"**. It is never
+     skipped silently.
 
 ## 0. The requirement
 
