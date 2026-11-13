@@ -495,6 +495,12 @@ async function keyLevelMain(args: Args) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  // FK1 (docs/route-weekly-code.md): ROUTES_KV_CLI swaps real KV for a JSON fake, for tests. On the production path it
+  // would turn a run into a silent green -- "writes" to a file, verified against the same file. So it is refused, before
+  // any KV call, under CI (GITHUB_ACTIONS) or against production, whatever else is passed.
+  if (process.env.ROUTES_KV_CLI && (process.env.GITHUB_ACTIONS || args.env === "production")) {
+    refuse(2, "REFUSING (FK1): ROUTES_KV_CLI is a test-only stand-in for KV and is never allowed under CI or with --env production.");
+  }
   if (args.keyLevel || args.sealOnly) return keyLevelMain(args);
   const keyLevelOnly = args.noSeal || args.prev || args.prevAlso || args.prevManifest || args.receipt || args.readback === "off"
     || args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved > 0;
