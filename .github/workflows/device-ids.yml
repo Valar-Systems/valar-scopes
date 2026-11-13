@@ -51,6 +51,11 @@ jobs:
       - run: python3 scripts/check_macs.py
       - run: python3 scripts/check_macs.py --selftest
       - run: python3 scripts/check_macs.py --sabotage
+      # The frame bench's step-C exemption (BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT) lives on bench/frame-bench-c1 ONLY: a PR
+      # carrying it would disarm the step-C refusal in src/AircraftManager.h (docs/frame-time-bench.md, "C1's bench").
+      # The selftest plants each form it can take, and the refusal's own absence.
+      - run: python3 scripts/check_no_bench_exemption.py
+      - run: python3 scripts/check_no_bench_exemption.py --selftest
       # Session claims (docs/session-claims.md): CL1-CL12, then each plant must turn exactly its rows red.
       - run: python3 scripts/session-claim.py --selftest
       - run: python3 scripts/session-claim.py --sabotage
