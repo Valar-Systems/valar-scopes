@@ -1,0 +1,6 @@
+R12 (b)/(c): the sabotage driver's existing table re-predicted from pq4d under the same plants (docs/basemap-dense-code.md, "R12").
+Run from the scratchpad root, with pq4d/ (mk-pq4d.mjs), wt-main/ (tsx) and wt-code/ (the fixtures, the driver) beside the scripts:
+  node pq4d-sabpredict.mjs --control   clean instrument == the frozen JSONs (28 of 28)
+  node pq4d-sabpredict.mjs --knobs     the grader reproduces SEA-CI's 7 knob-registered sets (7 of 7)
+  node pq4d-sabpredict.mjs             every build() plant -> predicted.json; node table.mjs -> the doc's table
+clean.json: the clean instrument output (29 objects, A@795 = the proposed MB9). anchor-check.mjs and plant-parse.mjs are read-only checks.

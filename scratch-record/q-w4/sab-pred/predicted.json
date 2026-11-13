@@ -1,0 +1,313 @@
+{
+ "S-RLBRECOMP": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MR1"
+  ]
+ },
+ "S-RXCUR": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MR2"
+  ]
+ },
+ "S-RORDER": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MR2"
+  ]
+ },
+ "S-RNOCLOSE": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MR3"
+  ]
+ },
+ "S-RGE": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MR4"
+  ]
+ },
+ "S-RHYPOT": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MR7"
+  ]
+ },
+ "S-ECLAMP": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "ME4"
+  ]
+ },
+ "S-RZERO": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MR5"
+  ]
+ },
+ "S-R0M": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MR6"
+  ]
+ },
+ "S-BUSSUB": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "ML7"
+  ]
+ },
+ "S-SQUARELEN": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "ML6",
+   "MR6"
+  ]
+ },
+ "S-DEDUPALL": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "ML11"
+  ]
+ },
+ "S-DEDUPLT": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "ML11b"
+  ]
+ },
+ "S-PLACESORT": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "ML13"
+  ]
+ },
+ "S-RIVERTIE": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "ML4"
+  ]
+ },
+ "S-TALIGN": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MT-impulse",
+   "MT-corner"
+  ]
+ },
+ "S-TPAD": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MT-corner",
+   "MT2a",
+   "MT2b",
+   "MT2c",
+   "MT2d",
+   "MT2e"
+  ]
+ },
+ "S-TROUND": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MT4"
+  ]
+ },
+ "S-TCOS": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MT2e"
+  ]
+ },
+ "S-BTWICE": {
+  "red": [
+   "MB2",
+   "MB3",
+   "MB4",
+   "MB5",
+   "MB6",
+   "MB7",
+   "MB8b",
+   "MB9",
+   "MN3",
+   "T-PROV-b"
+  ],
+  "why": {
+   "MB2": "A@811.totalBytes",
+   "MB3": "A@667.toleranceMm",
+   "MB4": "A@623.totalBytes",
+   "MB5": "A@624.toleranceMm",
+   "MB6": "B@841.totalBytes",
+   "MB7": "B@838.totalBytes",
+   "MB8b": "A8@1321.totalBytes",
+   "MB9": "A@795.totalBytes",
+   "MN3": "A@811.rung",
+   "T-PROV-b": "sea:provB.rung"
+  },
+  "frozen": [
+   "MB2",
+   "MB3",
+   "MB5",
+   "MB6",
+   "MB7",
+   "MB8b"
+  ]
+ },
+ "S-DROPORDER": {
+  "red": [
+   "MB3",
+   "MB4"
+  ],
+  "why": {
+   "MB3": "A@667.water",
+   "MB4": "A@623.water"
+  },
+  "frozen": null
+ },
+ "S-NOCOUNT": {
+  "red": [
+   "MB3",
+   "MB4",
+   "MB5"
+  ],
+  "why": {
+   "MB3": "A@667.dropped",
+   "MB4": "A@623.dropped",
+   "MB5": "A@624.dropped"
+  },
+  "frozen": null
+ },
+ "S-ROADORDER": {
+  "red": [
+   "MB9"
+  ],
+  "why": {
+   "MB9": "A@795.roadEnds"
+  },
+  "frozen": null
+ },
+ "S-PRIMARYDROP": {
+  "red": [
+   "MB4",
+   "T-D2",
+   "T-D2c"
+  ],
+  "why": {
+   "MB4": "A@623.totalBytes",
+   "T-D2": "sea:d2.steps",
+   "T-D2c": "sea:d2-control.steps"
+  },
+  "frozen": null
+ },
+ "S-TERRCAP": {
+  "red": [
+   "MB8a",
+   "MB8b"
+  ],
+  "why": {
+   "MB8a": "A8@1322.totalBytes",
+   "MB8b": "A8@1321.totalBytes"
+  },
+  "frozen": [
+   "MB8a",
+   "MB8b"
+  ]
+ },
+ "S-TNOMARGIN": {
+  "red": [
+   "MB8a",
+   "MB8b"
+  ],
+  "why": {
+   "MB8a": "A8@1322.totalBytes",
+   "MB8b": "A8@1321.totalBytes"
+  },
+  "frozen": [
+   "MT3b",
+   "MB8a",
+   "MB8b"
+  ]
+ },
+ "S-WNOSTORECHECK": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MW17"
+  ]
+ },
+ "S-MREV": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MA1",
+   "MD4",
+   "MG0b"
+  ]
+ },
+ "S-LADDER": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MN1",
+   "MN6"
+  ]
+ },
+ "S-RUNG": {
+  "red": [
+   "MN3",
+   "T-PROV-b"
+  ],
+  "why": {
+   "MN3": "A@811.rung",
+   "T-PROV-b": "sea:provB.rung"
+  },
+  "frozen": [
+   "MN3"
+  ]
+ },
+ "S-SECSUM": {
+  "red": [
+   "MN1",
+   "MN6"
+  ],
+  "why": {
+   "MN1": "A@100.sections",
+   "MN6": "MN6 relation"
+  },
+  "frozen": [
+   "MN6",
+   "BB4"
+  ]
+ },
+ "S-MX1": {
+  "red": [],
+  "why": {},
+  "frozen": [
+   "MX1"
+  ]
+ },
+ "C-LOADFAIL": {
+  "loadFailed": "exit 1: oxy\\node_modules\\esbuild\\lib\\main.js:862:7)\r\n    at Socket.emit (node:events:509:28)\r\n    at addChunk (node:internal/streams/readable:563:12)\r\n    at readableAddChunkPushByteMode (node:interna",
+  "frozen": "BLIND"
+ }
+}

@@ -1,0 +1,58 @@
+{
+ "S-DROPORDER": {
+  "files": [
+   [
+    "src/basemap/budget.ts",
+    [
+     [
+      "    const w0 = dropOrder(rings0.map(ringArea2));\n",
+      "    const w0 = dropOrder(rings0.map((r) => -ringArea2(r))); // SABOTAGE S-DROPORDER: largest first\n"
+     ]
+    ]
+   ]
+  ]
+ },
+ "S-NOCOUNT": {
+  "files": [
+   [
+    "src/basemap/budget.ts",
+    [
+     [
+      "    const w1 = smallestFit(rings0.length, (k) => { d.water = k; return",
+      "    const w1 = smallestFit(rings0.length, (k) => { d.water = 0; /* SABOTAGE S-NOCOUNT */ return"
+     ],
+     [
+      "    if (w1) { d.water = w1.k; return",
+      "    if (w1) { d.water = 0; return"
+     ]
+    ]
+   ]
+  ]
+ },
+ "S-ROADORDER": {
+  "files": [
+   [
+    "src/basemap/budget.ts",
+    [
+     [
+      "    const order0 = dropOrder(sec0.map((i) => roadLength(roads0[i]!.pts))).map((k) => sec0[k]!);\n",
+      "    const order0 = dropOrder(sec0.map((i) => -roadLength(roads0[i]!.pts))).map((k) => sec0[k]!); // SABOTAGE S-ROADORDER: longest first\n"
+     ]
+    ]
+   ]
+  ]
+ },
+ "S-PRIMARYDROP": {
+  "files": [
+   [
+    "src/basemap/budget.ts",
+    [
+     [
+      "    if (w1) { d.water = w1.k; return done(rB, { content: noWater0(w1.k), toleranceMm: tolH, dropped: d, sections: w1.got }); }\n    return null;\n",
+      "    if (w1) { d.water = w1.k; return done(rB, { content: noWater0(w1.k), toleranceMm: tolH, dropped: d, sections: w1.got }); }\n    // SABOTAGE S-PRIMARYDROP: primaries droppable after the secondaries and the rings\n    d.water = rings0.length;\n    const c2p = noWater0(rings0.length), r2 = c2p.roads ?? [];\n    const prim = r2.map((x, i) => [x, i] as const).filter(([x]) => x.cls === 1).map(([, i]) => i);\n    const pOrder = dropOrder(prim.map((i) => roadLength(r2[i]!.pts))).map((k) => prim[k]!);\n    const withPrim = (k: number): C => { const gone = new Set(pOrder.slice(0, k)); return { ...c2p, roads: r2.filter((_, i) => !gone.has(i)) }; };\n    const p = smallestFit(pOrder.length, (k) => { d.roads = order0.length + k; return fits(withPrim(k), tolH); });\n    if (p) { d.roads = order0.length + p.k; return done(rB, { content: withPrim(p.k), toleranceMm: tolH, dropped: d, sections: p.got }); }\n    return null;\n"
+     ]
+    ]
+   ]
+  ]
+ }
+}
