@@ -829,6 +829,10 @@ bool enqueueEnrich(QueueHandle_t queue, EnrichRequest* req)
 
 void AircraftManager::Initialise()
 {
+    // The airport marks list (v20, review F4): capacity for the whole baked table up front, so the draw path never
+    // allocates on a new high. The cloud overlay, which can be larger, reserves its own size when it lands.
+    airportMarks.reserve(AIRPORT_COUNT);
+
     // get centre point + radius
     const String latStr = configServer.GetStoredString("latitude");
     const String lonStr = configServer.GetStoredString("longitude");
@@ -3746,6 +3750,10 @@ void AircraftManager::ConsumeFetchResult()
     if (res->kind == FetchKind::Airports) {
         if (res->ok) {
             cloudAirports = std::move(res->airports);
+            // The marks list holds at most one entry per airport in the source, so reserving the source's size here
+            // (the loop task, off the draw path) means DrawAirports' push_back never reallocates (v20, review F4).
+            // reserve never shrinks, so a smaller list later keeps the capacity it already has.
+            airportMarks.reserve(cloudAirports.size());
             cloudAirportsRetryMs = 0; // back to the default rule
             Serial.printf("[cloud] airports: %u within %d km\n",
                           (unsigned)cloudAirports.size(), (int)lround(rangeKmCfg));
@@ -4159,6 +4167,10 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
     // The airport label's own obstacle list (v20): per contact at most a symbol and four texts (the emergency
     // descriptor, LOOK UP, the watchlist and pinned callsigns). An overflowed list makes every label yield, so a
     // short cap would drop labels in exactly the busy sky; this fails the build instead.
+    // ITS PREMISE IS NOT ENFORCED: MAX_AIRCRAFT bounds what is kept, but trackedAircraft can briefly hold more during
+    // the eviction grace. Past the cap the list answers "blocked" for every box (Obstacles::Hits), so that frame drops
+    // every airport code, and nothing is ever drawn on unrecorded traffic. The same now holds for overlapFrame: a
+    // dropped rectangle used only to undercount #310's metric; since v20 it also drops every code for that frame.
     static_assert(AIRPORT_OBSTACLE_CAP >= 5 * (int)MAX_AIRCRAFT + 4,
                   "AIRPORT_OBSTACLE_CAP can overflow: raise it, or every airport label yields in a busy sky");
 
@@ -5473,9 +5485,10 @@ void AircraftManager::DrawAirportLabels(BandCanvas& backbuffer, bool firstPass)
     for (AirportMark& m : airportMarks) {
         // DECIDED ONCE, on the first band, against everything the traffic pass recorded: overlapFrame's label and
         // badge boxes (the calls that drew them), and airportObstacles' symbols and other traffic text. Every band
-        // then draws that same decision, so a banded render cannot place a label differently per band.
+        // then draws that same decision, so a banded render cannot place a label differently per band. A candidate off
+        // the glass is blocked too (OnGlass, the traffic labels' chord rule): dropped, never cut at the rim.
         if (firstPass)
-            m.at = airportlabel::Place(m.x, m.y, (int)backbuffer.textWidth(m.code), h,
+            m.at = airportlabel::Place(m.x, m.y, (int)backbuffer.textWidth(m.code), h, SCREEN_SIZE,
                                        [&](const overlapcount::Rect& b) { return overlapFrame.Hits(b); },
                                        [&](const overlapcount::Rect& b) { return airportObstacles.Hits(b); });
         if (m.at.side != airportlabel::Side::Dropped)

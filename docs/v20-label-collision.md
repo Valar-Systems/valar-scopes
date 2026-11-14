@@ -47,7 +47,9 @@ in v18, so it is not new in v19.
 - **F2, labels after the traffic:** each visible airport's LABEL is placed after the traffic pass, against the
   rectangles that pass recorded. Those come from the calls that drew them (`AircraftLabelBox` and the `badge` lambda),
   never re-derived. The order is: try RIGHT `(x+5, y-3)`; else LEFT (the label's right edge 5 px left of the mark, same
-  baseline); else DROP the label. **The mark always stays.**
+  baseline); else DROP the label. **The mark always stays.** Added in review: a candidate that does not fit on the glass
+  is blocked too (`airportlabel::OnGlass`, the traffic labels' own `ChordWidthPx` rule), so a code near the rim is
+  dropped, never cut. A truncated code is exactly what LabelLayout's "drop, never truncate" forbids.
 - **F3, a pure function:** the placement is `airportlabel::Place` in a new `include/AirportLabel.h`, host-tested.
   `overlapcount::Frame` gains one read-only query, `Hits(Rect)` (any recorded rectangle intersects it). It adds no
   rectangle and changes no count.
@@ -71,6 +73,12 @@ The rows below are frozen for **Z-a**. Where Z-b would differ, the row says so.
 **RULED: Z-a.** A label landing on a blip defeats the point, which is to keep traffic readable. **The one visible change,
 named for the go/no-go package:** airport labels now draw ABOVE trails and the Follow track line, where before they sat
 beneath. Row (b) shows it on glass.
+
+**Named more completely after the code review (2026-11-14).** The same move puts the codes above EVERY ring and reticle
+the traffic pass draws, not only the lines: the special-contact diamond, the NEW, NEAR, HIGH and FAST rings, the
+watchlist ring, the pin reticle, the Follow rings, and the emergency and LOOK UP pings. Rings stay non-obstacles, as
+ruled. So a code can now sit on top of a ring that crosses it, where before the ring sat on the code. That is the visible
+change, in full, for the go/no-go.
 
 ### Decision 2, the overlap counter (row c)
 
@@ -125,30 +133,64 @@ scene (the NEAR B739 at the BDN mark):
 
 ## Readings (the code PR)
 
-**Row (a), read 2026-11-14 against the re-frozen rows above.** `test/host/test_airport_label.cpp`, AL1-AL17, all green.
-Faces 240 and 960 read the same counts (AL15), so one line per population:
+**Row (a), read 2026-11-14 after the code review's fixes.** `test/host/test_airport_label.cpp`, AL1-AL24, all green.
+Faces 240 and 960 read the same counts away from the rim (AL15), so one line per centre population, plus the whole-disc
+population on the 240 face:
 
-| population | scenes | right | left | dropped | AFTER over-text | AFTER over-symbol | BEFORE over-text |
-|---|---|---|---|---|---|---|---|
-| one contact | 6,468 | 4,228 | 1,072 | 1,168 | **0** | **0** | 1,890 |
-| two contacts, B on the left | 1,617 | 1,155 | 0 | 462 | **0** | **0** | 348 |
-| two contacts, B on the right | 1,617 | 0 | 1,275 | 342 | **0** | **0** | 1,617 |
+| population | scenes | right | left | dropped | AFTER over-text | AFTER over-symbol | AFTER off the glass | BEFORE over-text | BEFORE off the glass |
+|---|---|---|---|---|---|---|---|---|---|
+| one contact (no tag, NEAR, NEW, both) | 12,936 | 8,456 | 2,144 | 2,336 | **0** | **0** | **0** | 3,780 | 0 |
+| two contacts, B on the left | 1,617 | 1,155 | 0 | 462 | **0** | **0** | **0** | 348 | 0 |
+| two contacts, B on the right | 1,617 | 0 | 1,275 | 342 | **0** | **0** | **0** | 1,617 | 0 |
+| the whole disc (every mark position, step 2) | 22,554 | 9,303 | 10,890 | 2,361 | **0** | **0** | **0** | 11,277 | 3,948 |
 
-The identity row (AL11) reads 0 misses in every population. **Red first:** against the old rule, exactly AL9, AL10,
-AL11, AL13 and AL14 read BAD. **"Left 0" with B on the left** is by construction, not a gap: B's boxes cover the left
-candidate in every one of those scenes (AL16, asserted per scene). The B-on-the-right population is where the LEFT branch
-is used with two contacts (AL17).
+The identity rows (AL11, AL24) read 0 misses in every population. **"Left 0" with B on the left** is by construction,
+not a gap: B's boxes cover the left candidate in every one of those scenes (AL16, asserted per scene). The B-on-the-right
+population is where the LEFT branch is used with two contacts (AL17).
+
+**Red first, two rounds, and why the old rule's red set grew.**
+- **Round 1** (the first code run): the suite then had unnumbered rows and a single two-contact population (B on the left).
+  Against the old always-right rule, exactly the rows now numbered AL9, AL10, AL11, AL13 and AL14 read BAD.
+- **Then AL16 and AL17** were added, with the B-on-the-right population (the reviewer's "left 0" question). On that
+  suite the old rule, as the S-AL-BLIND plant, also fails AL17.
+- **Round 2** (the review's F1, the rim): `Place` first gained its face parameter UNUSED, behaviour unchanged, and the
+  new rows ran against it. Exactly AL18, AL19, AL20, AL21, AL23 and AL24 read BAD, as frozen. With `OnGlass` in, all 24
+  read green.
+
+So the old rule's red set is now AL9-AL11, AL13, AL14, AL17-AL21, AL23 and AL24: every row added since round 1 that the
+old rule can fail. Both earlier sentences were true when written.
+
+**Two rows changed in review.**
+- **AL15 is reworded:** "away from the rim the disc never binds: faces 240 and 960 read identical counts". It can fail
+  now that `Place` reads the face. S-AL-FACE (a fixed 240 px disc) turns exactly AL15 red.
+- **The NEW badge** (x+11, y+6) joins NEAR in the one-contact sweep, as frozen row (a) promised. That doubles the
+  population to 12,936 scenes.
 
 **Sabotages,** `test/host/sabotage_airport_label.py`: each plant reads exactly its frozen red set, and the real files are
 byte-identical before and after. It has the `--anchors` and `--control` modes `test/host/run.sh` requires of every driver.
 
 | plant | red |
 |---|---|
-| S-AL-BLIND | AL9, AL10, AL11, AL13, AL14, AL17 |
-| S-AL-LEFT | AL11, AL13, AL17 |
-| S-AL-SYM | AL10, AL11 |
+| S-AL-BLIND (always right) | AL9, AL10, AL11, AL13, AL14, AL17, AL18, AL19, AL20, AL21, AL23, AL24 |
+| S-AL-LEFT (no left candidate) | AL11, AL13, AL17, AL19, AL24 |
+| S-AL-SYM (symbols are not obstacles) | AL10, AL11 |
+| S-AL-DISC (every box is on the glass) | AL18, AL19, AL20, AL21, AL23, AL24 |
+| S-AL-FACE (a fixed 240 px face) | AL15 |
 | S-AL-FRAME (`Frame::Hits` ignores a dropped rectangle) | AL5 |
 | S-AL-OVF (an overflowed obstacle list is ignored) | AL6 |
+
+**What the host does NOT check: the wiring.** The suite grades `Place`, `OnGlass` and the two `Hits`, not the calls in
+`AircraftManager.cpp` that feed them. Deleting `airportObstacles.Add(symbol)` keeps `run.sh` green. Row (b)'s op count is
+the wiring's check: it reads what the firmware actually drew.
+
+**Capacity, stated.**
+- **The obstacle list's `static_assert`** sizes it for MAX_AIRCRAFT contacts. That premise is not enforced:
+  `trackedAircraft` can briefly hold more during the eviction grace. Past the cap the list answers "blocked" for every
+  box, so that frame drops every airport code; nothing is ever drawn on unrecorded traffic.
+- **`overlapFrame` now behaves the same way:** a dropped rectangle used to only undercount #310's metric, and since v20
+  it also drops every code for that frame.
+- **`airportMarks` is reserved** off the draw path, in `Initialise` for the baked table and when a cloud list lands, so
+  the draw path never reallocates it.
 
 **Rows (b) and (d)** are read after this PR's code is fixed, not before: (b) from the web renderer's build of this
 branch, (d) in a bench window on Nov 17-18.

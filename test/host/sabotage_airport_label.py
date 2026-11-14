@@ -20,30 +20,47 @@ import sabotage_common as sc   # run.sh's --anchors and --control passes, and th
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HEADERS = {"AirportLabel.h": os.path.join(ROOT, "include", "AirportLabel.h"),
-           "OverlapCount.h": os.path.join(ROOT, "include", "OverlapCount.h")}
+           "OverlapCount.h": os.path.join(ROOT, "include", "OverlapCount.h"),
+           "DiscGeometry.h": os.path.join(ROOT, "include", "DiscGeometry.h")}   # copied, never planted
 TEST = os.path.join(ROOT, "test", "host", "test_airport_label.cpp")
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
 # The one place the suite's count lives: the full run's control and --control's table both read it.
-ROWS = 17
+ROWS = 24
 CONTROL_TABLE = {"test_airport_label": ("ok", ROWS)}
 ROW = re.compile(r"^\s*(ok|BAD)\s+(AL\d+)\s")
 
+RIGHT_TEST = "    if (OnGlass(right, screenSize) && !text(right) && !symbol(right))\n"
+LEFT_TEST = "    if (OnGlass(left, screenSize) && !text(left) && !symbol(left))\n"
+CHORD = "    const int avail = discgeom::ChordWidthPx(b.y0, b.y1 - b.y0, screenSize);\n"
+CENTRE = "    const int c = screenSize / 2;\n"
 SABOTAGES = {
     "S-AL-BLIND": ("AirportLabel.h",
-                   [("    if (!text(right) && !symbol(right))\n        return Placement{ Side::Right, (int16_t)rx, (int16_t)y };\n",
-                     "    (void)right;   // SABOTAGE S-AL-BLIND: always right, obstacles ignored\n"
+                   [(RIGHT_TEST + "        return Placement{ Side::Right, (int16_t)rx, (int16_t)y };\n",
+                     "    (void)right;   // SABOTAGE S-AL-BLIND: always right, obstacles and the rim ignored\n"
                      "    return Placement{ Side::Right, (int16_t)rx, (int16_t)y };\n")],
-                   {"AL9", "AL10", "AL11", "AL13", "AL14", "AL17"}),
+                   {"AL9", "AL10", "AL11", "AL13", "AL14", "AL17", "AL18", "AL19", "AL20", "AL21", "AL23", "AL24"}),
     "S-AL-LEFT": ("AirportLabel.h",
-                  [("    if (!text(left) && !symbol(left))\n        return Placement{ Side::Left, (int16_t)lx, (int16_t)y };\n",
+                  [(LEFT_TEST + "        return Placement{ Side::Left, (int16_t)lx, (int16_t)y };\n",
                     "    (void)left;   // SABOTAGE S-AL-LEFT: no left candidate\n")],
-                  {"AL11", "AL13", "AL17"}),
+                  {"AL11", "AL13", "AL17", "AL19", "AL24"}),
     "S-AL-SYM": ("AirportLabel.h",
-                 [("    if (!text(right) && !symbol(right))\n",
-                   "    (void)symbol;   // SABOTAGE S-AL-SYM: symbols are not obstacles\n    if (!text(right))\n"),
-                  ("    if (!text(left) && !symbol(left))\n", "    if (!text(left))\n")],
+                 [(RIGHT_TEST,
+                   "    (void)symbol;   // SABOTAGE S-AL-SYM: symbols are not obstacles\n"
+                   "    if (OnGlass(right, screenSize) && !text(right))\n"),
+                  (LEFT_TEST, "    if (OnGlass(left, screenSize) && !text(left))\n")],
                  {"AL10", "AL11"}),
+    "S-AL-DISC": ("AirportLabel.h",
+                  [(CHORD + "    if (avail <= 0) return false;\n" + CENTRE
+                    + "    return b.x0 >= c - avail / 2 && b.x1 <= c + avail / 2;\n",
+                    "    (void)b; (void)screenSize;   // SABOTAGE S-AL-DISC: every box is on the glass\n"
+                    "    return true;\n")],
+                  {"AL18", "AL19", "AL20", "AL21", "AL23", "AL24"}),
+    "S-AL-FACE": ("AirportLabel.h",
+                  [(CHORD, "    (void)screenSize;   // SABOTAGE S-AL-FACE: a fixed 240 px face\n"
+                           "    const int avail = discgeom::ChordWidthPx(b.y0, b.y1 - b.y0, 240);\n"),
+                   (CENTRE, "    const int c = 240 / 2;\n")],
+                  {"AL15"}),
     "S-AL-FRAME": ("OverlapCount.h",
                    [("        if (dropped_) return true;\n", "        // SABOTAGE S-AL-FRAME: a dropped rectangle is ignored\n")],
                    {"AL5"}),
