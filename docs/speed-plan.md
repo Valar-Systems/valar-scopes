@@ -362,6 +362,50 @@ All carry ± 1.54 ms (I-6) and weather's ± 2.5 ms. M, the map's steady cost, is
 column is kept to show what the stress rows cost. It is not the bar. map-client's caveat stands: the
 FIXED scenes pack every aircraft inside 8 mi, which is harsher than a real board.
 
+## 2d. PROVISIONAL (2026-11-14, 22:12Z): v20 planned on the "too small" band. Superseded only by C1's next run
+
+**What C1 read** (the retake, relayed by the orchestrator, from map-client's bench):
+- The hex fix worked: drawn == 40 on every measured frame.
+- **M3's cut read +8.97 ms, with the error bar [+7.43, +10.51].** The bar straddles the boundary between "failed"
+  (under 10) and "partial" (10-20). By the grade (docs/m3-push-task.md, M3-3) a straddle is not rounded into a band;
+  it goes to the orchestrator.
+- The bench's deliberate +10 and +60 ms push plants **never fired, in either window.** That is a wiring defect in
+  the bench. So the run's coupling control is missing.
+
+**The owner's ruling, verbatim:** "C1: a. Investigate why the 10 ms and 60 ms deliberate slowdowns didn't fire
+(read-only, no board), fix it, and prove the fix fires both at their true size before the next C1 run ... Meanwhile,
+plan v20 provisionally on the "too small" band (~9 ms). The re-run can only move the date earlier."
+
+**What the "too small" band means, from section 2b's frozen meanings (C1's table and R3):**
+- **"M3 cuts < 10 ms: M3 has failed."** **L2 becomes the next lever**, because it shortens the push the task has
+  to hide. It goes to the owner with an incoming-inspection row.
+- **The levers past L2 change what is drawn, so each is the owner's ruling:** L3, a cheaper sweep blend (up to
+  −4.6 ms, a change to the blend's look), and L4, less label and trail work per frame (a change to the labels' look).
+- **The case is R3: "C1 partial or failed; L2 (+1-2 d with the inspection) and the owner's rulings on L3 and L4."**
+
+**THE PROVISIONAL DATE (R3, the table in section 2b):**
+- **F:** about Nov 28 - Dec 5.
+- **v20 promoted: about Dec 3-10, or later.** It is not sizable until the owner rules on L3 and L4.
+- **The big screens, staffing 2 (F + 22):** about Dec 20-27.
+- **The next C1 run can only move these earlier:** to R2 (Nov 27 - Dec 1) if it reads partial (10-20 ms), or to R1
+  (Nov 25-30) if it reads on track (≥ 20 ms).
+
+**M3's role under the band:**
+- **M3 is no longer the lever that carries (a).** Its measured cut is about 9 ms, against the 25.8 ms the plan
+  hoped it would hide.
+- **It stays in v20 as a partial gain.** It costs nothing to keep. The glass look (M3-2) and M3-8/M3-9 still decide
+  that it is safe to ship.
+- **The frozen text's numbers predate the measurement.** "Without it, the frame is 86.9 + M" and "W and L1 would
+  have to find ~24.0 + M" come from section 2a's estimates, and section 2c superseded those for the bar.
+- **On the bar's own basis, section 2c's frozen rule holds with the measured cut in place of 25.8.** v20 with M3 =
+  X + 6.7 + 0.1625 × n − cut + M, which at n = 40 and a cut of 9.0 ms is **X + 4.2 + M** (provisional). X is v19's
+  worst of six on the recordings, from map-client's S2.
+- **The levers then close whatever lies above 50:** L2 first, then W and L1, then L3/L4 by the owner's rulings.
+
+**PROVISIONAL, and labelled so everywhere it is quoted.** Only C1's next run supersedes this section, and that run
+comes after map-client has diagnosed and fixed the plants and proved both fire at their true size. Until then, R3
+is the plan.
+
 ## 3. The methods, and what each is expected to gain
 
 **M1. Static layers drawn once and reused** (the owner's first method; the Weatherscope's).
