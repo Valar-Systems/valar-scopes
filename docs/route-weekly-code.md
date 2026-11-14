@@ -819,6 +819,26 @@ UNDO1's fixture (2026-11-14 ~17:25Z). It supersedes steps 2, 3 and 5 above, the 
 - **BK1 is unchanged in its fixture** (a planted empty value on a key to delete) and in its prediction.
 - **The red-first sets and the counts are unchanged.**
 
+**Amendment 3, before any code: a `null` is an OBSERVATION, never a default** (the reviewer, 2026-11-14, on amendment
+2). The undo DELETES a key the backup records as `null`. So a `null` that came from a failed read would make the undo
+delete a key that existed: the reassuring-direction failure.
+- **A `null` only from a positive "not found":** the key present in the bulk get's answer with the value `null`. A read
+  error, a requested key missing from the answer, or a short answer REFUSES: `(BK-R)`, exit 1, nothing written.
+- **Cross-checked against the plan, which already knows each key's class:**
+  - a key the plan calls CHANGED or DELETED must hold a non-null pre-run value;
+  - a key the plan calls ADDED must be `null`.
+  - **The exception, stated:** a key in a CURRENT journal (an unsealed run's) may legitimately be present or absent, so
+    it is recorded as observed and not class-checked.
+  - Any other disagreement means the store is not the proven snapshot: `(BK-X)`, exit 1, nothing written.
+- **Rows (writer selftest), red against `620a215d` first:**
+  - **BK-R:** with the fake's `ROUTES_FAKEKV_BULKGET_OMIT=1` (the fake's only; it drops the first requested key from
+    each bulk-get answer), a run with `--backup`: exit 1, `(BK-R)`, store byte-identical. Red today: `--backup` is
+    ignored, and the run writes.
+  - **BK-X:** a fake store seeded so that one key the plan calls ADDED already holds a value, with `--backup`: exit 1,
+    `(BK-X)`, store byte-identical. Red today: ignored, and the run overwrites it.
+- **Red-first, re-registered:** writer red exactly **{BK-W, BK-M, BK-H, BK0, BK0d, BK1, BK3, BK-R, BK-X, UNDO1, UF1,
+  UF2, J7w, J6x}**; guards red exactly {BK2, G4nx, BK2s}. **After the code:** writer **67 of 67**, guards 66 of 66.
+
 **Red-first, predicted:**
 - writer red exactly **{BK-W, BK-M, BK-H, BK0, BK0d, BK1, BK3, UNDO1, UF1, UF2, J7w, J6x}**; green: UNDO-ctl, BK-SAME,
   BK-SAME-ctl, UF-ctl, J7w-ctl and the 48 earlier rows;
