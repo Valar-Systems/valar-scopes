@@ -1,6 +1,7 @@
 # v20: the airport label yields to traffic text (registration)
 
 **Status: REGISTERED 2026-11-14; every prediction below is frozen before any code.** Owner: the 5c session.
+**Ruled 2026-11-14 (orchestrator):** Decision 1 = **Z-a**; Decision 2 = airport labels stay **out** of the counter.
 Registered by Nov 16, PR by Nov 19, go/no-go Nov 21 (else v21). Content freeze is Nov 23-26.
 
 ## The defect
@@ -50,6 +51,10 @@ where today it sits beneath them.
 
 The rows below are frozen for **Z-a**. Where Z-b would differ, the row says so.
 
+**RULED: Z-a.** A label landing on a blip defeats the point, which is to keep traffic readable. **The one visible change,
+named for the go/no-go package:** airport labels now draw ABOVE trails and the Follow track line, where before they sat
+beneath. Row (b) shows it on glass.
+
 ### Decision 2, the overlap counter (row c)
 
 **Recommended: airport labels stay OUT of the counter's pairs and area.** The counter is #310's measure of traffic text
@@ -89,13 +94,15 @@ scene (the NEAR B739 at the BDN mark):
 - after: BDN's label reads to the LEFT of its mark, or is dropped; the mark is in place; the B739 label is clear.
 - Each picture is checked by eye AND by a pixel count: pixels of the airport-label colour inside the B739 label box,
   before > 0, after 0.
+- **A third scene (ruled):** an airport label crossed by an aircraft TRAIL. Before, the trail draws over the label; after,
+  the label draws over the trail, with its text intact. This is the z-order change, judged on glass.
 
-**(c)** As Decision 2: the counter keeps airport labels out. If the reviewer rules otherwise, this row becomes "the
-counter includes airport labels from v20; readings before and after are not comparable", stated in the release notes.
+**(c)** As Decision 2, **ruled**: the counter keeps airport labels out, so #310's series stays comparable.
 
 **(d) Frame time.**
-- Bench A/B/A on the Blipscope bench board, if a granted window exists before Nov 19.
-- Otherwise a host timing of `Place()` over the sweep: the stated fallback.
+- **Bench A/B/A on the Blipscope bench board (preferred, ruled).** The board is booked through Nov 16. A window on
+  Nov 17-18 is requested from the orchestrator once the code is ready, and booked with its wake.
+- A host timing of `Place()` over the sweep is the fallback, only if no window fits.
 - The bound per frame: visible airports x 2 candidates x up to 192 recorded rectangles, plus the symbol list.
 - Predicted: no change outside the A/B/A noise band on the device; under 1 microsecond per airport on the host.
 
