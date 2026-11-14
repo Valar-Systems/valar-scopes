@@ -480,6 +480,14 @@ commit, with its own prediction.
   which already runs in CI), the temp-dir fix with TMP1 and TMP1-ctl, and W8's driver (not a CI step). None changes a
   workflow, so the predicted total is unchanged. The writer and run selftests are now 25 and 7 rows.
 
+**CI-C6, the push of section 2g, `routes-tmp.ts` and the sweep, SW1-SW5, and W8's driver (predicted 2026-11-14 ~06:30Z,
+before the push).**
+- **No workflow changes.** The guards selftest step now reads 55 rows, including SW1-SW5, which use `fs.utimesSync` on
+  a private temp dir.
+- **Predicted: 36 = 34 success + 2 skipped + 0 other.** The four `pull_request` workflows all succeed, and the sweep's
+  rows pass on Linux.
+- **Outside the set:** any other total or split, or a step red. Stop and decide.
+
 ## 4. The staging rehearsal and the first runs
 
 1. **A dry run of each environment**, attended. It prints counts only: `sourceCommit`, rows, writes, deletes by kind
@@ -581,3 +589,4 @@ is engineering and a guarded write path, not money. That decision is the owner's
 | TMP1, the check that runs | both fake-KV selftests point their children's temp at a private dir (`TMPDIR`, and `TEMP`/`TMP` in Windows form) and end with **TMP1** (0 `routes-`/`verify-` dirs left there) and **TMP1-ctl** (a child's `os.tmpdir()` IS the private dir, so TMP1 cannot pass because the children wrote elsewhere). Green: the writer selftest 25 of 25, the run selftest 7 of 7; the system temp held 0 of these prefixes before and 0 after | **as predicted** |
 | TMP1, the plant | the reviewer's "skip the cleanup once", in both tools (registered in the run's own message before it ran): the writer selftest red exactly {TMP1}, with 32 dirs left; the run selftest red exactly {TMP1}, with 19 left, all in the private temp that the selftests' traps remove. Restored from byte copies, sha256 equal. W8 gains S-TMP-W and S-TMP-V | **as predicted** |
 | W8, instrument failures #1 and #2 | **#1** (the first full run): `execFileSync("npx")` is ENOENT on Windows without a shell, so six graders never started and read as red `[]`. Recorded: 7 of 14 OFF, not re-graded. **#2** (the re-run's baseline, which STOPPED as designed, with no plant applied): the vitest parser wanted `RH` right after the mark, but vitest prints `✓ <file> > <describe> > RH1: ...`, and two rows read `RH8 (control):`. A probe showed vitest starts (exit 0, 11 marked lines), excluding "cannot start". **The fix, as ruled:** graders run as `node node_modules/<bin>`; the id is taken after the last `> ` up to a word boundary; and the baseline compares the SET of ids each grader reads with the set its source DECLARES (literal row names; G6's three tuple-named rows included), not only the count. Every declared set read equal (guards 54, writer 25, freeze 4, run 7, health 11). `--sabotage-blind` re-proved under the set compare: 0 of 54 declared, STOP, exit 2 | **as ruled** |
+| W8, the full re-run | driver `26b21391`, 2026-11-14 06:19-06:27Z. **BASELINE first:** every grader read exactly its declared set (guards 55, writer 25, freeze 4, run 7, routes-health 11, reconcile 1), 0 red. Then **14 of 14 as registered:** S-GR9, S-GR8 (as re-registered), S-FK1, S-VAL, S-RH9s, S-TK1, S-FZ, S-FZC, S-SC4, S-SC2, S-RR3, S-TMP, S-SW (as re-registered, {SW2, SW5}) and S-RC6, each restored from a byte copy with sha256 equal. Free 38.35 GB before, 38.24 after; 0 temp leftovers. `SABOTAGE PASSED (14 plant(s), after a full baseline)` | **as registered** |
