@@ -1373,3 +1373,9 @@ another environment.
   - RS0's whole `if (args.dryRun || ... || args.noSeal) {` becomes `if (false) {`;
   - RS1's `if (!b || b.v !== 1 || ... || b.keys === null) {` becomes `if (!b) {`, so an unparsable file still refuses
     and only the version, environment and shape checks are removed.
+
+**RS0 and RS1, read (2026-11-14 17:32:41-17:41:27Z, at `2888a9e7`): AS PREDICTED, both runs.**
+- **Green:** writer **70 of 70**, 0 red.
+- **Planted** (both guards disabled, one run): red exactly {RS0, RS1e, RS1v}, with the other 67 green and empty stderr.
+- `ingest-routes.ts` was restored from its byte copy sha-equal; porcelain 0; the tree equal to HEAD; 0 temp leftovers.
+- So each undo guard has now been seen to refuse, and each row has been seen to go red without its guard.
