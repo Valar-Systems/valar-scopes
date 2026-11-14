@@ -1524,3 +1524,26 @@ W8's baseline would read guards 71, writer 81, freeze 4, runs 8, health 11 and r
 **CI-B2, the push of 2r (predicted 18:48:27Z, before the push):** 36 = 34 success + 2 skipped (promote, version) + 0 other. The
 four workflows are unchanged and no workflow file changes. On Linux: guards 71, writer 81, run 8, freeze 4, with 0 FAIL
 lines. Outside the set: stop.
+
+**4d's early reading, read (2026-11-14 19:23:11-19:24:10Z, at `70db1f28` = main `7606224c` plus the record): AS
+PREDICTED, both environments.**
+- **0:** the manifests are `1276a0c25ffc` and `846627447b35`, D10's pins.
+- **1:** upstream main is `24ce54242aca9291432ec67b7bab4d39f038913c` (`gh api`, 19:23:12Z).
+- **2a, without the overrides** (staging, then production):
+  - `prev proof: 1591/1591`;
+  - `prev-also proof: 1575/1575`, `pre-rule plain hash` on staging and `rule-hashed` on production;
+  - `pending: none`;
+  - writes 0 (added 0, value changed 0); deletes 827 (715 from surviving shards, 112 from 5 removed shards);
+  - G1, G2 (50 of 50 anchors) and G6 ok;
+  - G3 FAIL, naming `routes/schema-01/R/RSC-all.csv`;
+  - G4 FAIL, naming exactly the five of 2j;
+  - G5 FAIL (827 over the cap of 250);
+  - `plan: write 0; delete NONE (refused), so the run would NOT seal; ...; PFX1: 0 outside`;
+  - exit 0, empty stderr.
+- **2b, with the overrides:** all six ok (G4 "all 5 named", G5 "cap 1000"), and `plan: write 0; delete 827; seal:
+  never in-run (--seal-only after a verify PASS); PFX1: 0 outside`. Exit 0, empty stderr.
+- **Printed, not graded** (not a registered line): new and prev each parse 628,956 usable rows, and prev-also 619,103.
+  With writes 0, all 628,956 are unchanged.
+- **KV reads:** 8 by the code path (a `meta:routes` get and a journal get per dry run). Analytics cannot isolate 8
+  among production's background reads.
+- This is an EXTRA reading: step 2 on 11-18 still re-reads upstream and dry-runs immediately before the run.
