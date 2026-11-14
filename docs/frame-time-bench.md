@@ -1128,6 +1128,22 @@ paragraph above.
 - **The launch:** DETACHED (WMI `Win32_Process.Create`), with its own deadline guard, and E2:08 reserved by its serial
   first. A tool or session crash then cannot kill a trace mid-run. Killing a trace is what puts an S3 into download
   mode.
+- **ADDENDUM: which cause each STOP prints (2026-11-14T02:56:46Z).** On the orchestrator's ruling (02:55:49Z), a STOP
+  is retried only for an instrument cause.
+  - **Every STOP is the instrument's, by construction.** `survey_read.py` qualifies a candidate on its count of
+    home-ok polls alone and never on rows. The firmware prints a survey poll line only after `ParseBlips` parsed a
+    reply (`FrameBench.h:326`, `b417d80cd4c5`).
+  - **Each disqualified candidate prints** `A<i> <code>: INSTRUMENT, <n> home-ok poll(s) (need 10); home-ok 0: <k>`.
+    The `<k>` polls were not at the airport's home (home-not-ok). The rest of the shortfall, 10 − n − k when it is positive, is
+    polls that never parsed: failed, timed out, or too few at the cadence.
+  - **Traffic cannot cause a STOP.** A parsed poll counts at any row count, 0 included, so thin traffic only lowers
+    the share at 40 rows. The branch "fine polls, too few qualified" is empty.
+  - **Graded:** a STOP whose lines have that shape gets the one retry. A STOP line whose candidate lines do not have
+    that shape is the escape hatch: stop and decide, no retry.
+  - **An INSTRUMENT line on the scene or `run done` lines** (no STOP line) is a killed run, and retry-eligible, if the
+    ledger shows the trace cut short: no `trace exit`, or a non-zero one. After a trace that ended normally (exit 0)
+    it is the escape hatch.
+  - `survey_read.py --selftest` PASSED at 02:56:46Z, including MANYSHORT: 5 of 8 valid gives STOP, exit 2.
 
 ## RP5's registration: the v19 run on the recordings, frozen before its window (2026-11-13)
 
