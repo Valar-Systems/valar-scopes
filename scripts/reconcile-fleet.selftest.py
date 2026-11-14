@@ -482,5 +482,44 @@ else:
         off += not ok
         print("S-R1body-lv: %s -- red %s (want ['LV6'])" % ("as predicted" if ok else "OFF-PREDICTION", g))
 
+# --- RC5 and RC6 (docs/route-weekly-code.md, W6 and W6b): the route-refresh issue count, and the CI test identity ------
+# route_refresh_issue_lines is graded on counts built here (no network). Planted ids are allowlisted fakes only.
+def rc56(mod) -> dict:
+    import os
+    import tempfile
+    res = {}
+    f = getattr(mod, "route_refresh_issue_lines", None)
+    if f is None:
+        return {"RC5a": False, "RC5b": False, "RC5c": False, "RC6": False, "RC6-ctl": True}
+    l2, w2 = f(2)
+    res["RC5a"] = l2 == ["  Route refresh: 2 open route-refresh issue(s)  <== OPEN"] and w2 == ["route refresh: 2 open route-refresh issue(s)"]
+    l0, w0 = f(0)
+    res["RC5b"] = l0 == ["  Route refresh: 0 open route-refresh issue(s)"] and w0 == []
+    ln, wn = f(None)
+    res["RC5c"] = ln == ["  Route refresh: could not count route-refresh issues"] and wn == ["route refresh: could not count its issues"]
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "tokens")
+    old = os.environ.get("BLIPSCOPE_TOKEN_FILE")
+    try:
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write("test-device=0123456789abcdef\nci-test-device=beefbeefbeefbeef\n")
+        os.environ["BLIPSCOPE_TOKEN_FILE"] = p
+        res["RC6"] = mod.test_device_ids() == {"0123456789abcdef", "beefbeefbeefbeef"}
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write("test-device=0123456789abcdef\n")
+        res["RC6-ctl"] = mod.test_device_ids() == {"0123456789abcdef"}  # without the line, only test-device is left out
+    finally:
+        if old is None:
+            os.environ.pop("BLIPSCOPE_TOKEN_FILE", None)
+        else:
+            os.environ["BLIPSCOPE_TOKEN_FILE"] = old
+    return res
+
+
+got = rc56(load(SRC))
+red = sorted(k for k, v in got.items() if not v)
+off += bool(red)
+print("RC5-RC6 (the real source): %s -- red %s" % ("as predicted" if not red else "OFF-PREDICTION", red or "none"))
+
 print("SELFTEST PASSED" if not off else "SELFTEST: %d row(s) off" % off)
 sys.exit(1 if off else 0)

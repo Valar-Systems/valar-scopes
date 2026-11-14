@@ -78,11 +78,14 @@ def test_device_ids() -> set:
     path = os.environ.get("BLIPSCOPE_TOKEN_FILE", "").strip()
     if not path or not Path(path).is_file():
         return set()
+    # W6b (docs/route-weekly-code.md): the routes-refresh job's own identity, ci-test-device, enrols like a device and
+    # is left out the same way. The owner adds that line to the token file himself.
+    ids = set()
     for line in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
         key, eq, value = line.strip().partition("=")
-        if eq and key.strip() == "test-device" and ID_RE.match(value.strip()):
-            return {value.strip()}
-    return set()
+        if eq and key.strip() in ("test-device", "ci-test-device") and ID_RE.match(value.strip()):
+            ids.add(value.strip())
+    return ids
 
 
 def bench_device_ids() -> tuple:
@@ -494,6 +497,35 @@ def report_route_mirror(env: str) -> list:
     return warn
 
 
+def route_refresh_issue_lines(count) -> tuple:
+    """W6 (docs/route-weekly-code.md): (lines, warnings) for the open `route-refresh` issues a failed or refused weekly
+    run leaves (routes-notify.ts). A count only. A count that could not be read says so, and warns: never a silent 0."""
+    if count is None:
+        return ["  Route refresh: could not count route-refresh issues"], ["route refresh: could not count its issues"]
+    line = "  Route refresh: %d open route-refresh issue(s)" % count
+    if count > 0:
+        return [line + "  <== OPEN"], ["route refresh: %d open route-refresh issue(s)" % count]
+    return [line], []
+
+
+def count_route_refresh_issues():
+    """The number of open issues labelled route-refresh, from `gh api` (a count, never a title), or None."""
+    try:
+        out = subprocess.run(["gh", "api", "repos/Valar-Systems/valar-scopes/issues?labels=route-refresh&state=open&per_page=100",
+                              "--jq", "length"], capture_output=True, text=True, encoding="utf-8", errors="strict", timeout=60)
+        return int(out.stdout.strip()) if out.returncode == 0 else None
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+
+
+def report_route_refresh() -> list:
+    lines, warn = route_refresh_issue_lines(count_route_refresh_issues())
+    for line in lines:
+        print(line)
+    print()
+    return warn
+
+
 def report_ota_reader(env: str, detail: dict) -> list:
     published = read_published()
     token, why = analytics_token()
@@ -669,6 +701,7 @@ def report_instruments(env: str, errfile: Path, detail: dict, days: int, alert: 
     print()
     warn += report_ota_reader(env, detail)
     warn += report_route_mirror(env)
+    warn += report_route_refresh()
     return warn
 
 

@@ -88,4 +88,35 @@ describe("RH, /healthz's routes field", () => {
     expect(b).toHaveProperty("wx");
     expect(b).toHaveProperty("basemap");
   });
+
+  // W13 (docs/route-weekly-code.md, section 2c): the SOURCE's own commit date, informational, so an upstream that
+  // stops changing stays visible even while a verified re-seal keeps builtAt fresh. Never invented, never an alert.
+  const plantWith = (sourceCommittedAt: unknown) => {
+    const t = Date.now() - 3 * DAY;
+    return env.ENRICH_KV.put("meta:routes", JSON.stringify({ v: 1, ruleRev: 3, rows: 619103, builtAt: new Date(t).toISOString(), sourceCommittedAt, shards: { "routes/ZZ-all.csv": "0:1" } }));
+  };
+
+  it("RH9: meta's sourceCommittedAt is shown byte-identical", async () => {
+    await plantWith("2026-11-12T10:00:00Z");
+    const r = await routes() as Routes & { sourceCommittedAt?: unknown };
+    expect(r?.sourceCommittedAt).toBe("2026-11-12T10:00:00Z");
+    expect(r?.stale).toBe(false);
+  });
+
+  it("RH9c (control): meta without sourceCommittedAt shows no such field", async () => {
+    await plant(Date.now() - 3 * DAY);
+    const r = await routes();
+    expect(r).toBeDefined();
+    expect(Object.keys(r as object)).not.toContain("sourceCommittedAt");
+  });
+
+  it("RH9s: a non-ISO sourceCommittedAt is omitted, not shown", async () => {
+    for (const bad of ["yesterday", 1731400000, "2026-11-12", "2026-11-12T10:00:00+01:00"]) {
+      resetRoutesHealth();
+      await plantWith(bad);
+      const r = await routes();
+      expect(r?.builtAt).not.toBeNull(); // the rest of the field still reads
+      expect(Object.keys(r as object)).not.toContain("sourceCommittedAt");
+    }
+  });
 });

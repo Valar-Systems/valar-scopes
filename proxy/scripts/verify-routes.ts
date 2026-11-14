@@ -30,17 +30,30 @@
  * buries a concentrated failure, and concentrated is how real failures arrive.
  */
 import { execSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isGenuineSelfLoop, routeEndpoints } from "./routerule";
+import { fk1Refusal } from "./routes-fk1";
+import { sweepAtStart, tmpDir } from "./routes-tmp";
 import { q, sh } from "./shquote";
 
 const TARBALL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/refs/heads/main";
+/** Every KV call goes through the helper. ROUTES_KV_CLI is for TESTS ONLY (the writer's same hook; FK1 below). */
+const KV_CLI = process.env.ROUTES_KV_CLI ?? "scripts/wrangler-run.mjs";
+const MADE_UP = "rt:ZZQQQQQX"; // GR10a: a key nobody writes, which must read null
+
+// Temp dirs: tmpDir() removes them on every exit, and sweepAtStart() clears a killed run's (routes-tmp.ts, shared).
+/** THE value comparison, byte for byte. The GR10m control calls it too, so the control and the check share one path. */
+const same = (expected: string, got: string | null | undefined) => got === expected;
 
 interface Args {
   env?: string;
   file?: string;
+  checkValues?: string;
+  expectAbsent?: string;
+  receipt?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -48,8 +61,27 @@ function parseArgs(argv: string[]): Args {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--env") a.env = argv[++i];
     else if (argv[i] === "--file") a.file = argv[++i];
+    else if (argv[i] === "--check-values") a.checkValues = argv[++i];
+    else if (argv[i] === "--expect-absent") a.expectAbsent = argv[++i];
+    else if (argv[i] === "--receipt") a.receipt = argv[++i];
   }
   return a;
+}
+
+/** `kv bulk get` through the helper, 100 keys a call: the JSON object between the first "{" and the last "}" (wrangler
+ *  prints "Success!" after it). The same parse as #700's D2, which read 36,786 production values with it. */
+function bulkGet(keys: string[], env: string, tmp: string): Map<string, string | null> {
+  const out = new Map<string, string | null>();
+  for (let i = 0; i < keys.length; i += 100) {
+    const f = join(tmp, `bulk-get-${i / 100}.json`);
+    writeFileSync(f, JSON.stringify(keys.slice(i, i + 100)));
+    const stdout = execSync(["node", KV_CLI, "kv", "bulk", "get", q(sh(f)), "--binding=ENRICH_KV", `--env=${env}`, "--remote"].join(" "),
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 });
+    const start = stdout.indexOf("{"), end = stdout.lastIndexOf("}");
+    if (start < 0 || end < start) throw new Error(`bulk get chunk ${i / 100}: no JSON object in the output`);
+    for (const [k, v] of Object.entries(JSON.parse(stdout.slice(start, end + 1)) as Record<string, string | null>)) out.set(k, v);
+  }
+  return out;
 }
 
 /**
@@ -106,8 +138,18 @@ async function main() {
     console.error("usage: --env <staging|production> [--file sd.tar.gz]");
     process.exit(2);
   }
+  // FK1 (docs/route-weekly-code.md, section 2e): the fake KV never stands in for real KV where a real credential is in
+  // reach. One rule, shared with the writer (routes-fk1.ts).
+  sweepAtStart(["verify-"]); // a killed run's leftovers, older than 6 h and only ours (routes-tmp.ts)
+  const fk1 = process.env.ROUTES_KV_CLI ? fk1Refusal(process.env, args.env, existsSync) : null;
+  if (fk1) {
+    console.error(`REFUSING (FK1): ROUTES_KV_CLI is a test-only stand-in for KV, and it is not allowed here: ${fk1}.`);
+    process.exit(2);
+  }
+  // RCP1: a stale receipt never survives this run. It is written again only on a full PASS, at the very end.
+  if (args.receipt && existsSync(args.receipt)) rmSync(args.receipt);
 
-  const tmp = mkdtempSync(join(tmpdir(), "verify-"));
+  const tmp = tmpDir("verify-");
   const tarPath = args.file ?? join(tmp, "sd.tar.gz");
   if (!args.file) {
     execSync(`curl -sL --max-time 300 ${q(TARBALL)} -o ${q(sh(tarPath))}`, { stdio: "inherit" });
@@ -115,6 +157,23 @@ async function main() {
   execSync(`tar xzf ${q(sh(tarPath))} -C ${q(sh(tmp))} --force-local`, { stdio: "inherit" });
   const rootDirs = readdirSync(tmp).filter((d) => d.startsWith("standing-data-"));
   const root = join(tmp, rootDirs[0] as string);
+  const sourceCommit = (rootDirs[0] as string).slice("standing-data-".length);
+
+  // The writer's run files (W2): their facts must agree with each other, with --env, and with this source.
+  type RunFile = Record<string, unknown> & { env?: string; sourceCommit?: string; prevMetaSha256?: string };
+  const readRun = (p?: string): RunFile | null => (p ? JSON.parse(readFileSync(p, "utf8")) as RunFile : null);
+  const wf = readRun(args.checkValues), df = readRun(args.expectAbsent);
+  for (const [name, f] of [["--check-values", wf], ["--expect-absent", df]] as const) {
+    if (!f) continue;
+    if (f.env !== args.env || f.sourceCommit !== sourceCommit) {
+      console.error(`REFUSING: the ${name} file is for another environment or source commit than this verify.`);
+      process.exit(2);
+    }
+  }
+  if (wf && df && (wf.prevMetaSha256 !== df.prevMetaSha256 || wf.sourceSha256 !== df.sourceSha256)) {
+    console.error("REFUSING: the --check-values and --expect-absent files come from different runs.");
+    process.exit(2);
+  }
 
   // ---- what SHOULD be there, per shard ------------------------------------
   const expectedByShard = new Map<string, Set<string>>();
@@ -148,7 +207,7 @@ async function main() {
   // command and several hundred API pages.
   console.log("enumerating the whole rt: namespace (several minutes) ...");
   const listed = execSync(
-    ["node", "scripts/wrangler-run.mjs", "kv", "key", "list", "--prefix=rt:", "--binding=ENRICH_KV",
+    ["node", KV_CLI, "kv", "key", "list", "--prefix=rt:", "--binding=ENRICH_KV",
       `--env=${args.env}`, "--remote"].join(" "),
     { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"], maxBuffer: 512 * 1024 * 1024 },
   );
@@ -251,8 +310,79 @@ async function main() {
   let extra = 0;
   for (const k of actual) if (!expectedAll.has(k)) extra++;
   console.log(`extra keys under rt: not in the corpus: ${extra} (adsbdb-era TTL entries, anchors)`);
+  // D3's waiver condition (docs/route-weekly-code.md 2o): leftover sentinels are inert, but counted on every verify, so
+  // an accumulation is a reading rather than a silence. A count only, never a key, and never a failure.
+  let sentinels = 0;
+  for (const k of actual) if (/^rt:ZZ[0-9A-F]{5}S$/.test(k)) sentinels++;
+  console.log(`sentinels: ${sentinels} leftover rt:ZZ sentinel key(s)`);
 
-  process.exit(missingTotal === 0 ? 0 : 1);
+  // ---- W3: the values the run wrote, and the absence of what it deleted ---------------------------------------
+  let valuesBad = 0, presentBad = 0;
+  const bad: string[] = [];
+  if (wf || df) {
+    // The controls first. A check that cannot fail, or cannot see absence, is not believed (#700's D2).
+    const written = (wf?.written ?? {}) as Record<string, string>;
+    const wKeys = Object.keys(written);
+    if (wKeys.length > 0) {
+      const k0 = wKeys[0] as string;
+      const got0 = bulkGet([k0], args.env, tmp).get(k0);
+      // The control goes through the SAME comparison as every value below, so a broken comparison breaks the control.
+      const controlMismatches = same(`${written[k0]}#deliberately-wrong`, got0) ? 0 : 1;
+      console.log(`CONTROL (GR10m): a known-correct key against a deliberately wrong value: ${controlMismatches} mismatch (must be exactly 1)`);
+      if (controlMismatches !== 1) { console.error("REFUSING TO JUDGE: the value comparison cannot detect a mismatch."); process.exit(2); }
+    }
+    const madeUp = bulkGet([MADE_UP], args.env, tmp).get(MADE_UP);
+    console.log(`CONTROL (GR10a): the made-up key reads ${madeUp === null ? "null" : "NOT null"} (must be null)`);
+    if (madeUp !== null) { console.error("REFUSING TO JUDGE: the read cannot see absence."); process.exit(2); }
+  }
+  if (wf) {
+    const written = (wf.written ?? {}) as Record<string, string>;
+    const got = bulkGet(Object.keys(written), args.env, tmp);
+    let match = 0, absent = 0, mismatch = 0;
+    for (const [k, v] of Object.entries(written)) {
+      const g = got.get(k);
+      if (same(v, g)) match++;
+      else if (g === null || g === undefined) { absent++; bad.push(k); }
+      else { mismatch++; bad.push(k); }
+    }
+    valuesBad = absent + mismatch;
+    console.log(`values: checked ${Object.keys(written).length}, match ${match}, MISMATCH ${mismatch}, ABSENT ${absent}`);
+  }
+  if (df) {
+    const deleted = (df.deleted ?? []) as string[];
+    const got = bulkGet(deleted, args.env, tmp);
+    let absent = 0;
+    for (const k of deleted) { const g = got.get(k); if (g === null || g === undefined) absent++; else { presentBad++; bad.push(k); } }
+    console.log(`absence: checked ${deleted.length}, absent ${absent}, PRESENT ${presentBad}`);
+  }
+  if (bad.length > 0) {
+    const p = join(tmp, "verify-bad-keys.json");
+    writeFileSync(p, JSON.stringify(bad));
+    console.log(`the ${bad.length} failing key(s) are in a local file, not printed: ${p}`);
+  }
+
+  const pass = missingTotal === 0 && valuesBad === 0 && presentBad === 0;
+  if (args.receipt) {
+    const why = !pass ? "the verify did not PASS"
+      : !wf || !df ? "a receipt needs both --check-values and --expect-absent"
+      : wf.deletesRefused !== false ? "the run's deletes were refused, so no receipt may follow"
+      : "";
+    if (why || !wf || !df) console.log(`receipt: NOT written (${why})`);
+    else {
+      writeFileSync(args.receipt, JSON.stringify({
+        v: 1, result: "PASS", env: args.env, sourceCommit,
+        sourceSha256: createHash("sha256").update(readFileSync(tarPath)).digest("hex"),
+        prevSourceCommit: wf.prevSourceCommit, prevMetaSha256: wf.prevMetaSha256,
+        written: Object.keys((wf.written ?? {}) as object).length, deleted: ((df.deleted ?? []) as string[]).length,
+        deletesRefused: false, readback: wf.readback, ...(typeof wf.sentinel === "string" ? { sentinel: wf.sentinel } : {}),
+        // J7 (docs/route-weekly-code.md 2n): the journal the verified run left; --seal-only refuses if it has changed
+        journalSha256: typeof wf.journalSha256 === "string" ? wf.journalSha256 : null,
+        checkedAt: new Date().toISOString(),
+      }));
+      console.log("receipt: written");
+    }
+  }
+  process.exit(pass ? 0 : 1);
 }
 
 main().catch((e) => {

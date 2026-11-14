@@ -88,12 +88,15 @@
  */
 import { execFileSync, execSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdtempSync, readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { putWithBackoff } from "./chunk-retry";
 import { sleepSync } from "./exec-retry";
 import { RULE_REV, routeEndpoints } from "./routerule";
+import { fk1Refusal } from "./routes-fk1";
+import { sweepAtStart, tmpDir } from "./routes-tmp";
+import * as G from "./routes-guards";
 import { q, sh } from "./shquote";
 import { TokenFileError, resolveTestIdentity } from "./token-file";
 
@@ -103,6 +106,12 @@ const TARBALL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/r
 const BULK_CHUNK = 10_000;
 /** Written LAST, and only if everything else succeeded. See rule 1. */
 const META_KEY = "meta:routes";
+/**
+ * Every KV call goes through the helper (docs/wrangler-run.md). ROUTES_KV_CLI exists for TESTS ONLY: it names
+ * scripts/routes-fakekv.mjs, a JSON-file stand-in, so the writer can be graded red-first with no network
+ * (docs/route-weekly-code.md). check_routes_workflow.py refuses any workflow that sets it.
+ */
+const KV_CLI = process.env.ROUTES_KV_CLI ?? "scripts/wrangler-run.mjs";
 
 
 /**
@@ -132,15 +141,68 @@ interface Args {
   dryRun: boolean;
   file?: string;
   forceShards: string[];
+  // the key-level mode (docs/route-weekly-code.md, W2)
+  keyLevel: boolean;
+  prev?: string;
+  prevAlso?: string;
+  prevManifest?: string;
+  noSeal: boolean;
+  sealOnly: boolean;
+  receipt?: string;
+  readback: "on" | "off";
+  maxDeletes?: number;
+  allowShards: string[];
+  allowRemoved: string[];
+  outWritten?: string;
+  outDeleted?: string;
+  sourceDate?: string;
+  replay: boolean;
+}
+
+/** B2 (the review): an override is a non-negative integer or it is refused. Number("1,000") is NaN, and every guard
+ *  comparison against NaN is false, so a NaN cap would silently pass any count. Never coerced, never defaulted. */
+function countArg(flag: string, v: string | undefined): number {
+  if (v === undefined || !/^\d+$/.test(v)) {
+    console.error(`REFUSING (OVR): ${flag} must be a non-negative integer such as 1000 (no commas, signs or units). Nothing done.`);
+    process.exit(2);
+  }
+  return Number(v);
+}
+
+/** D8 (docs/route-weekly-code.md 2j): --allow-removed names a SHARD FILE, as G4 prints it. The shape fits 1,591 of 1,591
+ *  names in standing-data 24ce5424; a count such as "5" (the old form) or "5x" is refused loudly, never read as a name.
+ *  Whether the named shard is actually removed is G4's check, on the proven snapshots. */
+const SHARD_NAME = /^routes\/schema-\d{2}\/[A-Z0-9]\/[A-Z0-9]+-[A-Za-z0-9]+\.csv$/;
+function shardNameArg(flag: string, v: string | undefined): string {
+  if (v === undefined || !SHARD_NAME.test(v)) {
+    console.error(`REFUSING (OVR): ${flag} takes a shard file as G4 prints it, such as routes/schema-01/B/BES-all.csv, once per shard (never a count). Nothing done.`);
+    process.exit(2);
+  }
+  return v;
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dryRun: false, forceShards: [] };
+  const a: Args = { dryRun: false, forceShards: [], keyLevel: false, noSeal: false, sealOnly: false, readback: "on", allowShards: [], allowRemoved: [], replay: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--dry-run") a.dryRun = true;
     else if (argv[i] === "--env") a.env = argv[++i];
     else if (argv[i] === "--file") a.file = argv[++i];
     else if (argv[i] === "--force-shard") a.forceShards.push(argv[++i] as string);
+    else if (argv[i] === "--key-level") a.keyLevel = true;
+    else if (argv[i] === "--prev") a.prev = argv[++i];
+    else if (argv[i] === "--prev-also") a.prevAlso = argv[++i];
+    else if (argv[i] === "--prev-manifest") a.prevManifest = argv[++i];
+    else if (argv[i] === "--no-seal") a.noSeal = true;
+    else if (argv[i] === "--seal-only") a.sealOnly = true;
+    else if (argv[i] === "--receipt") a.receipt = argv[++i];
+    else if (argv[i] === "--readback") a.readback = argv[++i] === "off" ? "off" : "on";
+    else if (argv[i] === "--max-deletes") a.maxDeletes = countArg("--max-deletes", argv[++i]);
+    else if (argv[i] === "--allow-shard") a.allowShards.push(argv[++i] as string);
+    else if (argv[i] === "--allow-removed") a.allowRemoved.push(shardNameArg("--allow-removed", argv[++i]));
+    else if (argv[i] === "--out-written") a.outWritten = argv[++i];
+    else if (argv[i] === "--out-deleted") a.outDeleted = argv[++i];
+    else if (argv[i] === "--source-date") a.sourceDate = argv[++i];
+    else if (argv[i] === "--replay") a.replay = true;
   }
   return a;
 }
@@ -231,20 +293,17 @@ function rows(text: string): Record<string, string>[] {
   return out;
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  if (!args.dryRun && !args.env) {
-    console.error("refusing to run: pass --env <staging|production> or --dry-run");
-    process.exit(2);
-  }
+/** A parsed source: the writer's ONE parse of a standing-data tarball, called by the full mode and the key-level mode
+ * alike, so the two can never disagree about a row (docs/route-weekly-code.md, W2). `commit` is read from the archive's
+ * own root directory, `standing-data-<sha>`. */
+interface ParsedSource {
+  root: string;
+  commit: string;
+  shards: Map<string, { hash: string; plainHash: string; pairs: [string, string][] }>;
+  totalRows: number;
+}
 
-  const tmp = mkdtempSync(join(tmpdir(), "routes-"));
-  const tarPath = args.file ?? join(tmp, "sd.tar.gz");
-
-  if (!args.file) {
-    console.log(`downloading ${TARBALL}`);
-    execSync(`curl -sL --max-time 300 ${q(TARBALL)} -o ${q(sh(tarPath))}`, { stdio: "inherit" });
-  }
+function parseSource(tarPath: string, tmp: string, label = ""): ParsedSource {
   // --force-local: GNU tar reads a leading "C:" as a REMOTE HOST spec
   // ("Cannot connect to C: resolve failed"), and Node's tmpdir() hands us
   // exactly that on Windows. Harmless on CI's Linux, required to run this
@@ -279,7 +338,7 @@ async function main() {
     }
   }
   const code = (icao: string) => icaoToIata.get(icao.toUpperCase()) ?? icao.toUpperCase();
-  console.log(`airports: ${icaoToIata.size} ICAO->IATA mappings, ${airportSkipped} malformed`);
+  console.log(`${label}airports: ${icaoToIata.size} ICAO->IATA mappings, ${airportSkipped} malformed`);
   // A handful of odd rows is the source's business. A flood means the columns
   // moved under us, and every route code downstream would be quietly wrong.
   if (airportSkipped > icaoToIata.size / 100) {
@@ -290,7 +349,7 @@ async function main() {
 
   // ---- parse the route shards, hashing each --------------------------------
   const shardFiles = csvFiles(join(root, "routes")).sort();
-  const shards = new Map<string, { hash: string; pairs: [string, string][] }>();
+  const shards = new Map<string, { hash: string; plainHash: string; pairs: [string, string][] }>();
   let parsed = 0;
   let skipped = 0;
   let rotations = 0;
@@ -300,6 +359,9 @@ async function main() {
     // RULE_REV is part of the hash, not just the bytes: a rule change must
     // re-diff every shard, or the fix silently writes nothing.
     const hash = createHash("sha256").update("rule" + RULE_REV).update(raw).digest("hex").slice(0, 16);
+    // The pre-rule hash, sha256(raw) alone: the scheme of manifests written before RULE_REV was folded in (staging's
+    // 08-25 build). Used only to PROVE such a manifest against its snapshot (--prev-also); the diff never uses it.
+    const plainHash = createHash("sha256").update(raw).digest("hex").slice(0, 16);
     const pairs: [string, string][] = [];
     for (const r of rows(raw)) {
       parsed++;
@@ -313,11 +375,534 @@ async function main() {
       if (legs.length > 2 && legs[0] === legs[legs.length - 1]) rotations++;
       pairs.push([`rt:${cs}`, JSON.stringify({ o: code(oIcao), d: code(dIcao) })]);
     }
-    shards.set(name, { hash, pairs });
+    shards.set(name, { hash, plainHash, pairs });
   }
   const totalRows = [...shards.values()].reduce((n, s) => n + s.pairs.length, 0);
-  console.log(`routes: ${shardFiles.length} shards, ${parsed} rows parsed, ${skipped} skipped, ${totalRows} usable`);
-  console.log(`  rule rev ${RULE_REV}: ${rotations} rotations rendered as their outbound leg (would have been X-X)`);
+  console.log(`${label}routes: ${shardFiles.length} shards, ${parsed} rows parsed, ${skipped} skipped, ${totalRows} usable`);
+  console.log(`${label}  rule rev ${RULE_REV}: ${rotations} rotations rendered as their outbound leg (would have been X-X)`);
+  return { root, commit: (rootDirs[0] as string).slice("standing-data-".length), shards, totalRows };
+}
+
+type Meta = Record<string, unknown> & { shards: Record<string, string> };
+/**
+ * Read meta:routes through the helper. "Absent" and "cannot read" never collapse into one branch: a clean not-found is
+ * returned as absent, and anything else -- auth, network, config, an unparsable value -- refuses here, printing why.
+ * Shared by the full mode and the key-level mode (moved unchanged out of main(), 2026-11-13).
+ */
+function readMeta(env: string): { kind: "absent" } | { kind: "ok"; meta: Meta; raw: string } {
+  const cmd = ["node", KV_CLI, "kv", "key", "get", q(META_KEY),
+    "--binding=ENRICH_KV", `--env=${env}`, "--remote"].join(" ");
+  let raw: string;
+  try {
+    raw = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (e) {
+    const err = e as { status?: number; stdout?: string; stderr?: string };
+    const blob = `${err.stdout ?? ""}\n${err.stderr ?? ""}`;
+    // wrangler's not-found wording, matched loosely because it has changed
+    // between releases. Everything else -- auth, network, config -- is fatal.
+    const notFound = /not found|does not exist|key .* not/i.test(blob);
+    if (!notFound) {
+      console.error(`REFUSING: could not read ${META_KEY} from ${env}, and this is NOT a`);
+      console.error("clean not-found. Treating it as a first run would blind-write every key.");
+      console.error(`exit status: ${err.status ?? "?"}`);
+      console.error(`--- wrangler output ---\n${blob.trim()}\n-----------------------`);
+      process.exit(1);
+    }
+    return { kind: "absent" };
+  }
+  // A successful exit still has to yield the shape we expect. wrangler has
+  // been known to put a banner on stdout ahead of the value; a parse failure
+  // here is a reason to stop, not a reason to assume a first run.
+  try {
+    const parsed = JSON.parse(raw) as Meta;
+    if (!parsed || typeof parsed !== "object" || !parsed.shards) {
+      throw new Error("no `shards` field in the meta value");
+    }
+    return { kind: "ok", meta: parsed, raw };
+  } catch (e) {
+    console.error(`REFUSING: ${META_KEY} read back but did not parse as a manifest.`);
+    console.error(`reason: ${(e as Error).message}`);
+    console.error(`--- first 200 bytes ---\n${raw.slice(0, 200)}\n-----------------------`);
+    process.exit(1);
+  }
+}
+
+function refuse(code: number, ...lines: string[]): never {
+  for (const l of lines) console.error(l);
+  process.exit(code);
+}
+
+// TEMP DIRS: tmpDir() and the start-of-run sweep live in routes-tmp.ts, shared with the verify (2026-11-14: 371 dirs,
+// 4.7 GB, left behind before it existed). Every dir this tool makes goes through tmpDir(), and is removed on exit.
+const TEMP_PREFIXES = ["routes-", "routes-new-", "routes-prev-", "routes-also-", "routes-kl-", "routes-seal-", "routes-meta-",
+  "routes-rp-new-", "routes-rp-prev-"];
+
+type Enrich = (cs: string) => { o?: string; d?: string } | null;
+/**
+ * The live read path, as the TEST identity: the base URL and a GET /v1/enrich probe. Shared by the full mode and the
+ * key-level mode (moved unchanged out of main(), 2026-11-14), so there is one implementation of it, not two.
+ */
+function liveReader(env: string): { base: string; enrich: Enrich } {
+  const base = env === "production"
+    ? "https://scopes.valarsystems.com"
+    : "https://scopes-staging.valarsystems.com";
+  // The TEST identity (docs/test-identity.md, Q-T3), never a board's pair: resolveTestIdentity refuses BLIP_KEY/
+  // BLIP_DEVICE and records-device. Never printed, and never on a command line (the read-back below sends it on stdin).
+  let key = "", device = "", why = "";
+  try {
+    ({ key, device } = resolveTestIdentity(env === "production" ? "production" : "staging"));
+  } catch (e) {
+    if (!(e instanceof TokenFileError)) throw e;
+    why = e.message;
+  }
+  if (!key || !device) {
+    console.error("REFUSING: no test identity, so nothing can be read back through");
+    if (why) console.error("  (the token file: " + why + ")");
+    console.error("the live path. An unverified build must not publish a fresh row count.");
+    process.exit(1);
+  }
+  // curl reads both headers from STDIN (-K -): the key is never a process argument (docs/test-identity.md, item 7)
+  const authConfig = `header = "X-Blip-Key: ${key}"\nheader = "X-Blip-Device: ${device}"\n`;
+
+  /** GET /v1/enrich for one callsign. Returns null when the request itself failed. */
+  const enrich: Enrich = (cs) => {
+    const url = `${base}/v1/enrich/000000?cs=${cs}`;
+    try {
+      const body = execFileSync("curl", ["-s", "--max-time", "25", "-K", "-", url], { encoding: "utf8", input: authConfig });
+      return JSON.parse(body) as { o?: string; d?: string };
+    } catch (e) {
+      // DO NOT PRINT THE ERROR MESSAGE. execSync puts the whole failed command in
+      // e.message, and the command carries `-H "X-Blip-Key: <secret>"` about forty
+      // characters in -- so any slice long enough to be useful also leaks the
+      // device key into the log, and CI logs outlive the run. Report the status
+      // only; the key is never the interesting part of the failure anyway.
+      const status = (e as { status?: number }).status;
+      console.log(`  ! ${cs} request failed (curl exit ${status ?? "?"})`);
+      return null;
+    }
+  };
+  return { base, enrich };
+}
+
+/** PFX1 (the owner, 2026-11-13): the only keys a route run may write or delete. Checked for EVERY key, before any write. */
+const SENTINEL_KEY = /^rt:ZZ[0-9A-F]{5}S$/;
+/** D1 (docs/route-weekly-code.md 2n): the write-ahead journal of keys written or deleted by runs that did not seal. */
+const META_PENDING_KEY = "meta:routes-pending";
+const pfxOk = (k: string) => G.MIRROR_KEY.test(k) || SENTINEL_KEY.test(k) || k === META_KEY || k === META_PENDING_KEY;
+
+type Pending = { kind: "absent" } | { kind: "stale"; raw: string } | { kind: "current"; keys: string[]; raw: string };
+/** J7 (2n): the sha256 of the journal as stored, or null with none. The receipt carries it; the seal compares it. */
+const journalSha = (p: Pending): string | null => (p.kind === "absent" ? null : sha256Text(p.raw));
+/** D1: the journal, judged against the meta just read. A journal whose `since` is not this meta's sha256 was written
+ *  against an earlier meta (a seal happened after it, and its clear failed): it is STALE and ignored. A read that is
+ *  neither a clean not-found nor a parseable journal is a refusal, never "absent" -- an unreadable journal assumed empty
+ *  would re-open exactly the hole it closes. */
+function readPending(env: string, metaRaw: string): Pending {
+  const cmd = ["node", KV_CLI, "kv", "key", "get", q(META_PENDING_KEY), "--binding=ENRICH_KV", `--env=${env}`, "--remote"].join(" ");
+  let raw: string;
+  try {
+    raw = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (e) {
+    const err = e as { status?: number; stdout?: string; stderr?: string };
+    if (/not found|does not exist|key .* not/i.test(`${err.stdout ?? ""}\n${err.stderr ?? ""}`)) return { kind: "absent" };
+    refuse(1, `REFUSING (JN2): could not read ${META_PENDING_KEY} (exit ${err.status ?? "?"}), and this is not a clean not-found. Nothing written.`);
+  }
+  let j: { v?: number; since?: string; keys?: unknown };
+  try { j = JSON.parse(raw) as typeof j; } catch { refuse(1, `REFUSING (JN2): ${META_PENDING_KEY} does not parse. Nothing written.`); }
+  if (j.v !== 1 || typeof j.since !== "string" || !Array.isArray(j.keys) || !j.keys.every((k) => typeof k === "string")) {
+    refuse(1, `REFUSING (JN2): ${META_PENDING_KEY} is not a v1 journal. Nothing written.`);
+  }
+  return j.since === sha256Text(metaRaw) ? { kind: "current", keys: j.keys as string[], raw } : { kind: "stale", raw };
+}
+const ISO_SECONDS = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
+const sha256File = (p: string) => createHash("sha256").update(readFileSync(p)).digest("hex");
+const sha256Text = (s: string) => createHash("sha256").update(s).digest("hex");
+
+/** Bulk put or bulk delete through the helper in chunks, retried with backoff; exits on a chunk that fails every retry. */
+function kvChunks(kind: "put" | "delete", items: unknown[], env: string, tmp: string): number {
+  let retries = 0;
+  for (let i = 0; i < items.length; i += BULK_CHUNK) {
+    const chunk = items.slice(i, i + BULK_CHUNK);
+    const path = join(tmp, `${kind}-${i / BULK_CHUNK}.json`);
+    writeFileSync(path, JSON.stringify(chunk));
+    console.log(`bulk ${kind} ${chunk.length} (${i + chunk.length}/${items.length}) ...`);
+    const cmd = ["node", KV_CLI, "kv", "bulk", kind, q(sh(path)), "--binding=ENRICH_KV", `--env=${env}`, "--remote",
+      ...(kind === "delete" ? ["--force"] : [])].join(" ");
+    const r = putWithBackoff((c) => { execSync(c, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); },
+      cmd, [5, 15, 45, 120], sleepSync);
+    retries += r.retries;
+    if (!r.ok) {
+      console.error(`REFUSING: the ${kind} chunk at offset ${i} failed every retry. Nothing further is changed, and`);
+      console.error("meta:routes is untouched, so this run reads as the failure it is.");
+      console.error(`--- last wrangler output ---\n${r.lastErr}\n----------------------------`);
+      process.exit(1);
+    }
+  }
+  return retries;
+}
+
+/**
+ * --replay (section 2d): an UNCHANGED source re-verifies before it re-seals. Writes and deletes NOTHING. It proves the
+ * sealed meta is --file's (every shard hash, and sourceCommit) and that --prev is the snapshot that meta's last change
+ * came from (prevSourceCommit), then re-emits that change's written and deleted sets for the verify. The value
+ * construction stays here, in the writer, as the rule says.
+ */
+function replayMain(args: Args) {
+  const env = args.env as string;
+  if (!args.file || !args.prev) refuse(2, "REFUSING (UN): --replay needs --file <the sealed source> and --prev <the snapshot its last change came from>.");
+  const nw = parseSource(args.file as string, tmpDir("routes-rp-new-"), "new: ");
+  const pv = parseSource(args.prev as string, tmpDir("routes-rp-prev-"), "prev: ");
+  const m = readMeta(env);
+  if (m.kind === "absent") refuse(1, "REFUSING (UN): no meta:routes, so nothing is sealed to replay.");
+  const { meta, raw } = m as { kind: "ok"; meta: Meta; raw: string };
+  // D1 (2n): a replay writes nothing, so it cannot clear unsealed writes. With a CURRENT journal it refuses (exit 6),
+  // and the run script takes the key-level write for the same source instead.
+  const pend = readPending(env, raw);
+  if (pend.kind === "current") {
+    refuse(6, `REFUSING (JN1): ${META_PENDING_KEY} holds ${pend.keys.length} key(s) from unsealed runs; a replay writes nothing and cannot clear them. Run the key-level write for this source. Nothing emitted.`);
+  }
+  const names = new Set([...Object.keys(meta.shards), ...nw.shards.keys()]);
+  let eq = 0;
+  for (const n of names) if ((meta.shards[n] ?? "").split(":")[0] === nw.shards.get(n)?.hash) eq++;
+  console.log(`replay proof: ${eq}/${names.size} shard hashes equal meta:routes`);
+  const why: string[] = [];
+  if (eq !== names.size) why.push("--file is not the source meta:routes was sealed from");
+  if (meta.sourceCommit !== nw.commit) why.push("meta's sourceCommit is not --file's commit");
+  if (meta.prevSourceCommit !== pv.commit) why.push("meta's prevSourceCommit is not --prev's commit");
+  if (why.length > 0) refuse(1, `REFUSING (UN): ${why.join("; ")}. Nothing emitted.`);
+  const valuesOf = (p: ParsedSource) => new Map([...p.shards.values()].flatMap((s) => s.pairs));
+  const newVal = valuesOf(nw), prevVal = valuesOf(pv);
+  const writes = [...newVal].filter(([k, v]) => prevVal.get(k) !== v);
+  const dels = [...prevVal.keys()].filter((k) => !newVal.has(k));
+  const outside = [...writes.map(([k]) => k), ...dels].filter((k) => !pfxOk(k)).length;
+  if (outside > 0) refuse(1, `REFUSING (PFX1): ${outside} key(s) outside the route prefix in the replayed change.`);
+  const run = {
+    v: 1, env, mode: "replay", sourceCommit: nw.commit, sourceSha256: sha256File(args.file as string), prevSourceCommit: pv.commit,
+    prevMetaSha256: sha256Text(raw), deletesRefused: false, readback: "not run", journalSha256: journalSha(pend),
+  };
+  if (args.outWritten) writeFileSync(args.outWritten, JSON.stringify({ ...run, written: Object.fromEntries(writes) }));
+  if (args.outDeleted) writeFileSync(args.outDeleted, JSON.stringify({ ...run, deleted: dels }));
+  console.log(`replay: the last change re-emitted for the verify -- written ${writes.length}, deleted ${dels.length}; nothing written or deleted now`);
+}
+
+/**
+ * --seal-only: write meta:routes and nothing else, and only on a verify receipt for THIS source, THIS environment and
+ * the meta the run was built against (GR9). The manifest comes from the source, so the next run can prove it.
+ */
+function sealOnlyMain(args: Args) {
+  const env = args.env as string;
+  if (!args.file) refuse(2, "REFUSING (GR9): --seal-only needs --file <the source the verified run wrote>.");
+  if (!args.receipt) refuse(2, "REFUSING (GR9): --seal-only needs --receipt <the verify's receipt>. Nothing is sealed without one.");
+  if (args.sourceDate !== undefined && !ISO_SECONDS.test(args.sourceDate)) {
+    refuse(2, "REFUSING (SD1): --source-date must be an ISO UTC time such as 2026-11-12T10:00:00Z. Nothing sealed.");
+  }
+  let r: Record<string, unknown>;
+  try { r = JSON.parse(readFileSync(args.receipt as string, "utf8")) as Record<string, unknown>; }
+  catch { refuse(2, "REFUSING (GR9): the receipt does not parse. Nothing sealed."); }
+  const sourceSha256 = sha256File(args.file as string);
+  const nw = parseSource(args.file as string, tmpDir("routes-seal-"), "new: ");
+  const m = readMeta(env);
+  if (m.kind === "absent") refuse(1, "REFUSING (GR9): no meta:routes to seal over; the key-level mode needs the meta its run was proven against.");
+  const metaSha = sha256Text((m as { raw: string }).raw);
+  const why: string[] = [];
+  if (r.v !== 1) why.push("receipt version");
+  if (r.result !== "PASS") why.push("the verify did not PASS");
+  if (r.env !== env) why.push("a receipt for another environment");
+  if (r.sourceCommit !== nw.commit) why.push("a receipt for another source commit");
+  if (r.sourceSha256 !== sourceSha256) why.push("a receipt for another source tarball");
+  if (r.deletesRefused !== false) why.push("the run's deletes were refused, and a run that cannot delete must not seal");
+  if (r.prevMetaSha256 !== metaSha) why.push("meta:routes changed since the run the receipt verified");
+  if (why.length > 0) refuse(1, `REFUSING (GR9): the receipt does not match this seal: ${why.join("; ")}. Nothing sealed.`);
+  // J7 (2n): the receipt must name the journal now stored. A newer unsealed run rewrote it, so an older receipt describes
+  // writes that are no longer the last ones -- and meta has not changed, so GR9 cannot see it. Absent and null are both
+  // "no journal".
+  const nowJournal = journalSha(readPending(env, (m as { raw: string }).raw));
+  const saw = typeof r.journalSha256 === "string" && r.journalSha256 !== "" ? r.journalSha256 : null;
+  if (saw !== nowJournal) refuse(1, "REFUSING (J7): the journal changed since the verified run, so this receipt no longer describes the last writes. Nothing sealed.");
+  const meta = {
+    v: 1,
+    ruleRev: RULE_REV,
+    rows: nw.totalRows,
+    written: r.written,
+    deleted: r.deleted,
+    pendingDeletes: 0, // a run whose deletes were refused never seals, so a sealed meta never carries any
+    builtAt: new Date().toISOString(),
+    source: "vradarserver/standing-data (CC0 1.0)",
+    mode: "key-level",
+    sourceCommit: nw.commit,
+    sourceSha256,
+    prevSourceCommit: r.prevSourceCommit,
+    readback: r.readback,
+    ...(typeof r.sentinel === "string" ? { sentinel: r.sentinel } : {}),
+    ...(args.sourceDate !== undefined ? { sourceCommittedAt: args.sourceDate } : {}),
+    shards: Object.fromEntries([...nw.shards.entries()].map(([n, s]) => [n, `${s.hash}:${s.pairs.length}`])),
+  };
+  if (!pfxOk(META_KEY)) refuse(1, "REFUSING (PFX1): the meta key is outside the route prefix.");
+  const mt = tmpDir("routes-meta-");
+  kvChunks("put", [{ key: META_KEY, value: JSON.stringify(meta) }], env, mt);
+  console.log(`meta sealed: rows=${nw.totalRows} written=${String(r.written)} deleted=${String(r.deleted)} mode=key-level source ${nw.commit.slice(0, 12)} readback=${String(r.readback)}`);
+  // D1 (2n): the seal clears the journal. A failed clear is a WARN, never a refusal: the journal is stale by
+  // construction now (its `since` is the old meta's), so the next run ignores it.
+  try {
+    const p = join(mt, "journal-delete.json");
+    writeFileSync(p, JSON.stringify([META_PENDING_KEY]));
+    execSync(["node", KV_CLI, "kv", "bulk", "delete", q(sh(p)), "--binding=ENRICH_KV", `--env=${env}`, "--remote", "--force"].join(" "),
+      { stdio: ["ignore", "pipe", "pipe"] });
+    console.log(`journal: ${META_PENDING_KEY} cleared`);
+  } catch { console.log(`WARN: could not clear ${META_PENDING_KEY}; it is stale now (its since is the old meta), so the next run ignores it`); }
+}
+
+/**
+ * THE KEY-LEVEL MODE (docs/route-weekly-refresh.md 2.3-2.5; docs/route-weekly-code.md, W2). It writes only the keys
+ * whose value changed, deletes only keys the mirror itself wrote that the source has dropped, and NEVER seals in-run:
+ * meta:routes is written by a later --seal-only, after a full verify (seal last, by construction).
+ *
+ * The previous snapshot is not trusted, it is PROVEN: --prev must hash, shard for shard, to the current meta:routes,
+ * and --prev-also (the first run's older snapshot) to a saved manifest. The delete list is computed from those proven
+ * snapshots and never from a KV listing of rt:, which also holds the Worker's TTL'd runtime rows.
+ *
+ * Stage 1 (this commit) is the dry run: the proofs, the diff and G1-G6, printing counts only. The write, delete and
+ * seal steps follow in their own commits, each red-first.
+ */
+async function keyLevelMain(args: Args) {
+  if (!args.env) refuse(2, "REFUSING: the key-level mode needs --env <staging|production>");
+  // B1 (the review): a seal has no dry run. --seal-only went straight to its meta write, ignoring --dry-run, so the
+  // combination is REFUSED before any KV call rather than half-honoured.
+  if (args.sealOnly && args.dryRun) refuse(2, "REFUSING (SOD): --seal-only cannot be a --dry-run: a seal writes meta:routes and nothing else. Nothing done.");
+  // D5 (docs/route-weekly-code.md 2k): --force-shard is a full-mode repair. Every key-level path would ignore it, so it is
+  // refused here, before the seal-only and replay dispatch. The key-level repair is the verify's.
+  if (args.forceShards.length > 0) refuse(2, "REFUSING (FS1): --force-shard is a full-mode repair, and the key-level mode would ignore it. The key-level repair is the verify's. Nothing done.");
+  if (args.sealOnly) return sealOnlyMain(args);
+  if (args.replay) return replayMain(args);
+  if (!args.file || !args.prev) refuse(2, "REFUSING: the key-level mode needs --file <the new source> and --prev <the snapshot meta:routes was built from>");
+  const scheduled = process.env.GITHUB_EVENT_NAME === "schedule";
+  const overrides = args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved.length > 0;
+  if (scheduled && overrides) refuse(5, "REFUSING: an override was passed to a scheduled run. A scheduled run can never override a guard (G5).");
+  // KL1, seal last by construction: a key-level run that writes never seals, so it must say so.
+  if (!args.dryRun && !args.noSeal) {
+    refuse(2, "REFUSING (KL1): a key-level run that writes must be given --no-seal. meta:routes is written only by --seal-only, with a verify receipt.");
+  }
+
+  const nw = parseSource(args.file, tmpDir("routes-new-"), "new: ");
+  const pv = parseSource(args.prev, tmpDir("routes-prev-"), "prev: ");
+
+  // ---- proof 1: --prev IS the snapshot the current meta:routes was built from ---------------------------------
+  const m = readMeta(args.env as string);
+  if (m.kind === "absent") refuse(1, "REFUSING: no meta:routes, so --prev cannot be proven. The key-level mode needs a proven previous snapshot.");
+  const manifest = (m as { kind: "ok"; meta: Meta }).meta.shards;
+  const names = new Set([...Object.keys(manifest), ...pv.shards.keys()]);
+  let eq = 0;
+  for (const n of names) if ((manifest[n] ?? "").split(":")[0] === pv.shards.get(n)?.hash) eq++;
+  console.log(`prev proof: ${eq}/${names.size} shard hashes equal meta:routes (manifest ${Object.keys(manifest).length} shards, prev ${pv.shards.size})`);
+  if (eq !== names.size) refuse(1, "REFUSING: --prev is not the snapshot meta:routes was built from, so a diff against it would be wrong. Nothing written.");
+
+  // ---- proof 2 (the first run only): --prev-also against its saved manifest, under ONE hash scheme for all -------
+  let also: ParsedSource | null = null;
+  if (args.prevAlso) {
+    if (!args.prevManifest) refuse(2, "REFUSING: --prev-also needs --prev-manifest <the saved meta:routes it was built into>");
+    also = parseSource(args.prevAlso, tmpDir("routes-also-"), "prev-also: ");
+    const man = (JSON.parse(readFileSync(args.prevManifest as string, "utf8")) as Meta).shards;
+    const all = new Set([...Object.keys(man), ...also.shards.keys()]);
+    let eqRule = 0, eqPlain = 0;
+    for (const n of all) {
+      const h = (man[n] ?? "").split(":")[0];
+      if (h === also.shards.get(n)?.hash) eqRule++;
+      if (h === also.shards.get(n)?.plainHash) eqPlain++;
+    }
+    console.log(`prev-also proof: ${Math.max(eqRule, eqPlain)}/${all.size} shard hashes equal its manifest (${eqRule === all.size ? "rule-hashed" : eqPlain === all.size ? "pre-rule plain hash" : "NEITHER scheme whole"})`);
+    if (eqRule !== all.size && eqPlain !== all.size) refuse(1, "REFUSING: --prev-also is not the snapshot its manifest records. Nothing written.");
+  }
+
+  // ---- the diff ---------------------------------------------------------------------------------------------------
+  const valuesOf = (p: ParsedSource) => new Map([...p.shards.values()].flatMap((s) => s.pairs));
+  const byShard = (p: ParsedSource) => new Map([...p.shards].map(([n, s]) => [n, new Set(s.pairs.map(([k]) => k))]));
+  const newVal = valuesOf(nw), prevVal = valuesOf(pv);
+  const newKeys = new Set(newVal.keys()), prevKeys = new Set(prevVal.keys());
+  const alsoKeys = also ? new Set(valuesOf(also).keys()) : new Set<string>();
+  // D1 (2n): the journal of unsealed runs. Its keys are the mirror's own (written by us since the last seal), so they
+  // join `ours` for G6's provenance; each is rewritten to the new source's value, or deleted if the source lacks it.
+  const metaRaw = (m as { kind: "ok"; raw: string }).raw;
+  const pend = readPending(args.env as string, metaRaw);
+  const pendingKeys = new Set(pend.kind === "current" ? pend.keys : []);
+  const ours = new Set([...prevKeys, ...alsoKeys, ...pendingKeys]); // every key the mirror is proven to have written
+  const newByShard = byShard(nw);
+  const unionByShard = new Map<string, Set<string>>();
+  for (const src of [also ? byShard(also) : new Map<string, Set<string>>(), byShard(pv)]) {
+    for (const [n, ks] of src) unionByShard.set(n, new Set([...(unionByShard.get(n) ?? []), ...ks]));
+  }
+  let added = 0, changed = 0;
+  for (const [k, v] of newVal) { if (!prevVal.has(k)) added++; else if (prevVal.get(k) !== v) changed++; }
+  const deletes = [...ours].filter((k) => !newKeys.has(k));
+  const writes = [...newVal].filter(([k, v]) => prevVal.get(k) !== v || pendingKeys.has(k));
+  const removedShards = new Set([...unionByShard.keys()].filter((n) => !newByShard.has(n)));
+  let fromRemoved = 0;
+  for (const n of removedShards) for (const k of unionByShard.get(n) ?? []) if (!newKeys.has(k)) fromRemoved++;
+  console.log(`sources: new ${nw.commit.slice(0, 12)}, prev ${pv.commit.slice(0, 12)}${also ? `, prev-also ${also.commit.slice(0, 12)}` : ""}`);
+  const rewrite = [...pendingKeys].filter((k) => newKeys.has(k)).length;
+  console.log(pend.kind === "current"
+    ? `pending: ${pendingKeys.size} key(s) from unsealed runs (rewrite ${rewrite}, delete ${pendingKeys.size - rewrite})`
+    : pend.kind === "stale" ? "pending: stale, ignored" : "pending: none");
+  const onlyPending = writes.length - added - changed;
+  console.log(`key-level writes: ${writes.length} (added ${added}, value changed ${changed}${onlyPending > 0 ? `, pending rewrite ${onlyPending}` : ""}); deletes: ${deletes.length} (${deletes.length - fromRemoved} from surviving shards, ${fromRemoved} from ${removedShards.size} removed shard(s))`);
+
+  // ---- the guards ---------------------------------------------------------------------------------------------
+  const g1 = G.g1Completeness(pv.totalRows, nw.totalRows);
+  console.log(`  ${g1.ok ? "ok  " : "FAIL"} ${g1.reason}`);
+  if (!g1.ok) refuse(1, "REFUSING EVERYTHING (G1): the new source is not whole. Nothing would be written or deleted.");
+  const anchors = (JSON.parse(readFileSync("scripts/routes-anchors.json", "utf8")) as { anchors: string[] }).anchors;
+  const verdicts = [
+    G.g2Anchors(anchors, prevKeys, newKeys),
+    G.g3SurvivingShare(unionByShard, newByShard, new Set(args.allowShards)),
+    G.g4Removed(unionByShard, newByShard, new Set(args.allowRemoved)),
+    G.g5Cap(deletes.length, { scheduled, maxDeletes: args.maxDeletes }),
+    G.g6ShapeAndProvenance(deletes, ours),
+  ];
+  for (const v of verdicts) {
+    console.log(`  ${v.ok ? "ok  " : "FAIL"} ${v.reason}`);
+    if (!v.ok && v.names) console.log(`       shard(s): ${v.names.join(", ")}`);
+  }
+  const deletesAllowed = verdicts.every((v) => v.ok);
+  // D2 (docs/route-weekly-code.md 2k): PFX1 is counted BEFORE the dry-run return, over exactly the keys stage 2 would
+  // touch, so a dry run predicts the refusal a real run would meet. The live check before the first write stays: it
+  // also covers the sentinel, which does not exist yet.
+  const plannedKeys = [...writes.map(([k]) => k), ...(deletesAllowed ? deletes : [])];
+  const pfxPlanned = plannedKeys.filter((k) => !pfxOk(k)).length;
+  console.log(`plan: write ${writes.length}; ${deletesAllowed ? `delete ${deletes.length}` : `delete NONE (refused), so the run would NOT seal`}; seal: never in-run (--seal-only after a verify PASS); PFX1: ${pfxPlanned} outside`);
+  if (pfxPlanned > 0) refuse(1, `REFUSING (PFX1): ${pfxPlanned} planned key(s) outside the route prefix. Nothing written or deleted.`);
+  if (args.dryRun) {
+    console.log("--dry-run: stopping before any write");
+    return;
+  }
+
+  // ---- stage 2: write, delete, read back; NEVER seal (W2) --------------------------------------------------------
+  const env = args.env as string;
+  const tmp = tmpDir("routes-kl-");
+  const dels = deletesAllowed ? deletes : [];
+  const live = args.readback === "off" ? null : liveReader(env);
+  const runId = randomBytes(4).toString("hex").toUpperCase().slice(0, 5);
+  const sentinelCs = `ZZ${runId}S`, anchorCs = `ZZ${runId}A`;
+  const sentinelVal = JSON.stringify({ o: runId.slice(0, 3), d: `${runId.slice(3, 5)}Z` });
+  const toWrite: [string, string][] = live ? [[`rt:${sentinelCs}`, sentinelVal], ...writes] : writes;
+
+  // PFX1: every key of every put and delete, BEFORE the first write. One key outside the prefix refuses the whole run.
+  const outside = [...toWrite.map(([k]) => k), ...dels].filter((k) => !pfxOk(k)).length;
+  if (outside > 0) refuse(1, `REFUSING (PFX1): ${outside} key(s) outside the route prefix. Nothing written or deleted.`);
+
+  if (!live) console.log("readback: NOT RUN (the routes-refresh test identity is not set)");
+  else {
+    // The anchor before any write: a ZZ callsign must resolve to nothing (the full mode's rule 3, part 1).
+    const pre = live.enrich(anchorCs);
+    if (pre === null) refuse(1, `REFUSING: the live path is unreachable at ${live.base}. Nothing written.`);
+    if (pre && (pre.o || pre.d)) refuse(1, `REFUSING: anchor ${anchorCs} resolves before any write; this probe cannot be trusted. Nothing written.`);
+    console.log(`anchor: ${anchorCs} is absent through the live path (as required)`);
+  }
+
+  // D1 (2n), WRITE-AHEAD: before the first data write, the journal names every key this run may touch, plus a current
+  // journal's keys. If the run then dies or never seals, the next run still knows them. A stale journal is overwritten.
+  const journalKeys = [...new Set([...pendingKeys, ...writes.map(([k]) => k), ...dels])].sort();
+  let journalRaw: string | null = pend.kind === "absent" ? null : pend.raw;   // what is stored after this step
+  if (journalKeys.length > 0) {
+    // J7 (2n): the journal names its writer (source and runId), so a later run over the same meta and the same key set
+    // still changes it -- and an older receipt can never match it again.
+    journalRaw = JSON.stringify({ v: 1, since: sha256Text(metaRaw), source: nw.commit, runId, keys: journalKeys });
+    kvChunks("put", [{ key: META_PENDING_KEY, value: journalRaw }], env, tmp);
+    console.log(`journal: ${journalKeys.length} key(s) recorded in ${META_PENDING_KEY} before the first write`);
+  }
+
+  const retries = kvChunks("put", toWrite.map(([key, value]) => ({ key, value })), env, tmp)
+    + kvChunks("delete", dels, env, tmp);
+  if (retries > 0) console.log(`(${retries} chunk retries were needed)`);
+  console.log(`wrote ${writes.length} route keys${live ? " (+1 sentinel)" : ""}; deleted ${dels.length}`);
+
+  if (live) {
+    const want = JSON.parse(sentinelVal) as { o: string; d: string };
+    const t0 = Date.now();
+    let seen = false;
+    for (let attempt = 1; attempt <= 8 && !seen; attempt++) {
+      const got = live.enrich(sentinelCs);
+      if (got && got.o === want.o && got.d === want.d) {
+        seen = true;
+        console.log(`sentinel: ${sentinelCs} on attempt ${attempt} after ${Math.round((Date.now() - t0) / 1000)}s (PROVENANCE PROVED)`);
+      } else if (attempt < 8) sleepSync(15_000);
+    }
+    if (!seen) refuse(1, `REFUSING: sentinel ${sentinelCs} never came back through ${live.base}. The keys are written; meta is not, and no receipt can follow.`);
+    let canaryOk = 0;
+    for (const cs of CANARIES) { const j = live.enrich(cs); if (j && j.o && j.d) canaryOk++; }
+    console.log(`canaries: ${canaryOk}/${CANARIES.length}`);
+    if (canaryOk < 3) refuse(1, `REFUSING: only ${canaryOk}/${CANARIES.length} canaries resolved; the read path is broken.`);
+    // Not kvChunks: that exits on failure, and a leftover sentinel is harmless (one key under rt:ZZ, swept next run).
+    try {
+      const p = join(tmp, "sentinel-delete.json");
+      writeFileSync(p, JSON.stringify([`rt:${sentinelCs}`]));
+      execSync(["node", KV_CLI, "kv", "bulk", "delete", q(sh(p)), "--binding=ENRICH_KV", `--env=${env}`, "--remote", "--force"].join(" "),
+        { stdio: ["ignore", "pipe", "pipe"] });
+      console.log(`cleanup: rt:${sentinelCs} deleted`);
+    } catch { console.log(`WARN: could not delete rt:${sentinelCs}; harmless, one key under rt:ZZ`); }
+  }
+
+  // The KV-level sample: written keys read straight from the namespace, byte for byte (the verify reads them all).
+  const SAMPLE = 12, stride = Math.max(1, Math.floor(writes.length / SAMPLE));
+  let sampleOk = 0, sampleChecked = 0;
+  for (let i = 0; i < writes.length && sampleChecked < SAMPLE; i += stride) {
+    const [k, v] = writes[i] as [string, string];
+    sampleChecked++;
+    try {
+      const got = execSync(["node", KV_CLI, "kv", "key", "get", q(k), "--binding=ENRICH_KV", `--env=${env}`, "--remote"].join(" "),
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+      if (got === v) sampleOk++;
+    } catch { /* counted as a miss below */ }
+  }
+  if (sampleOk !== sampleChecked) refuse(1, `REFUSING: ${sampleOk}/${sampleChecked} sampled written keys read back byte-identical.`);
+  console.log(`sample: ${sampleOk}/${sampleChecked} written keys read back byte-identical`);
+
+  // The verifier's inputs: local files, never printed (W3 reads them, and writes the receipt --seal-only needs).
+  const run = {
+    v: 1, env, sourceCommit: nw.commit, sourceSha256: sha256File(args.file as string), prevSourceCommit: pv.commit,
+    prevMetaSha256: sha256Text((m as { raw: string }).raw), deletesRefused: !deletesAllowed,
+    journalSha256: journalRaw === null ? null : sha256Text(journalRaw),   // J7 (2n)
+    readback: live ? "on" : "not run", ...(live ? { sentinel: sentinelCs } : {}),
+  };
+  if (args.outWritten) writeFileSync(args.outWritten, JSON.stringify({ ...run, written: Object.fromEntries(writes) }));
+  if (args.outDeleted) writeFileSync(args.outDeleted, JSON.stringify({ ...run, deleted: dels }));
+  console.log(deletesAllowed
+    ? "not sealed: meta:routes is untouched. Seal with --seal-only --receipt <the verify's receipt>."
+    : "not sealed, and must not be: a guard refused the deletes, so no receipt may follow (a wrong route is worse than none).");
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  // FK1 (docs/route-weekly-code.md): ROUTES_KV_CLI swaps real KV for a JSON fake, for tests. On the production path it
+  // would turn a run into a silent green -- "writes" to a file, verified against the same file. So it is refused, before
+  // any KV call, wherever a REAL credential is in reach: the routes-refresh workflow, --env production, or a token
+  // variable by name (revised by the reviewer, section 2e; the one rule lives in routes-fk1.ts, shared with the verify).
+  // D4 (docs/route-weekly-code.md 2l): the FULL mode never writes production. It has no PFX1, and its meta carries no
+  // sourceCommit, so one production write would break the key-level chain (the next weekly run refuses as
+  // meta-not-key-level). Checked BEFORE FK1, so the two refusals stay distinguishable; a production dry run still reads.
+  if (!args.keyLevel && !args.sealOnly && args.env === "production" && !args.dryRun) {
+    refuse(2, "REFUSING (FM1): the full mode does not write production -- use --key-level (it has PFX1, G5, G6 and the seal chain). A production --dry-run is still allowed. Nothing done.");
+  }
+  const fk1 = process.env.ROUTES_KV_CLI ? fk1Refusal(process.env, args.env, existsSync) : null;
+  if (fk1) refuse(2, `REFUSING (FK1): ROUTES_KV_CLI is a test-only stand-in for KV, and it is not allowed here: ${fk1}.`);
+  sweepAtStart(TEMP_PREFIXES); // a killed run's leftovers, older than 6 h and only ours (routes-tmp.ts)
+  if (args.keyLevel || args.sealOnly) return keyLevelMain(args);
+  const keyLevelOnly = args.noSeal || args.prev || args.prevAlso || args.prevManifest || args.receipt || args.readback === "off"
+    || args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved.length > 0
+    || args.outWritten || args.outDeleted || args.sourceDate !== undefined || args.replay;
+  if (keyLevelOnly) refuse(2, "REFUSING: --no-seal, --prev, --prev-also, --prev-manifest, --receipt, --readback, --out-written, --out-deleted, --source-date, --replay and the overrides belong to --key-level.");
+  if (!args.dryRun && !args.env) {
+    console.error("refusing to run: pass --env <staging|production> or --dry-run");
+    process.exit(2);
+  }
+
+  const tmp = tmpDir("routes-");
+  const tarPath = args.file ?? join(tmp, "sd.tar.gz");
+
+  if (!args.file) {
+    console.log(`downloading ${TARBALL}`);
+    execSync(`curl -sL --max-time 300 ${q(TARBALL)} -o ${q(sh(tarPath))}`, { stdio: "inherit" });
+  }
+  const { root, shards, totalRows } = parseSource(tarPath, tmp);
+  void root;
 
   if (totalRows < MIN_ROWS || totalRows > MAX_ROWS) {
     console.error(`REFUSING: ${totalRows} rows is outside the sane band ${MIN_ROWS}-${MAX_ROWS}.`);
@@ -343,42 +928,10 @@ async function main() {
   // spend the next hour bisecting a silent empty string.
   let prevManifest: Record<string, string> = {};
   if (args.env) {
-    const cmd = ["node", "scripts/wrangler-run.mjs", "kv", "key", "get", q(META_KEY),
-      "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" ");
-    let raw: string | null = null;
-    try {
-      raw = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-    } catch (e) {
-      const err = e as { status?: number; stdout?: string; stderr?: string };
-      const blob = `${err.stdout ?? ""}\n${err.stderr ?? ""}`;
-      // wrangler's not-found wording, matched loosely because it has changed
-      // between releases. Everything else -- auth, network, config -- is fatal.
-      const notFound = /not found|does not exist|key .* not/i.test(blob);
-      if (!notFound) {
-        console.error(`REFUSING: could not read ${META_KEY} from ${args.env}, and this is NOT a`);
-        console.error("clean not-found. Treating it as a first run would blind-write every key.");
-        console.error(`exit status: ${err.status ?? "?"}`);
-        console.error(`--- wrangler output ---\n${blob.trim()}\n-----------------------`);
-        process.exit(1);
-      }
-      console.log(`no ${META_KEY} in ${args.env} -- confirmed absent, so this is a FULL build`);
-    }
-    if (raw !== null) {
-      // A successful exit still has to yield the shape we expect. wrangler has
-      // been known to put a banner on stdout ahead of the value; a parse failure
-      // here is a reason to stop, not a reason to assume a first run.
-      try {
-        const parsed = JSON.parse(raw) as { shards?: Record<string, string> };
-        if (!parsed || typeof parsed !== "object" || !parsed.shards) {
-          throw new Error("no `shards` field in the meta value");
-        }
-        prevManifest = parsed.shards;
-      } catch (e) {
-        console.error(`REFUSING: ${META_KEY} read back but did not parse as a manifest.`);
-        console.error(`reason: ${(e as Error).message}`);
-        console.error(`--- first 200 bytes ---\n${raw.slice(0, 200)}\n-----------------------`);
-        process.exit(1);
-      }
+    const m = readMeta(args.env);
+    if (m.kind === "absent") console.log(`no ${META_KEY} in ${args.env} -- confirmed absent, so this is a FULL build`);
+    else {
+      prevManifest = m.meta.shards;
       console.log(`previous manifest: ${Object.keys(prevManifest).length} shards`);
     }
   }
@@ -508,44 +1061,7 @@ async function main() {
   const sentinelCs = `ZZ${runId}S`;                      // written, never probed first
   const sentinelVal = JSON.stringify({ o: runId.slice(0, 3), d: `${runId.slice(3, 5)}Z` });
 
-  const base = args.env === "production"
-    ? "https://scopes.valarsystems.com"
-    : "https://scopes-staging.valarsystems.com";
-  // The TEST identity (docs/test-identity.md, Q-T3), never a board's pair: resolveTestIdentity refuses BLIP_KEY/
-  // BLIP_DEVICE and records-device. Never printed, and never on a command line (the read-back below sends it on stdin).
-  let key = "", device = "", why = "";
-  try {
-    ({ key, device } = resolveTestIdentity(args.env === "production" ? "production" : "staging"));
-  } catch (e) {
-    if (!(e instanceof TokenFileError)) throw e;
-    why = e.message;
-  }
-  if (!key || !device) {
-    console.error("REFUSING: no test identity, so nothing can be read back through");
-    if (why) console.error("  (the token file: " + why + ")");
-    console.error("the live path. An unverified build must not publish a fresh row count.");
-    process.exit(1);
-  }
-  // curl reads both headers from STDIN (-K -): the key is never a process argument (docs/test-identity.md, item 7)
-  const authConfig = `header = "X-Blip-Key: ${key}"\nheader = "X-Blip-Device: ${device}"\n`;
-
-  /** GET /v1/enrich for one callsign. Returns null when the request itself failed. */
-  const enrich = (cs: string): { o?: string; d?: string } | null => {
-    const url = `${base}/v1/enrich/000000?cs=${cs}`;
-    try {
-      const body = execFileSync("curl", ["-s", "--max-time", "25", "-K", "-", url], { encoding: "utf8", input: authConfig });
-      return JSON.parse(body) as { o?: string; d?: string };
-    } catch (e) {
-      // DO NOT PRINT THE ERROR MESSAGE. execSync puts the whole failed command in
-      // e.message, and the command carries `-H "X-Blip-Key: <secret>"` about forty
-      // characters in -- so any slice long enough to be useful also leaks the
-      // device key into the log, and CI logs outlive the run. Report the status
-      // only; the key is never the interesting part of the failure anyway.
-      const status = (e as { status?: number }).status;
-      console.log(`  ! ${cs} request failed (curl exit ${status ?? "?"})`);
-      return null;
-    }
-  };
+  const { base, enrich } = liveReader(args.env as string);
 
   // SWEEP STALE SENTINELS FIRST. A run that dies between the bulk put and the
   // cleanup at the end leaves one junk key behind, and that is precisely the
@@ -554,7 +1070,7 @@ async function main() {
   // exercises the delete path every run instead of only on the happy path.
   try {
     const listed = execSync(
-      ["node", "scripts/wrangler-run.mjs", "kv", "key", "list", "--prefix=rt:ZZ",
+      ["node", KV_CLI, "kv", "key", "list", "--prefix=rt:ZZ",
         "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
       { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -563,7 +1079,7 @@ async function main() {
       const p = join(tmp, "stale.json");
       writeFileSync(p, JSON.stringify(stale));
       execSync(
-        ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "delete", q(sh(p)), "--binding=ENRICH_KV",
+        ["node", KV_CLI, "kv", "bulk", "delete", q(sh(p)), "--binding=ENRICH_KV",
           `--env=${args.env}`, "--remote", "--force"].join(" "),
         { stdio: "inherit" },
       );
@@ -625,7 +1141,7 @@ async function main() {
     const BACKOFF_S = [5, 15, 45, 120];
     const put = putWithBackoff(
       (c) => { execSync(c, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); },
-      ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "put", q(sh(path)), "--binding=ENRICH_KV",
+      ["node", KV_CLI, "kv", "bulk", "put", q(sh(path)), "--binding=ENRICH_KV",
         `--env=${args.env}`, "--remote"].join(" "),
       BACKOFF_S,
       sleepSync,
@@ -704,7 +1220,7 @@ async function main() {
     sampleChecked++;
     try {
       const got = execSync(
-        ["node", "scripts/wrangler-run.mjs", "kv", "key", "get", q(k), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
+        ["node", KV_CLI, "kv", "key", "get", q(k), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
         { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
       ).trim();
       if (got === expected) sampleOk++;
@@ -761,7 +1277,7 @@ async function main() {
   const metaPath = join(tmp, "meta.json");
   writeFileSync(metaPath, JSON.stringify([{ key: META_KEY, value: JSON.stringify(meta) }]));
   execSync(
-    ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "put", q(sh(metaPath)), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
+    ["node", KV_CLI, "kv", "bulk", "put", q(sh(metaPath)), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
     { stdio: "inherit" },
   );
   console.log(`meta written: rows=${totalRows} written=${writtenData} sentinel=OK canaries=${canaryOk}/${CANARIES.length}`);
@@ -780,7 +1296,7 @@ async function main() {
     const delPath = join(tmp, "sentinel-delete.json");
     writeFileSync(delPath, JSON.stringify([`rt:${sentinelCs}`]));
     execSync(
-      ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "delete", q(sh(delPath)), "--binding=ENRICH_KV",
+      ["node", KV_CLI, "kv", "bulk", "delete", q(sh(delPath)), "--binding=ENRICH_KV",
         `--env=${args.env}`, "--remote", "--force"].join(" "),
       { stdio: ["ignore", "pipe", "pipe"] },
     );

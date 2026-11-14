@@ -75,7 +75,7 @@ async function seedMeta(): Promise<void> {
 /** Seed one mirror row EXACTLY as scripts/ingest-routes.ts writes it. */
 async function seedMirrorRow(): Promise<void> {
   // The key shape is transcribed from the writer, not invented here:
-  //   ingest-routes.ts:311  pairs.push([`rt:${cs}`, JSON.stringify({ o, d })])
+  //   ingest-routes.ts, parseSource():  pairs.push([`rt:${cs}`, JSON.stringify({ o, d })])
   // If the ingest's key shape ever changes, this line is what must change with
   // it -- which is the point of deriving a check's input from the other side.
   await env.ENRICH_KV.put(`rt:${CS}`, JSON.stringify({ o: "SEA", d: "BUR" }));

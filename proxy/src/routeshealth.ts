@@ -25,10 +25,16 @@ export interface RoutesHealth {
   stale: boolean;
   maxAgeDays: number;
   why?: Why;
+  /** The SOURCE's own commit date (W13), informational: an upstream that stops changing stays visible while a verified
+   *  re-seal keeps builtAt fresh. Shown only when meta holds it in the one form the writer writes; never invented. */
+  sourceCommittedAt?: string;
 }
 
+/** The writer's --source-date form (ingest-routes.ts ISO_SECONDS, refused otherwise as SD1): this pair must agree. */
+const SOURCE_DATE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
+
 // What the meta said, parsed once per isolate per CACHE_MS. The AGE is computed per response, never cached.
-type Read = { builtMs: number; builtAt: string; rows: number | null } | { why: "absent" | "unparsable" };
+type Read = { builtMs: number; builtAt: string; rows: number | null; sourceCommittedAt?: string } | { why: "absent" | "unparsable" };
 let cache: { at: number; read: Read } | null = null;
 
 /** Tests only: forget the isolate's cached read. */
@@ -41,11 +47,14 @@ function parse(raw: string | null): Read {
   let m: unknown;
   try { m = JSON.parse(raw); } catch { return { why: "unparsable" }; }
   if (!m || typeof m !== "object") return { why: "unparsable" };
-  const { builtAt, rows } = m as { builtAt?: unknown; rows?: unknown };
+  const { builtAt, rows, sourceCommittedAt: sc } = m as { builtAt?: unknown; rows?: unknown; sourceCommittedAt?: unknown };
   if (typeof builtAt !== "string") return { why: "unparsable" };
   const builtMs = Date.parse(builtAt);
   if (!Number.isFinite(builtMs)) return { why: "unparsable" };
-  return { builtMs, builtAt, rows: typeof rows === "number" && Number.isInteger(rows) && rows >= 0 ? rows : null };
+  // A value not in the writer's one form is OMITTED, never coerced: half a date is a different date (RH9s).
+  const sourceCommittedAt = typeof sc === "string" && SOURCE_DATE.test(sc) && Number.isFinite(Date.parse(sc)) ? sc : undefined;
+  return { builtMs, builtAt, rows: typeof rows === "number" && Number.isInteger(rows) && rows >= 0 ? rows : null,
+    ...(sourceCommittedAt ? { sourceCommittedAt } : {}) };
 }
 
 const none = (why: Why): RoutesHealth => ({ builtAt: null, ageDays: null, rows: null, stale: true, maxAgeDays: ROUTES_MAX_AGE_DAYS, why });
@@ -72,5 +81,6 @@ export async function routesHealth(env: Env): Promise<RoutesHealth> {
     rows: read.rows,
     stale: ageMs > ROUTES_MAX_AGE_DAYS * DAY_MS,
     maxAgeDays: ROUTES_MAX_AGE_DAYS,
+    ...(read.sourceCommittedAt ? { sourceCommittedAt: read.sourceCommittedAt } : {}),
   };
 }

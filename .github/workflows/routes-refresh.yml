@@ -1,0 +1,89 @@
+name: routes-refresh
+
+# The weekly route-copy refresh (docs/route-weekly-refresh.md; docs/route-weekly-code.md, W5). A thin shell: the whole
+# logic is proxy/scripts/routes-refresh-run.sh, graded end to end through the fake KV (routes-run.selftest.sh).
+#
+# THE SCHEDULE SHIPS DISABLED. workflow_dispatch only, until the first attended run passes in BOTH environments; S-ON
+# un-comments the schedule in its own one-line PR, approved at its exact sha. No pull_request trigger, ever (SC1).
+#
+# The owner's conditions (2026-11-13) and their checks: the environment is limited to main (SC2, the run's first
+# step); no PR or fork trigger can reach it (SC1); nothing echoes a secret (SC3); only ROUTES_* secrets (SC5); every
+# action pinned by full sha (PIN1); the token step installs only from the lockfile (NPM1); only route keys are written
+# (PFX1, in the writer). scripts/check_routes_workflow.py runs SC1, SC3, SC5, PIN1 and NPM1 over this file in CI.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "staging, or staging then production"
+        type: choice
+        options: [staging, both]
+        default: staging
+  # schedule:
+  #   - cron: "47 5 * * 2"   # Tuesday 05:47Z. A scheduled time is not a start time; the freeze reads the actual start.
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: routes-refresh
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    runs-on: ubuntu-24.04
+    environment: routes-refresh
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false # M2, PIN2: no token left in .git/config for npm ci's scripts to read
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: npm ci (the lockfile only)
+        working-directory: proxy
+        run: npm ci
+      - name: the refresh, staging
+        working-directory: proxy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.ROUTES_KV_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 48822e896bb10c45aa6bfe139bcff3d1
+          ROUTES_KV_TOKEN: ${{ secrets.ROUTES_KV_TOKEN }}
+          ROUTES_NTFY_TOPIC: ${{ secrets.ROUTES_NTFY_TOPIC }}
+          ROUTES_TEST_DEVICE: ${{ secrets.ROUTES_TEST_DEVICE }}
+          ROUTES_TEST_KEY: ${{ secrets.ROUTES_TEST_KEY }}
+          ROUTES_TEST_KEY_STAGING: ${{ secrets.ROUTES_TEST_KEY_STAGING }}
+          ROUTES_FREEZE_UNTIL: ${{ vars.ROUTES_FREEZE_UNTIL }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/routes-refresh-run.sh staging
+
+  production:
+    needs: staging
+    if: ${{ inputs.target == 'both' }}
+    runs-on: ubuntu-24.04
+    environment: routes-refresh
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false # M2, PIN2: no token left in .git/config for npm ci's scripts to read
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: npm ci (the lockfile only)
+        working-directory: proxy
+        run: npm ci
+      - name: the refresh, production
+        working-directory: proxy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.ROUTES_KV_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 48822e896bb10c45aa6bfe139bcff3d1
+          ROUTES_KV_TOKEN: ${{ secrets.ROUTES_KV_TOKEN }}
+          ROUTES_NTFY_TOPIC: ${{ secrets.ROUTES_NTFY_TOPIC }}
+          ROUTES_TEST_DEVICE: ${{ secrets.ROUTES_TEST_DEVICE }}
+          ROUTES_TEST_KEY: ${{ secrets.ROUTES_TEST_KEY }}
+          ROUTES_TEST_KEY_STAGING: ${{ secrets.ROUTES_TEST_KEY_STAGING }}
+          ROUTES_FREEZE_UNTIL: ${{ vars.ROUTES_FREEZE_UNTIL }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/routes-refresh-run.sh production
