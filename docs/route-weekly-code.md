@@ -230,6 +230,20 @@ writer with `CLOUDFLARE_API_TOKEN` set. Each refuses with exit 2 and the store b
 
 **Sabotage S-FK1:** the credential condition dropped. Red is exactly {FK1d, FK1e, FK1f}.
 
+**The sabotage red sets, re-registered 2026-11-14 ~04:35Z, before either run, with the corrections stated:**
+- **S-FK1**, all three credential conditions dropped (both variables and the file):
+  - the guards selftest: red exactly **{FK1d, FK1e, FK1f, FK1h}**;
+  - the writer selftest: red exactly **{FKW}**.
+  - The set above left out FK1h. Its planted environment holds only credential conditions, so with them dropped its
+    refusal is empty, and the row reads red.
+- **S-VAL**, the shared value comparison `same()` made always true:
+  - the GR10m control then sees 0 mismatches, and the verify refuses to judge (exit 2);
+  - so every verify that checks values stops, and red is exactly **{GR10m, GR10a, RCP2, GR10, GR11, UN1, UN2, UN3}**;
+  - FKV and RCP1 stay green.
+  - W8's list said {GR10, GR10m}. It was written before the control gated the whole verify. And until this commit the
+    control did not even share the comparison it guards, a defect found while writing this row and fixed in the same
+    commit.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
