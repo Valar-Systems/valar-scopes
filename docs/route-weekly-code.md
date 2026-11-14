@@ -588,7 +588,7 @@ against>, keys: [every rt: key an unsealed run has written or deleted, sorted]}`
 
 **After:** writer **45 of 45**, run **8 of 8**, `typecheck:scripts` exit 0.
 
-**J7 (ruled IN by the reviewer, 2026-11-14, received by 08:46Z; registered before its code).** The hole predates the
+**J7 (ruled IN by the reviewer, 2026-11-14, received by 08:45Z; registered before its code).** The hole predates the
 journal: an OLD receipt sealed after a newer unsealed run writes a meta describing the old source over the newer values,
 and GR9 cannot see it, because meta has not changed.
 - **The journal identifies its writer.** It gains `source` (the writing run's `sourceCommit`) and `runId` (random,
