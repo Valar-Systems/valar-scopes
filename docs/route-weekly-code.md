@@ -1434,3 +1434,34 @@ exactly as predicted.**
 - **The stated limit:** the write itself, with an identity, is not demonstrated; the parser refusal that prevents it
   is. So VF1-VF3 pass only on `(VF)` itself (exit 2 and its message, at parse time), with neither `(KL1)` nor the
   missing-identity refusal in their output (the reviewer's condition).
+
+**2r, green (18:34:09-18:47:36Z, at `6e3f372f`): AS PREDICTED.**
+- guards **71 of 71**, writer **81 of 81** (VF1-VF3 each on `(VF)` itself, with no `(KL1)` or missing-identity line),
+  run 8 of 8, freeze 4 of 4;
+- `typecheck:scripts` exit 0; empty stderr; 0 routes-/verify- temp leftovers.
+- **P-BKX** (both "must be found" checks off, one run): red exactly {BK-Xc, BK-Xd}. Restored from its byte copy
+  sha-equal; the tree equal to HEAD.
+
+**W8's plant sets, re-derived from the code (2r item 1): DERIVED, NOT RUN.** W8 runs once (the owner). These are
+written into the driver's `want` arrays with that label, so its record is not silently stale. Every writer-graded
+plant was checked against every row added since its last derivation (2o, 2q and 2r).
+
+| plant | its derived set | why the new rows move it |
+|---|---|---|
+| **S-GR8** | GR8, RCP2, UN1-UN3, J1-J5, J7, JR1, **UNDO1, UNDO2, UNDO3, RS2, J7w, J7w-ctl** | the planted meta `planted` fails every later parse: the seal refuses (UNDO1's meta is not sealed; J7w; J7w-ctl ends without `(J7)`), run B refuses before its backup (UNDO2 has no file to restore), and the restore's state check exits 1 through `readMeta` (UNDO3, and RS2 without `(RS2)`) |
+| **S-VAL** | GR10m, GR10a, RCP2, GR10, GR11, UN1-UN3, J3, J7, JR1, SN1, SN1-ctl, **UNDO1, RS2, J7w, J7w-ctl** | the verify refuses, so there is no receipt and no seal: UNDO1's meta is not sealed; J7w; J7w-ctl has no receipt. RS2: run B's proof fails, journal A is current, so the restore passes branch (a) and proceeds |
+| **S-JN-W** | J1, J2, J3, J7, **J7w-ctl, UNDO2** | J7w-ctl is J7's case. UNDO2: with the journal ignored, run B treats A's deleted keys as DELETED, finds them absent, and BK-X refuses, so there is no backup |
+| **S-J7** | J7, **J7w-ctl** | the old receipt seals |
+
+**Unchanged, each checked:**
+- S-GR9: every new seal holds a valid receipt, and J7w-ctl's GR9 passes before J7;
+- S-TMP: {TMP1}, which counts the restore's `routes-rs-` dirs too;
+- S-JN-R and S-RR3: the run selftest gains no row;
+- every guards plant: the new guards rows make their own temp dirs, and none touches FK1;
+- freeze, health and reconcile.
+W8's baseline would read guards 71, writer 81, freeze 4, runs 8, health 11 and reconcile 1. The anchor check
+(read-only, at this driver) reads 18 plants, each anchor exactly once.
+
+**CI-B2, the push of 2r (predicted 18:48:27Z, before the push):** 36 = 34 success + 2 skipped (promote, version) + 0 other. The
+four workflows are unchanged and no workflow file changes. On Linux: guards 71, writer 81, run 8, freeze 4, with 0 FAIL
+lines. Outside the set: stop.
