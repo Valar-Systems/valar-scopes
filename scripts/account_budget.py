@@ -39,8 +39,13 @@ class Malformed(Exception):
     pass
 
 
+MONTH = __import__("re").compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
 def validate(b):
     al, prods, reads = b.get("allowances", {}), b.get("products", {}), b.get("reads", {})
+    if not isinstance(b.get("month"), str) or not MONTH.match(b["month"]):
+        raise Malformed("the file has no month (YYYY-MM), the month its one-off rows are counted for")
     for a in REQUIRED:
         if a not in al:
             raise Malformed(f"required allowance {a} is missing")
@@ -70,6 +75,25 @@ def validate(b):
             raise Malformed(f"row {i}: basis must be measured, derived or projected")
         if not isinstance(r["value"], (int, float)) or r["value"] < 0 or math.isnan(r["value"]):
             raise Malformed(f"row {i}: value must be a number >= 0")
+        # 9.1/9.2 (docs/account-budget.md section 9): a row is steady (a 30-day figure) or a one-off (per_event x the
+        # events in a month). A one-off scaled as if steady is refused rather than summed: a plausible number of the
+        # wrong kind is worse than none.
+        cad = r.get("cadence")
+        if cad not in ("steady", "one-off"):
+            raise Malformed(f"row {i}: cadence must be steady or one-off")
+        if cad == "steady" and ("per_event" in r or "events" in r):
+            raise Malformed(f"row {i}: a steady row carries no per_event or events")
+        if cad == "one-off":
+            pe, ev = r.get("per_event"), r.get("events")
+            if not isinstance(pe, (int, float)) or pe < 0 or math.isnan(pe):
+                raise Malformed(f"row {i}: a one-off row needs per_event, a number >= 0")
+            if not isinstance(ev, dict) or not ev or not all(
+                    isinstance(m, str) and MONTH.match(m) and isinstance(n, int) and not isinstance(n, bool) and n >= 0
+                    for m, n in ev.items()):
+                raise Malformed(f"row {i}: a one-off row needs events, a map of YYYY-MM to a whole number >= 0")
+            want = pe * ev.get(b["month"], 0)
+            if abs(r["value"] - want) > 1e-9 * max(abs(want), 1.0):
+                raise Malformed(f"row {i}: a one-off row's value must be per_event x events[{b['month']}] = {want:,.0f}, not {r['value']:,.0f}")
         key = (r["product"], r["state"], r["allowance"], r["read"])
         if key in seen:
             raise Malformed(f"row {i}: duplicate {key}")
@@ -230,7 +254,9 @@ def synthetic():
                           "totals": {"r2_class_a": 0.90e6, "r2_class_b": 3.0e6, "kv_read": 7.2e6, "cpu_ms": 20e6}},
                    "r2": {"tool": "synthetic", "window": ["t2", "t3"], "totals": {}}},
          "rows": []}
-    R = lambda p, st, a, v, rd="r1": {"product": p, "state": st, "allowance": a, "value": v, "read": rd, "basis": "measured", "how": "synthetic"}
+    b["month"] = "2026-12"   # 9.1: the month the one-offs are counted for in a scenario without its own
+    R = lambda p, st, a, v, rd="r1": {"product": p, "state": st, "allowance": a, "value": v, "read": rd, "basis": "measured",
+                                      "how": "synthetic", "cadence": "steady"}
     b["rows"] = [R("stream", "now", "r2_class_a", 0.75e6), R("stream", "now", "r2_class_b", 2.0e6),
                  R("proxy", "now", "kv_read", 7.2e6), R("proxy", "now", "cpu_ms", 10e6), R("proxy", "now", "r2_class_b", 0.5e6),
                  R("ingest", "silent", "r2_class_a", 0.15e6), R("ingest", "silent", "cpu_ms", 10e6), R("ingest", "silent", "r2_class_b", 0.5e6),
@@ -293,6 +319,23 @@ def selftest():
     sums = lambda bb: {s: [round(x[1]) for x in v["lines"]] for s, v in evaluate(bb).items()}
     check(flags(p6) == flags(base) and sums(p6) == sums(base) and anchor(p6) == [],
           "P6: an excluded row and an observation read change no flag, no sum and no anchor")
+    # ---- 9.3: the one-off basis. A one-off row is per_event x events[month]; a one-off scaled as if steady is refused ----
+    one = {"product": "proxy", "state": "now", "allowance": "kv_write", "read": "r2", "basis": "measured", "how": "9.3",
+           "cadence": "one-off", "per_event": 0.1e6, "events": {"2026-11": 5, "2026-12": 4}, "value": 0.4e6}
+    def refused(bb):
+        try:
+            validate(bb)
+            return False
+        except Malformed:
+            return True
+    pc = copy.deepcopy(base); pc["rows"].append(dict(one))
+    check(not refused(pc), "P-ONE-ctl: a one-off row whose value is per_event x events[month] reads clean")
+    po = copy.deepcopy(base); po["rows"].append({**one, "value": one["value"] * 30})
+    check(refused(po), "P-ONE: the same one-off scaled x 30 (as if steady) is refused")
+    ps = copy.deepcopy(base); ps["rows"].append({**base["rows"][3], "allowance": "kv_write", "read": "r2", "per_event": 1.0})
+    check(refused(ps), "P-ONE-steady: a steady row carrying per_event is refused")
+    pn = copy.deepcopy(base); pn["rows"].append({k: v for k, v in base["rows"][3].items() if k != "cadence"} | {"allowance": "kv_write", "read": "r2"})
+    check(refused(pn), "P-ONE-none: a row with no cadence is refused")
     print("SELFTEST " + ("PASSED" if not fails else f"FAILED: {len(fails)}"))
     return 0 if not fails else 1
 
