@@ -265,7 +265,11 @@ whole month.
 ## 6. The deploy (not in this PR's scope; listed so nothing is assumed)
 
 - **The ten ingest Workers** (`proxy/wx-ingest-opera.wrangler.toml`) carry the fallback.
-- **The proxy Worker** carries `/healthz`'s `source`. That waits for a proxy deploy, which is not Monday's slot.
+- **The proxy Worker** carries `/healthz`'s `source`. ~~That waits for a proxy deploy, which is not Monday's slot.~~
+  **Corrected 2026-11-14 (15:38Z read):** Monday's proxy deploy is from main, so it carries `b2233f0c`'s `handler.ts`.
+  That is the field alone. It reads `null` for all ten OPERA products until the ten ingest Workers are deployed, and
+  none of the fallback reaches the proxy (`docs/proxy-deploy-2026-11-16.md` section 1a, check C7). So the radar deploy
+  is the ten ingest Workers alone.
 - **Until both are deployed,** a frame's source is readable from `latest` itself (`opera_latest.py`).
 - **Each deploy has its own predicted rows,** registered before it, on the owner's word and under the deploy claim.
 - **The code's commit is `b2233f0c`,** #720's squash of the approved head `5ae2a048`. Its parent is `6f6dae93` (H), and
