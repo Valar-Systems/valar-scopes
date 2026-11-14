@@ -800,6 +800,25 @@ added first. Then everything is run against `620a215d`'s code.
 - **UNDO1, UNDO-ctl, BK-SAME and BK-SAME-ctl compare the store key by key:** every key present on both sides, and every
   value byte-equal. The fake's JSON file follows insertion order, so a whole-file byte compare would fail on order alone.
 
+**Amendment 2, before any code: the backup covers EVERY key the run touches, not only `dels`.** Found while writing
+UNDO1's fixture (2026-11-14 ~17:25Z). It supersedes steps 2, 3 and 5 above, the `--restore` paragraph, BK-W and BK1.
+- **The defect in the design as accepted:** the fixture's run A writes 70 keys (30 changed, 40 added) and deletes 25.
+  A backup of `dels` alone restores the 25, but leaves the 30 changed keys at their NEW values and the 40 added keys in
+  place. So UNDO1 would fail after the code, and "so the run can be undone" would be false for any run that writes.
+- **For 4a the two designs agree** (writes 0, deletes 827), so the first run's prediction is unchanged in substance.
+- **Step 2 becomes:** it reads the pre-run values of exactly `writes ∪ dels` (bulk get), recording `null` for a key
+  absent before the run.
+- **Step 3 (BK1) becomes:** it refuses, exit 1, nothing written, unless it holds an entry for every touched key, and
+  every key to DELETE has a non-empty pre-run value. A delete of a key that holds no value means the plan and the store
+  disagree. A key to WRITE may be `null` (it was added).
+- **Step 5's line becomes:** `backup: <n> key(s) (<d> to delete, <w> to write), meta and journal saved, sha256 <hex>`.
+- **`--restore` becomes:** it re-puts every non-null key at its recorded value, and deletes every key recorded as
+  `null` (the run added it). Meta, the journal and the sentinel are as before.
+- **BK-W becomes:** the file's `keys` are exactly the run's touched set (`--out-written`'s keys plus `--out-deleted`).
+  Each holds its pre-run value, or `null` where the pre-run store lacked the key.
+- **BK1 is unchanged in its fixture** (a planted empty value on a key to delete) and in its prediction.
+- **The red-first sets and the counts are unchanged.**
+
 **Red-first, predicted:**
 - writer red exactly **{BK-W, BK-M, BK-H, BK0, BK0d, BK1, BK3, UNDO1, UF1, UF2, J7w, J6x}**; green: UNDO-ctl, BK-SAME,
   BK-SAME-ctl, UF-ctl, J7w-ctl and the 48 earlier rows;
@@ -1085,9 +1104,9 @@ satisfied by the pin plus the step-1 check.
 
 4a stands, with one step added and one stop branch:
 - **Step 3 gains `--backup ~/.config/blipscope/routes-backup-<env>-<UTC stamp>.json`.** That is beside the token file,
-  outside every git tree. Predicted, before the journal and the first write: `backup: 827 key(s), meta and journal
-  saved, sha256 <hex>`. The hash is recorded in the run's record at 12 hex.
-- **STOP before any delete:** BK0, BK1, BK2 or BK3 refusing, or any count other than 827.
+  outside every git tree. Predicted, before the journal and the first write: `backup: 827 key(s) (827 to delete, 0 to
+  write), meta and journal saved, sha256 <hex>` (2q's amendment 2). The hash is recorded in the run's record at 12 hex.
+- **STOP before any delete:** BK0, BK1, BK2 or BK3 refusing, or any count other than 827 to delete and 0 to write.
 - **After the run,** the file is checked once more against its recorded sha256 (`sha256sum`), and it stays where it is.
   The undo, if it is ever needed, is `--key-level --restore <file> --env <env>`, attended. It is a production write, so
   it needs the owner's word.
