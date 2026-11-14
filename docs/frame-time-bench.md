@@ -519,8 +519,8 @@ from the same table.
     FT's 40 drawn are airborne. So bit 3 at FT is the night poll. An FT window is placed in all its homes' daylight
     with at least 10 min clear of each edge. The sun times are placement data and are never committed.
   - **PIX is not part of this row.** Neither FT registration grades a frame buffer, and PIX-MAP's thresholds have no
-    measured basis at FT's homes. So FT-WX's weather-ON claim rests on bit 1 alone. Whether FT-HR adds PIX-WX is
-    before the orchestrator (map-server, 18:08:18Z); this row changes if it is ruled in.
+    measured basis at FT's homes. So FT-WX's weather-ON claim rests on bit 1 alone. PIX-WX for FT-HR is ruled out
+    (Q-FT2, the orchestrator, about 18:09Z). FT-HR's reading states that limit.
   - **Red first, in the reader's selftest, before the sibling's reader is used. Eleven cases, on the orchestrator's
     ruling (2026-11-14, after 18:08Z):**
     - **C1, FT-MAP's control:** bit 2 set, bits 1 and 3 clear on every measured frame. **Predicted:** graded.
@@ -1184,6 +1184,26 @@ paragraph above.
     ledger shows the trace cut short: no `trace exit`, or a non-zero one. After a trace that ended normally (exit 0)
     it is the escape hatch.
   - `survey_read.py --selftest` PASSED at 02:56:46Z, including MANYSHORT: 5 of 8 valid gives STOP, exit 2.
+- **S1, FIRST ATTEMPT (2026-11-14): S1's FIRST OFF reading.** Started 17:55:20Z on the owner's ruling ("start S1 now";
+  20:00Z became its retry slot), ET 12:55 instead of the registered 15:00. Written before the retry's outcome exists.
+  - **The survey graded as registered:** PA-1 ON (8 of 8 candidates with 10 home-ok polls); PA-2 ON (8 of 8 at 40 rows
+    on all 10, so the in25 tie-break decided); PA-3 OFF (JFK guessed, ATL second), reported. **CHOICE A5 LAX** (in25
+    40.0).
+  - **The recording was REFUSED:** `rec_read.py` exit 2, `A0 SFO: INSTRUMENT, poll 31 has parts [1..9] of [10]`.
+    - KSFO had 60 polls, seq 1-60. Seq 31 lacks its short final part (10/10); seq 30's and 32's last parts are 83 and
+      89 characters. The line is absent from both copies of the trace, nothing stands in its place, and the trace
+      holds no overflow or drop line. LAX had 60 polls, seq 1-60, all complete.
+    - **Not the firmware's code:** the part loop prints every part unconditionally (`FrameBench.h:413-425` at
+      `b417d80cd4c5`).
+    - **Two alternatives, both named, NOT separated:** the board's USB-Serial-JTAG TX dropped the line, or the
+      host's read lost it. Both copies come from one host read, so the data cannot tell them apart.
+  - **The restore PASSED:** v19 `f6d73e391631` to ota_0, verified; CONNECTED, the join, 0 portal-START lines; HTTP 200.
+  - **Outside the retry set** (a survey STOP, a crash, a killed run, a port that will not open), so it stopped. **The
+    ruling (the orchestrator, after 18:48Z): the registered retry as frozen,** `win_rec.ps1` unchanged. Recording
+    the choice alone was refused as new code before a run. Accepting KSFO without seq 31 was refused as a re-grade
+    after the result. This is S1's one more attempt (the owner). A second refusal, crash or STOP goes to the owner,
+    with no further attempt. The first attempt's records are kept aside.
+  - **The retry started 18:49:07Z** (ET 13:49), graded against the same text with its start time stated.
 
 ## RP5's registration: the v19 run on the recordings, frozen before its window (2026-11-13)
 
