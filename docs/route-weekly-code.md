@@ -1349,3 +1349,20 @@ and the fake's two modes added): AS PREDICTED (amendment 3's set).**
   checkout, which is a work tree, as it is locally.
 - **Outside the set:** any other total or split, or a step red, is a stop. A Linux-only failure is a finding, never a
   re-baseline.
+
+**2q, RS0 and RS1 get rows (the reviewer's condition, before CI-B1's push; registered 17:31:32Z, after the code).** They guard
+the undo, a production write on the owner's word. RS1 refuses the attended undo's likeliest mistake: a backup from
+another environment.
+- **RS0** (writer): `--key-level --env staging --restore <file> --dry-run`: exit 2, `(RS0)`, store byte-identical.
+- **RS1e** (writer): BK-W's backup with its `env` set to `production`, offered to `--env staging`: exit 2, `(RS1)`,
+  store byte-identical.
+  - **Why not the reverse,** a staging file offered to `--env production` as the reviewer put it: FK1 refuses the fake
+    KV on production first, so that row would test FK1, not RS1.
+  - RS1's rule is `b.env !== env`, which has no direction. So this fixture grades the same comparison.
+- **RS1v** (writer): the same backup with `v` set to 2: exit 2, `(RS1)`, store byte-identical.
+- **Predicted on the current code:** writer **70 of 70**, the three green.
+- **Can each fail? One plant run, on the file, restored from a byte copy with its sha256 checked:**
+  - RS0's condition and RS1's condition are both disabled (`false &&`), in one run of the writer selftest;
+  - predicted red exactly **{RS0, RS1e, RS1v}**, the other 67 green;
+  - restored sha-equal, with porcelain unchanged after.
+- **Outside the set:** stop.
