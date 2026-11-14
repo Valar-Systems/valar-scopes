@@ -17,6 +17,7 @@ scenario that leaves a product's state unset -- or a failed anchor: the rows tak
 read's own account total within 1%, so a product left out (or counted twice) cannot pass.
 """
 import copy
+import datetime
 import json
 import math
 import os
@@ -40,6 +41,52 @@ class Malformed(Exception):
 
 
 MONTH = __import__("re").compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+STEADY_H = 30 * 24   # a steady row is a 30-day figure (9.1)
+
+
+def month_bounds(m):
+    """(start, end) of calendar month YYYY-MM, as aware UTC datetimes."""
+    y, mo = int(m[:4]), int(m[5:])
+    start = datetime.datetime(y, mo, 1, tzinfo=datetime.timezone.utc)
+    end = datetime.datetime(y + (mo == 12), mo % 12 + 1, 1, tzinfo=datetime.timezone.utc)
+    return start, end
+
+
+def utc(t):
+    d = datetime.datetime.fromisoformat(t.replace("Z", "+00:00")) if isinstance(t, str) else None
+    if d is None or d.tzinfo is None or d.utcoffset() != datetime.timedelta(0):
+        raise ValueError(t)
+    return d
+
+
+def segments(s, p, segs, m, states):
+    """9.9(a): [(state, hours)] for a product's ordered segment list in month scenario s. Refuses an empty list, a first
+    segment with a from, a later one without, an unknown state, a from outside the month, unsorted froms, and any list
+    in a 30-day scenario (no month). Every refusal names the segment rule."""
+    if m is None:
+        raise Malformed(f"scenario {s}: {p} is given segments, and a 30-day scenario (no month) takes one state")
+    if not segs:
+        raise Malformed(f"scenario {s}: {p}'s segment list is empty")
+    start, end = month_bounds(m)
+    edges = [start]
+    for i, g in enumerate(segs):
+        if not isinstance(g, dict) or g.get("state") not in states:
+            raise Malformed(f"scenario {s}: {p}'s segment {i} names no known state")
+        if i == 0:
+            if "from" in g:
+                raise Malformed(f"scenario {s}: {p}'s first segment has a from (it starts the month)")
+            continue
+        try:
+            t = utc(g.get("from"))
+        except (ValueError, TypeError):
+            raise Malformed(f"scenario {s}: {p}'s segment {i} needs from, an ISO UTC time")
+        if not start < t < end:
+            raise Malformed(f"scenario {s}: {p}'s segment {i} starts outside {m}")
+        if t <= edges[-1]:
+            raise Malformed(f"scenario {s}: {p}'s segment froms are not in increasing order")
+        edges.append(t)
+    edges.append(end)
+    return [(g["state"], (edges[i + 1] - edges[i]).total_seconds() / 3600) for i, g in enumerate(segs)]
 
 
 def validate(b):
@@ -98,10 +145,19 @@ def validate(b):
         if key in seen:
             raise Malformed(f"row {i}: duplicate {key}")
         seen.add(key)
+    oneoff_prods = {r["product"] for r in b.get("rows", []) if r.get("cadence") == "one-off"}
     for s, pick in b.get("scenarios", {}).items():
+        m = pick.get("month")
+        if m is not None and (not isinstance(m, str) or not MONTH.match(m)):
+            raise Malformed(f"scenario {s}: month must be YYYY-MM")
         for p, v in prods.items():
             st = pick.get(p, v["states"][0] if len(v["states"]) == 1 else None)
-            if st is None or st not in v["states"]:
+            if isinstance(st, list):
+                segments(s, p, st, m, v["states"])   # raises Malformed naming the segment rule
+                if len(st) > 1 and p in oneoff_prods:
+                    raise Malformed(f"scenario {s}: {p} has a one-off row, so its state may not change inside the "
+                                    f"month (9.9a: no segments for it)")
+            elif st is None or st not in v["states"]:
                 raise Malformed(f"scenario {s} leaves {p}'s state unset or unknown")
     for rid, rd in reads.items():
         for k in ("tool", "window", "totals"):
@@ -132,15 +188,37 @@ def cost(al, amount):
     return over * al["price"]
 
 
+def weights(b, s, pick):
+    """{product: [(state, weight)]}: in scenario s a steady row of (product, state) counts value x weight. A 30-day
+    scenario (no month) weighs 1; a month scenario weighs days/30 (9.8 i), or each segment's hours / 720 (9.9 a)."""
+    m = pick.get("month")
+    days = (month_bounds(m)[1] - month_bounds(m)[0]).days if m else 30
+    out = {}
+    for p, v in b["products"].items():
+        st = pick.get(p, v["states"][0])
+        out[p] = ([(x, h / STEADY_H) for x, h in segments(s, p, st, m, v["states"])] if isinstance(st, list)
+                  else [(st, days / 30)])
+    return out
+
+
+def row_amount(r, m, wt):
+    """One row's amount in a scenario: a one-off is per_event x events[month] (9.8 iii) -- in a 30-day scenario its
+    value, which is the file's month's -- and a steady row is value x weight."""
+    if r.get("cadence") == "one-off":
+        return r["per_event"] * r["events"].get(m, 0) if m else r["value"]
+    return r["value"] * wt
+
+
 def evaluate(b):
     """{scenario: {"lines": [(allowance, amount, share, mark, cost)], "overage": usd}}"""
     out = {}
     for s, pick in b["scenarios"].items():
-        state = {p: pick.get(p, v["states"][0]) for p, v in b["products"].items()}
+        m, w = pick.get("month"), weights(b, s, pick)
         lines, overage = [], 0.0
         for a, al in b["allowances"].items():
-            amt = sum(r["value"] for r in b["rows"]
-                      if r["allowance"] == a and r["state"] != EXCLUDED and state[r["product"]] == r["state"])
+            amt = sum(row_amount(r, m, wt) for r in b["rows"]
+                      if r["allowance"] == a and r["state"] != EXCLUDED
+                      for st, wt in w[r["product"]] if st == r["state"])
             share = amt / al["included"] if al["included"] else 0.0
             mark = "OVER" if share > 1.0 else "FLAG" if share >= FLAG_AT else ""
             c = cost(al, amt)
@@ -336,6 +414,40 @@ def selftest():
     check(refused(ps), "P-ONE-steady: a steady row carrying per_event is refused")
     pn = copy.deepcopy(base); pn["rows"].append({k: v for k, v in base["rows"][3].items() if k != "cadence"} | {"allowance": "kv_write", "read": "r2"})
     check(refused(pn), "P-ONE-none: a row with no cadence is refused")
+    # ---- 9.8/9.9: calendar-month scenarios and state segments ----------------------------------------------------------
+    def amt(bb, s, a):
+        return next(x[1] for x in evaluate(bb)[s]["lines"] if x[0] == a)
+    pm = copy.deepcopy(pc)
+    pm["scenarios"]["dec"] = {"month": "2026-12", "ingest": "silent"}
+    pm["scenarios"]["nov-run"] = {"month": "2026-11", "ingest": [{"state": "silent"}, {"state": "running", "from": "2026-11-16T00:00:00Z"}]}
+    ok = not refused(pm)
+    # December, whole month: steady x 31/30; the one-off at 4 events
+    check(ok and abs(amt(pm, "dec", "cpu_ms") - 20e6 * 31 / 30) < 1 and abs(amt(pm, "dec", "kv_write") - 0.4e6) < 1,
+          "M1: a December scenario counts steady rows x 31/30 and a one-off at December's events")
+    # November with the ingest running from 11-16: silent 15 days, running 15 days (of 30)
+    want = 10e6 + 10e6 * 15 / 30 + 25e6 * 15 / 30
+    check(ok and abs(amt(pm, "nov-run", "cpu_ms") - want) < 1 and abs(amt(pm, "nov-run", "kv_write") - 0.5e6) < 1,
+          "M2: a segment weights each state's steady rows by its hours in the month; a one-off counts November's events")
+    bad_segs = {"empty list": [], "first has a from": [{"state": "silent", "from": "2026-11-02T00:00:00Z"}],
+                "unsorted": [{"state": "silent"}, {"state": "running", "from": "2026-11-20T00:00:00Z"}, {"state": "silent", "from": "2026-11-10T00:00:00Z"}],
+                "out of month": [{"state": "silent"}, {"state": "running", "from": "2026-12-02T00:00:00Z"}]}
+    # M3's refusals must name the SEGMENT rule: a validator that refuses every list (today's) passes "refused" alone,
+    # so the reason is the assertion, and M2 (a valid list accepted) is its control.
+    def why(bb):
+        try:
+            validate(bb)
+            return ""
+        except Malformed as e:
+            return str(e)
+    for label, segs in bad_segs.items():
+        pb = copy.deepcopy(pc); pb["scenarios"]["x"] = {"month": "2026-11", "ingest": segs}
+        check("segment" in why(pb), f"M3: segments refused, by the segment rule, when {label}")
+    p30 = copy.deepcopy(pc); p30["scenarios"]["x"] = {"ingest": [{"state": "silent"}, {"state": "running", "from": "2026-11-16T00:00:00Z"}]}
+    check("30-day" in why(p30), "M3: segments refused, by the segment rule, in a 30-day scenario")
+    po2 = copy.deepcopy(pc)
+    po2["rows"].append({**one, "product": "ingest", "state": "silent", "allowance": "kv_write"})
+    po2["scenarios"]["x"] = {"month": "2026-11", "ingest": [{"state": "silent"}, {"state": "running", "from": "2026-11-16T00:00:00Z"}]}
+    check("one-off" in why(po2) and "segment" in why(po2), "M3: a one-off row's product changing state inside a month is refused")
     print("SELFTEST " + ("PASSED" if not fails else f"FAILED: {len(fails)}"))
     return 0 if not fails else 1
 
