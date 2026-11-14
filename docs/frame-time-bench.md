@@ -1287,7 +1287,7 @@ fits inside the same window, so they are in (the owner: "if it costs no extra be
   defaults differ between v19 and v20 is a reported difference, not a stop. The scenes and the recordings stay
   identical, which is what "identical ground" covers.
 
-### The reader, `fb_read_rp5.py` (frozen: `8589081a68d809859f938eabe73280585a8a4d249c95c2340c801a46f96d9382`)
+### The reader, `fb_read_rp5.py` (frozen: `8589081a68d809859f938eabe73280585a8a4d249c95c2340c801a46f96d9382`; re-frozen at `e15a94a8a8f6` by THE G AMENDMENT below)
 
 **Inputs:** the replay trace; the release trace (W1); both pinned recordings with their pinned sha256 (refused on a
 mismatch); the choice index; the measured image's source commit, for the transcription hashes. Reader b's `parse()`,
@@ -1345,7 +1345,8 @@ INSTRUMENT. A v19 copy never grades v20.
   device could pick at that line's elapsed time (the line's stamp minus the settle line's, ± 2 s).
 - THE MISSED-POLL RULE (a MISS: the scene is re-read in a later window, and a second miss on the same scene goes to the
   owner): the first `served` line comes more than 6 s after the settle line; any two consecutive `served` lines, or
-  the last one and the end line, more than 7 s apart (the 5 s cadence, the GET's own time, a second of stamps); any of
+  the last one and the end line, more than 7 s apart (the 5 s cadence, the GET's own time, a second of stamps; **9 s
+  since THE G AMENDMENT below**); any of
   `[WARN] Blipscope Cloud request failed:`, `[WARN] Blipscope Cloud returned HTTP`, `[WARN] Blipscope Cloud: blips
   schema mismatch` between the settle and end lines.
 - CADENCE: every `[health]` line's `interval=` in the scene is 5000 ms (else the INSTRUMENT, H7 carried).
@@ -1414,7 +1415,7 @@ includes a line format the reader does not know, a scene the table does not name
 XA side under 8 windows, and a DRAWN band the transcription cannot compute. A second off reading on a row goes to the
 owner.
 
-**THE READER'S SELFTEST:** `--selftest <tree> b417d80cd4c5`, 26 cases, PASSED (output
+**THE READER'S SELFTEST** (28 cases since THE G AMENDMENT below)**:** `--selftest <tree> b417d80cd4c5`, 26 cases, PASSED (output
 `f7f60715c9f49b41be71aaa1dd9f20774bd09a0ec30c5a3bc4d57ed01d353be9`). Each case must give its exit code and red set AND
 print its own reason's words, because exit codes alone let one plant pass on another row's refusal. That happened twice
 while writing it: the first DRAWN plant read INSTRUMENT because no served poll fell in the measure, and the first SEQ
@@ -1433,6 +1434,45 @@ Project, ZoomCulled, ProjectCoordinateToScreen, RadarBlipPosition, the view radi
 PaintAndFadeActive, SWEEP_PERIOD_MS, the ladder's candidates and BuildLadder, ToKm and KM_PER_MILE, KNOTS_TO_MS, the
 six ParseBlips row fields, and the airport table. At v19's defaults, paint-and-fade is ON (`displaySweep &&
 displayFade`), so DRAWN's horizon starts one sweep period (5 s) before each poll's arrival.
+
+### THE G AMENDMENT, and RP5's numbers from the pinned recordings (2026-11-14T20:37:37Z, before any S2 data exists)
+
+- **Why:** RP5's `--predict` on the pinned recordings printed its own precondition, and it FAILED: "largest
+  inter-poll gap 7.2 s / 7.1 s (G = 7 s holds if both are <= 6 s)".
+  - KSFO's 59 gaps: 3 over 6 s, 1 over 7 s; max 7.2 s, median 5.03 s.
+  - LAX's 59 gaps: 5 over 6 s, 1 over 7 s; max 7.1 s.
+  - The recordings were made on the same live path the replay's GETs use, and every `served` line follows a live
+    GET. The 8 REPLAY scenes span about 1,760 s from settle to end, about 5.9 recordings' worth, so a gap over 7 s was
+    near certain. As registered, S2 predicted its own MISS, which would measure the live path's natural gaps, not
+    the replay.
+- **THE RULE (ruled by the orchestrator, option (a)):** G = ceil(the largest recorded inter-poll gap) + 1 s for the
+  stamp's truncation = ceil(7.2) + 1 = **9 s**. Neither recording has a gap over 8 s. It is derived from the pinned
+  recordings and frozen before the image or any S2 data. The first-served rule (6 s) is unchanged.
+- **The reader, re-frozen:** `fb_read_rp5.py` **`e15a94a8a8f6d0f2da2e083b3860f869e13f778f937871e1cab5e432e7da8c4c`**
+  (was `8589081a68d8`). The diff: `GAP_S` 7 to 9, plus two selftest plants. Nothing else changed.
+- **The selftest, `--selftest <tree> b417d80cd4c5`: 28 cases, PASSED** (output
+  `54fd126f392f3727432bc504fa56642ff671f86a290fbf88568408498cf01e01`). The 20 s GAP plant still MISSes.
+  - **The edge controls.** The stamps are whole seconds (`stamp_of` reads HH:MM:SS), so a 9.1 s or 8.9 s gap cannot
+    exist in a trace. The nearest representable edge is used: **GAP10**, a 10 s served gap in S2's settle, MISSes
+    ("a served gap of 10 s (> 9)"); **GAP9**, a 9 s gap, does not (exit 0, the clean run's words).
+  - **Proved able to fail,** on planted copies: with G = 8, GAP9 MISSes and the selftest FAILS; with G = 10, GAP10
+    reads clean and the selftest FAILS. So the two controls pin G at exactly 9.
+- **RP5's numbers** (`--predict --choice 5`, the recordings KSFO `627119bca445` and LAX `91dd7606e906`; output
+  `50efef9421b7`, exit 0). The only line that differs from the reader's first run is G's precondition, which now
+  HOLDS ("G = 9 s holds if both are <= 8 s").
+
+  | scene | SURE / EDGE / RETAINED / tracked | n̂ | p95 centre, band (ms) |
+  |---|---|---|---|
+  | S1 SFO 25 mi | 28.0 / 2.0 / 0.0 / 40.0 | 29.0, thin | 56.15, [46.15, 66.15] |
+  | S2 SFO 50 mi | 40.0 / 0.0 / 0.0 / 40.0 | 40.0 | 64.97, [54.97, 74.97] |
+  | S3 SFO 100 mi | 40.0 / 0.0 / 0.0 / 40.0 | 40.0 | 64.97, [54.97, 74.97] |
+  | S4 LAX 25 mi | 40.0 / 0.0 / 0.0 / 40.0 | 40.0 | 64.97, [54.97, 74.97] |
+  | S5 LAX 50 mi | 40.0 / 0.0 / 0.0 / 40.0 | 40.0 | 64.97, [54.97, 74.97] |
+  | S6 LAX 100 mi | 40.0 / 0.0 / 0.0 / 40.0 | 40.0 | 64.97, [54.97, 74.97] |
+  | S7 SFO 10 mi | 4.0 / 0.0 / 0.0 / 40.0 | 4.0, thin | 36.10, [26.10, 46.10] (never in X) |
+  | S8 LAX 10 mi | 13.0 / 1.0 / 0.0 / 40.0 | 13.5, thin | 43.72, [33.72, 53.72] (never in X) |
+
+  **X̂ = S2's centre, 64.97 ms (band [54.97, 74.97]). Against the 50 ms bar, v19 is predicted OVER.**
 
 ### The window (requested after the recordings are pinned)
 
