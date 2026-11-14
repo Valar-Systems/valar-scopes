@@ -14,6 +14,9 @@
 //   cd proxy && node scripts/sabotage-routes-weekly.mjs                   exit 0 every set as registered, 1 off, 2 BLIND
 //   cd proxy && node scripts/sabotage-routes-weekly.mjs --sabotage-blind  the driver's own sabotage: one grader pointed
 //                                                                         at a missing binary; it must STOP, exit 2
+//   ... --only <plant> --show-fail <id,...>   F1 (docs/route-weekly-code.md 2p): also PRINT the named rows' whole
+//                                             `FAIL <id>: ...` lines from the planted run. Print-only: no set, grade or
+//                                             exit code changes
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -30,10 +33,12 @@ const VITEST = "node_modules/vitest/vitest.mjs";
 // On Windows `python3` can be the Store's stub, which fails every call (deploy.sh's CL10 finding): use `python` there.
 const PY = process.platform === "win32" ? "python" : "python3";
 
-// Each grader returns { ids, fails }: the row ids it read, and which were red.
+// Each grader returns { ids, fails }: the row ids it read, and which were red. passFail also keeps the text, which only
+// --show-fail reads (2p).
 const passFail = (out) => ({
   ids: new Set([...out.matchAll(/^(?:PASS|FAIL) ([A-Za-z0-9-]+)/gm)].map((m) => m[1])),
   fails: new Set([...out.matchAll(/^FAIL (\S+?):/gm)].map((m) => m[1])),
+  out,
 });
 // Instrument failure #2 (2026-11-14): vitest prints "✓ <file> > <describe> > RH1: ...", and two rows read
 // "RH8 (control):", so the id is taken after the LAST "> ", up to a word boundary.
@@ -86,7 +91,7 @@ const PLANTS = [
   { id: "S-GR9", file: "scripts/ingest-routes.ts", a: "  if (why.length > 0) refuse(1, `REFUSING (GR9)", b: "  if (false && why.length > 0) refuse(1, `REFUSING (GR9)", grade: "writer", want: ["GR9b", "GR9c", "GR9e", "GR9f", "GR9g"] },
   { id: "S-GR8", file: "scripts/ingest-routes.ts", a: '  console.log(`wrote ${writes.length} route keys${live ? " (+1 sentinel)" : ""}; deleted ${dels.length}`);', b: '  kvChunks("put", [{ key: META_KEY, value: "planted" }], env, tmp);\n  console.log(`wrote ${writes.length} route keys${live ? " (+1 sentinel)" : ""}; deleted ${dels.length}`);', grade: "writer", want: ["GR8", "RCP2", "UN1", "UN2", "UN3", "J1", "J2", "J3", "J4", "J5", "J7", "JR1"] },
   { id: "S-FK1", file: "scripts/routes-fk1.ts", a: "  for (const v of CREDENTIAL_VARS) if (env[v]) return `a real credential variable is set (${v})`;\n  const tf = env.BLIPSCOPE_TOKEN_FILE;\n  if (tf && exists(tf)) return", b: "  const tf = env.BLIPSCOPE_TOKEN_FILE;\n  if (false && tf && exists(tf)) return", grade: "guards", want: ["FK1d", "FK1e", "FK1f", "FK1h", "BL1", "BL2"] },
-  { id: "S-VAL", file: "scripts/verify-routes.ts", a: "const same = (expected: string, got: string | null | undefined) => got === expected;", b: "const same = (expected: string, got: string | null | undefined) => true || got === expected;", grade: "writer", want: ["GR10m", "GR10a", "RCP2", "GR10", "GR11", "UN1", "UN2", "UN3", "J3", "J7", "JR1"] },
+  { id: "S-VAL", file: "scripts/verify-routes.ts", a: "const same = (expected: string, got: string | null | undefined) => got === expected;", b: "const same = (expected: string, got: string | null | undefined) => true || got === expected;", grade: "writer", want: ["GR10m", "GR10a", "RCP2", "GR10", "GR11", "UN1", "UN2", "UN3", "J3", "J7", "JR1", "SN1", "SN1-ctl"] },   // 2p: SN1 and SN1-ctl added (the 15:55Z MISS stays on the record)
   { id: "S-RH9s", file: "src/routeshealth.ts", a: 'typeof sc === "string" && SOURCE_DATE.test(sc) && Number.isFinite(Date.parse(sc))', b: 'typeof sc === "string"', grade: "health", want: ["RH9s"] },
   { id: "S-TK1", file: "scripts/routes-token-check.ts", a: "if (days <= WARN_DAYS) return", b: "if (days < 0) return", grade: "guards", want: ["TK1a"] },
   { id: "S-FZ", file: "scripts/routes-guards.ts", a: "  return Date.parse(nowIso) < Date.parse(freezeUntil)", b: "  return false && Date.parse(nowIso) < Date.parse(freezeUntil)", grade: "guards", want: ["FZ1"] },
@@ -110,6 +115,10 @@ const PLANTS = [
 const onlyAt = process.argv.indexOf("--only"), ONLY = onlyAt >= 0 ? process.argv[onlyAt + 1] : null;
 const RUN = ONLY ? PLANTS.filter((p) => p.id === ONLY) : PLANTS;
 if (ONLY && RUN.length !== 1) { console.log(`--only ${ONLY}: no such plant`); process.exit(2); }
+// --show-fail <id,...> (2p): print-only. A value is required; an id the grader does not read prints as such.
+const sfAt = process.argv.indexOf("--show-fail");
+const SHOW = sfAt >= 0 ? (process.argv[sfAt + 1] ?? "").split(",").filter(Boolean) : [];
+if (sfAt >= 0 && SHOW.length === 0) { console.log("--show-fail needs <id,...>"); process.exit(2); }
 let off = 0;
 for (const p of RUN) {
   const clean = readFileSync(p.file);
@@ -126,6 +135,15 @@ for (const p of RUN) {
   const ok = JSON.stringify(got) === JSON.stringify(want);
   off += ok ? 0 : 1;
   console.log(`${p.id}: ${ok ? "as registered" : "OFF"} -- red ${JSON.stringify(got)} (want ${JSON.stringify(want)}); restored, sha equal`);
+  if (SHOW.length > 0) {
+    console.log(`${p.id} --show-fail ${SHOW.join(",")}:`);
+    const lines = (r.out ?? "").split(/\r?\n/);
+    for (const id of SHOW) {
+      const hit = lines.filter((l) => l.startsWith(`FAIL ${id}:`));
+      if (hit.length === 0) console.log(`(no FAIL line for ${id})`);
+      for (const l of hit) console.log(l);
+    }
+  }
 }
 console.log(off ? `SABOTAGE: ${off} off` : `SABOTAGE PASSED (${RUN.length} plant(s), after a full baseline)`);
 process.exit(off ? 1 : 0);
