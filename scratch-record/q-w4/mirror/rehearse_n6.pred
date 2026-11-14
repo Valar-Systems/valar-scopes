@@ -1,0 +1,100 @@
+Predictions for rehearse_n6.sh (switch_d2.py NEW against switch_d.py OLD 361161bdc565, P1-P3), written before it runs
+(map-server, 2026-11-14). Copies only; synthetic mirror files; the real cache only read. <P6>, <P6N> and the like are shas
+the run prints; where one appears twice it must be the SAME value both times.
+
+THE PROPERTIES (the orchestrator, after 06:56Z): P1 a mirror file NEVER replaces a primary-fetched file (it is skipped, its
+bytes unchanged, sha before == after); P2 a mirror file is applied ONLY to an entry in planned_not_fetched, and a forged mirror
+entry for a planned, fetched file is REFUSED; P3 anything unplaceable in either set is refused outright.
+
+THE RED SET, predicted in full:
+| property, forged input | OLD | NEW |
+|---|---|---|
+| (today's shape, no forgery) | O0: apply STOP (a primary file was fetched): can mirror nothing | N0: mirrors the 6, skips the 2, P1 sha unchanged throughout |
+| P1, a mirror record + file for primary-fetched 27081 | O1 (old apply's end state built by hand, since old apply refuses B2): check reports 8 DIFFERS and never mentions the primary record; rekey STOPS at 27081 only AFTER copying 6 files to primary paths (6 stray files, no record): P1 holds, by refusal, not atomically | N1: check and rekey both STOP, cannot place the 27081 mirror record, before any write; P1 sha unchanged |
+| P2, a mirror RECORD for fetched 26127 linearwater | O2a: NOT REFUSED. Check, rekey and final run; the forged record is left in retry-fetched.json (ftp2 records 1), unapplied | N2a: check and rekey both STOP, cannot place it |
+| P2, the PLAN pointing fetched 26127 at the mirror | O2b: NOT REFUSED. Rekey silently overwrites the edit from the kept original | N2b: check and rekey both STOP, extra 26127 |
+| P3, a record for an unplanned url (99999 areawater) | O3a: NOT REFUSED. Apply passes | N3a: apply STOPS, not a planned url |
+| P3, a primary record for 44007 with no file | O3b: refused, by its blanket rule (a primary file was fetched) | N3b: apply STOPS, not a real fetch |
+| P3, 44007 in neither set (the plan un-mirrors it) | O3c: NOT REFUSED. Rekey overwrites the edit | N3c: check and rekey both STOP, missing 44007 |
+| P3, planned_not_fetched 7 (26127 dropped from the fetch-log) | O3d: NOT REFUSED. Apply never reads the fetch-log | N3d: apply STOPS, planned_not_fetched (7) is not (6) |
+So OLD refuses P1 (late, with side effects) and one P3 case, and fails to REFUSE both P2 cases and three P3 cases; NEW refuses all
+seven forged inputs, each before any write.
+
+STEP COUNTS: 48 "--- " steps: NEW 33 (21 exit 1, 12 exit 0), OLD 15 (7 exit 1, 8 exit 0). The runlog exit is 0.
+
+LINE BY LINE
+- real before = real after: plan f12d3eb56040, retry-fetched 89475784fe22, fetch-log c621cf79f08d, kept copies in mirror/ 0.
+- N-R8: "STOP: the rehearsal flags are refused on the real cache", exit 1.
+- N-R0: "STOP: <k> ingest-basemap processes running: the retry's schedule must have ended first" with k >= 1 (the dummy), exit 1;
+  "the dummy process ended by itself"; state N-R0: plan f12d3eb56040, retry-fetched 89475784fe22, fetch-log c621cf79f08d;
+  ftp2 records 0; primary files of the 8 2; mirror files 0; kept 0.
+- O0: "STOP: a retry round fetched a primary file: no mirror for it (the orchestrator)", exit 1; state O0 = state N-R0's shape
+  (plan f12d3eb56040, retry-fetched 89475784fe22, ftp2 0, primary 2, mirror 0, kept 0).
+- N0 P1 lines (4 of them, before apply, after apply, after rekey, at the end): ALL IDENTICAL, "tl_2024_27081_linearwater.zip file
+  1ea420092897 record <r1>; tl_2024_54093_linearwater.zip file 502372153bb1 record <r2>".
+- N0.2: "apply: plan.json f12d3eb56040 -> <P6> (6 urls to the mirror; 2 primary-fetched skipped: tl_2024_27081_linearwater.zip,
+  tl_2024_54093_linearwater.zip); kept plan.original.f12d3eb56040.json and retry.before.89475784fe22.json", exit 0.
+- N0.3: "STOP: plan.json already carries a note or a mirror url", exit 1.
+- N0.5: 6 lines "<38021, 39167, 44007, 56029 areawater; 17005, 19123 linearwater>: mirror, DIFFERS (...)", then 2 lines
+  "tl_2024_27081_linearwater.zip: primary-fetched, SAME as bm-obj (sha 1ea420092897/1ea420092897)" and the same for 54093
+  (502372153bb1/502372153bb1); "identity: 6 of 8 not same -- STOP before the re-key", exit 1.
+- state N0 before and after N0.6, equal: plan <P6>, ftp2 records 6, primary files 2, mirror files 6, kept 2.
+- N0.6: the same 8 identity lines, "STOP: identity did not pass", exit 1.
+- N0.7: "rekey: 6 records moved to the primary urls; 6 files copied to the primary paths; 2 primary-fetched skipped, unchanged;
+  plan.json = original f12d3eb56040 + 6 notes -> <P6N>", exit 0.
+- N0.8: "STOP: the plan's mirror entries are not the mirror set (extra [], missing ['tl_2024_38021_areawater.zip',
+  'tl_2024_39167_areawater.zip', 'tl_2024_44007_areawater.zip', 'tl_2024_56029_areawater.zip', 'tl_2024_17005_linearwater.zip',
+  'tl_2024_19123_linearwater.zip'])", exit 1.
+- N0.9, N0.10b, N0.11b, N0.16: 6 lines "...: mirror, OK" then 2 "...: primary-fetched, OK", then "final: plan = original + 6
+  notes; 6 mirrored + 2 primary-fetched records, files and bm-obj records agree (bm-obj equality SKIPPED for the 6 mirrored:
+  rehearsal)", exit 0.
+- N0.10: 44007 "mirror, NOT OK", the other 7 OK, "final: 1 NOT OK", exit 1. N0.11: 27081 "primary-fetched, NOT OK", the
+  other 7 OK, "final: 1 NOT OK", exit 1.
+- N0.12: "STOP: 0 kept plan.noted files, not 1", exit 1.
+- N0.13: "m4-strip: plan.json <P6N> -> f12d3eb56040 (the original); noted plan kept at plan.noted.<P6N>.json", exit 0.
+- N0.14: "STOP: plan.json does not carry the 6 notes: run final first", exit 1.
+- N0.15: "m4-restore: plan.json -> <P6N> (the noted plan)", exit 0.
+- state N0 at the end: plan <P6N>, ftp2 records 0, primary files of the 8 8, mirror files 6, kept 3.
+- N1: apply as N0.2 (the same <P6>), exit 0; "synth N1: 7 ..."; check and rekey each "STOP: retry-fetched.json holds a record it
+  cannot place: https://ftp2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_27081_linearwater.zip", exit 1; both P1 lines
+  equal to N0's; both state lines equal: plan <P6>, ftp2 7, primary 2, mirror 7, kept 2.
+- O1: "oldpost O1: plan f12d3eb56040 -> 818e599214cd by hand (8 to the mirror)"; state before: plan 818e599214cd, ftp2 8,
+  primary 2, mirror 8, kept 1. Old check: 8 lines "...: DIFFERS (...)", "identity: 8 of 8 not same -- STOP before the re-key",
+  exit 1. Old rekey: "STOP: a record already exists under the primary url
+  https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_27081_linearwater.zip", exit 1. Both P1 lines equal to N0's.
+  State after: plan 818e599214cd, retry-fetched the same sha as before, ftp2 8, primary files of the 8 8 (the 6 stray
+  copies), mirror 8, kept 1.
+- N2a: apply <P6> exit 0; check and rekey each "STOP: retry-fetched.json holds a record it cannot place:
+  https://ftp2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_26127_linearwater.zip", exit 1; state before = after: plan
+  <P6>, ftp2 7, primary 2, mirror 7, kept 2.
+- N2b: apply <P6> exit 0; check and rekey each "STOP: the plan's mirror entries are not the mirror set (extra
+  ['tl_2024_26127_linearwater.zip'], missing [])", exit 1; state before = after: plan <not P6>, ftp2 6, primary 2, mirror 6,
+  kept 2.
+- O2a: old apply "apply: plan.json f12d3eb56040 -> 818e599214cd (8 urls to the mirror); original kept at <path>", exit 0; old
+  check 8 DIFFERS, "identity: 8 of 8 not same -- STOP before the re-key", exit 1; old rekey "rekey: 8 records moved to the
+  primary urls; 8 files copied to the primary paths; plan.json = original f12d3eb56040 + 8 notes -> c2212da4524c", exit 0; old
+  final 8 OK, "final: plan = original + 8 notes; 8 primary records, files and bm-obj records agree (bm-obj equality SKIPPED:
+  rehearsal)", exit 0; state: plan c2212da4524c, ftp2 records 1, primary 8, mirror files 9, kept 1.
+- O2b: old apply as O2a (818e599214cd) exit 0; old check 8 DIFFERS exit 1; old rekey as O2a (-> c2212da4524c) exit 0; old final
+  as O2a exit 0; state: plan c2212da4524c, ftp2 0, primary 8, mirror 8, kept 1.
+- N3a: "STOP: retry-fetched.json holds a record it cannot place (not a planned url):
+  https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_99999_areawater.zip", exit 1; state: plan f12d3eb56040,
+  retry-fetched <not 89475784fe22>, ftp2 0, primary 2, mirror 0, kept 0.
+- N3b: "STOP: a primary record is not a real fetch (its file is missing or does not match it):
+  https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_44007_areawater.zip", exit 1; state: plan f12d3eb56040, ftp2 0,
+  primary 2, mirror 0, kept 0.
+- N3c: apply <P6> exit 0; check and rekey each "STOP: the plan's mirror entries are not the mirror set (extra [], missing
+  ['tl_2024_44007_areawater.zip'])", exit 1; state: plan <not P6>, ftp2 6, primary 2, mirror 6, kept 2.
+- N3d: "STOP: planned_not_fetched (7) is not the 8 less the primary-fetched (6): it cannot be placed", exit 1; state: plan
+  f12d3eb56040, retry-fetched 89475784fe22, fetch-log <F7>, ftp2 0, primary 2, mirror 0, kept 0.
+- O3a: old apply "-> 818e599214cd (8 urls to the mirror)", exit 0; state: plan 818e599214cd, ftp2 0, primary 0, mirror 0,
+  kept 1.
+- O3b: "STOP: a retry round fetched a primary file: no mirror for it (the orchestrator)", exit 1; state: plan f12d3eb56040,
+  ftp2 0, primary 0, mirror 0, kept 0.
+- O3c: old apply (818e599214cd) exit 0; old check 8 DIFFERS exit 1; old rekey "-> c2212da4524c" exit 0; state: plan
+  c2212da4524c, ftp2 0, primary 8, mirror 8, kept 1.
+- O3d: old apply "-> 818e599214cd" exit 0; state: plan 818e599214cd, retry-fetched absent, fetch-log <F7> (the same as N3d's),
+  ftp2 0, primary 0, mirror 0, kept 1.
+
+OUTSIDE THIS SET: any other line, exit, count or sha, any P1 line differing within a case, or a stderr that is not empty: STOP.
+The switch is not ready, and nothing goes to the real cache.

@@ -1,0 +1,51 @@
+Form (d) at n = 6, re-registered (the orchestrator's ruling (ii), after 06:56:14Z 2026-11-14), before anything is applied.
+Replaces the M rows of docs/basemap-dense-code.md (#696, "Predictions, registered before the switch") for this switch; the doc
+takes this text at #696's next push. NOT run until the orchestrator accepts it AND rehearse_n6.sh has read AS PREDICTED.
+
+WHAT CHANGED, AND WHY
+- Round 6 fetched 27081 and 54093 linearwater from www2 (06:44/06:45Z). S-1 read both byte-SAME as bm-obj's records
+  (1ea420092897, 502372153bb1). Round 7 (06:49-06:55Z) refused the other 6 again.
+- switch_d.py (361161bdc565) refuses outright once any primary file is fetched, and its rows name 8. Its successor is
+  switch_d2.py: the same stages, mirroring only planned_not_fetched (the 6), skipping the 2. Its P1-P3 are rehearsed red-first
+  against the old script in rehearse_n6.sh / rehearse_n6.pred.
+- The store will hold the 2 from the primary (no note) and the 6 via the mirror (each with the note). The note's wording is
+  unchanged (MI4b's form, notes_d.mts 6ba47d942b07):
+  `<primary url>: fetched via the Census Bureau's mirror <mirror url> after www2.census.gov's firewall refused it; its bytes and
+  sha256 equal this url's record in store 4c0875738f38`
+
+THE STEPS, on the real cache, in order (each through runlog.sh; any STOP stops here)
+1. apply: `python -X utf8 -I mirror/switch_d2.py apply` (the process guard needs 0 ingest-basemap processes).
+   Expected: "apply: plan.json f12d3eb56040 -> <P6> (6 urls to the mirror; 2 primary-fetched skipped:
+   tl_2024_27081_linearwater.zip, tl_2024_54093_linearwater.zip); kept plan.original.f12d3eb56040.json and
+   retry.before.89475784fe22.json", exit 0, where <P6> is the value the rehearsal's N0.2 printed (same input bytes).
+2. the mirror fetch: the ingest's own `retry --schedule-min 0 --urls <the 6 ftp2 urls>`, from sab-ingest/proxy (c3acc338,
+   clean), one a minute, with its UA. Expected: 6 "fetched", "retry: all fetched", exit 0, stderr 0 B.
+3. M-1, check: 6 lines "mirror, SAME as bm-obj" and 2 "primary-fetched, SAME as bm-obj"; "identity: ALL 6 mirror + 2
+   primary-fetched SAME", exit 0.
+4. rekey: "rekey: 6 records moved to the primary urls; 6 files copied to the primary paths; 2 primary-fetched skipped,
+   unchanged; plan.json = original f12d3eb56040 + 6 notes -> <P6N>", exit 0, where <P6N> is the rehearsal's N0.7 value.
+5. M-2, final: 8 OK, "final: plan = original + 6 notes; 6 mirrored + 2 primary-fetched records, files and bm-obj records
+   agree", exit 0.
+6. P1 on the real cache: the 2 primary-fetched files (1ea420092897, 502372153bb1) and their records, by sha, printed before
+   step 1 and after steps 1, 4 and 5: all equal.
+7. S-1 (s01.py a3b285ea0a38), all 8 now: water same 3144, rivers same 3144, changed 0; planned_not_fetched 0; everything
+   else as 5-s01.out (r7-primary.pred's S1-8, now reached through the mirror).
+8. M-4 first, then S-2: m4-strip, ONE extra dry run on the original plan bytes, m4-restore, then S-2's two dry runs.
+   M-4 expected as registered: the trees identical except `store/manifest.json` (the notes key) and `dry-run.json` (its
+   `storeId`, `manifestBytes` and `vectorStoreBytes`).
+9. M-3, the dry run's manifest: 16,036 entries; the 8 byte-equal to bm-obj's entries; keys `builder,files,notes,predicates`;
+   `notes` exactly the 6 above, on the 6 primary urls, and NONE on 27081 or 54093.
+10. M-5, the rows after it: SEA-OWN, I2, KB7-b and KB7-c-real as registered. The switch moves no url, so it moves nothing at
+    KBOS or KJAC.
+Then S-3 to S-7 as registered.
+
+OUTSIDE THIS SET
+| reading | then |
+|---|---|
+| any mirror fetch refused, a 404, or another error | nothing is logged: STOP and report |
+| any file fetched but not SAME at M-1 | STOP before rekey. Its record stays under the mirror url, unused without a ruling |
+| a P1 sha differing at any print | STOP: a primary-fetched file or record moved, which P1 forbids |
+| S-1 not as above | STOP before S-2 |
+| M-3 or M-4 not as above | STOP before S-3 |
+| a primary round that fetches any of the 6 meanwhile | none is scheduled (the orchestrator: no more primary rounds unless it schedules one) |
+| anything else | stop and decide |

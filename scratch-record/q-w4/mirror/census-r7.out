@@ -1,0 +1,7 @@
+2026-11-14T06:49:54.576Z tl_2024_38021_areawater.zip: not fetched: refused https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_38021_areawater.zip: served as text/html; charset=utf-8 (a rejection page?)
+2026-11-14T06:50:54.686Z tl_2024_39167_areawater.zip: not fetched: refused https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_39167_areawater.zip: served as text/html; charset=utf-8 (a rejection page?)
+2026-11-14T06:51:55.102Z tl_2024_44007_areawater.zip: not fetched: refused https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_44007_areawater.zip: served as text/html; charset=utf-8 (a rejection page?)
+2026-11-14T06:52:55.197Z tl_2024_56029_areawater.zip: not fetched: refused https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_56029_areawater.zip: served as text/html; charset=utf-8 (a rejection page?)
+2026-11-14T06:53:55.290Z tl_2024_17005_linearwater.zip: not fetched: refused https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_17005_linearwater.zip: served as text/html; charset=utf-8 (a rejection page?)
+2026-11-14T06:54:55.424Z tl_2024_19123_linearwater.zip: not fetched: refused https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_19123_linearwater.zip: served as text/html; charset=utf-8 (a rejection page?)
+retry: 6 still not fetched after the schedule
