@@ -235,6 +235,9 @@ The comment never runs, but it is served with the site. The owner's ruling (2026
 - the next web release rounds the example to 2 dp, his rule for a coordinate;
 - the pipeline gains a check that is seen red first, with a planted value.
 
+**For every later web release (2026-11-14, from #719's review):** the web release's render.js ships the usage example
+at 2 dp (#710's ruling); the app re-vendors from it.
+
 **The change:**
 - **`site/render.js`:** the example reads `44.06` / `-121.32`. One line, in a comment, so nothing runs differently.
 - **`check_site_rules.mjs`:** a fifth JS category, **coordinate**. It matches any number with 1-3 integer digits and 3

@@ -84,6 +84,12 @@ change, in full, for the go/no-go.
 never cut. On the RIGHT rim codes used to be drawn cut off by the bezel; they now read to the left of their mark, or are
 dropped if the left will not fit either. The mark stays in every case.
 
+**And what does NOT change, named so the before/after pictures do not surprise a reader:** the mark is not moved; where
+a contact sits on an airport, its label may still cross the mark. Row (b)'s picture B shows it: after the fix, BDN's
+code is gone and the B739 label reads, but BDN's mark still sits inside that label, between the 7 and the 3. That is as
+ruled (the mark always stays, and only the code moves or drops). Making the mark an obstacle for traffic labels would be
+a separate proposal, after v20.
+
 ### Decision 2, the overlap counter (row c)
 
 **Recommended: airport labels stay OUT of the counter's pairs and area.** The counter is #310's measure of traffic text
@@ -196,8 +202,94 @@ the wiring's check: it reads what the firmware actually drew.
 - **`airportMarks` is reserved** off the draw path, in `Initialise` for the baked table and when a cloud list lands, so
   the draw path never reallocates it.
 
-**Rows (b) and (d)** are read after this PR's code is fixed, not before: (b) from the web renderer's build of this
-branch, (d) in a bench window on Nov 17-18.
+**Row (d)** is read in a bench window on Nov 17-18, after this PR's code is fixed.
+
+### Row (b), read 2026-11-14
+
+Every value below was frozen on #719 before its run; the comments carry the full text. The pieces:
+- the registration and Amendments 1-2, which hold the op count;
+- the Scene P/T freeze and its amendment;
+- the pixel-count rule.
+
+**The builds.** Both are the web-renderer workflow's `blipscope-web-v19` artifact.
+- **BEFORE:** main at 26f486abd26b. Its web inputs are identical to this PR's base, 6f6dae930130: 0 files differ over the
+  workflow's own path filter.
+- **AFTER:** this branch at 56a032ec2a79.
+- Between the two builds only the two model `.wasm` files differ.
+
+**The op count.** Node reads the vector ops the firmware drew and rasterises the airport code with the wasm's own Font0.
+The scene is one EXAMPLE field (`XFLD`) at the centre and one B739 contact 2 px north of its mark. The main-vs-main
+control ran first: exactly the four PR rows came out OFF, as pre-registered. The reading, identical on s3-128 and s3-21:
+
+| scene | main | this PR |
+|---|---|---|
+| DROPPED (highlights on) | 12 code pixels in the B739 label box; the code at (5,-3) | **0; the code not drawn** |
+| LEFT (`highlight` off) | 12; the code at (5,-3) | **0; the code at (-29,-3)** |
+| the field alone (CONTROL) | the code at (5,-3) | the same |
+| the mark's RECT | present | present, identical |
+
+**The op count's two instrument failures,** both fixed before any grade; neither moved a frozen value:
+- **Failure 1:** the colour selectors were hard-coded, but the shim records the 565 round trip (0x848284 / 0x636563).
+  The scene never "settled", so the run exited INSTRUMENT.
+- **Failure 2:** a graded run printed every row and then died 127 inside `process.exit()`. That is outside the exit
+  contract, so it was not graded. It was re-run with the loop draining, and stdout came out byte-identical.
+
+**Why the selection step was k = 7 (s3-128) and k = 4 (s3-21), not the about 12 and 6 first reported.**
+- `radarproj::Project` truncates (`static_cast<int>`), and the mark sits on an exact integer row.
+- So a contact reaches my-2 once it has moved just over ONE pixel, not two. At 0.1665 / 0.333 px per 0.0005 deg step,
+  that is k = 7 and k = 4.
+- Amendment 1's scale was right; the error was in the reading.
+- A k-to-dy table was frozen first, with predictions only on rows at least 0.16 px from a pixel boundary, and held 13 of
+  13.
+
+**Scene T, the trail, by op read.**
+- The setup: two fixes put one trail segment down column mx+17, the stem of the L in `XFLD`.
+- The main-vs-main control ran first, with exactly T-order and T-stem OFF.
+- The reading, both models:
+
+| reading | main | this PR |
+|---|---|---|
+| the order of the code's TEXT op and the trail's LINE | TEXT before LINE | **LINE before TEXT** |
+| of the stem's 7 pixels, how many end in the trail's colour | 7 | **0** |
+| the code | at (5,-3) | at (5,-3): RIGHT, nothing blocks it |
+| the trail LINE | (17,-24) to (17,36), 0x008200 | identical |
+| the mark | present | identical |
+
+**The pictures**, taken by the app session's pipeline:
+- **Scene P** is picture B's own scene: the app's airfield preset, with only the s3-128 wasm swapped. Its 960 BEFORE is
+  byte-identical to picture B.
+- **The count:** exact #636563 pixels inside the B739 label box, with N = 0. AFTER is 0, as frozen. The table below
+  says where that count can be trusted.
+- **By eye**, at both sizes: BEFORE, BDN's code overprints "B739"; AFTER, the code is not drawn, the label reads, and the
+  mark stays.
+
+| Scene P | BEFORE A / B | AFTER |
+|---|---|---|
+| 960 | count 193 / 193 (the control) | **count 0** |
+| 240 | count 0 / 0: **the control failed** | no count verdict |
+
+**960: eye AND count, as frozen. 240: eye only. The frozen count read blind (BEFORE 0 = its own STOP branch), so no
+count verdict at 240.**
+- **The pixel counter's instrument failure 1:** it is blind at 1x smooth text. The rule named that risk before it ran.
+- **No second instrument (ruled).** The reasons:
+  - the placement is decided in PANEL coordinates, before anything is drawn;
+  - the backing size only scales the drawing;
+  - the op count already shows the code's TEXT op absent in this PR's build on both models;
+  - 960's count shows the drawing follows the ops.
+
+  So a 240 count could only re-measure the scaling.
+
+**Scene T in pictures:**
+- Self-controls are 0 px on both models.
+- BEFORE against AFTER differs by 90 px (s3-128) and 30 px (s3-21), all on the L's stem.
+- **By eye:** BEFORE, the green trail runs over the stem; AFTER, the grey stem is drawn over the trail, with the text
+  intact. This is the z-order change, on glass.
+
+**Observations, not graded:** the app's first batch was shot before Scene P's freeze.
+- With the sweep off, the DROPPED and LEFT scenes read as frozen on both models: `XFLD` is gone, or moves left of its
+  mark. Self-controls are 0 px.
+- With the sweep on, pictures cannot be compared shot to shot. The beam's angle follows the module's start time, and
+  the self-controls differ by 3,749 to 41,532 px.
 
 ## Outside the set
 
