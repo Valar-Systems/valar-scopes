@@ -346,3 +346,16 @@ whole month.
 
 **CI-F4 (the push of these fixes):** predicted **36 = 34 success + 2 skipped + 0 other**, the same job set as CI-F3,
 whose read this waits for.
+
+### 9a. Results (2026-11-14)
+
+| row | read | verdict |
+|---|---|---|
+| CI-F3 | at `cdb19df1`: 36 = 34 + 2, read twice (09:32:37Z, 09:34:07Z), tested `b8f5cb9` | **as predicted**; superseded by CI-F4 |
+| red-first, `cdb19df1` (FB4d holding two properties) | 09:34:49Z: 5 failed {FB3, FB4b, FB4c, FB4d, ERR1}, 11 passed. That is the set as corrected before the run | **as predicted**; FB4d then split by ruling |
+| red-first, `cdb19df1` (FB4d with one property) | 09:35:33Z: 4 failed {FB3, FB4b, FB4c, ERR1}, 12 passed (FB4d green) | **as re-registered** |
+| red-first, main's code | 09:35:56Z, main's `ingest.ts` and `handler.ts` planted from byte copies and restored sha-equal: red {FB1, FB2, FB3, FB4, FB4b, FB4c, FB4d, FB6, FB7, FB7 (lagging), HZ1, ERR1, UA2, UA3}, green {FB5, UA1}. FB4d's red is B1's own: main returns no-frame | **as re-registered** |
+| green | N1 (host-named errors) and N4 (no silent default) in `e7ee4b1f`: **16 of 16**; all 12 wx files, **181 tests**; `tsc` exit 0 | **as predicted** |
+| N6, red-first | the smoke selftest against today's script: red (a), (b), (c), (g); green (d), (f), (f2), (e) | **as corrected before the run** |
+| N6, green | `SELFTEST PASSED`; H6s's plant still detected | **as predicted** |
+| sabotages | 09:40:44Z: BASELINE 16 of 16, 0 red. S-MIX {FB1, FB2, FB3, FB5, FB7, ERR1}; S-FALLREAD {FB5, ERR1}; S-SRC {FB1, FB2, FB3, FB6, FB7, FB7 (lagging)}; S-EMPTYFAIL {FB4d}. Each restored sha-equal; `ingest.ts` equal to HEAD's blob after | **as registered** |
