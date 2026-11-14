@@ -298,9 +298,16 @@ whole month.
   equal): red exactly {FB1, FB2, FB3, FB4, FB4b, FB4c, FB4d, FB6, FB7, FB7 (lagging), HZ1, ERR1, UA2, UA3}; green {FB5,
   UA1};
 - **against `cdb19df1`'s code:** red exactly {FB3, FB4b, FB4c, FB4d, ERR1}; green the other 11.
-  - **Corrected 09:34Z, before any run:** the first draft had FB4d green here. But FB4d asserts N1's text (`OPERA
-    backup list`), which `cdb19df1` cannot produce; its throw already happens there. B1's own red is the one against
-    main's code (no throw at all) and S-EMPTYFAIL's;
+  - **Corrected 09:34Z, before any run:** the first draft had FB4d green here. But FB4d asserted N1's text (`OPERA
+    backup list`), which `cdb19df1` cannot produce; its throw already happens there.
+  - **READ 09:34:49Z, as corrected:** 5 failed {FB3, FB4b, FB4c, FB4d, ERR1}, 11 passed.
+  - **Then RULED (the reviewer, received by 09:36Z): one property per row.** FB4d holds two (B1's throw, and N1's
+    prefix). The prefix lives in ERR1 only; FB4d asserts "it throws (any OPERA error), 0 GETs, nothing written".
+  - **RE-REGISTERED for the two runs, before either:**
+    - **against `cdb19df1`:** red exactly {FB3, FB4b, FB4c, ERR1}, 12 green, FB4d among them;
+    - **against main's code:** red exactly {FB1, FB2, FB3, FB4, FB4b, FB4c, FB4d, FB6, FB7, FB7 (lagging), HZ1, ERR1,
+      UA2, UA3}, green {FB5, UA1}. FB4d's red there is B1's own: main returns no-frame;
+    - **under S-EMPTYFAIL:** red exactly {FB4d}.
 - **the smoke selftest against today's script:** red on cases (a), (b) and (g); green on (c), (d), (f), (f2) and (e).
 
 **After:** 16 of 16. The smoke selftest PASSES. Every `wx-*` file passes. `tsc` exit 0.
