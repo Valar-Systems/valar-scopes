@@ -131,5 +131,22 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
   row("FK1h", fk1 !== undefined && txt !== "" && !txt.includes("planted-value"), `a refusal carries no variable's value (${txt.includes("planted-value") ? "VALUE FOUND" : "none found"})`);
 }
 
+// ---- TK1 (section 2c): the KV token's own expiry, at 14 days, on a stubbed verify answer ---------------------------
+{
+  const mod = await import("./routes-token-check").catch(() => null);
+  type V = { action: "ok" | "warn" | "fail"; line: string };
+  const tv = mod?.tokenVerdict as undefined | ((now: Date, answer: unknown) => V);
+  const now = new Date("2026-11-20T06:00:00Z");
+  const ans = (expires_on?: string) => ({ success: true, errors: [], result: { id: "0000", status: "active", ...(expires_on ? { expires_on } : {}) } });
+  const v = (a: unknown): V => (tv ? tv(now, a) : { action: "fail", line: "MODULE MISSING" });
+  const a13 = v(ans("2026-12-03T06:00:00Z")), a15 = v(ans("2026-12-05T06:00:00Z")), none = v(ans()), bad = v({ success: false, errors: [{ code: 1000 }] });
+  row("TK1a", tv !== undefined && a13.action === "warn" && a13.line.includes("ROUTES_KV_TOKEN expires in 13 days"), `13 days out -> ${a13.action}: ${a13.line}`);
+  row("TK1b", tv !== undefined && a15.action === "ok", `(control) 15 days out -> ${a15.action}: ${a15.line}`);
+  row("TK1c", tv !== undefined && none.action === "warn" && /no expiry/.test(none.line), `no expires_on -> ${none.action}: ${none.line}`);
+  row("TK1d", tv !== undefined && bad.action === "fail", `the verify call fails -> ${bad.action}: ${bad.line}`);
+  const inactive = v({ success: true, result: { id: "0000", status: "disabled", expires_on: "2027-02-18T00:00:00Z" } });
+  row("TK1e", tv !== undefined && inactive.action === "fail", `a token that is not active -> ${inactive.action}: ${inactive.line}`);
+}
+
 console.log(off ? `SELFTEST: ${off} row(s) off` : "SELFTEST PASSED");
 process.exit(off ? 1 : 0);
