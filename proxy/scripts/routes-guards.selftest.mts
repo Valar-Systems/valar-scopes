@@ -202,5 +202,35 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
   row("SC2rb", ev !== undefined && rb.start && !rb.readback && has(rb, "read-back identity: not set"), `(control) the identity absent -> start ${rb.start}, readback ${rb.readback} (RB1)`);
 }
 
+// ---- SW1-SW4 (section 2g): the stale-temp sweep, on a PRIVATE dir that this block removes again -----------------------
+{
+  const mod = await import("./routes-tmp").catch(() => null);
+  type S = { removed: number; kept: number; foreign: number };
+  const sweep = mod?.sweepStale as undefined | ((dir: string, prefixes: string[], nowMs: number) => S);
+  const fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  const D = fs.mkdtempSync(path.join(os.tmpdir(), "swtest-"));
+  try {
+    const H = 3_600_000, now = Date.now();
+    const mk = (name: string, ageH: number, content: "tree" | "foreign") => {
+      const p = path.join(D, name);
+      fs.mkdirSync(p);
+      if (content === "tree") fs.mkdirSync(path.join(p, "standing-data-" + "1".repeat(40)));
+      else fs.writeFileSync(path.join(p, "someone-elses.txt"), "x");
+      const t = new Date(now - ageH * H);
+      fs.utimesSync(p, t, t);
+      return p;
+    };
+    const stale = mk("routes-new-AAAAAA", 7, "tree"), fresh = mk("routes-new-BBBBBB", 1, "tree");
+    const foreign = mk("routes-new-CCCCCC", 7, "foreign"), other = mk("other-DDDDDD", 7, "tree");
+    const r: S = sweep ? sweep(D, ["routes-new-"], now) : { removed: -1, kept: -1, foreign: -1 };
+    row("SW1", sweep !== undefined && !fs.existsSync(stale), `a stale dir of its own -> ${fs.existsSync(stale) ? "KEPT" : "removed"}`);
+    row("SW2", sweep !== undefined && fs.existsSync(fresh), `a fresh dir (1 h) -> ${fs.existsSync(fresh) ? "kept" : "REMOVED"}`);
+    row("SW3", sweep !== undefined && fs.existsSync(foreign) && r.foreign === 1, `a stale dir with foreign content -> ${fs.existsSync(foreign) ? "kept" : "REMOVED"}, foreign ${r.foreign}`);
+    row("SW4", sweep !== undefined && fs.existsSync(other) && r.removed === 1, `another prefix -> ${fs.existsSync(other) ? "untouched" : "REMOVED"}; removed ${r.removed} in all`);
+  } finally {
+    fs.rmSync(D, { recursive: true, force: true });
+  }
+}
+
 console.log(off ? `SELFTEST: ${off} row(s) off` : "SELFTEST PASSED");
 process.exit(off ? 1 : 0);

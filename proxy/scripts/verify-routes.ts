@@ -36,6 +36,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isGenuineSelfLoop, routeEndpoints } from "./routerule";
 import { fk1Refusal } from "./routes-fk1";
+import { sweepAtStart, tmpDir } from "./routes-tmp";
 import { q, sh } from "./shquote";
 
 const TARBALL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/refs/heads/main";
@@ -43,16 +44,7 @@ const TARBALL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/r
 const KV_CLI = process.env.ROUTES_KV_CLI ?? "scripts/wrangler-run.mjs";
 const MADE_UP = "rt:ZZQQQQQX"; // GR10a: a key nobody writes, which must read null
 
-// Temp dirs are removed on every exit, process.exit() included (see ingest-routes.ts, tmpDir; TMP1 counts what is left).
-const TMP_DIRS: string[] = [];
-function tmpDir(prefix: string): string {
-  const d = mkdtempSync(join(tmpdir(), prefix));
-  TMP_DIRS.push(d);
-  return d;
-}
-process.on("exit", () => {
-  for (const d of TMP_DIRS) { try { rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ } }
-});
+// Temp dirs: tmpDir() removes them on every exit, and sweepAtStart() clears a killed run's (routes-tmp.ts, shared).
 /** THE value comparison, byte for byte. The GR10m control calls it too, so the control and the check share one path. */
 const same = (expected: string, got: string | null | undefined) => got === expected;
 
@@ -148,6 +140,7 @@ async function main() {
   }
   // FK1 (docs/route-weekly-code.md, section 2e): the fake KV never stands in for real KV where a real credential is in
   // reach. One rule, shared with the writer (routes-fk1.ts).
+  sweepAtStart(["verify-"]); // a killed run's leftovers, older than 6 h and only ours (routes-tmp.ts)
   const fk1 = process.env.ROUTES_KV_CLI ? fk1Refusal(process.env, args.env, existsSync) : null;
   if (fk1) {
     console.error(`REFUSING (FK1): ROUTES_KV_CLI is a test-only stand-in for KV, and it is not allowed here: ${fk1}.`);

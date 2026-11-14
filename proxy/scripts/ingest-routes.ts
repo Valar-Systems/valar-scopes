@@ -95,6 +95,7 @@ import { putWithBackoff } from "./chunk-retry";
 import { sleepSync } from "./exec-retry";
 import { RULE_REV, routeEndpoints } from "./routerule";
 import { fk1Refusal } from "./routes-fk1";
+import { sweepAtStart, tmpDir } from "./routes-tmp";
 import * as G from "./routes-guards";
 import { q, sh } from "./shquote";
 import { TokenFileError, resolveTestIdentity } from "./token-file";
@@ -409,19 +410,10 @@ function refuse(code: number, ...lines: string[]): never {
   process.exit(code);
 }
 
-// TEMP DIRS ARE REMOVED ON EVERY EXIT (2026-11-14: 371 left behind, 4.7 GB, found by the reviewer on a disk with no
-// margin). Each extracted snapshot is ~13 MB, and the selftests make dozens. Not try/finally: every refusal here is
-// process.exit(), which skips finally blocks; an "exit" handler runs on process.exit() and on the uncaught-error path
-// (main().catch -> process.exit). Only a kill -9 skips it. TMP1 in the selftests counts what a run leaves: 0.
-const TMP_DIRS: string[] = [];
-function tmpDir(prefix: string): string {
-  const d = mkdtempSync(join(tmpdir(), prefix));
-  TMP_DIRS.push(d);
-  return d;
-}
-process.on("exit", () => {
-  for (const d of TMP_DIRS) { try { rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ } }
-});
+// TEMP DIRS: tmpDir() and the start-of-run sweep live in routes-tmp.ts, shared with the verify (2026-11-14: 371 dirs,
+// 4.7 GB, left behind before it existed). Every dir this tool makes goes through tmpDir(), and is removed on exit.
+const TEMP_PREFIXES = ["routes-", "routes-new-", "routes-prev-", "routes-also-", "routes-kl-", "routes-seal-", "routes-meta-",
+  "routes-rp-new-", "routes-rp-prev-"];
 
 type Enrich = (cs: string) => { o?: string; d?: string } | null;
 /**
@@ -779,6 +771,7 @@ async function main() {
   // variable by name (revised by the reviewer, section 2e; the one rule lives in routes-fk1.ts, shared with the verify).
   const fk1 = process.env.ROUTES_KV_CLI ? fk1Refusal(process.env, args.env, existsSync) : null;
   if (fk1) refuse(2, `REFUSING (FK1): ROUTES_KV_CLI is a test-only stand-in for KV, and it is not allowed here: ${fk1}.`);
+  sweepAtStart(TEMP_PREFIXES); // a killed run's leftovers, older than 6 h and only ours (routes-tmp.ts)
   if (args.keyLevel || args.sealOnly) return keyLevelMain(args);
   const keyLevelOnly = args.noSeal || args.prev || args.prevAlso || args.prevManifest || args.receipt || args.readback === "off"
     || args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved > 0

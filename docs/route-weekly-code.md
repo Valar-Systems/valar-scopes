@@ -377,6 +377,13 @@ Only S-GR8 predated W3.
 
 - **Sabotage S-SW:** the age test off. Red exactly {SW2}.
 
+**Amended 2026-11-14 ~06:05Z, before the re-run, because the sweep made the temp code one home:**
+- `tmpDir()` and its exit cleanup moved from the two tools into `routes-tmp.ts`.
+- So S-TMP-W and S-TMP-V become ONE plant, **S-TMP**, in `routes-tmp.ts`, graded by the writer selftest: {TMP1}.
+- **S-SW** (`routes-tmp.ts`, the age test off) joins the driver, graded by guards: {SW2}.
+- The guards baseline is **54**: 50, plus SW1-SW4.
+- The driver therefore has 14 plants: the 12 others plus S-TMP and S-SW.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
