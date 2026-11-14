@@ -287,6 +287,15 @@ commit, with its own prediction.
   firmware, no-traffic-captures and workers.
 - **Outside the set:** any other total or split. Stop and decide.
 
+**CI-C4, the W3 push (predicted 2026-11-14 ~04:40Z, before the push).**
+- **The push carries:** sections 2d and 2e, W3 (`verify-routes.ts`), the revised FK1 (`routes-fk1.ts`, used by both
+  tools), the writer's `--replay`, and the extended selftests. `routes-writer.selftest.sh` is still not a CI step (W7).
+- **The baseline:** main is `5fd4da8a` (#714), read with `git ls-remote` at 04:31:52Z. Since CI-C3, #715 and #714
+  changed no workflow; the last workflow change is still #711.
+- **Predicted: 36 check-runs = 34 success + 2 skipped (promote, version) + 0 other,** across the four
+  `pull_request` workflows, all success.
+- **Outside the set:** any other total or split. Stop and decide.
+
 ## 4. The staging rehearsal and the first runs
 
 1. **A dry run of each environment**, attended. It prints counts only: `sourceCommit`, rows, writes, deletes by kind
@@ -351,3 +360,7 @@ is engineering and a guarded write path, not money. That decision is the owner's
 | W2 stage 2, green | after the code: **12 of 12 PASS**. `typecheck:scripts` exit 0. The full mode's staging dry runs (24ce5424, dff309eb) are byte-identical to their baselines. Production through the fake is refused by FK1, by design. K1's key-level dry run is byte-identical to the committed HEAD's on the same input; the older `k1.out` predates the `shard(s):` lines | **as predicted** |
 | W2 stage 2, sabotages | each plant asserted its anchor exactly once and that the file changed, and was restored from a byte copy with sha256 equal:<br>- **S-GR9**, `--seal-only` accepts any receipt: red exactly {GR9b, GR9c, GR9e, GR9f, GR9g}. GR9a still refuses, because it has no receipt at all;<br>- **S-GR8**, `--no-seal` writes meta anyway: red exactly {GR8}.<br>The first S-GR8 attempt did NOT plant: its anchor occurred twice, so the assertion refused. Its unsabotaged "0 red" was not read as a result, and the harness now stops when a plant fails | **as predicted** |
 | PFX1 on real data | both pinned sources counted (BOM-aware; the first count read 0 usable, a broken probe, caught because the control demands the writer's own totals): 24ce5424 628,956 usable, dff309eb 619,103, and **0** callsigns outside `^[A-Z0-9]{2,8}$` in either. So PFX1 cannot refuse a real run | **0 outside** |
+| W3 + FK1 + replay, red-first | (2026-11-14 04:18-04:19Z) the writer selftest, extended to 22 rows, in an environment with an invalid token and an empty home, so no call could reach real KV: the 12 earlier rows green, and the 10 new rows red exactly as predicted {FKV, GR10m, GR10a, RCP2, GR10, RCP1, GR11, UN1, UN2, UN3}. UN1-UN3 were red through their dependency on RCP2's sealed store, not through their own missing code. The guards selftest: W1's 25 green, and FK1a-h's 9 red (module missing) | **as predicted** |
+| W3 + FK1 + replay, green | `typecheck:scripts` exit 0. The guards selftest: **34 of 34**. The writer selftest: **23 of 23** (the 12, FKW, and the 10 W3 rows), run with no token variable present (each checked by name, absent) | **as predicted** |
+| a defect found before the sabotage | GR10m's control compared with its own expression, not the comparison the value check uses, so it could not catch a broken comparison. Both now go through one `same()`. Re-checked green, 23 of 23, before any sabotage | **fixed before the run** |
+| W3 sabotages | each plant asserted its anchor exactly once, stopped the harness if it did not apply, and was restored from a byte copy with sha256 equal:<br>- **S-FK1**, the credential conditions dropped: the guards selftest red exactly {FK1d, FK1e, FK1f, FK1h}, the writer selftest red exactly {FKW};<br>- **S-VAL**, `same()` always true: red exactly {GR10m, GR10a, RCP2, GR10, GR11, UN1, UN2, UN3}, with FKV and RCP1 green | **as re-registered** (3fa96148) |

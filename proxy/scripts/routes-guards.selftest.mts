@@ -109,5 +109,27 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
   row("FZ4", f("next tuesday") === "fail" && f("2026-11-20") === "fail", `malformed -> ${f("next tuesday")}, ${f("2026-11-20")}`);
 }
 
+// ---- FK1, revised (section 2e): refuse the fake KV when a real credential is in reach ------------------------------
+// Imported dynamically, so before routes-fk1.ts exists these rows read red on their own and W1's rows still run.
+{
+  const mod = await import("./routes-fk1").catch(() => null);
+  const fk1 = mod?.fk1Refusal as undefined | ((env: Record<string, string | undefined>, target: string | undefined, exists: (p: string) => boolean) => string | null);
+  const none = (p: string) => p === "/exists/tokens";
+  const r = (env: Record<string, string | undefined>, target = "staging") => (fk1 ? fk1(env, target, none) : "MODULE MISSING");
+  const workersLike = { GITHUB_ACTIONS: "true", GITHUB_WORKFLOW: "workers", GITHUB_WORKFLOW_REF: "o/r/.github/workflows/workers.yml@refs/pull/9/merge" };
+  row("FK1a", fk1 !== undefined && r(workersLike) === null, `a workers-like environment -> ${r(workersLike)}`);
+  row("FK1b", fk1 !== undefined && /routes-refresh/.test(r({ GITHUB_WORKFLOW: "routes-refresh" }) ?? ""), `GITHUB_WORKFLOW=routes-refresh -> ${r({ GITHUB_WORKFLOW: "routes-refresh" })}`);
+  const ref = { GITHUB_WORKFLOW: "Route refresh", GITHUB_WORKFLOW_REF: "o/r/.github/workflows/routes-refresh.yml@refs/heads/main" };
+  row("FK1b2", fk1 !== undefined && r(ref) !== null, `GITHUB_WORKFLOW_REF names routes-refresh.yml -> ${r(ref)}`);
+  row("FK1c", fk1 !== undefined && r({}, "production") !== null, `--env production -> ${r({}, "production")}`);
+  row("FK1d", fk1 !== undefined && /ROUTES_KV_TOKEN/.test(r({ ROUTES_KV_TOKEN: "x" }) ?? ""), `ROUTES_KV_TOKEN set -> ${r({ ROUTES_KV_TOKEN: "x" })}`);
+  row("FK1e", fk1 !== undefined && /CLOUDFLARE_API_TOKEN/.test(r({ CLOUDFLARE_API_TOKEN: "x" }) ?? ""), `CLOUDFLARE_API_TOKEN set -> ${r({ CLOUDFLARE_API_TOKEN: "x" })}`);
+  row("FK1f", fk1 !== undefined && r({ BLIPSCOPE_TOKEN_FILE: "/exists/tokens" }) !== null, `BLIPSCOPE_TOKEN_FILE naming a file that exists -> ${r({ BLIPSCOPE_TOKEN_FILE: "/exists/tokens" })}`);
+  row("FK1g", fk1 !== undefined && r({ BLIPSCOPE_TOKEN_FILE: "/missing/tokens" }) === null, `(control) BLIPSCOPE_TOKEN_FILE naming a missing file -> ${r({ BLIPSCOPE_TOKEN_FILE: "/missing/tokens" })}`);
+  const planted = { ROUTES_KV_TOKEN: "planted-value-kv-0001", CLOUDFLARE_API_TOKEN: "planted-value-cf-0002", BLIPSCOPE_TOKEN_FILE: "/exists/tokens" };
+  const txt = r(planted) ?? "";
+  row("FK1h", fk1 !== undefined && txt !== "" && !txt.includes("planted-value"), `a refusal carries no variable's value (${txt.includes("planted-value") ? "VALUE FOUND" : "none found"})`);
+}
+
 console.log(off ? `SELFTEST: ${off} row(s) off` : "SELFTEST PASSED");
 process.exit(off ? 1 : 0);

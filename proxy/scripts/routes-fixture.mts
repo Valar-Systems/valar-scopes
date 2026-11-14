@@ -81,7 +81,17 @@ const newRows = variant("new");
 const newManifest = snapshot("new", COMMITS.new, newRows);
 snapshot("pfx", COMMITS.pfx, variant("pfx"));
 const usable = (r: Rows) => [...r.values()].reduce((n, rs) => n + rs.length, 0);
-writeFileSync(join(out, "meta-prev.json"), JSON.stringify({ v: 1, ruleRev: RULE_REV, rows: usable(base()), shards: prevManifest }));
+const metaPrev = JSON.stringify({ v: 1, ruleRev: RULE_REV, rows: usable(base()), shards: prevManifest });
+writeFileSync(join(out, "meta-prev.json"), metaPrev);
+// The fake store as a mirror built from prev would hold it: meta plus EVERY prev key at its value, so the verify's
+// whole-prefix enumeration sees a real-shaped namespace (and "a deleted key is gone" can fail).
+const codeOf: Record<string, string> = { KAAA: "AAA", KBBB: "BBB", KCCC: "CCC" };
+const ns: Record<string, string> = { "meta:routes": metaPrev };
+for (const rs of base().values()) for (const [cs, codes] of rs) {
+  const [o, d] = codes.split("-") as [string, string];
+  ns[`rt:${cs}`] = JSON.stringify({ o: codeOf[o], d: codeOf[d] });
+}
+writeFileSync(join(out, "store-prev.json"), JSON.stringify({ staging: ns }));
 const [s0, s1, s2] = [...newRows.keys()];
 const changedKeys = (newRows.get(s0 as string) as [string, string][]).slice(0, CHANGED).map(([cs]) => `rt:${cs}`);
 const addedKeys = Array.from({ length: ADDED }, (_, i) => `rt:QX${String(i).padStart(5, "0")}`);

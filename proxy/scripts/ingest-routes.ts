@@ -88,12 +88,13 @@
  */
 import { execFileSync, execSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdtempSync, readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { putWithBackoff } from "./chunk-retry";
 import { sleepSync } from "./exec-retry";
 import { RULE_REV, routeEndpoints } from "./routerule";
+import { fk1Refusal } from "./routes-fk1";
 import * as G from "./routes-guards";
 import { q, sh } from "./shquote";
 import { TokenFileError, resolveTestIdentity } from "./token-file";
@@ -154,10 +155,11 @@ interface Args {
   outWritten?: string;
   outDeleted?: string;
   sourceDate?: string;
+  replay: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dryRun: false, forceShards: [], keyLevel: false, noSeal: false, sealOnly: false, readback: "on", allowShards: [], allowRemoved: 0 };
+  const a: Args = { dryRun: false, forceShards: [], keyLevel: false, noSeal: false, sealOnly: false, readback: "on", allowShards: [], allowRemoved: 0, replay: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--dry-run") a.dryRun = true;
     else if (argv[i] === "--env") a.env = argv[++i];
@@ -177,6 +179,7 @@ function parseArgs(argv: string[]): Args {
     else if (argv[i] === "--out-written") a.outWritten = argv[++i];
     else if (argv[i] === "--out-deleted") a.outDeleted = argv[++i];
     else if (argv[i] === "--source-date") a.sourceDate = argv[++i];
+    else if (argv[i] === "--replay") a.replay = true;
   }
   return a;
 }
@@ -484,6 +487,44 @@ function kvChunks(kind: "put" | "delete", items: unknown[], env: string, tmp: st
 }
 
 /**
+ * --replay (section 2d): an UNCHANGED source re-verifies before it re-seals. Writes and deletes NOTHING. It proves the
+ * sealed meta is --file's (every shard hash, and sourceCommit) and that --prev is the snapshot that meta's last change
+ * came from (prevSourceCommit), then re-emits that change's written and deleted sets for the verify. The value
+ * construction stays here, in the writer, as the rule says.
+ */
+function replayMain(args: Args) {
+  const env = args.env as string;
+  if (!args.file || !args.prev) refuse(2, "REFUSING (UN): --replay needs --file <the sealed source> and --prev <the snapshot its last change came from>.");
+  const nw = parseSource(args.file as string, mkdtempSync(join(tmpdir(), "routes-rp-new-")), "new: ");
+  const pv = parseSource(args.prev as string, mkdtempSync(join(tmpdir(), "routes-rp-prev-")), "prev: ");
+  const m = readMeta(env);
+  if (m.kind === "absent") refuse(1, "REFUSING (UN): no meta:routes, so nothing is sealed to replay.");
+  const { meta, raw } = m as { kind: "ok"; meta: Meta; raw: string };
+  const names = new Set([...Object.keys(meta.shards), ...nw.shards.keys()]);
+  let eq = 0;
+  for (const n of names) if ((meta.shards[n] ?? "").split(":")[0] === nw.shards.get(n)?.hash) eq++;
+  console.log(`replay proof: ${eq}/${names.size} shard hashes equal meta:routes`);
+  const why: string[] = [];
+  if (eq !== names.size) why.push("--file is not the source meta:routes was sealed from");
+  if (meta.sourceCommit !== nw.commit) why.push("meta's sourceCommit is not --file's commit");
+  if (meta.prevSourceCommit !== pv.commit) why.push("meta's prevSourceCommit is not --prev's commit");
+  if (why.length > 0) refuse(1, `REFUSING (UN): ${why.join("; ")}. Nothing emitted.`);
+  const valuesOf = (p: ParsedSource) => new Map([...p.shards.values()].flatMap((s) => s.pairs));
+  const newVal = valuesOf(nw), prevVal = valuesOf(pv);
+  const writes = [...newVal].filter(([k, v]) => prevVal.get(k) !== v);
+  const dels = [...prevVal.keys()].filter((k) => !newVal.has(k));
+  const outside = [...writes.map(([k]) => k), ...dels].filter((k) => !pfxOk(k)).length;
+  if (outside > 0) refuse(1, `REFUSING (PFX1): ${outside} key(s) outside the route prefix in the replayed change.`);
+  const run = {
+    v: 1, env, mode: "replay", sourceCommit: nw.commit, sourceSha256: sha256File(args.file as string), prevSourceCommit: pv.commit,
+    prevMetaSha256: sha256Text(raw), deletesRefused: false, readback: "not run",
+  };
+  if (args.outWritten) writeFileSync(args.outWritten, JSON.stringify({ ...run, written: Object.fromEntries(writes) }));
+  if (args.outDeleted) writeFileSync(args.outDeleted, JSON.stringify({ ...run, deleted: dels }));
+  console.log(`replay: the last change re-emitted for the verify -- written ${writes.length}, deleted ${dels.length}; nothing written or deleted now`);
+}
+
+/**
  * --seal-only: write meta:routes and nothing else, and only on a verify receipt for THIS source, THIS environment and
  * the meta the run was built against (GR9). The manifest comes from the source, so the next run can prove it.
  */
@@ -549,6 +590,7 @@ function sealOnlyMain(args: Args) {
 async function keyLevelMain(args: Args) {
   if (!args.env) refuse(2, "REFUSING: the key-level mode needs --env <staging|production>");
   if (args.sealOnly) return sealOnlyMain(args);
+  if (args.replay) return replayMain(args);
   if (!args.file || !args.prev) refuse(2, "REFUSING: the key-level mode needs --file <the new source> and --prev <the snapshot meta:routes was built from>");
   const scheduled = process.env.GITHUB_EVENT_NAME === "schedule";
   const overrides = args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved > 0;
@@ -719,15 +761,15 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   // FK1 (docs/route-weekly-code.md): ROUTES_KV_CLI swaps real KV for a JSON fake, for tests. On the production path it
   // would turn a run into a silent green -- "writes" to a file, verified against the same file. So it is refused, before
-  // any KV call, under CI (GITHUB_ACTIONS) or against production, whatever else is passed.
-  if (process.env.ROUTES_KV_CLI && (process.env.GITHUB_ACTIONS || args.env === "production")) {
-    refuse(2, "REFUSING (FK1): ROUTES_KV_CLI is a test-only stand-in for KV and is never allowed under CI or with --env production.");
-  }
+  // any KV call, wherever a REAL credential is in reach: the routes-refresh workflow, --env production, or a token
+  // variable by name (revised by the reviewer, section 2e; the one rule lives in routes-fk1.ts, shared with the verify).
+  const fk1 = process.env.ROUTES_KV_CLI ? fk1Refusal(process.env, args.env, existsSync) : null;
+  if (fk1) refuse(2, `REFUSING (FK1): ROUTES_KV_CLI is a test-only stand-in for KV, and it is not allowed here: ${fk1}.`);
   if (args.keyLevel || args.sealOnly) return keyLevelMain(args);
   const keyLevelOnly = args.noSeal || args.prev || args.prevAlso || args.prevManifest || args.receipt || args.readback === "off"
     || args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved > 0
-    || args.outWritten || args.outDeleted || args.sourceDate !== undefined;
-  if (keyLevelOnly) refuse(2, "REFUSING: --no-seal, --prev, --prev-also, --prev-manifest, --receipt, --readback, --out-written, --out-deleted, --source-date and the overrides belong to --key-level.");
+    || args.outWritten || args.outDeleted || args.sourceDate !== undefined || args.replay;
+  if (keyLevelOnly) refuse(2, "REFUSING: --no-seal, --prev, --prev-also, --prev-manifest, --receipt, --readback, --out-written, --out-deleted, --source-date, --replay and the overrides belong to --key-level.");
   if (!args.dryRun && !args.env) {
     console.error("refusing to run: pass --env <staging|production> or --dry-run");
     process.exit(2);

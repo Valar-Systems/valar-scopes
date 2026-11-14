@@ -9,15 +9,10 @@ set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 T="$(mktemp -d)"; F="$T/fx"; trap 'rm -rf "$T"' EXIT
 npx tsx scripts/routes-fixture.mts "$F" > "$T/fixture.out" 2>&1 || { cat "$T/fixture.out"; echo "SELFTEST FAILED: the fixture did not build"; exit 1; }
-# The base store holds prev's meta AND the keys this run must change or delete, at their OLD values, so "a deleted key
-# is gone" and "a changed key holds its new value" can each fail (an empty store would pass both for nothing).
-node -e '
-const fs=require("fs"), F=process.argv[1], e=JSON.parse(fs.readFileSync(F+"/expect.json","utf8"));
-const ns={ "meta:routes": fs.readFileSync(F+"/meta-prev.json","utf8") };
-for (const k of e.changedKeys) ns[k]=JSON.stringify({o:"AAA",d:"BBB"});
-for (const k of e.deletedKeys) ns[k]=JSON.stringify({o:"AAA",d:"BBB"});
-fs.writeFileSync(F+"/store.json", JSON.stringify({ staging: ns }));
-' "$F"
+# The base store is a mirror built from prev: its meta AND every prev key at its value (the fixture writes it). So "a
+# deleted key is gone" and "a changed key holds its new value" can each fail, and the verify's whole-prefix listing
+# sees a real-shaped namespace.
+cp "$F/store-prev.json" "$F/store.json"
 
 pass=0; fail=0; failed=""
 ok()  { echo "PASS $1"; pass=$((pass+1)); }
@@ -114,6 +109,76 @@ if [ "$rc" = 0 ] && [ "$v" = ok ]; then ok GR9d; else bad GR9d "exit $rc; $v"; f
 fresh; receipt "$T/sd1.json"; h0=$(sha "$T/s.json")
 rc=$(run "$T/sd1.out" "${SO[@]}" --receipt "$T/sd1.json" --source-date yesterday)
 if [ "$rc" = 2 ] && has "$T/sd1.out" "(SD1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok SD1; else bad SD1 "exit $rc"; fi
+
+# =================================== W3: the verify, the receipt, and the replay ===================================
+vrun() { # vrun <outfile> <args...>: the verify through the fake; echoes the exit status
+  local o="$1"; shift
+  ROUTES_KV_CLI=scripts/routes-fakekv.mjs ROUTES_FAKEKV_STORE="$T/s.json" npx tsx scripts/verify-routes.ts "$@" > "$o" 2>&1
+  echo $?
+}
+metasha() { node -e 'process.stdout.write(require("crypto").createHash("sha256").update(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).staging["meta:routes"]).digest("hex"))' "$1"; }
+plantkv() { # plantkv <key-source: changed|deleted> <value>: set the first such key in the store to <value>
+  node -e '
+const fs=require("fs"), [S,E,which,val]=process.argv.slice(1);
+const s=JSON.parse(fs.readFileSync(S,"utf8")), e=JSON.parse(fs.readFileSync(E,"utf8"));
+const k=(which==="changed"?e.changedKeys:e.deletedKeys)[0]; s.staging[k]=val; fs.writeFileSync(S, JSON.stringify(s));
+' "$T/s.json" "$F/expect.json" "$1" "$2"
+}
+fresh; run "$T/w3w.out" "${KL[@]}" --file "$F/new.tar.gz" --no-seal --readback off --out-written "$T/w.json" --out-deleted "$T/d.json" > /dev/null
+cp "$T/s.json" "$T/written.json"; from_written() { cp "$T/written.json" "$T/s.json"; }
+V=(--env staging --file "$F/new.tar.gz" --check-values "$T/w.json" --expect-absent "$T/d.json")
+
+# ---- FKW: the writer refuses the fake when a real credential variable is set (FK1 revised, section 2e) -------------
+fresh; h0=$(sha "$T/s.json")
+rc=$(CLOUDFLARE_API_TOKEN=fkw-planted-not-a-token run "$T/fkw.out" "${KL[@]}" --file "$F/new.tar.gz" --dry-run)
+if [ "$rc" = 2 ] && has "$T/fkw.out" "(FK1)" && ! has "$T/fkw.out" "fkw-planted" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok FKW; else bad FKW "exit $rc"; fi
+
+# ---- FKV: the verify refuses the fake on production -------------------------------------------------------------
+from_written; rc=$(vrun "$T/fkv.out" --env production --file "$F/new.tar.gz")
+if [ "$rc" = 2 ] && has "$T/fkv.out" "(FK1)"; then ok FKV; else bad FKV "exit $rc"; fi
+
+# ---- RCP2, GR10m, GR10a: a clean run writes a receipt, and --seal-only seals with it ------------------------------
+from_written; rm -f "$T/r.json"; rc=$(vrun "$T/rcp2.out" "${V[@]}" --receipt "$T/r.json")
+if has "$T/rcp2.out" "CONTROL (GR10m): a known-correct key against a deliberately wrong value: 1 mismatch (must be exactly 1)"; then ok GR10m; else bad GR10m "no control line"; fi
+if has "$T/rcp2.out" "CONTROL (GR10a): the made-up key reads null (must be null)"; then ok GR10a; else bad GR10a "no control line"; fi
+sr=$( [ -f "$T/r.json" ] && run "$T/rcp2s.out" "${SO[@]}" --receipt "$T/r.json" || echo none )
+sc=$(node -e 'try{process.stdout.write(JSON.parse(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).staging["meta:routes"]).sourceCommit??"")}catch{}' "$T/s.json")
+if [ "$rc" = 0 ] && [ -f "$T/r.json" ] && [ "$sr" = 0 ] && [ "$sc" = "$(printf '2%.0s' $(seq 40))" ]; then ok RCP2; cp "$T/s.json" "$T/sealed.json"; else bad RCP2 "verify exit $rc, receipt $([ -f "$T/r.json" ] && echo yes || echo no), seal $sr"; fi
+
+# ---- GR10: one written value planted wrong; RCP1: a stale receipt does not survive the failure --------------------
+from_written; plantkv changed '{"o":"XXX","d":"YYY"}'; echo '{"stale":true}' > "$T/r.json"
+rc=$(vrun "$T/gr10.out" "${V[@]}" --receipt "$T/r.json")
+if [ "$rc" = 1 ] && has "$T/gr10.out" "MISMATCH 1" && [ ! -f "$T/r.json" ]; then ok GR10; else bad GR10 "exit $rc"; fi
+if [ ! -f "$T/r.json" ]; then ok RCP1; else bad RCP1 "the stale receipt survived a failed verify"; fi
+
+# ---- GR11: one deleted key planted back ---------------------------------------------------------------------------
+from_written; plantkv deleted '{"o":"AAA","d":"BBB"}'; rm -f "$T/r.json"
+rc=$(vrun "$T/gr11.out" "${V[@]}" --receipt "$T/r.json")
+if [ "$rc" = 1 ] && has "$T/gr11.out" "PRESENT 1" && [ ! -f "$T/r.json" ]; then ok GR11; else bad GR11 "exit $rc"; fi
+
+# ---- UN1-UN3: an unchanged source is replayed, verified, and only then re-sealed ----------------------------------
+RP=(--key-level --replay --env staging --prev "$F/prev.tar.gz" --file "$F/new.tar.gz" --out-written "$T/w2.json" --out-deleted "$T/d2.json")
+V2=(--env staging --file "$F/new.tar.gz" --check-values "$T/w2.json" --expect-absent "$T/d2.json")
+un() { # un <row> <plant: none|changed|deleted>
+  local row="$1" p="$2"
+  if [ ! -f "$T/sealed.json" ]; then bad "$row" "no sealed store (RCP2 failed)"; return; fi
+  cp "$T/sealed.json" "$T/s.json"; [ "$p" = none ] || plantkv "$p" '{"o":"XXX","d":"YYY"}'
+  local h0 m0 b0; h0=$(sha "$T/s.json"); m0=$(metasha "$T/s.json")
+  b0=$(node -e 'process.stdout.write(JSON.parse(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).staging["meta:routes"]).builtAt)' "$T/s.json")
+  local rr; rr=$(run "$T/$row-r.out" "${RP[@]}")
+  if [ "$rr" != 0 ] || [ "$(sha "$T/s.json")" != "$h0" ]; then bad "$row" "replay exit $rr, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; return; fi
+  rm -f "$T/r2.json"; local rv; rv=$(vrun "$T/$row-v.out" "${V2[@]}" --receipt "$T/r2.json")
+  if [ "$p" = none ]; then
+    local rs; rs=$(run "$T/$row-s.out" "${SO[@]}" --receipt "$T/r2.json")
+    local b1; b1=$(node -e 'process.stdout.write(JSON.parse(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).staging["meta:routes"]).builtAt)' "$T/s.json")
+    if [ "$rv" = 0 ] && [ "$rs" = 0 ] && [ "$b1" != "$b0" ]; then ok "$row"; else bad "$row" "verify $rv, seal $rs, builtAt moved: $([ "$b1" != "$b0" ] && echo yes || echo no)"; fi
+  else
+    if [ "$rv" = 1 ] && [ ! -f "$T/r2.json" ] && [ "$(metasha "$T/s.json")" = "$m0" ]; then ok "$row"; else bad "$row" "verify $rv, receipt $([ -f "$T/r2.json" ] && echo yes || echo no)"; fi
+  fi
+}
+un UN1 none
+un UN2 changed
+un UN3 deleted
 
 echo "rows: $pass passed, $fail failed"
 if [ "$fail" -gt 0 ]; then echo "SELFTEST FAILED:$failed"; exit 1; fi
