@@ -519,6 +519,30 @@ The next weekly staging job then refuses it loudly as `meta-not-key-level` (RR4)
 38**, `typecheck:scripts` exit 0. **W8:** the writer's declared set becomes 38. No plant's anchor is in `main()`'s new
 lines, which the anchor tool re-checks. **Outside the set:** stop.
 
+### 2m. D6, W10's four gaps (ruled before S-ON, 2026-11-14 by 07:40Z; registered 08:24Z, before the code)
+
+| gap | the change in `scripts/check_routes_workflow.py` | plant (selftest), clean against today's code because |
+|---|---|---|
+| SC1 reads an empty trigger set for a quoted `"on":` and passes | the trigger parser accepts `on:`, `"on":` and `'on':`. **An empty trigger set FAILS CLOSED** (`SC1t`, "no trigger parsed") | **SC1q:** `"on":` plus `pull_request:`: today the set reads empty, so no SC1t. **SC1z:** the key spelled `true:` (YAML 1.1 reads `on` as true), so no trigger parses: today clean |
+| SC5 misses `secrets['X']` and `toJSON(secrets)` | SC5 also matches `secrets['NAME']` / `secrets["NAME"]` (the name judged as before), and any `toJSON(secrets)` is a finding | **SC5b:** `${{ secrets['CLOUDFLARE_API_TOKEN'] }}`. **SC5j:** `${{ toJSON(secrets) }}`. Both clean today |
+| NPM1 exempts any line containing `npm ci` | each command in a line (split on `&&`, `\|\|`, `;`, `\|`) is judged alone | **NPM1c:** `npm ci && npm install left-pad`: clean today |
+| SC3 misses `bash -x` and `env` | SC3 also flags `bash -x` / `sh -x`, `set -o xtrace`, and `env` as a whole command | **SC3b:** `bash -x scripts/routes-refresh-run.sh staging`. **SC3n:** a run line `env`. Both clean today |
+
+**The sabotage rows' sets grow, re-registered here:**
+- S1 (the trigger check off) turns exactly {SC1t, SC1q, SC1z} green;
+- S3 (the run-line scan off) exactly {SC3e, SC3x, SC3p, SC3b, SC3n};
+- S5 (the secret-name check off) exactly {SC5, SC5b, SC5j}.
+
+NPM1c has no sabotage row; NPM1 and NPM1x are its neighbours.
+
+**Red-first, predicted:**
+- the 7 new plant rows read clean, so they are red: {SC1q, SC1z, SC5b, SC5j, NPM1c, SC3b, SC3n};
+- S1, S3 and S5 are OFF too, because every new plant is "turned green" by every sabotage when it was never red;
+- CTL (the real workflows) green; the 11 earlier plant rows green.
+
+**After:** `SELFTEST PASSED`, and `routes workflow: OK` on the real file, with S1, S3 and S5 turning exactly their new
+sets. **Outside the set:** stop.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
