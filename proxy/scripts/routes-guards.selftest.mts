@@ -155,12 +155,16 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
   const render = mod?.renderNotice as undefined | ((cls: string, env: string, counts: Record<string, number>) => N);
   const classes = (mod?.CLASSES as readonly string[] | undefined) ?? [];
   const want = ["refused-g1", "refused-g2", "refused-g3", "refused-g4", "refused-g5", "refused-g6", "verify-fail",
-    "seal-refused", "source-unreachable", "secrets-not-set", "frozen-malformed", "token-expiring"];
+    "seal-refused", "source-unreachable", "secrets-not-set", "frozen-malformed", "token-expiring",
+    "meta-not-key-level", "run-failed"];
   row("SC4set", render !== undefined && JSON.stringify([...classes].sort()) === JSON.stringify([...want].sort()), `the closed set: ${classes.length} classes`);
   const counts = { written: 70, deleted: 25, mismatched: 1, days: 13 };
   let clean = 0, named = 0;
   for (const c of want) {
-    const n = render ? render(c, "production", counts) : { title: "", body: "" };
+    // A class the module cannot render reads as an empty notice, so it is a RED row, never a crash (a crash is an
+    // instrument failure that hides every row after it; it did exactly that when the set grew from 12 to 14).
+    let n = { title: "", body: "" };
+    try { if (render) n = render(c, "production", counts); } catch { /* empty: SC4c reads it red */ }
     const t = `${n.title}\n${n.body}`;
     if (!/[0-9a-f]{16}/i.test(t) && !/-?\d{1,3}\.\d{3,}/.test(t) && !/\brt:[A-Z0-9]/.test(t)) clean++;
     if (n.body.trim() !== "" && t.includes(c)) named++;

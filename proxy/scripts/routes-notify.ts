@@ -9,6 +9,7 @@
 export const CLASSES = [
   "refused-g1", "refused-g2", "refused-g3", "refused-g4", "refused-g5", "refused-g6",
   "verify-fail", "seal-refused", "source-unreachable", "secrets-not-set", "frozen-malformed", "token-expiring",
+  "meta-not-key-level", "run-failed",
 ] as const;
 export type NoticeClass = (typeof CLASSES)[number];
 
@@ -25,6 +26,8 @@ const TEXT: Record<NoticeClass, string> = {
   "secrets-not-set": "The routes-refresh environment is missing a required secret, or is not limited to main.",
   "frozen-malformed": "ROUTES_FREEZE_UNTIL is set but malformed. The run did not start.",
   "token-expiring": "ROUTES_KV_TOKEN is close to its expiry, or has none. Rotate it (the owner's 90-day condition).",
+  "meta-not-key-level": "meta:routes was not written by a key-level seal, so this is a first run: that one is attended, never CI's.",
+  "run-failed": "The run failed for a reason no other class names. Nothing was sealed; read the run's log.",
 };
 
 /** The notice, pure. Only integer counts are rendered; anything else is dropped, never coerced. */
