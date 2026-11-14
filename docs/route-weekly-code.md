@@ -719,6 +719,96 @@ scripts/sabotage-routes-weekly.mjs --only S-VAL --show-fail SN1,SN1-ctl,GR10m`, 
 exit other than 2, refutes the cause given in section 7. Any other red set, a BLIND, GR10m's line absent or different,
 or any other outcome is a STOP that goes to the owner, with no re-run.
 
+### 2q. The backup before any delete, its undo, and the re-review's N7, N2 and N3 (registered 2026-11-14 17:07:52Z, before the code)
+
+**The owner's words** (relayed): *"Before deleting, save the 827 routes (keys and values) to a private file, so the run
+can be undone."* The reviewer ruled the design (2026-11-14):
+- the backup lives inside the writer;
+- the undo carries meta and the journal's prior state;
+- BK-SAME is added;
+- it goes in this follow-up PR after #708 (merged as `620a215d`), with W8's anchor check re-run read-only against it;
+- it must merge before 2026-11-18 16:00Z.
+
+**Why inside the writer.** The list to back up is the writer's own `dels`, computed in `keyLevelMain` after the guards.
+A separate tool would have to derive that list a second time, which is the second-path hazard this repo names.
+
+**`--backup <file>`** (key-level, a writing run only). After PFX1 and the anchor, and BEFORE the write-ahead journal and
+the first write, the writer:
+1. **refuses `(BK0)`, exit 2, before any KV call,** when `<file>` lies inside any git work tree or already exists. It
+   also refuses `--backup` combined with `--dry-run`, `--seal-only` or `--replay`, since none of those deletes;
+2. reads the values of exactly `dels` (bulk get), plus the raw `meta:routes` and journal it has already read;
+3. **refuses `(BK1)`, exit 1, nothing written,** unless it holds exactly `dels.length` keys, each with a non-empty value;
+4. writes `{v: 1, env, runId, sentinel, meta, journal, keys}` through `routes-backup.ts`'s `writeBackup()`, with mode
+   600 on POSIX. It reads the file back, and **refuses `(BK2)`, exit 1, nothing written,** unless the read-back equals
+   what was written;
+5. prints `backup: <n> key(s), meta and journal saved, sha256 <hex>`: a count and a hash, never a key.
+
+**`--max-deletes` in a writing run without `--backup` is refused `(BK3)`, exit 2.** So the attended over-cap path cannot
+skip the backup. A dry run with `--max-deletes` stays allowed (4a's step 2), and the scheduled run never passes it.
+
+**`--restore <file>`** (key-level), the undo. It re-puts every key and value in the file, and re-puts `meta` as it was.
+It restores the journal's prior state, deleting `meta:routes-pending` if the file recorded none. It deletes the run's
+sentinel if it is present. PFX1 covers every key it touches, and it prints counts only.
+- **Why meta and the journal, beyond the request as worded:** after a seal, re-putting only the 827 keys would leave
+  `meta:routes` describing the post-run state. The next run's diff takes its deletes from the snapshots meta names, and
+  those lack the 827. So the restored keys would never be in `ours`, never deleted again, and counted as `extra` for
+  good.
+
+**N7 (unknown flags).** parseArgs refuses any argument it does not know: exit 2, `(UF)`, naming the flag, before any KV
+call.
+- **Checked before this registration:** every flag in the two selftests, the run script and the workflow that the
+  writer's parser does not know belongs to another tool. Those are the verify's `--check-values` and `--expect-absent`,
+  wrangler's `--binding` and `--remote`, `--max-time`, `--jq`, `--no-install`, FK1's `--check`, and notify's `--class`
+  and `--count`. No writer invocation carries one. So N7 is predicted to turn no existing row red.
+
+**N2 (J7's two sides).** The receipt's `journalSha256` is taken from a `readPending()` after the put. The seal already
+hashes a `readPending()`, so both sides hash bytes read by the same reader. Today the writer hashes the string it put
+(~807, ~862), and the seal hashes `kv key get`'s raw stdout (~504, ~619).
+
+**N3 (substrings).** J6's plan check and G4n's reason check become whole-line or whole-clause compares, each through
+one shared comparator with a near-miss control, as M1c.
+
+**Rows, red first.** The rows, a stub `routes-backup.ts` (exports that do nothing) and the fake KV's get-suffix mode are
+added first. Then everything is run against `620a215d`'s code.
+
+| row | selftest | the test | before the code |
+|---|---|---|---|
+| **BK-W** | writer | run A (`--file new --no-seal --backup <private>`): the file's `keys` are exactly the run's delete set (equal to `--out-deleted`'s), each value equal to the pre-run store's | red: `--backup` is ignored, so there is no file |
+| **BK-M** | writer | the same file: `meta` equals the pre-run `meta:routes`, and `journal` records the pre-run journal (none) | red: no file |
+| **BK-H** | writer | the printed `backup: ... sha256 <hex>` line's hash equals the file's sha256 (a whole-line compare) | red: no line |
+| **BK0** | writer | `--backup` naming a path inside a git work tree: exit 2, `(BK0)`, store byte-identical, no file | red: ignored, the run proceeds |
+| **BK0d** | writer | `--backup` with `--dry-run`: exit 2, `(BK0)` | red: ignored, exit 0 |
+| **BK1** | writer | one planted empty value among the delete set: exit 1, `(BK1)`, store byte-identical | red: the run deletes it, exit 0 |
+| **BK3** | writer | `--max-deletes 1000` in a writing run without `--backup`: exit 2, `(BK3)`, store byte-identical | red: it runs |
+| **UNDO1** | writer | run A with `--backup`, verified and sealed; then `--key-level --restore <file>`: every key in the fake store, meta and journal included, byte-identical to the pre-run snapshot | red: `--restore` is ignored, and without `--file` the run refuses, so nothing is restored |
+| **UNDO-ctl** | writer | the same without the restore: the store DIFFERS from the snapshot, so UNDO1's comparison can fail | green before and after |
+| **BK-SAME** | writer | two fresh fake stores, the same run A on each, one with `--backup` and one without: the stores are byte-identical, with `meta:routes-pending` compared with its `runId` masked (random per run by J7's design), and the two runs' out-files hold equal sets | **green before (and NOT a red-first):** today `--backup` is ignored, so the two runs are trivially the same. Its value comes after the code: the backup cannot change what the run does |
+| **BK-SAME-ctl** | writer | BK-SAME's comparator, given the store after a run and the pre-run snapshot, reports a difference, so BK-SAME can fail | green before and after |
+| **UF1** | writer | `--dryrun`: exit 2, `(UF)`, the flag named, store byte-identical | red: ignored, and the run WRITES |
+| **UF2** | writer | `--bakup <f>`: the same | red: ignored |
+| **UF-ctl** | writer | `--dry-run`, correctly spelled, on the same fixture: exit 0 | green before and after |
+| **J7w** | writer | with the fake's get-suffix mode (`ROUTES_FAKEKV_GET_SUFFIX`, a newline appended to every `kv key get`; the fake's only), a run, its verify and its own seal PASS | red: J7 refuses the run's own seal |
+| **J7w-ctl** | writer | under the same mode, J7's old-receipt case still refuses | green before and after |
+| **J6x** | writer | J6's comparator, given a plan line reading `delete 250`, rejects it | red: the substring test accepts it |
+| **BK2** | guards | `writeBackup()` with an after-write hook that flips one byte: throws `(BK2)` | red: the stub does not read back |
+| **G4nx** | guards | G4n's comparator, given `11 removed shard(s) not named`, rejects it | red: `includes` accepts it |
+
+**Red-first, predicted:**
+- writer red exactly **{BK-W, BK-M, BK-H, BK0, BK0d, BK1, BK3, UNDO1, UF1, UF2, J7w, J6x}**; green: UNDO-ctl, BK-SAME,
+  BK-SAME-ctl, UF-ctl, J7w-ctl and the 48 earlier rows;
+- guards red exactly **{BK2, G4nx}**, the other 63 green.
+
+**After the code:** writer **65 of 65**, guards **65 of 65**, run 8 of 8, freeze 4 of 4; `typecheck:scripts` exit 0; 0
+temp leftovers.
+
+**W8 is not re-run** (the owner's "once"). Its anchor check is re-run read-only against this code: 18 plants, each
+anchor exactly once. None of the changes touches a plant's anchor:
+- S-J7's anchor is the seal's comparison (~621), which N2 leaves as it is;
+- S-JN's is `pendingKeys` (~726);
+- parseArgs holds no anchor.
+
+**Outside the set:** any other red, a regression in an earlier row, or an anchor not exactly once is a stop.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
@@ -971,6 +1061,32 @@ satisfied by the pin plus the step-1 check.
   - **D7:** `/healthz` reads meta, and alerting is the owner's, as this doc's line on `sourceCommittedAt` (section 2c, ~136) already says.
   - **D9:** the self-loop lines are public route data. They are masked anyway the next time that block is touched.
 - **D10: PINNED**, read three times. The first run's step 1 runs `sha256sum -c`.
+
+**Added before S-ON (the reviewer's re-review at `8d3492d4`; non-blocking for the first run):**
+- **N1:** the journal read's 1 MiB `maxBuffer` (`readPending`) can wedge every run on a big journal. Raise it, as the
+  verify does.
+- **N4:** SC3 misses `secrets['X']` inside an echo, and `set -ex` / `set -eux`.
+- **N5:** the replay-to-write conversion (`routes-refresh-run.sh`, `--prev` == `--file`) leaves later replays with empty
+  sets. Their verify then skips GR10m and the value checks, silently. Make it say so, or do not seal prev == source.
+- **N6:** journal keys are trusted too far: a journal naming a meta key passes PFX1, and only G6's shape test stops its
+  delete. Check journal keys against `MIRROR_KEY` on read (JN2), and limit the data plan's PFX1 to mirror and sentinel
+  keys.
+- None of these can bite on 11-18. The first run writes the first journal (N1, N6), N5 needs a replay, and N4 the
+  schedule.
+
+### 4c. The first run, re-registered with the backup (section 2q)
+
+4a stands, with one step added and one stop branch:
+- **Step 3 gains `--backup ~/.config/blipscope/routes-backup-<env>-<UTC stamp>.json`.** That is beside the token file,
+  outside every git tree. Predicted, before the journal and the first write: `backup: 827 key(s), meta and journal
+  saved, sha256 <hex>`. The hash is recorded in the run's record at 12 hex.
+- **STOP before any delete:** BK0, BK1, BK2 or BK3 refusing, or any count other than 827.
+- **After the run,** the file is checked once more against its recorded sha256 (`sha256sum`), and it stays where it is.
+  The undo, if it is ever needed, is `--key-level --restore <file> --env <env>`, attended. It is a production write, so
+  it needs the owner's word.
+- **Cost per environment:** about 827 KV reads for the backup (9 bulk gets), on top of 4a's ~850. So about 1,680 per
+  environment and about 3,350 for both: about $0. An undo, if ever run, writes 828 keys and deletes up to 2 per
+  environment.
 
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 
