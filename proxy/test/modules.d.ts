@@ -43,3 +43,10 @@ declare module "virtual:wx-ingest-tomls" {
   const files: Record<string, string>;
   export default files;
 }
+
+// vitest.config.mts's opera-fixture-py plugin: tools/wx/opera_fixture.py as its exact text
+// (docs/wx-opera-backup-fallback.md, UA3).
+declare module "virtual:opera-fixture-py" {
+  const text: string;
+  export default text;
+}

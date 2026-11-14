@@ -59,8 +59,23 @@ const wxIngestTomls = {
   },
 };
 
+// The one transcribed copy of OPERA_UA, tools/wx/opera_fixture.py, as its exact text, `import t from
+// "virtual:opera-fixture-py"` (docs/wx-opera-backup-fallback.md, UA3: the copy is held byte-equal to the constant).
+// Tests only, the same pattern as virtual:wx-ingest-tomls.
+const OPERA_FIXTURE_PY = fileURLToPath(new URL("../tools/wx/opera_fixture.py", import.meta.url));
+const operaFixturePy = {
+  name: "opera-fixture-py",
+  resolveId(source: string) {
+    return source === "virtual:opera-fixture-py" ? "\0virtual:opera-fixture-py" : null;
+  },
+  load(id: string) {
+    if (id !== "\0virtual:opera-fixture-py") return null;
+    return `export default ${JSON.stringify(readFileSync(OPERA_FIXTURE_PY, "utf8"))};\n`;
+  },
+};
+
 export default defineWorkersConfig({
-  plugins: [bmpkBytes, committedCredits, wxIngestTomls],
+  plugins: [bmpkBytes, committedCredits, wxIngestTomls, operaFixturePy],
   test: {
     poolOptions: {
       workers: {
