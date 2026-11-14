@@ -498,30 +498,40 @@ from the same table.
   and no outline.
 - **THE FT GUARD ROW (2026-11-14T18:04:19Z, on the orchestrator's ruling; registered before the sibling's code).**
   The frame-time rows that run on this sibling (map-server's FT-SEA and FT-HR) are FIXED-(a) scenes with a map package
-  swapped in through `Initialise` and the weather layer pinned OFF (FT-SEA's amendment). H4's FIXED-(a) rule needs
-  bit 1 SET, so as written it would read every FT frame as the INSTRUMENT. FT gets its own row:
-  - **STATE, every measured frame of an FT scene:** bit 2 SET (the map drawn), bit 1 CLEAR (no weather crop), and
-    bit 3 CLEAR (no night poll, no night clock). Any measured frame otherwise makes that scene the INSTRUMENT.
-  - **The kind comes from the record, never from a scene number.** The sibling's scene table marks FT scenes, its
-    `drawing` line prints the kind, and the reader picks the guard from that kind. A scene whose kind is none of FT,
-    FIXED-(a) and FIXED-L is outside the set: STOP. The instrument is unreliable.
+  swapped in through `Initialise`. They differ in the weather layer, so FT has TWO kinds:
+  - **FT-MAP (FT-SEA):** the weather layer pinned OFF by FT-SEA's amendment. H4's FIXED-(a) rule needs bit 1 SET, so
+    as written it would read every FT-SEA frame as the INSTRUMENT. **STATE, every measured frame:** bit 2 SET (the map
+    drawn), bit 1 CLEAR (no weather crop), bit 3 CLEAR (no night poll, no night clock).
+  - **FT-WX (FT-HR):** map AND weather ON, the device's normal load (`docs/basemap-hudson-rule.md:163` at
+    `map-server/hudson-rule` `fbcffaa96260`). **STATE, every measured frame:** H4's FIXED-(a) rule exactly, bits 1 and
+    2 SET, bit 3 CLEAR.
+  - In either kind, any measured frame otherwise makes that scene the INSTRUMENT.
+  - **Corrected 2026-11-14T18:08:57Z, before any code or reader exists.** The row as first pushed (`1a286b4b5101`)
+    gave both rows FT-SEA's weather-OFF bits, which would have read every FT-HR frame as the INSTRUMENT. Map-server
+    caught it from FT-HR's registration.
+  - **The kind comes from the record, never from a scene number.** The sibling's scene table marks each FT scene
+    FT-MAP or FT-WX, its `drawing` line prints the kind, and the reader picks the guard from that kind. A scene whose
+    kind is none of FT-MAP, FT-WX, FIXED-(a) and FIXED-L is outside the set: STOP. The instrument is unreliable.
   - **What sets bit 3 at FT, from the code.** Night follows the scene's home, because the bench answers the
     `latitude`/`longitude` keys with it (`FrameBench.h:213-225` at `b417d80cd4c5`) and `isNightNow` reads them, for
     the cadence (`AircraftManager.cpp:1787`, same commit) and for `nightNow` (:5187). The cadence is not pinned (H7). The night
     clock cannot fire with any airborne aircraft tracked (`NightClockActive()`, :5155-5163 at `3bc7ec26fe28`), and
     FT's 40 drawn are airborne. So bit 3 at FT is the night poll. An FT window is placed in all its homes' daylight
     with at least 10 min clear of each edge. The sun times are placement data and are never committed.
-  - **PIX is not part of this row.** FT's registration grades no frame buffer, and PIX-MAP's thresholds have no
-    measured basis at FT's homes. Whether FT adds PIX is a question for FT's registration.
-  - **Red first, in the reader's selftest, before the sibling's reader is used:**
-    - **The control:** an FT record with bit 2 set and bits 1 and 3 clear on every measured frame. **Predicted:** the
-      scene is graded.
-    - **Three plants, one bit each:** bit 2 clear on one measured frame; bit 1 set on one; bit 3 set on one.
+  - **PIX is not part of this row.** Neither FT registration grades a frame buffer, and PIX-MAP's thresholds have no
+    measured basis at FT's homes. So FT-WX's weather-ON claim rests on bit 1 alone. Whether FT-HR adds PIX-WX is
+    before the orchestrator (map-server, 18:08:18Z); this row changes if it is ruled in.
+  - **Red first, in the reader's selftest, before the sibling's reader is used. Nine cases:**
+    - **FT-MAP's control:** bit 2 set, bits 1 and 3 clear on every measured frame. **Predicted:** graded.
+    - **FT-MAP's three plants, one bit each:** bit 2 clear on one measured frame; bit 1 set on one; bit 3 set on one.
       **Predicted:** each reads that scene as the INSTRUMENT and names the bit.
-    - **The red that justifies the row:** the control with its kind relabelled FIXED-(a). **Predicted:** INSTRUMENT
-      on bit 1.
-    - **A fifth case:** a record whose kind is unknown. **Predicted:** STOP.
-    - Any other reading of the five is outside the set: stop and decide. The reader is not used until all five read
+    - **FT-WX's control:** bits 1 and 2 set, bit 3 clear on every measured frame. **Predicted:** graded.
+    - **FT-WX's plant:** bit 1 clear on one measured frame. **Predicted:** INSTRUMENT on bit 1. (Its bit 2 and bit 3
+      plants are H4's FIXED-(a) cases, which the same function grades.)
+    - **The two reds that justify the kinds:** FT-MAP's control relabelled FIXED-(a), and FT-WX's control relabelled
+      FT-MAP. **Predicted:** each reads INSTRUMENT on bit 1.
+    - **An unknown kind.** **Predicted:** STOP.
+    - Any other reading of the nine is outside the set: stop and decide. The reader is not used until all nine read
       as predicted.
 
 **H5, FIXED-(a) against LIVE (XA), with a frozen tolerance.**
