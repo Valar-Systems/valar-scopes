@@ -18,6 +18,10 @@ that must read exactly that row red (--selftest).
   MRK   "[frame-bench]" is in check-no-bench-hooks.sh's MARKERS
   C1-X  the step-C exemption: BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT defined exactly once, inside a FRAME_BENCH region of
         src/AircraftManager.h, and named exactly once more, on the step-C refusal's #if
+  FB-TU every macro FrameBench.h tests (#if/#ifdef/#ifndef/#elif) that a PROJECT header #defines (include/**) is
+        included by FrameBench.h itself before its first test -- that header, or "variants/Variant.h" for one under
+        include/variants/ -- so no file can see a different scene table by its own include order (C1's plants, which
+        never fired because main.cpp kept image A's kScenes; docs/frame-time-bench.md, "THE PLANTS' CAUSE")
   C1-L  a level and a weather answer per scene (docs/frame-time-bench.md, "C1-L"): Scene's two default members; the
         FRAME_PROFILE include, once, wrapping C1's five-line block; the (a) hook's loop on Level(); IsSceneHex on
         MaxLevel(); Override's wx-layer line on the scene's wx; Allocate's level refusal; the driver's two scene lines
@@ -39,7 +43,51 @@ def load(tree):
     files = {}
     for rel in SOURCES + [HEADER, TABLE, MARKS, AMH]:
         files[rel] = open(os.path.join(tree, rel), "rb").read().decode("utf-8").replace("\r\n", "\n").split("\n")
+    # FB-TU: which project headers #define which macros (include/**, the bench's own two headers excluded)
+    defs = {}
+    inc = os.path.join(tree, "include")
+    for root, _, names in os.walk(inc):
+        for n in names:
+            if not n.endswith((".h", ".hpp")):
+                continue
+            rel = os.path.relpath(os.path.join(root, n), inc).replace(os.sep, "/")
+            if rel in ("FrameBench.h", "FrameBenchTable.h"):
+                continue
+            for l in open(os.path.join(root, n), "rb").read().decode("utf-8", "replace").split("\n"):
+                m = re.match(r"\s*#\s*define\s+([A-Za-z_]\w*)", l)
+                if m:
+                    defs.setdefault(m.group(1), set()).add(rel)
+    files["__defs__"] = defs
     return files
+
+
+TESTED = re.compile(r"\s*#\s*(?:if|ifdef|ifndef|elif)\b(.*)")
+
+
+def fb_tu(f):
+    """FB-TU: (ok, detail). A macro FrameBench.h tests and a project header defines must be included first."""
+    h, defs = f[HEADER], f["__defs__"]
+    first = {}
+    for i, l in enumerate(h):
+        m = TESTED.match(l)
+        if m:
+            for name in re.findall(r"[A-Za-z_]\w*", m.group(1)):
+                if name != "defined" and name in defs:
+                    first.setdefault(name, i)
+    incs = {}
+    for i, l in enumerate(h):
+        m = re.match(r'\s*#\s*include\s+"([^"]+)"', l)
+        if m:
+            incs.setdefault(m.group(1), i)
+    bad, seen = [], []
+    for name, i in sorted(first.items()):
+        need = sorted({"variants/Variant.h" if d.startswith("variants/") else d for d in defs[name]})
+        ok = any(incs.get(n, 10 ** 9) < i for n in need)
+        seen.append(f"{name} (defined by {', '.join(sorted(defs[name]))}; needs {' or '.join(need)} before :{i + 1})")
+        if not ok:
+            bad.append(name)
+    return (not bad, f"{len(first)} tested macro(s) defined by project headers; not included first: "
+                     f"{bad if bad else 'none'}; {'; '.join(seen) if seen else 'none tested'}")
 
 
 def regions(lines):
@@ -184,6 +232,7 @@ def rows(f):
     parts = {"members": l_members, "profile include": wrap, "hook on Level()": l_poll, "hex on MaxLevel()": l_hex,
              "wx answer": l_wx, "level refusal": l_alloc, "scene lines": l_drv, "kLevel only at its 3": kl_ok and kl_src == 0}
     res["C1-L"] = (all(parts.values()), "off: " + (", ".join(k for k, v in parts.items() if not v) or "none"))
+    res["FB-TU"] = fb_tu(f)
     return res
 
 
@@ -204,7 +253,7 @@ def selftest(tree):
     rc = 0
 
     def plant(name, fn, want):
-        f = {k: list(v) for k, v in base.items()}
+        f = {k: (list(v) if isinstance(v, list) else v) for k, v in base.items()}
         fn(f)
         red = {k for k, (ok, _) in rows(f).items() if not ok}
         ok = red == want
@@ -252,6 +301,8 @@ def selftest(tree):
         f[HEADER] = t.replace("#endif\n#endif\nconstexpr int kNumScenes", "#endif\nconstexpr int kNumScenes").split("\n")
     rc |= plant("C1-L, the FRAME_PROFILE include removed", unwrap, {"C1-L"})
     rc |= plant("C1-L, a scene line printing kLevel", sub("src/AircraftManager.cpp", "(int)framebench::kScenes[0].level", "framebench::kLevel"), {"C1-L"})
+    rc |= plant("FB-TU, the variant include removed (the plants' cause)",
+                sub(HEADER, '#include "variants/Variant.h"', "// (the variant include, planted away)"), {"FB-TU"})
     print("selftest PASSED" if rc == 0 else "selftest FAILED")
     return rc
 
