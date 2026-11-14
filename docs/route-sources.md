@@ -45,10 +45,13 @@ one adsbdb's README names as the one whose permission is needed (section 2.2). T
   includes hexdb.io's routes, which credit one of the same compilers (section 2.4).
 - **The adsbdb operator note is CLOSED.** Section 2.2's "ask both" is answered for the data, and nothing is pending
   with adsbdb's operator.
+- **The sponsorship offer (section 2.2) is CLOSED.** adsbdb stays off, so there is nothing to sponsor. Any thank-you
+  is personal and outside the project, so this record carries no plan for one.
 - **Routes stay on the CC0 VRS standing data** (our `rt:` mirror, section 2.1), kept current by the weekly refresh.
 - **The product does not change.**
 
-**The state that stays, read from main (`620a215d`) and changed by nothing here:**
+**The state that stays, read from main (`727fb55a`; the same lines and values as at `620a215d`) and changed by
+nothing here:**
 
 | file | line | section | value |
 |---|---|---|---|
@@ -139,7 +142,8 @@ Whether to refresh before the SDM site's operator answers is the owner's call. T
   > "The flight route data is the work of [two named individuals, the compilers], and may not be copied, published, or
   > incorporated into other databases without the explicit permission of [one of them, the rights holder]."
   - adsbdb's home page carries no terms; its embedded metadata says only `"isAccessibleForFree": true`.
-- **Cost:** none published. The owner's sponsorship offer is in progress.
+- **Cost:** none published. **The sponsorship offer is CLOSED (2026-11-14, section 0a):** adsbdb stays off, so there
+  is nothing to sponsor.
 - **Terms we cannot meet:** caching. Our 24 h `rt:` cache is "incorporated into other databases", the same reading
   `ingest-routes.ts:20-23` already gives it. Showing a route on a sold device may also be "published".
   - **So the grant that would let us use it is the rights holder's, not adsbdb's operator's.**
