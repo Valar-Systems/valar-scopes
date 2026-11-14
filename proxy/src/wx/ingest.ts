@@ -21,7 +21,7 @@ export const OPERA_BACKUP_BUCKET = "https://object-store.os-api.cci1.ecmwf.int/o
 export type OperaSource = "primary" | "backup";
 const OPERA_HOST: Record<OperaSource, string> = { primary: OPERA_BUCKET, backup: OPERA_BACKUP_BUCKET };
 /** K14: every request to the cache names us, with a contact URL, as the map server's ingest does. */
-export const OPERA_UA = "BlipscopeWxIngest/1 (+https://github.com/Valar-Systems/valar-scopes)";
+export const OPERA_UA = "BlipscopeWxIngest/1 (+https://github.com/Valar-Systems/valar-scopes; support@valarsystems.com)";
 export const RETAIN_S = 3600;
 const LOOKBACK_S = 20 * 60;
 

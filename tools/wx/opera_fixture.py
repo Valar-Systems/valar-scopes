@@ -28,7 +28,7 @@ import tifffile
 from pyproj import Transformer
 
 BASE = "https://s3.waw3-1.cloudferro.com/openradar-24h"
-UA = {"User-Agent": "BlipscopeWxIngest/1 (+https://github.com/Valar-Systems/valar-scopes)"}
+UA = {"User-Agent": "BlipscopeWxIngest/1 (+https://github.com/Valar-Systems/valar-scopes; support@valarsystems.com)"}
 # The opuk WXG1 grid (docs/wx-opuk.md; products.ts): NW cell centre, 0.01 deg cells, 1,455 cols x 1,515 rows.
 LA1, LO1, D, NI, NJ = 62.92, -10.72, 0.01, 1455, 1515
 CUTOFF, FIRST = "20261029T0300", "20261028T0000"
