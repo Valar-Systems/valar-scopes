@@ -280,3 +280,57 @@ whole month.
     (`tools/web-renderer/**`) filter on `tools/`.
   - `workers.yml`'s proxy job runs the whole proxy suite, the new file included, on Linux.
   - **Outside the set:** stop and decide.
+
+## 9. The review's fixes (CHANGES REQUESTED at `cdb19df1`; registered 2026-11-14 ~09:33Z, before the code)
+
+**The review found no defect in the code. One gap blocks the merge (B1), and N1-N7 are to fix before it.**
+
+| finding | the change | rows |
+|---|---|---|
+| **B1:** the ruled row "primary EMPTY, backup listing FAILS: THROW" has no test, yet it is production's state now (the primary lists empty). Replacing `ingest.ts:153`'s throw with a no-frame return keeps all 14 tests and all 3 sabotages green | none to the code (it is right); a test, and a plant | **FB4d:** primary empty, the backup's listing fails every attempt: throws the backup's error, 0 GETs, nothing written. **S-EMPTYFAIL** (the :153 throw replaced with a no-frame return): red exactly **{FB4d}** |
+| **N1:** a thrown check's log line never names its host (`ingest-worker.ts:32-36` logs `err` and `attempts`), so the :153 throw reads exactly like the old primary-list error | every OPERA request's label names its host: `OPERA primary list`, `OPERA backup list`, `OPERA primary get`, `OPERA backup get`. The combined throws keep both texts | **ERR1:** four messages, one per path. FB4c's throw begins `OPERA primary list` and names "the backup listed empty". FB4b's holds `OPERA backup list`. FB5's begins `OPERA primary get`. A backup read failing (primary empty, backup lists, backup reads fail) begins `OPERA backup get`. ERR1 never uses FB4d's scenario, so S-EMPTYFAIL turns exactly {FB4d} |
+| **N3:** FB3 and FB4b are loose; UA1 covers FB1-FB3 only | FB3 asserts `primaryListError` begins `OPERA primary list`. FB4b asserts both hosts' texts. FB4c asserts `OPERA primary list` (its old `OPERA list` text changes with N1). **UA1 extends to every scenario** (FB1-FB7, FB4b-d, and ERR1's backup-read case) | FB3, FB4b, FB4c tightened; UA1 widened |
+| **N4:** `OPERA_HOST[source ?? "primary"]` (`ingest.ts:327`) is unreachable but a silent default | an OPERA check that reaches a read without a source THROWS (`OPERA check without a source`) | no row: unreachable by construction (`operaListing` returns a source with every non-empty listing). It becomes a refusal instead of a default |
+| **N6:** smoke's per-product line (`wx-products-lines.sh`) does not print `source`, and it is the reader people look at | OPERA lines (id beginning `op`: every OPERA product and no NOAA one, per `products.ts`) end ` source=<primary\|backup\|null\|->`. `-` is a Worker before the field, the script's convention. NOAA lines are unchanged | `wx-products-lines.selftest.sh`: cases (a) and (b) gain ` source=-` on their ten OPERA lines (the committed fixture predates the field). **New case (g):** opuk `backup`, opis `primary`, opib `null`, cref with no source key. Every case is still a whole-output compare |
+
+**Red-first predictions** (16 tests: the 14 plus FB4d and ERR1):
+- **against main's code** (`6f6dae93`'s `ingest.ts` and `handler.ts` planted from a byte copy, then restored with sha256
+  equal): red exactly {FB1, FB2, FB3, FB4, FB4b, FB4c, FB4d, FB6, FB7, FB7 (lagging), HZ1, ERR1, UA2, UA3}; green {FB5,
+  UA1};
+- **against `cdb19df1`'s code:** red exactly {FB3, FB4b, FB4c, ERR1}; green the other 12, FB4d among them;
+- **the smoke selftest against today's script:** red on cases (a), (b) and (g); green on (c), (d), (f), (f2) and (e).
+
+**After:** 16 of 16. The smoke selftest PASSES. Every `wx-*` file passes. `tsc` exit 0.
+
+**Sabotages, per-test sets (N2's amendment: every set names its tests, never a row):**
+
+| plant | red exactly |
+|---|---|
+| S-MIX | {FB1, FB2, FB3, FB5, FB7, ERR1}. ERR1 joins, because its read-failure cases stop throwing when reads go to the other host. FB7 (lagging) stays green |
+| S-FALLREAD | {FB5, ERR1}. ERR1 joins: FB5's scenario no longer throws |
+| S-SRC | {FB1, FB2, FB3, FB6, FB7, FB7 (lagging)} |
+| S-EMPTYFAIL | {FB4d} |
+
+**N2, recorded as OFF:**
+- 2026-11-14 09:07Z: S-SRC read {FB1, FB2, FB3, FB6, FB7, FB7 (lagging)}. Section 3 registers {FB1, FB2, FB3, FB6, FB7}.
+- The driver's "FB7 is the row" reading was frozen at ~09:04Z, AFTER the code existed (`a9f06a2b`). So it is not a
+  pre-code registration, and the run is OFF against section 3. No re-grade.
+- **The explanation:** section 3's "FB7" meant two tests, FB7 and its lagging case, and S-MIX's "FB7" meant one. That
+  is why every set above now names tests.
+- It is this row's first OFF.
+
+**N5 (no code):**
+- `proxy/scripts/wx-opuk-measure.ts:42` and `tools/wx/opera_fixture.py:30` still read the PRIMARY only. They are
+  measurement and fixture tools, not the ingest, and they are correct for the frames they were built against.
+- `docs/wx-opuk.md:77` quotes the old User-Agent as a historical record, and is left as it is.
+
+**N7, two hazards beyond the registered lag:**
+- **A primary holding one old frame keeps the backup off for up to 20 min.** "Non-empty" means a frame key inside the
+  20-min lookback. A primary that publishes once and stops is chosen until that frame leaves the window, and those checks
+  read `already-stored`.
+- **A hanging primary costs up to 27 s before the backup is tried:** three 8 s list attempts, with 1 s and 2 s waits.
+  Across midnight it is 54 s, because two day prefixes are listed.
+- Both are stated, not graded.
+
+**CI-F4 (the push of these fixes):** predicted **36 = 34 success + 2 skipped + 0 other**, the same job set as CI-F3,
+whose read this waits for.
