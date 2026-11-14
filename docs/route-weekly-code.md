@@ -98,6 +98,56 @@ Repository admin is needed; the reviewer relays it for sessions.
 - SC5's allowed-name list widened to `secrets.*`: {SC5}.
 - the ntfy template given a free-text field: {SC4}.
 
+### 2c. Amendments of 2026-11-14, each ruled by the reviewer before its code
+
+**TK1's threshold is 14 days** (the reviewer, ~03:41Z, accepting the proposal that turned out to be TK1 itself). There
+is one row, not two, because two guards on one rule drift apart. Weekly runs then warn once inside 14 days and again
+inside 7, which covers the owner's "remind me 7 days before it ends". TK1's red-first rows, on a stubbed verify answer:
+
+| row | stub | predicted |
+|---|---|---|
+| TK1a | `expires_on` 13 days out | warns: the issue is opened or updated, and ntfy sends `ROUTES_KV_TOKEN expires in 13 days` |
+| TK1b | 15 days out | **(control)** no warning |
+| TK1c | no `expires_on` | warns that the 90-day condition is broken |
+| TK1d | the verify call fails | a run failure, never a silent pass |
+
+**An unchanged source re-seals after a verify** (ruling (i)).
+- **The case:** the new source's sha equals meta's `sourceCommit`. Nothing is written and nothing is deleted.
+- **The verify:** values and absence against the last change, recomputed from that change's two snapshots. Meta gains
+  `prevSourceCommit`, so they can be downloaded by sha.
+- **On PASS:** `--seal-only` re-seals, so `builtAt` means "last verified current".
+- **Rows:**
+  - UN1: an unchanged source with every value correct re-seals, and `builtAt` moves;
+  - UN2: the same with one value planted wrong does not seal, and meta stays byte-identical;
+  - UN3: the same with one deleted key planted back does not seal.
+
+**The source's own commit date on `/healthz`**, informational, with no alert (the reviewer's addition to ruling (i)).
+- An upstream that stops changing must stay visible even though `builtAt` keeps moving.
+- **How:** W5 resolves the source's sha through the GitHub commits API, which also gives the commit's date. The writer
+  takes it as `--source-date <ISO>` and stores it in meta as `sourceCommittedAt`.
+- **W13:** `routeshealth.ts` passes `sourceCommittedAt` through in the `routes` field, as a string, when meta has one,
+  and omits it when meta has none. It never invents a value.
+- **Rows:**
+  - RH9: meta with `sourceCommittedAt` shows it byte-identical;
+  - RH9c (the control): meta without it shows no such field;
+  - RH9s: a non-ISO value in meta is omitted, not shown.
+- **This is a proxy change.** It rides this PR and needs its own later deploy, not the 11-16 one, whose carried set was
+  fixed at plan time (#714).
+- Whether an old `sourceCommittedAt` should ALERT is the owner's call. No threshold is proposed until a week of real
+  data exists.
+
+**Seal last, by construction, in the key-level mode.**
+- A key-level run that writes or deletes must be given `--no-seal`; without it, it is refused (exit 2) before any KV
+  call.
+- The only key-level path that writes `meta:routes` is `--seal-only --receipt <file>`.
+- **Row KL1:** a key-level write without `--no-seal` is refused, with the fake store byte-identical.
+- **Control:** the same with `--no-seal` writes the route keys and leaves `meta:routes` byte-identical (GR8's
+  stage-2 half).
+
+**Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1 and UN1-UN3 run in a new
+`proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
+`routes-guards.selftest.mts`.
+
 ## 3. CI
 
 Predicted in its own commit before the code push, from main's CI after its last workflow change. The new selftests are
