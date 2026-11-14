@@ -172,5 +172,31 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
   row("SC4x", render !== undefined && refused === "throws", `a class outside the closed set -> ${refused}`);
 }
 
+// ---- SC2 (section 2): the routes-refresh environment, as booleans: main-only, and which secret NAMES are set -------
+{
+  const mod = await import("./routes-env-check").catch(() => null);
+  type E = { start: boolean; lines: string[]; readback: boolean };
+  const ev = mod?.envVerdict as undefined | ((environment: unknown, policies: unknown, present: Record<string, boolean>) => E);
+  const env = { name: "routes-refresh", deployment_branch_policy: { protected_branches: false, custom_branch_policies: true } };
+  const mainOnly = { branch_policies: [{ name: "main", type: "branch" }] };
+  const all = { ROUTES_KV_TOKEN: true, ROUTES_NTFY_TOPIC: true, ROUTES_TEST_DEVICE: true, ROUTES_TEST_KEY: true, ROUTES_TEST_KEY_STAGING: true };
+  const v = (e: unknown, p: unknown, s: Record<string, boolean>): E => (ev ? ev(e, p, s) : { start: true, lines: ["MODULE MISSING"], readback: true });
+  const has = (x: E, s: string) => x.lines.some((l) => l.includes(s));
+  const noEnv = v(null, null, all);
+  row("SC2a", ev !== undefined && !noEnv.start && has(noEnv, "environment: not set"), `no environment -> start ${noEnv.start}: ${noEnv.lines.join(" | ")}`);
+  const prot = v({ ...env, deployment_branch_policy: { protected_branches: true, custom_branch_policies: false } }, null, all);
+  row("SC2b", ev !== undefined && !prot.start && has(prot, "main-only: false"), `a protected-branches policy -> start ${prot.start}`);
+  const two = v(env, { branch_policies: [{ name: "main", type: "branch" }, { name: "dev", type: "branch" }] }, all);
+  row("SC2c", ev !== undefined && !two.start && has(two, "main-only: false"), `names [main, dev] -> start ${two.start}`);
+  const noKv = v(env, mainOnly, { ...all, ROUTES_KV_TOKEN: false });
+  row("SC2d", ev !== undefined && !noKv.start && has(noKv, "kv token: not set"), `ROUTES_KV_TOKEN missing -> start ${noKv.start}`);
+  const noTopic = v(env, mainOnly, { ...all, ROUTES_NTFY_TOPIC: false });
+  row("SC2e", ev !== undefined && !noTopic.start && has(noTopic, "ntfy: not set"), `ROUTES_NTFY_TOPIC missing -> start ${noTopic.start}`);
+  const ok = v(env, mainOnly, all);
+  row("SC2ok", ev !== undefined && ok.start && ok.readback && has(ok, "main-only: true") && has(ok, "kv token: set") && has(ok, "ntfy: set") && has(ok, "read-back identity: set"), `(control) all five set -> start ${ok.start}: ${ok.lines.join(" | ")}`);
+  const rb = v(env, mainOnly, { ROUTES_KV_TOKEN: true, ROUTES_NTFY_TOPIC: true });
+  row("SC2rb", ev !== undefined && rb.start && !rb.readback && has(rb, "read-back identity: not set"), `(control) the identity absent -> start ${rb.start}, readback ${rb.readback} (RB1)`);
+}
+
 console.log(off ? `SELFTEST: ${off} row(s) off` : "SELFTEST PASSED");
 process.exit(off ? 1 : 0);
