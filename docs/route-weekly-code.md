@@ -588,6 +588,28 @@ against>, keys: [every rt: key an unsealed run has written or deleted, sorted]}`
 
 **After:** writer **45 of 45**, run **8 of 8**, `typecheck:scripts` exit 0.
 
+**J7 (ruled IN by the reviewer, 2026-11-14, received by 08:46Z; registered before its code).** The hole predates the
+journal: an OLD receipt sealed after a newer unsealed run writes a meta describing the old source over the newer values,
+and GR9 cannot see it, because meta has not changed.
+- **The journal identifies its writer.** It gains `source` (the writing run's `sourceCommit`) and `runId` (random,
+  per run). This is needed, not cosmetic: a journal of `{since, keys}` alone cannot detect the hole, because run B
+  over the same meta touches the same key set, so its journal is byte-identical to A's.
+- **The receipt carries the journal it verified:**
+  - the run's out-files gain `journalSha256` (the sha256 of the journal string the run wrote, or of the current journal
+    a replay saw, or null with none);
+  - the verify copies it into the receipt.
+- **The seal refuses a mismatch:** `--seal-only` compares the receipt's `journalSha256` with the sha256 of the journal
+  now stored, where absent and null are both "no journal". If they differ: exit 1, `(J7)`, "the journal changed since
+  the verified run", meta byte-identical.
+- **Row J7:** run A (`--file new`, unsealed) is verified, giving R_A; then run B (`--file prev`, unsealed); then
+  `--seal-only --file new --receipt R_A` is refused, exit 1, `(J7)`, meta byte-identical. The control is every seal of
+  a run's own receipt (J3, RCP2, UN1, RR1, RR2, RR6), which must still pass.
+- **J5's receipt** is built by the synthetic `receipt` helper, so it gains `journalSha256` (the stored journal's sha)
+  among its fields. That is a fixture change, not a row change.
+- **Order:** D1's core first (green as frozen above). Then the J7 row is added and run red against that core: red
+  exactly {J7}, every other row green. Then J7's code: writer **46 of 46**, run 8 of 8.
+- **W8 plant S-J7:** the seal's journal comparison disabled. Red exactly {J7} under the writer grader.
+
 **Cost:** per run, +1 KV read (the journal); per writing run, +1 KV write (the journal put); per seal, +1 KV delete. On
 the first attended run (4a): `pending: none` in both environments' dry runs, which joins 4a's predicted lines. Anything
 else is a STOP before any write.
