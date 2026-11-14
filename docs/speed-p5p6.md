@@ -259,3 +259,12 @@ drawn == N on every frame.
   - If the fixed tree's bench prints no drawn count per frame, S1 is re-stated here before the addendum, so it is
     never skipped.
   - **Its control:** a plant that aliases the rows to one must read S1 red.
+
+### 4b. Which fixed tree (agreed 2026-11-14, before any reading)
+
+**The ruling** (the orchestrator, 2026-11-14, after 22:23:19Z): P5/P6's base is the same fully fixed levels tree that
+A0a moves onto, with both the hex fix and the include-order fix. Then the predicted gains and the readings come from
+one tree, and S0 and S1 match A0a's stop rows.
+
+- **The tree's name and sha: not yet written.** The tree does not exist yet. It is written here once it exists,
+  before any reading. Until then no P5/P6 image is built.
