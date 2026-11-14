@@ -464,10 +464,14 @@ selftests only.
 | **G4n** (guards) | 4 removed (S01-S04), 3 named: refuses, and the reason says `1 removed shard(s) not named` | today refuses with "not a non-negative integer" (a Set is not an integer): the WRONG rule, so the reason check fails |
 | **G4n-ok** (guards) | 4 removed, all 4 named: ok | today refuses (the same wrong rule) |
 | **G4n-stale** (guards) | 4 removed, all named plus one shard that was NOT removed: refuses, and the reason says `named but not removed` | today's reason differs |
-| **GR5a, GR5b, GR5c** | unchanged verdicts with an empty Set (4 removed refuses; 201 keys refuses; 3 holding 75 passes) | green before and after: the bound itself is unchanged |
+| **GR5a, GR5b, GR5c** | the same verdicts with an empty Set (4 removed refuses; 201 keys refuses; 3 holding 75 passes). **Amended before any run (07:42Z): each now also asserts WHICH rule decided.** GR5a and GR5b: the reason carries the bound clause `(bounds 3 and 200)`. GR5c: ok | **red against today's code, all three.** Their argument becomes a Set, which today's G4 refuses as "not a non-negative integer". GR5c's verdict fails, and GR5a/b's reason check fails. Without the reason check, GR5a and GR5b would have passed for the wrong reason, which is the GR1 lesson in section 7 |
 | **OV5** (writer, re-registered) | `--allow-removed 5x` refused, exit 2, `(OVR)`, store byte-identical: now because it is not a shard name | green today, for the count reason: kept as a regression row, not counted red-first |
 | **OV6** (writer) | `--allow-removed 5` (the OLD count form) refused the same way | today accepts it as a count |
 | **GN2** | **RETIRED**: its hazard, NaN coerced into a numeric bound, cannot reach a set of names | |
+
+**Red-first, predicted:**
+- guards red exactly **{G4n, G4n-ok, G4n-stale, GR5a, GR5b, GR5c}**, with the other 57 green (61, minus GN2, minus GR5a-c);
+- writer red exactly **{OV6}**, with the other 32 green.
 
 **Counts after:** guards 61 - 1 (GN2) + 3 = **63**; writer 32 + 1 (OV6) = **33**. `typecheck:scripts` exit 0. **W8:** the
 guards and writer declared sets change accordingly, before any W8 run. GN2 sat in no plant's red set, and no plant's
