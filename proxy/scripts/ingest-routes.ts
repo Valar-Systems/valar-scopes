@@ -161,6 +161,7 @@ interface Args {
   replay: boolean;
   backup?: string;    // 2q: the file a writing run saves every touched key's pre-run value to, before any write
   restore?: string;   // 2q: the undo, from such a file
+  seen: string[];     // 2r item 7a: every flag token passed, so --restore can refuse any it does not take
 }
 
 /** B2 (the review): an override is a non-negative integer or it is refused. Number("1,000") is NaN, and every guard
@@ -186,29 +187,49 @@ function shardNameArg(flag: string, v: string | undefined): string {
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dryRun: false, forceShards: [], keyLevel: false, noSeal: false, sealOnly: false, readback: "on", allowShards: [], allowRemoved: [], replay: false };
-  for (let i = 0; i < argv.length; i++) {
+  const a: Args = { dryRun: false, forceShards: [], keyLevel: false, noSeal: false, sealOnly: false, readback: "on", allowShards: [], allowRemoved: [], replay: false, seen: [] };
+  // 2r item 6 (VF): a value-taking flag never swallows the next flag. `--readback --dry-run` used to set readback and
+  // drop --dry-run, and with --no-seal that run WROTE. A missing value, or one that starts with "--", is refused here,
+  // at parse time, before KL1, the readback identity or any KV call.
+  let i = 0;
+  const val = (flag: string): string => {
+    const v = argv[++i];
+    if (v === undefined || v.startsWith("--")) {
+      console.error(`REFUSING (VF): ${flag} needs a value, and ${v === undefined ? "none was given" : "the next argument is a flag"}. A flag's value is never another flag. Nothing done.`);
+      process.exit(2);
+    }
+    return v;
+  };
+  for (; i < argv.length; i++) {
+    a.seen.push(argv[i] as string);   // 2r item 7a: --restore runs alone, so it must know every flag that was passed
     if (argv[i] === "--dry-run") a.dryRun = true;
-    else if (argv[i] === "--env") a.env = argv[++i];
-    else if (argv[i] === "--file") a.file = argv[++i];
-    else if (argv[i] === "--force-shard") a.forceShards.push(argv[++i] as string);
+    else if (argv[i] === "--env") a.env = val("--env");
+    else if (argv[i] === "--file") a.file = val("--file");
+    else if (argv[i] === "--force-shard") a.forceShards.push(val("--force-shard"));
     else if (argv[i] === "--key-level") a.keyLevel = true;
-    else if (argv[i] === "--prev") a.prev = argv[++i];
-    else if (argv[i] === "--prev-also") a.prevAlso = argv[++i];
-    else if (argv[i] === "--prev-manifest") a.prevManifest = argv[++i];
+    else if (argv[i] === "--prev") a.prev = val("--prev");
+    else if (argv[i] === "--prev-also") a.prevAlso = val("--prev-also");
+    else if (argv[i] === "--prev-manifest") a.prevManifest = val("--prev-manifest");
     else if (argv[i] === "--no-seal") a.noSeal = true;
     else if (argv[i] === "--seal-only") a.sealOnly = true;
-    else if (argv[i] === "--receipt") a.receipt = argv[++i];
-    else if (argv[i] === "--readback") a.readback = argv[++i] === "off" ? "off" : "on";
-    else if (argv[i] === "--max-deletes") a.maxDeletes = countArg("--max-deletes", argv[++i]);
-    else if (argv[i] === "--allow-shard") a.allowShards.push(argv[++i] as string);
-    else if (argv[i] === "--allow-removed") a.allowRemoved.push(shardNameArg("--allow-removed", argv[++i]));
-    else if (argv[i] === "--out-written") a.outWritten = argv[++i];
-    else if (argv[i] === "--out-deleted") a.outDeleted = argv[++i];
-    else if (argv[i] === "--source-date") a.sourceDate = argv[++i];
+    else if (argv[i] === "--receipt") a.receipt = val("--receipt");
+    else if (argv[i] === "--readback") {
+      const v = val("--readback");
+      if (v !== "on" && v !== "off") {
+        console.error("REFUSING (VF): --readback takes on or off, nothing else. Nothing done.");
+        process.exit(2);
+      }
+      a.readback = v;
+    }
+    else if (argv[i] === "--max-deletes") a.maxDeletes = countArg("--max-deletes", val("--max-deletes"));
+    else if (argv[i] === "--allow-shard") a.allowShards.push(val("--allow-shard"));
+    else if (argv[i] === "--allow-removed") a.allowRemoved.push(shardNameArg("--allow-removed", val("--allow-removed")));
+    else if (argv[i] === "--out-written") a.outWritten = val("--out-written");
+    else if (argv[i] === "--out-deleted") a.outDeleted = val("--out-deleted");
+    else if (argv[i] === "--source-date") a.sourceDate = val("--source-date");
     else if (argv[i] === "--replay") a.replay = true;
-    else if (argv[i] === "--backup") a.backup = argv[++i];
-    else if (argv[i] === "--restore") a.restore = argv[++i];
+    else if (argv[i] === "--backup") a.backup = val("--backup");
+    else if (argv[i] === "--restore") a.restore = val("--restore");
     else {
       // N7 (the re-review, 2q): an argument the writer does not know is REFUSED, never ignored -- a hand-typed --dryrun
       // would otherwise run for real. Only a flag-shaped token is named; anything else could be a pasted value.
@@ -599,33 +620,52 @@ function replayMain(args: Args) {
 }
 
 /**
- * --restore <file> (2q): the undo of one backed-up run. It re-puts every key the backup holds a value for, deletes every
- * key it recorded as "not found" (the run added it), restores the journal's prior state, deletes the run's sentinel, and
- * re-puts meta:routes LAST. PFX1 covers every key. Attended only: on production it is a write, on the owner's word.
+ * --restore <file> (2q, 2r): the undo of one backed-up run. It re-puts every key the backup holds a value for, deletes
+ * every key it recorded as "not found" (the run added it) and the run's sentinel, THEN restores the journal's prior state,
+ * and re-puts meta:routes LAST. So a failed delete chunk leaves the run's own journal in place, naming every key it added
+ * (RO1). PFX1 covers every key. Attended only: on production it is a write, on the owner's word.
  */
 function restoreMain(args: Args) {
   const env = args.env as string;
-  if (args.dryRun || args.sealOnly || args.replay || args.backup !== undefined || args.file || args.prev || args.noSeal) {
-    refuse(2, "REFUSING (RS0): --restore runs alone, with --key-level and --env only. Nothing done.");
+  // RS0 (2r item 7a): ALONE means alone -- any flag but these three is refused, never ignored
+  const extra = args.seen.filter((f) => f !== "--key-level" && f !== "--env" && f !== "--restore");
+  if (extra.length > 0) {
+    refuse(2, `REFUSING (RS0): --restore runs alone, with --key-level and --env only; also given: ${[...new Set(extra)].join(" ")}. Nothing done.`);
   }
+  // RS1 (2q, 2r item 8): a v1 backup for THIS environment, every field of the right type -- never left to wrangler
   let b: BackupPayload | null = null;
   try { b = JSON.parse(readFileSync(args.restore as string, "utf8")) as BackupPayload; } catch { /* refused below */ }
-  if (!b || b.v !== 1 || b.env !== env || typeof b.meta !== "string" || typeof b.keys !== "object" || b.keys === null) {
-    refuse(2, "REFUSING (RS1): the file is not a v1 backup for this environment. Nothing done.");
-  }
+  const strOrNull = (v: unknown) => v === null || typeof v === "string";
+  const shapeOk = !!b && b.v === 1 && b.env === env && typeof b.meta === "string" && typeof b.runId === "string"
+    && typeof b.source === "string" && typeof b.prevSource === "string" && strOrNull(b.journal) && strOrNull(b.sentinel)
+    && typeof b.keys === "object" && b.keys !== null && !Array.isArray(b.keys) && Object.values(b.keys).every(strOrNull);
+  if (!shapeOk) refuse(2, "REFUSING (RS1): the file is not a v1 backup for this environment, or a field is not of its type. Nothing done.");
   const bk = b as BackupPayload;
+  // RS2 (2r item 7b): the store must still be in the state THIS run left. (a) its journal names this run, or (b) there is
+  // no journal and meta is the one this run's source sealed. A stale backup restored after later runs would orphan keys.
+  const m = readMeta(env);
+  const metaRaw = m.kind === "ok" ? m.raw : null;
+  let journalRun: string | null = null;
+  if (metaRaw !== null) {
+    const pj = readPending(env, metaRaw);
+    if (pj.kind !== "absent") journalRun = (JSON.parse(pj.raw) as { runId?: unknown }).runId === bk.runId ? "this run" : "another run";
+  }
+  const sealedHere = m.kind === "ok" && (m.meta as { sourceCommit?: unknown }).sourceCommit === bk.source
+    && (m.meta as { prevSourceCommit?: unknown }).prevSourceCommit === bk.prevSource;
+  if (!(journalRun === "this run" || (journalRun === null && sealedHere))) {
+    refuse(2, `REFUSING (RS2): the store is not in the state this backup's run left (${journalRun === null ? "no journal, and meta is not this run's seal" : `the journal names ${journalRun}`}), so restoring it would orphan later runs' keys. Nothing done.`);
+  }
   const puts = Object.entries(bk.keys).filter(([, v]) => v !== null).map(([key, value]) => ({ key, value: value as string }));
   const dels = Object.entries(bk.keys).filter(([, v]) => v === null).map(([k]) => k);
   if (bk.sentinel) dels.push(bk.sentinel);
-  if (bk.journal === null) dels.push(META_PENDING_KEY);
-  else puts.push({ key: META_PENDING_KEY, value: bk.journal });
-  const outside = [...puts.map((p) => p.key), ...dels, META_KEY].filter((k) => !pfxOk(k)).length;
+  const outside = [...puts.map((p) => p.key), ...dels, META_PENDING_KEY, META_KEY].filter((k) => !pfxOk(k)).length;
   if (outside > 0) refuse(1, `REFUSING (PFX1): ${outside} key(s) in the backup outside the route prefix. Nothing restored.`);
   const tmp = tmpDir("routes-rs-");
   kvChunks("put", puts, env, tmp);
   kvChunks("delete", dels, env, tmp);
+  kvChunks(bk.journal === null ? "delete" : "put", bk.journal === null ? [META_PENDING_KEY] : [{ key: META_PENDING_KEY, value: bk.journal }], env, tmp);
   kvChunks("put", [{ key: META_KEY, value: bk.meta }], env, tmp);   // meta last, as in every write here
-  console.log(`restore: re-put ${puts.length} key(s), deleted ${dels.length} key(s) (added by the run, the sentinel, or a journal that was not there), meta:routes restored`);
+  console.log(`restore: re-put ${puts.length} key(s), deleted ${dels.length} key(s) (added by the run, or the sentinel), journal ${bk.journal === null ? "removed (there was none)" : "restored"}, meta:routes restored`);
 }
 
 /**
@@ -864,11 +904,14 @@ async function keyLevelMain(args: Args) {
     catch { refuse(1, "REFUSING (BK-R): the backup's read failed, so no pre-run value can be trusted. Nothing written."); }
     const short = want.filter((k) => !got.has(k)).length;
     if (short > 0) refuse(1, `REFUSING (BK-R): the backup's read answered for ${want.length - short} of ${want.length} keys; a missing answer is not "not found". Nothing written.`);
+    // 2r item 8: a value is a string or the answer's own null -- anything else is not a route value, and is refused here
+    const odd = want.filter((k) => { const v = got.get(k); return v !== null && typeof v !== "string"; }).length;
+    if (odd > 0) refuse(1, `REFUSING (BK-R): ${odd} value(s) in the backup's read are neither a string nor "not found". Nothing written.`);
     const metaNow = got.get(META_KEY);
     if (typeof metaNow !== "string") refuse(1, "REFUSING (BK-R): meta:routes read as not found for the backup. Nothing written.");
-    // BK-X and BK1: each touched key against its class in the plan. A key in a CURRENT journal (an unsealed run's), or
-    // one only --prev-also holds (the first run's older snapshot), was written by the mirror since --prev, so it may be
-    // present or absent: recorded as observed, never class-checked (amendment 3's stated exception).
+    // BK-X and BK1: each touched key against its class in the plan. A key in a CURRENT journal (an unsealed run's) may
+    // be present or absent (amendment 3's exception), and so may an ADDED key that only --prev-also holds (the first
+    // run's older snapshot; registered in 2r item 4): each is recorded as observed, never class-checked.
     const writeKeys = new Set(writes.map(([k]) => k));
     let disagree = 0, emptyDeletes = 0;
     for (const k of touched) {
@@ -883,7 +926,7 @@ async function keyLevelMain(args: Args) {
     if (disagree > 0) refuse(1, `REFUSING (BK-X): ${disagree} touched key(s) disagree with the plan (a changed or deleted key not found, or an added key already present), so the store is not the proven snapshot. Nothing written.`);
     if (emptyDeletes > 0) refuse(1, `REFUSING (BK1): ${emptyDeletes} key(s) to delete hold an empty value, so the plan and the store disagree. Nothing written.`);
     const payload: BackupPayload = {
-      v: 1, env, runId, sentinel: live ? `rt:${sentinelCs}` : null, meta: metaNow as string,
+      v: 1, env, runId, source: nw.commit, prevSource: pv.commit, sentinel: live ? `rt:${sentinelCs}` : null, meta: metaNow as string,
       journal: got.get(META_PENDING_KEY) ?? null, keys: Object.fromEntries(touched.map((k) => [k, got.get(k) ?? null])),
     };
     let digest = "";

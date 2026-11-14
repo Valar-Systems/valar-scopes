@@ -397,8 +397,10 @@ undo_run undo
 # the run really executed before the undo (the reviewer, on UNDO1's red-first): its out-files hold the planned counts
 ue=$(node -e 'const fs=require("fs"),[W,D,E]=process.argv.slice(1); try{const w=JSON.parse(fs.readFileSync(W,"utf8")),d=JSON.parse(fs.readFileSync(D,"utf8")),e=JSON.parse(fs.readFileSync(E,"utf8"));
 process.stdout.write(Object.keys(w.written).length===e.writes && d.deleted.length===e.deletes ? "ran" : "wrong counts");}catch{process.stdout.write("no out files");}' "$T/undo-w.json" "$T/undo-d.json" "$F/expect.json")
+# 2r item 9: the seal CHANGED meta before the restore -- it parses and names the new source
+us=$(node -e 'try{const m=JSON.parse(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).staging["meta:routes"]); process.stdout.write(m.sourceCommit==="2".repeat(40)?"sealed":"not sealed")}catch{process.stdout.write("meta unparsable")}' "$T/s.json")
 rr=$(run "$T/undo-x.out" --key-level --env staging --restore "$T/undo-bk.json"); u1=$(storecmp "$T/s.json" "$T/undo-pre.json")
-if [ "$ue" = ran ] && [ "$rr" = 0 ] && [ "$u1" = equal ]; then ok UNDO1; else bad UNDO1 "the run $ue; restore exit $rr; the store $u1"; fi
+if [ "$ue" = ran ] && [ "$us" = sealed ] && [ "$rr" = 0 ] && [ "$u1" = equal ]; then ok UNDO1; else bad UNDO1 "the run $ue; meta $us; restore exit $rr; the store $u1"; fi
 undo_run undoc; uc=$(storecmp "$T/s.json" "$T/undoc-pre.json")
 if [ "$uc" != equal ]; then ok UNDO-ctl; else bad UNDO-ctl "the store equals the pre-run snapshot with no restore"; fi
 
@@ -413,6 +415,49 @@ cp "$T/bk-post.json" "$T/s.json"; rsfix "$T/rs1e.json" env production; h0=$(sha 
 if [ "$rc" = 2 ] && has "$T/rs1e.out" "(RS1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok RS1e; else bad RS1e "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
 cp "$T/bk-post.json" "$T/s.json"; rsfix "$T/rs1v.json" v 2; h0=$(sha "$T/s.json"); rc=$(run "$T/rs1v.out" --key-level --env staging --restore "$T/rs1v.json")
 if [ "$rc" = 2 ] && has "$T/rs1v.out" "(RS1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok RS1v; else bad RS1v "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+
+# ---- RS0b, RS1t (2r items 7a and 8): --restore alone, and a backup of the right types -------------------------------
+cp "$T/bk-post.json" "$T/s.json"; h0=$(sha "$T/s.json"); rc=$(run "$T/rs0b.out" --key-level --env staging --restore "$T/bk.json" --max-deletes 1000)
+if [ "$rc" = 2 ] && has "$T/rs0b.out" "(RS0)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok RS0b; else bad RS0b "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+node -e 'const fs=require("fs"),[B,O]=process.argv.slice(1); const b=JSON.parse(fs.readFileSync(B,"utf8")); const k=Object.keys(b.keys)[0]; b.keys[k]=5; fs.writeFileSync(O, JSON.stringify(b));' "$T/bk.json" "$T/rs1t.json"
+cp "$T/bk-post.json" "$T/s.json"; h0=$(sha "$T/s.json"); rc=$(run "$T/rs1t.out" --key-level --env staging --restore "$T/rs1t.json")
+if [ "$rc" = 2 ] && has "$T/rs1t.out" "(RS1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok RS1t; else bad RS1t "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+
+# ---- RS2, UNDO3 (2r item 7b): a stale backup is refused; an unsealed run's own backup restores (state branch (a)) ----
+undo_run rs2; run "$T/rs2-b.out" --key-level --env staging --prev "$F/new.tar.gz" --file "$F/prev.tar.gz" --no-seal --readback off > /dev/null
+h0=$(sha "$T/s.json"); rc=$(run "$T/rs2.out" --key-level --env staging --restore "$T/rs2-bk.json")
+if [ "$rc" = 2 ] && has "$T/rs2.out" "(RS2)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok RS2; else bad RS2 "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+fresh; cp "$T/s.json" "$T/u3-pre.json"; rm -f "$T/u3-bk.json"
+run "$T/u3a.out" "${KL[@]}" "${BKA[@]}" --backup "$T/u3-bk.json" > /dev/null
+rr=$(run "$T/u3r.out" --key-level --env staging --restore "$T/u3-bk.json"); u3=$(storecmp "$T/s.json" "$T/u3-pre.json")
+if [ "$rr" = 0 ] && [ "$u3" = equal ]; then ok UNDO3; else bad UNDO3 "restore exit $rr; the store $u3"; fi
+
+# ---- UNDO2 (2r item 2): a backup taken over a PRIOR journal restores that journal too -----------------------------
+fresh; run "$T/u2a.out" "${KL[@]}" "${BKA[@]}" > /dev/null; cp "$T/s.json" "$T/u2-pre.json"; rm -f "$T/u2-bk.json"
+pj=$(pending "$T/u2-pre.json" | cut -c1-6)
+run "$T/u2b.out" "${KL[@]}" "${BKA[@]}" --backup "$T/u2-bk.json" > /dev/null
+rr=$(run "$T/u2r.out" --key-level --env staging --restore "$T/u2-bk.json"); u2=$(storecmp "$T/s.json" "$T/u2-pre.json")
+if [ "$pj" != absent ] && [ "$rr" = 0 ] && [ "$u2" = equal ]; then ok UNDO2; else bad UNDO2 "a prior journal: $([ "$pj" != absent ] && echo yes || echo no); restore exit $rr; the store $u2"; fi
+
+# ---- BK-Xc, BK-Xd, BK-T (2r items 3 and 8): a changed or deleted key not found, or a value that is not a string ------
+dropkv() { # dropkv <changedKeys|deletedKeys>: remove the first such key from the store
+  node -e 'const fs=require("fs"),[S,E,w]=process.argv.slice(1); const s=JSON.parse(fs.readFileSync(S,"utf8")), e=JSON.parse(fs.readFileSync(E,"utf8")); delete s.staging[e[w][0]]; fs.writeFileSync(S, JSON.stringify(s));' "$T/s.json" "$F/expect.json" "$1"
+}
+fresh; dropkv changedKeys; h0=$(sha "$T/s.json"); rc=$(run "$T/bkxc.out" "${KL[@]}" "${BKA[@]}" --backup "$T/bkxc.json")
+if [ "$rc" = 1 ] && has "$T/bkxc.out" "(BK-X)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok BK-Xc; else bad BK-Xc "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+fresh; dropkv deletedKeys; h0=$(sha "$T/s.json"); rc=$(run "$T/bkxd.out" "${KL[@]}" "${BKA[@]}" --backup "$T/bkxd.json")
+if [ "$rc" = 1 ] && has "$T/bkxd.out" "(BK-X)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok BK-Xd; else bad BK-Xd "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+fresh; node -e 'const fs=require("fs"),[S,E]=process.argv.slice(1); const s=JSON.parse(fs.readFileSync(S,"utf8")), e=JSON.parse(fs.readFileSync(E,"utf8")); s.staging[e.deletedKeys[0]]=5; fs.writeFileSync(S, JSON.stringify(s));' "$T/s.json" "$F/expect.json"
+h0=$(sha "$T/s.json"); rc=$(run "$T/bkt.out" "${KL[@]}" "${BKA[@]}" --backup "$T/bkt.json")
+if [ "$rc" = 1 ] && has "$T/bkt.out" "(BK-R)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok BK-T; else bad BK-T "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+
+# ---- VF1-VF3 (2r item 6): a value-taking flag never swallows the next flag ------------------------------------------
+fresh; h0=$(sha "$T/s.json"); rc=$(run "$T/vf1.out" "${KL[@]}" --file "$F/new.tar.gz" --no-seal --readback --dry-run)
+if [ "$rc" = 2 ] && has "$T/vf1.out" "(VF)" && ! has "$T/vf1.out" "(KL1)" && ! has "$T/vf1.out" "no test identity" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok VF1; else bad VF1 "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+fresh; h0=$(sha "$T/s.json"); rc=$(run "$T/vf2.out" "${KL[@]}" --file "$F/new.tar.gz" --no-seal --readback maybe)
+if [ "$rc" = 2 ] && has "$T/vf2.out" "(VF)" && ! has "$T/vf2.out" "(KL1)" && ! has "$T/vf2.out" "no test identity" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok VF2; else bad VF2 "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+fresh; h0=$(sha "$T/s.json"); rc=$(run "$T/vf3.out" "${KL[@]}" --file --no-seal --readback off)
+if [ "$rc" = 2 ] && has "$T/vf3.out" "(VF)" && ! has "$T/vf3.out" "(KL1)" && ! has "$T/vf3.out" "no test identity" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok VF3; else bad VF3 "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
 
 # ---- BK-SAME, BK-SAME-ctl: the backup cannot change what the run does ----------------------------------------------
 fresh; cp "$T/s.json" "$T/same-pre.json"

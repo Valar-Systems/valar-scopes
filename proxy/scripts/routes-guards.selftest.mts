@@ -80,9 +80,10 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
   const g4n = G.g4Removed(prevByShard, n4, new Set(["S01", "S02", "S03"]));
   // N3 (2q): G4n's reason check, ONE comparator shared with its near-miss control G4nx ("1 removed" is a fragment of
   // "11 removed").
-  const g4nReasonOk = (reason: string) => /(^|[^0-9])1 removed shard\(s\) not named/.test(reason);
+  // 2r item 9: the WHOLE clause, as one "; "-separated part of the reason, never a fragment of one
+  const g4nReasonOk = (reason: string) => reason.split("; ").some((part) => part === "1 removed shard(s) not named");
   row("G4n", !g4n.ok && g4nReasonOk(g4n.reason), `4 removed, 3 named -> ${g4n.ok ? "passes" : "refuses"}: ${g4n.reason}`);
-  const nearG4n = "deletes refused: 11 removed shard(s) not named (bounds 3 and 200)";
+  const nearG4n = "G4: 12 shard(s) removed, holding 300 keys (bounds 3 and 200); 11 removed shard(s) not named";
   row("G4nx", !g4nReasonOk(nearG4n), `G4n's comparator given "11 removed shard(s) not named" -> ${g4nReasonOk(nearG4n) ? "ACCEPTS it" : "rejects it"}`);
   const g4ok = G.g4Removed(prevByShard, n4, new Set(["S01", "S02", "S03", "S04"]));
   row("G4n-ok", g4ok.ok, `4 removed, all 4 named -> ${g4ok.ok ? "passes" : "refuses"}: ${g4ok.reason}`);
@@ -333,6 +334,51 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
     calls.push(String(commas + 1));
   }
   row("BK2s", calls.length === 1 && calls[0] === "2", `writeBackup( calls in ingest-routes.ts: ${calls.length}, argument counts [${calls.join(", ")}] (want exactly one call with 2)`);
+}
+
+// ---- BK0g, BK0e, BK0n, BK0s, RO1 (2r items 5 and 2) ---------------------------------------------------------------
+{
+  const mod = await import("./routes-backup").catch(() => null);
+  const fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  const D = fs.mkdtempSync(path.join(os.tmpdir(), "routes-bk0-"));
+  try {
+    const p = path.join(D, "b.json");
+    // an injected git answer: the CLI passes none (BK0s), so only this selftest reaches the parameter
+    const ans = (status: number | null, stderr: string, error?: Error) => () => ({ status, stdout: "", stderr, error });
+    const refusal =(git: unknown) => (mod?.backupPathRefusal as unknown as (p: string, g?: unknown) => string | null)?.(p, git);
+    const g = refusal(ans(128, "fatal: detected dubious ownership in repository at '/x'"));
+    row("BK0g", typeof g === "string", `git answering "dubious ownership" (exit 128) -> ${typeof g === "string" ? "refused" : "ALLOWED"}`);
+    const e = refusal(ans(null, "", new Error("spawn git ENOENT")));
+    row("BK0e", typeof e === "string", `git that cannot be run -> ${typeof e === "string" ? "refused" : "ALLOWED"}`);
+    const n = refusal(ans(128, "fatal: not a git repository (or any of the parent directories): .git"));
+    row("BK0n", n === null, `git answering "not a git repository" (the control) -> ${n === null ? "allowed" : `refused: ${n}`}`);
+  } finally {
+    fs.rmSync(D, { recursive: true, force: true });
+  }
+  const src = fs.readFileSync("scripts/ingest-routes.ts", "utf8");
+  const argCounts = (name: string) => {
+    const out: number[] = [];
+    for (let at = src.indexOf(`${name}(`); at >= 0; at = src.indexOf(`${name}(`, at + 1)) {
+      let depth = 0, i = at + name.length, commas = 0;
+      for (; i < src.length; i++) {
+        const ch = src[i];
+        if (ch === "(" || ch === "{" || ch === "[") depth++;
+        else if (ch === ")" || ch === "}" || ch === "]") { depth--; if (depth === 0) break; }
+        else if (ch === "," && depth === 1) commas++;
+      }
+      out.push(commas + 1);
+    }
+    return out;
+  };
+  const bc = argCounts("backupPathRefusal");
+  row("BK0s", bc.length === 1 && bc[0] === 1, `backupPathRefusal( calls in ingest-routes.ts: ${bc.length}, argument counts [${bc.join(", ")}] (want exactly one call with 1)`);
+  // RO1 (item 2): in restoreMain, the journal's own kvChunks call comes after the data delete and before meta
+  const s0 = src.indexOf("function restoreMain(");
+  const body = s0 >= 0 ? src.slice(s0, src.indexOf("\n}\n", s0)) : "";
+  const iDel = body.indexOf('kvChunks("delete", dels');
+  const iJ = body.search(/kvChunks\([^\n]*META_PENDING_KEY/);
+  const iMeta = body.indexOf("{ key: META_KEY, value: bk.meta }");
+  row("RO1", iDel >= 0 && iJ > iDel && iMeta > iJ, `restoreMain: the data delete at ${iDel}, the journal's own kvChunks at ${iJ}, meta at ${iMeta} (want delete < journal < meta)`);
 }
 
 console.log(off ? `SELFTEST: ${off} row(s) off` : "SELFTEST PASSED");

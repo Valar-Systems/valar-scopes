@@ -12,24 +12,36 @@ export interface BackupPayload {
   v: 1;
   env: string;
   runId: string;
+  source: string;       // 2r item 7b: the run's own commits, so --restore can tell its run's seal from a later one
+  prevSource: string;
   sentinel: string | null;
   meta: string;
   journal: string | null;
   keys: Record<string, string | null>;
 }
 
+/** One git answer: what the BK0 check needs from `git rev-parse --is-inside-work-tree`. */
+export interface GitAnswer { status: number | null; stdout: string; stderr: string; error?: Error }
+const askGit = (dir: string): GitAnswer => {
+  const r = spawnSync("git", ["-C", dir, "rev-parse", "--is-inside-work-tree"], { encoding: "utf8" });
+  return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "", ...(r.error ? { error: r.error } : {}) };
+};
+
 /** Why `path` may not hold a backup, or null when it may (BK0). A backup is private: never inside a git work tree, where
- *  a `git add -A` would publish it, and never over an existing file. If git cannot answer, the path is refused: a check
- *  that cannot run proves nothing. */
-export function backupPathRefusal(path: string): string | null {
+ *  a `git add -A` would publish it, and never over an existing file. ONLY git's own "not a git repository" answer allows
+ *  the path (2r item 5): a dubious-ownership refusal, an unreadable .git or a git that cannot run all REFUSE, because a
+ *  check that cannot answer proves nothing. `git` is a FUNCTION PARAMETER for the selftest's BK0g/BK0e/BK0n rows only;
+ *  the writer calls this with one argument (BK0s), so no flag or environment variable reaches it. */
+export function backupPathRefusal(path: string, git: (dir: string) => GitAnswer = askGit): string | null {
   const p = resolve(path);
   if (existsSync(p)) return "the backup file already exists";
   const dir = dirname(p);
   if (!existsSync(dir) || !statSync(dir).isDirectory()) return "the backup's folder does not exist";
-  const r = spawnSync("git", ["-C", dir, "rev-parse", "--is-inside-work-tree"], { encoding: "utf8" });
+  const r = git(dir);
   if (r.error) return "git could not be run to check that the path lies outside every git work tree";
-  if (r.status === 0 && r.stdout.trim() === "true") return "the path lies inside a git work tree";
-  return null;
+  if (r.status === 0) return r.stdout.trim() === "true" ? "the path lies inside a git work tree" : "git did not say the path lies outside every work tree";
+  if (/not a git repository/i.test(r.stderr)) return null;
+  return `git could not answer for the path (exit ${r.status ?? "?"}); only its own "not a git repository" answer allows a backup there`;
 }
 
 /** Write `payload` to `path` (mode 600, never over an existing file), read it back, and return its sha256. A read-back

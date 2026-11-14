@@ -1417,3 +1417,20 @@ another environment.
 - **Planted** (both guards disabled, one run): red exactly {RS0, RS1e, RS1v}, with the other 67 green and empty stderr.
 - `ingest-routes.ts` was restored from its byte copy sha-equal; porcelain 0; the tree equal to HEAD; 0 temp leftovers.
 - So each undo guard has now been seen to refuse, and each row has been seen to go red without its guard.
+
+**2r, red-first (2026-11-14 18:25:03-18:30:55Z, at `d3ce8ac1`, with the code unchanged from `1f57d913`): the red SETS
+exactly as predicted.**
+- **guards:** 71 rows, red exactly {BK0g, BK0e, RO1}.
+  - BK0g and BK0e read "ALLOWED": the injected answer was ignored, and the real git said not-a-repository.
+  - RO1: the journal's own call was not found (-1).
+- **writer:** 81 rows, red exactly {RS0b, RS1t, RS2, BK-T, VF1, VF2, VF3}. RS0b, RS1t, RS2 and BK-T each read "exit 0,
+  store changed: yes", as registered.
+- **VF1-VF3's registered MECHANISM was wrong** ("the run proceeds"). As read:
+  - VF3 is refused by KL1 (`--file --no-seal` swallows `--no-seal`), exit 2;
+  - VF1 and VF2 end at `liveReader`'s refusal for a missing test identity, exit 1. The swallowed token leaves
+    `--readback` "on", and the selftest sets no identity.
+  - The store is unchanged in all three. They are red for the right property (no `(VF)` refusal), not by the stated
+    mechanism. The same treatment as UNDO1's (the reviewer, 2026-11-14), with no re-run.
+- **The stated limit:** the write itself, with an identity, is not demonstrated; the parser refusal that prevents it
+  is. So VF1-VF3 pass only on `(VF)` itself (exit 2 and its message, at parse time), with neither `(KL1)` nor the
+  missing-identity refusal in their output (the reviewer's condition).
