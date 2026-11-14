@@ -47,9 +47,19 @@ then CI, in this one PR. **The deploy needs the owner's word and the deploy clai
 |---|---|---|
 | non-empty | **not requested** | the primary: every read from the primary; `source: "primary"` |
 | empty (200, no frame key in the window) | non-empty | the backup: every read from the backup; `source: "backup"` |
-| fails every attempt (5xx, network, timeout; the existing `DEFAULT_OPTS.list`) | non-empty | the backup, as above |
-| empty or failed | empty or failed | `no-frame`, as today: no GET, nothing written |
+| fails every attempt (5xx, network, timeout; the existing `DEFAULT_OPTS.list`) | non-empty | the backup, as above, with the primary's failure carried in the result (`primaryListError`) |
+| empty | empty | `no-frame`, as today: no GET, nothing written |
+| fails every attempt | empty | **THROWS the primary's NoaaError, as today**, its text noting that the backup listed empty. Nothing written |
+| empty | fails every attempt | **THROWS the backup's NoaaError.** Nothing written |
+| fails every attempt | fails every attempt | **THROWS, with both NoaaErrors' text.** Nothing written |
 | **non-empty, but a READ fails every attempt** | **not requested** | **the check FAILS as today** (`NoaaError`): no frame written, `latest` untouched, and **no request to the backup** |
+
+**AMENDED before any code (the reviewer, 2026-11-14, received by 08:34Z), as ONE principle:** `no-frame` ONLY when every
+host consulted answered EMPTY. Any listing failure that leaves the check without a frame THROWS.
+- The registered row it replaces read "empty or failed / empty or failed → `no-frame`". That would have made "we could
+  not reach either host" read exactly like "OPERA has no frame", which is the outage's own signature.
+- **An empty backup says nothing about whether the primary has frames,** so a primary failure stays the error.
+- **`IngestResult.source`** is set on every check that chose a source, so every log line names it.
 
 **The last row is the registered answer to "the primary lists but its reads fail".** A fallback inside the check would
 be a mixed run, so the check fails. **Its consequence, stated:** a primary that keeps listing frames it cannot serve keeps
@@ -90,6 +100,8 @@ host. "Red against main" means the test file is written first and run against `6
 | **FB2** | primary empty: the backup is listed; every GET goes to the backup host (0 primary GETs); `source: "backup"` | **red** (the backup is never listed) |
 | **FB3** | the primary's listing fails every attempt: the backup is listed and used; `source: "backup"` | **red** |
 | **FB4** | both empty: `no-frame`, both listed, 0 GETs, nothing written | **red** (main never lists the backup) |
+| **FB4b** | (the amendment) both listings fail every attempt: the check throws, its text naming the primary's `OPERA list` failure; 0 GETs; nothing written | **green on main too** (main throws on the primary's failure): a REGRESSION row |
+| **FB4c** | (the amendment) the primary fails every attempt, the backup lists empty: the check throws the primary's `OPERA list` error; 0 GETs; nothing written | **green on main too**: a REGRESSION row |
 | **FB5** | primary non-empty, its head GET fails every attempt: the check throws; 0 requests to the backup host; no frame; `latest` byte-identical | **green on main too**: a never-mix REGRESSION row, not counted red-first |
 | **FB6** | `latest` carries the stored frame's `source`; a frame stored without it (before this change) gives a `latest` with no `source` | **red** |
 | **FB7** | the primary's return, at unit level: backup frames at E1-E3, `latest` E3 (backup); the primary lists E2-E4. E4 is stored from the primary, E2 and E3 are never rewritten (their metadata stays `backup`), and `latest` moves E3 to E4 with `source: "primary"`. **Its lagging case:** the primary lists only E1-E2 (older than `latest`), so `latest` reads `kept-newer` and never goes backwards | **red** (no `source`) |
@@ -101,11 +113,16 @@ host. "Red against main" means the test file is written first and run against `6
 **How the FB rows assert, fixed now so the sabotage sets below are determinable:**
 - FB1, FB2, FB3, FB4, FB5 and FB7 each assert the EXACT SET of (host, kind) their requests reached, where the kind is
   list, head or tiles.
+- FB4b and FB4c assert the throw, the `OPERA list` text, no head or tiles request, and nothing written. They do NOT
+  assert the host set, so main (which never lists the backup) passes them too.
 - FB6 asserts only `latest`'s `source`.
 - HZ1 seeds `latest` records directly and runs no ingest.
 
-**Red-first, predicted:** red exactly **{FB1, FB2, FB3, FB4, FB6, FB7, HZ1}**; FB5, UA1 and UA3 green (regression rows);
-UA2 red until its commit. **Then green:** all eleven. Every existing `wx-*` test unchanged.
+**Red-first, predicted, by test** (14 tests; FB7's lagging case is its own `it`):
+- red exactly **{FB1, FB2, FB3, FB4, FB6, FB7, FB7 (lagging), HZ1}**, plus UA2 until its commit;
+- green: FB4b, FB4c, FB5, UA1 and UA3 (regression rows).
+
+**Then green:** all 14. Every existing `wx-*` test unchanged.
 
 **Sabotages, each registered here and run after green** (a byte-copy restore with sha256 equal):
 - **S-MIX:** the reads go to the OTHER host than the listing. Red exactly **{FB1, FB2, FB3, FB5, FB7}**. FB5's stub serves
