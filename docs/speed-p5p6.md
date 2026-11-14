@@ -242,3 +242,20 @@ Nothing has been read at the old pin, so this amendment comes before any reading
 - **Its control:** a plant, the include order reversed in a copy, must read S0 red.
 - Pass: the run continues. Fail: the run stops and is reported, and nothing is fixed before a ruling. The check
   cannot tell, or the control does not go red: "instrument", stop.
+
+### 4a. Amendment 1a: the gains wait for an A0a read on the fixed tree (ruled 2026-11-14, before any reading)
+
+**The ruling** (the orchestrator, 2026-11-14, after 22:21:08Z): wait for an A0a read on the fixed tree, not one at
+`bfcb47e01c3d`. That sha also carries C1's first defect. Its (a) hook aliased every row to one, so the board tracked
+ONE aircraft while being fed 40. A frame-time read through it measured a 1-aircraft scene, unless its reader checked
+drawn == N on every frame.
+
+**What changes:**
+- Section 3's addendum takes its gains only from an A0a read on the fixed tree named in section 4. An A0a read at
+  `bfcb47e01c3d` is not used.
+- **New row S1, drawn == N (a stop row).** On every frame of every frame-time reading, the count of contacts actually
+  drawn equals the scene's N (20, 40 or 60).
+  - One frame off: the reading stops and is reported.
+  - If the fixed tree's bench prints no drawn count per frame, S1 is re-stated here before the addendum, so it is
+    never skipped.
+  - **Its control:** a plant that aliases the rows to one must read S1 red.
