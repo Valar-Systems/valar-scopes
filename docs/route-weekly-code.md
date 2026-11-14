@@ -867,6 +867,9 @@ is engineering and a guarded write path, not money. That decision is the owner's
 | D4, red-first | section 2l's rows, before the code (07:58-07:59Z): writer red exactly {FM1}: exit 2, but from FK1, with `(FM1)` absent. FM-ctl and the other 36 green | **as predicted** |
 | D4, green | the full mode refuses `--env production` without `--dry-run` (exit 2, `(FM1)`), checked before FK1. Writer **38 of 38**, FM1 and FM-ctl both green; run 7 of 7; `typecheck:scripts` exit 0; the anchor tool reads 15 plants, each anchor once | **as predicted** |
 
+| D6, red-first | section 2m's plants, before the code (08:25Z): red exactly the 7 new plants {SC1q, SC1z, SC5b, SC5j, NPM1c, SC3b, SC3n}, each reading clean; S1, S3 and S5 OFF (every new plant "turned green" by every sabotage); CTL and the 11 earlier plants green | **as predicted** |
+| D6, green | the quoted `on` key read; an empty trigger set fails closed; `secrets['X']` and `toJSON(secrets)` flagged; each command in a line judged alone; `bash -x`/`sh -x`/`set -o xtrace` and a bare `env` flagged. `SELFTEST PASSED`, 22 rows. S1 turns exactly {SC1q, SC1t, SC1z}; S3 exactly {SC3b, SC3e, SC3n, SC3p, SC3x}; S5 exactly {SC5, SC5b, SC5j}. The real workflow: `routes workflow: OK` | **as predicted** |
+
 **Proposed after run 2 (awaiting the reviewer's ruling; nothing re-run):**
 
 - **(a) The re-run, set up as every earlier run was:** `env -u BLIPSCOPE_TOKEN_FILE node scripts/sabotage-routes-weekly.mjs`.
