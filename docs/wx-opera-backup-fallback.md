@@ -308,7 +308,9 @@ whole month.
     - **against main's code:** red exactly {FB1, FB2, FB3, FB4, FB4b, FB4c, FB4d, FB6, FB7, FB7 (lagging), HZ1, ERR1,
       UA2, UA3}, green {FB5, UA1}. FB4d's red there is B1's own: main returns no-frame;
     - **under S-EMPTYFAIL:** red exactly {FB4d}.
-- **the smoke selftest against today's script:** red on cases (a), (b) and (g); green on (c), (d), (f), (f2) and (e).
+- **the smoke selftest against today's script:** red on cases (a), (b), **(c)** and (g); green on (d), (f), (f2) and (e).
+  **Corrected 09:38Z, before the run:** the first draft had (c) green. But (c)'s body (a Worker before the health
+  fields) holds `opuk`, so its line gains ` source=-` too.
 
 **After:** 16 of 16. The smoke selftest PASSES. Every `wx-*` file passes. `tsc` exit 0.
 
