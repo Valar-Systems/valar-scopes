@@ -641,7 +641,9 @@ rows behind RCP2's sealed store).
   - S-TMP (the seal's clear also uses a `tmpDir`, so TMP1 alone);
   - S-RR3 (RR6's verify passes either way);
   - the guards, freeze, health and reconcile plants.
-- **The W8 re-run's BASELINE becomes:** guards 63, writer **46**, freeze 4, run **8**, routes-health 11, reconcile 1.
+- **The W8 re-run's BASELINE becomes:** guards 63, writer **48** (46 here, plus 2o's SN1 and SN1-ctl, added minutes
+  later), freeze 4, run **8**, routes-health 11, reconcile 1. None of the 18 plants' sets includes SN1 or SN1-ctl: the
+  count line is printed by every verify, under every plant.
 
 **Cost:** per run, +1 KV read (the journal); per writing run, +1 KV write (the journal put); per seal, +1 KV delete. On
 the first attended run (4a): `pending: none` in both environments' dry runs, which joins 4a's predicted lines. Anything
