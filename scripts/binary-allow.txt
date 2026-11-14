@@ -13,4 +13,3 @@ pdf	docs/Blipscope-WiFi-Field-Test.pdf	382f831cde7465126e3a1a18c8bc138505716d143
 # Q81 (a): a Wikimedia Commons photo, "Cessna Citation Longitude N807QS" by Sewageboy, CC BY 4.0
 # (proxy/photos/manifest.json). Its EXIF GPS is the photographer's location, public in Commons' copy; the file stays
 # byte-identical to its licensed source.
-exif-gps	proxy/photos/src/c700.jpg	7d805afb0d81b40c6888ce68d3ed5fe47d68d235c4bf1185b63d3d9a1f409ebd	the photographer's metadata in a CC BY 4.0 Commons photo, public in the source
