@@ -217,3 +217,28 @@ The addendum, before any code, carries:
 
 If A0a moves a premise here (for instance, the outline isn't the largest weather share at 40), the order is re-ruled
 before anything is built.
+
+## 4. Amendment 1: the pin moves (ruled 2026-11-14, before any reading)
+
+**What was found.** map-client found that the C1-lineage bench's planted delays (a push-task delay of 10 or 60 ms,
+and the loop's +10 ms) never fired: a header-defined macro is included in a different order in `main.cpp` than in
+the driver. P5's and P6's OLD paths live in FRAME_BENCH regions of that same tree.
+
+**The ruling** (the orchestrator, 2026-11-14, after 22:18:15Z): "before any P5/P6 reading, REBASE onto map-client's
+fixed tree once its include-order fix lands, and keep your same-order check as a row that stops the run if it fails."
+
+Nothing has been read at the old pin, so this amendment comes before any reading.
+
+**What changes:**
+- Section 0's tree (`bfcb47e01c3d`) is no longer the base for any reading. P5's and P6's bench branches start from
+  map-client's fixed tree. Its sha is written here before any reading, and every reading names it.
+- Section 0's three constraints (the kind tables, `kScenes` compiled twice, the step-C exemption) are re-read on the
+  fixed tree. Any that moved is re-stated here before the addendum.
+
+**New row S0, same order (a stop row).** Run on each bench image before its first frame-time reading.
+- **The check reads the built image, not the source:** every FRAME_BENCH-gated piece a P5/P6 row depends on (the OLD
+  path, the kind tables, image B's scene list) is compiled into the translation unit that runs it, under the same
+  bench macros the driver sees.
+- **Its control:** a plant, the include order reversed in a copy, must read S0 red.
+- Pass: the run continues. Fail: the run stops and is reported, and nothing is fixed before a ruling. The check
+  cannot tell, or the control does not go red: "instrument", stop.
