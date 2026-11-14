@@ -327,3 +327,23 @@ reviewer's 17:17:05Z go: weatherscope's combined deploy was closed and verified 
 | W from 101 to 397; or a sub-window's two reads disagree; or the control does not read 67,301 production and 65,678 staging writes | none of the above: the instrument is unreliable at this scale. Stop and record |
 
 Staging's counts in the sub-windows are reported and not graded: they cannot bear on production's window.
+
+**D1 on production, the result** (read at 02:19:45Z and again at 02:20:48Z, identical; the control at 02:20:49Z read
+67,301 production and 65,678 staging writes, as before):
+
+| sub-window | production write | list | read |
+|---|---|---|---|
+| 01:27:00-01:37:00Z | 6 | 621 | 799 |
+| 01:53:00-02:03:00Z | 28 | 637 | 1,041 |
+
+- **W = 34, which is at most 100: about 0 run-attributable writes fell outside the run's window.** So (c) does not
+  explain P5. (a) and (b) remain, and **the analytics write count is recorded as unable to grade a run at this
+  precision.**
+- Neither sub-window holds any staging operation.
+- Not graded, but consistent with the timestamps being right: the two sub-windows' lists, 621 and 637, are P1's and
+  P3's verify listings (about 630 pages each). Each landed in the sub-window its verify ran in: P1 ran 01:32:17-01:36:34Z
+  and P3 ran 01:52:54-01:57:06Z.
+
+**(A) is closed.** Production holds the 24ce5424 corpus, verified complete (P3) and value-checked (P6). It was sealed at
+01:52:29.338Z and is fresh on `/healthz` (P4). The run counts as **NOT CLEAN** on P5 alone, an instrument OFF, with no
+data defect.
