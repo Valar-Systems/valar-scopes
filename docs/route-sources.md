@@ -37,6 +37,29 @@ withheld as implausible for the aircraft's position.
    rather than a Worker request, and LADD filtering (section 2.9). **OpenSky carries no routes in its REST API**, and needs a
    written licence for commercial or operational use (section 2.10).
 
+## 0a. The decision on adsbdb's route data (the owner, 2026-11-14)
+
+**The rights holder answered on 2026-11-13: no permission for commercial use.** That is the route data's author, the
+one adsbdb's README names as the one whose permission is needed (section 2.2). The owner's ruling, relayed 2026-11-14:
+- **adsbdb's route chain stays OFF, permanently,** and so does the route data behind it, wherever it is served. That
+  includes hexdb.io's routes, which credit one of the same compilers (section 2.4).
+- **The adsbdb operator note is CLOSED.** Section 2.2's "ask both" is answered for the data, and nothing is pending
+  with adsbdb's operator.
+- **Routes stay on the CC0 VRS standing data** (our `rt:` mirror, section 2.1), kept current by the weekly refresh.
+- **The product does not change.**
+
+**The state that stays, read from main (`620a215d`) and changed by nothing here:**
+
+| file | line | section | value |
+|---|---|---|---|
+| `proxy/wrangler.toml` | 367 | `[env.production.vars]` | `ROUTE_ADSBDB_ENABLED = "false"` |
+| `proxy/wrangler.toml` | 187 | `[env.staging.vars]` | `ROUTE_ADSBDB_ENABLED = "false"` |
+
+The top-level `[vars]` (line 46, dev and test only, and never deployed: `deploy.sh` takes only `staging` or
+`production`) still reads `"true"`. Its comment says "'false' once adsb.lol routeset recovers", which no longer
+describes the reason it stays off. It is left as it is, because this ruling changes no code or config. It is flagged
+for a ruling of its own.
+
 ## 1. Summary table
 
 | source | gives (callsign → route?) | licence, in one line | cost | fits us as published? |
@@ -121,6 +144,8 @@ Whether to refresh before the SDM site's operator answers is the owner's call. T
   `ingest-routes.ts:20-23` already gives it. Showing a route on a sold device may also be "published".
   - **So the grant that would let us use it is the rights holder's, not adsbdb's operator's.**
   - The owner's ask (a) is best sent to both: adsbdb's operator for API use and rate, and the rights holder for the data.
+- **ANSWERED AND CLOSED (2026-11-14, section 0a):** the rights holder declined commercial use on 2026-11-13. adsbdb's
+  route chain and its route data stay off permanently, and the operator note is closed.
 
 ### 2.3 adsb.lol routeset
 
