@@ -30,7 +30,7 @@ until it is planned. A deploy never carries a change nobody predicted.
 |---|---|---|---|
 | D0.1 | 15:55Z | the wake fires; `date -u` read | between 15:55 and 16:00Z on 11-16 |
 | D0.2 | before 16:00Z | `git ls-remote` main, and the carried list from `git log aa40aa43..<main> -- proxy/` | the five commits above, or more that touch only files no Worker build reads. Anything else: stop |
-| D0.3 | before 16:00Z | the owner's other conditions: no S1, S2, S4 or Sunday sitting is on, and #19 has not merged on 11-16 | both true. If either is not, no deploy: report |
+| D0.3 | before 16:00Z | the owner's other conditions: no S1, S2, S4 or Sunday sitting is on (asked of the reviewer), and valarscopes-site PR #19 (the live scope on /blipscope/) has not merged on 11-16: `gh pr view 19 --repo Valar-Systems/valarscopes-site --json mergedAt` | both true. If either is not, no deploy: report |
 | D0.4 | before 16:00Z | the rollback targets, from `deployments list --json` through the helper, ids only | production `69072b90-575a-4984-b704-3e101cd0e36a`, staging `1f1a0fae-7674-43d5-9499-e3b35c00ba68` (read 11-14 03:37-03:38Z). A different id means someone deployed since: write the new id down, and report before going on |
 | D0.5 | before 16:00Z | `/healthz` on both, twice, at least 60 s apart | production: commit `aa40aa43`, `routes.maxAgeDays` 14. Staging: commit `b7184243`, `routes.maxAgeDays` 14. The `builtAt` of each is written down; it carries into C2 |
 | D0.6 | 16:00Z | the baseline: `smoke-prod.sh` against production, and `BASE=<staging>` against staging, as the test identity, whole output to a file | each run's verdict list is saved by name. Today's FAILs, if any, are the baseline, not the deploy's |
@@ -62,6 +62,9 @@ until it is planned. A deploy never carries a change nobody predicted.
 - A new centre appears at the first accepted write after the deploy. That is within the 30 s gate plus the next device
   tile refresh, so the read waits for a snapshot newer than D3.
 - If no such read is available on the day, C3 is reported **"not run"**, never passed.
+- The reviewer, 2026-11-14: the site ships dark (its data routes 404 until switched on, #11), so it may have no
+  production path that reads the snapshot yet. The reviewer asked valarscopes-site and valarscopes-app, which holds the
+  same binding. If neither can give the boolean, C3 is "not run", and it is covered when the site switches on.
 - A rejection by the site is a failure: roll back.
 
 **C4, the credits page.** `/credits` contains `camera location and serial metadata are removed.` exactly once. The
