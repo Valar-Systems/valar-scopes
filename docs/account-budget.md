@@ -576,5 +576,28 @@ checked scenarios here, and #720's 5a points at them.
     hand table disagree; decide". 9.6's 11-12-base figures are marked SUPERSEDED once (v) lands.
 - **5a in #720** then carries no table: a pointer to these rows, its v1 kept and marked superseded with the cause.
 
+**9.9 Two details 9.8 needs, registered 2026-11-14 09:55Z before any code: proposed for acceptance.**
+- **(a) Segments, not one `from`.** The weather lever changes shsr's state twice in November: `absent`, then `built`
+  from 2026-11-13T06:16Z, then `built-no-list` from 11-17. So a product's state in a month scenario is an ordered list
+  `[{state}, {state, from}, ...]`, where the first segment has no `from`. 9.8(ii)'s `{state, from, before}` is the
+  two-segment case. The checker refuses: an empty list, a first segment with a `from`, unsorted or out-of-month `from`s,
+  and segments in a 30-day scenario. A one-off row's product may not change state inside a month scenario (refused).
+- **(b) shsr's first day is inside the MTD base, and is split out from sourced figures before X10 replaces it.** shsr
+  went live 2026-11-13 ~06:16Z, about 24 h inside the MTD window, and the base counts that day at the window's linear
+  x 2.264.
+  - **CPU and requests:** by script. `budget_read.py`'s new mapping (9.4) attributes them to shsr, which the MTD read,
+    taken before the mapping, filed as `unattributed`. In the rebuilt file, shsr's MTD rows go to `excluded` (so the read
+    still anchors), and X10's rows stand in `built`.
+  - **Class A:** the blipscope-wx bucket's row (filed as cref) holds cref and shsr's day together, and R2 cannot
+    separate them by bucket. **cref's share is X10's own anchor, cref at 181.3 an hour** (weatherscope S4.28b), x 720:
+    130,536 a month. The rest is shsr's day, in `excluded`. Arithmetic, frozen now: the bucket's 147,926 a month is
+    65,334 raw over 318 h; the anchor x 318 h is 57,653; shsr's day is 7,681 raw, 17,390 scaled. **December
+    none/none's Class A then renders 1,009,156**, against the corrected 5a's 1,009,181: a rounding difference.
+  - **Class B:** the blipscope-wx-reads row holds the proxy's /wx serving and the ingests' reads. shsr's day there is
+    estimated from its design projection: 432,000 a month x 23.7/720 h, about 14,200 raw. Basis `derived`, in
+    `excluded`, and the rest stays.
+  - **This is why the corrected 5a subtracted 17,366** (Class A) and 1,667,164 (CPU) from the MTD totals. Those
+    figures are now derived in the builder, from stated sources, rather than by hand.
+
 **9.7 CI for this registration (docs only):** predicted **33 = 31 success + 2 skipped + 0 other.** The anchor is
 #714's and #718's docs-only heads (both 33 = 31/2/0), with no workflow change on main since. **Outside the set:** stop.
