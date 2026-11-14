@@ -10,7 +10,12 @@ BINARY_EXT -- images, firmware heads, packages, fonts, archives. Their bytes are
     by its MAGIC, whatever its name says (jpeg, png, webp, tiff -- the whole file is the TIFF -- and heif/avif, whose
     'Exif' item is followed through meta/iinf and meta/iloc), and also, as before, by a jpg/jpeg/png/webp extension:
     the extension path is kept whole and the magic path only adds to it. A HEIF whose meta cannot be parsed, or whose
-    Exif item cannot be followed to a TIFF header, fails as `exif-unread` until it is reviewed;
+    Exif item cannot be followed to a TIFF header, fails as `exif-unread` until it is reviewed. An XMP location tag
+    counts only when it holds a VALUE (2026-11-14): a non-empty attribute value, or an element with non-empty text or
+    a non-empty attribute value anywhere inside it. An empty container (<rdf:Bag/>, whitespace) holds no location. Two
+    directions are deliberately conservative and are KNOWN false positives: an element whose only content is a
+    structural attribute (rdf:parseType="Resource") counts, and so does a tag name met anywhere it cannot be judged
+    (inside text, say);
   - `wifi-store`: ESP-IDF's Wi-Fi NVS namespace or the firmware's own Wi-Fi namespaces, in a file that is NOT an ESP app
     image -- the tell of a committed settings or flash dump, whose network name has no context and whose BSSID is 6 raw
     bytes. Every app image carries those names in its code, so an app image (E9, and esp_app_desc_t's magic at 0x20) is
@@ -27,7 +32,7 @@ is exactly what this reads.
 
     python3 scripts/check_binary_strings.py [--root DIR] [--allow FILE]   exit 0 clean; 1 a finding, a stale or idle
                                                                            allowance; 2 rig or BLIND
-    python3 scripts/check_binary_strings.py --selftest [--root DIR]       32 rows, each plant in a copy of a real tracked
+    python3 scripts/check_binary_strings.py --selftest [--root DIR]       39 rows, each plant in a copy of a real tracked
                                                                            file; each must see exactly its file and kind
     python3 scripts/check_binary_strings.py --sabotage                    each sabotage, planted into a copy of this
                                                                            script, must turn exactly its rows red
@@ -240,6 +245,49 @@ def exif_magic(raw, kind):
     return [], False
 
 
+_ATTRS = re.compile(rb"""[\w:.-]+\s*=\s*("[^"]*"|'[^']*')""")
+
+
+def _attrs_have_value(s):
+    """True when any attribute in s has a non-empty value."""
+    return any(m.group(1)[1:-1].strip() for m in _ATTRS.finditer(s))
+
+
+def xmp_location_value(raw):
+    """True when an XMP location property (XMP_LOC) holds a VALUE. Every occurrence of a token is accounted for:
+    an attribute holds a value when it is non-empty; a tag when its own attributes hold one (a structural
+    rdf:parseType counts: the conservative direction), or when its content up to the matching close holds non-empty
+    text or a non-empty attribute value at any depth; a closing tag holds none; and an occurrence that is neither an
+    attribute nor a tag cannot be judged, so it counts. Fires only where a token occurs: a subset of token presence."""
+    for tok in XMP_LOC:
+        t = re.escape(tok)
+        seen = 0
+        for m in re.finditer(rb"(?<![A-Za-z])" + t + rb"""\s*=\s*("[^"]*"|'[^']*')""", raw):
+            seen += 1
+            if m.group(1)[1:-1].strip():
+                return True
+        for m in re.finditer(rb"<(/?)(?:[\w.-]+:)?" + t + rb"""\b((?:[^>"']|"[^"]*"|'[^']*')*)>""", raw):
+            seen += 1
+            if m.group(1):
+                continue                                              # a closing tag
+            attrs = m.group(2)
+            if _attrs_have_value(attrs):
+                return True                                           # its own attributes, structural ones included
+            if attrs.rstrip().endswith(b"/"):
+                continue                                              # self-closing, and nothing in it
+            end = re.search(rb"</(?:[\w.-]+:)?" + t + rb"\s*>", raw[m.end():])
+            if end is None:
+                return True                                           # unclosed: cannot be judged
+            inner = raw[m.end():m.end() + end.start()]
+            if re.sub(rb"<[^>]*>", b"", inner).strip():
+                return True                                           # text
+            if _attrs_have_value(inner):
+                return True                                           # a value nested at any depth
+        if raw.count(tok) > seen:
+            return True                                               # an occurrence that is neither
+    return False
+
+
 # ------------------------------------------------------------------------------------------------- containers
 
 class Unopenable(Exception):
@@ -336,7 +384,7 @@ def kinds_of_bytes(ext, raw):
         found.add("exif-gps")
     if unread:
         found.add("exif-unread")
-    if (ext in PHOTO or kind) and b"x:xmpmeta" in raw and any(t in raw for t in XMP_LOC):
+    if (ext in PHOTO or kind) and b"x:xmpmeta" in raw and xmp_location_value(raw):
         found.add("xmp-location")
     if not is_app_image(raw) and any(n in raw for n in WIFI_STORE):
         found.add("wifi-store")
@@ -491,6 +539,11 @@ def _png_with_gps(png):
     return png[:33] + struct.pack(">I", len(tiff)) + b"eXIf" + tiff + b"\x00" * 4 + b"\x00\x00\x00\x00IEND\xaeB`\x82"
 
 
+def _xmp(raw, body):
+    """raw with an XMP packet appended, holding body inside rdf:RDF."""
+    return raw + b'<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF>' + body + b"</rdf:RDF></x:xmpmeta>"
+
+
 def _zip_with(raw, name, data, method):
     buf = io.BytesIO(raw)
     with zipfile.ZipFile(buf, "a") as z:
@@ -588,6 +641,31 @@ def selftest(root):
          []),
         (32, "(m) control: a .tif member with no GPS",
          {tmf: _zip_with(tmfr, "plant/clean.tif", _tiff_plain(), zipfile.ZIP_DEFLATED)}, [], base_allow, CAP, []),
+        # (x) an XMP location tag counts only with a VALUE (2026-11-14); the packet is appended to the real png
+        (33, "(x) control: an empty LocationCreated Bag",
+         {png: _xmp(pngr, b"<rdf:Description><Iptc4xmpExt:LocationCreated><rdf:Bag/></Iptc4xmpExt:LocationCreated>"
+                          b"</rdf:Description>")}, [], base_allow, CAP, []),
+        (34, "(x) control: whitespace-only LocationShown",
+         {png: _xmp(pngr, b"<rdf:Description><Iptc4xmpExt:LocationShown>  \n  </Iptc4xmpExt:LocationShown>"
+                          b"</rdf:Description>")}, [], base_allow, CAP, []),
+        (35, "(x) a parseType-only LocationShown counts",
+         {png: _xmp(pngr, b"<rdf:Description><Iptc4xmpExt:LocationShown rdf:parseType=\"Resource\">"
+                          b"</Iptc4xmpExt:LocationShown></rdf:Description>")}, [], base_allow, CAP,
+         [(png, "xmp-location")]),
+        (36, "(x) a filled photoshop:City attribute",
+         {png: _xmp(pngr, b"<rdf:Description photoshop:City=\"Somewhere\"/>")}, [], base_allow, CAP,
+         [(png, "xmp-location")]),
+        (37, "(x) a City attribute nested in a Bag",
+         {png: _xmp(pngr, b"<rdf:Description><Iptc4xmpExt:LocationCreated><rdf:Bag><rdf:li Iptc4xmpExt:City="
+                          b"\"Somewhere\"/></rdf:Bag></Iptc4xmpExt:LocationCreated></rdf:Description>")}, [],
+         base_allow, CAP, [(png, "xmp-location")]),
+        (38, "(x) GPSLatitude as element text",
+         {png: _xmp(pngr, b"<rdf:Description><exif:GPSLatitude>12,34.5N</exif:GPSLatitude></rdf:Description>")}, [],
+         base_allow, CAP, [(png, "xmp-location")]),
+        (39, "(x) a location name inside text counts",
+         {png: _xmp(pngr, b"<rdf:Description><dc:description><rdf:Alt><rdf:li xml:lang=\"x-default\">near the "
+                          b"LocationShown spot</rdf:li></rdf:Alt></dc:description></rdf:Description>")}, [],
+         base_allow, CAP, [(png, "xmp-location")]),
     ]
 
     ok = True
@@ -635,6 +713,15 @@ SABOTAGES = {
                "    return raw[:1] == b\"\\xe9\"  # SABOTAGE S-Q82e: E9 alone exempts\n", {25}),
     "S-MAGIC": ("    kind = image_" + "kind(raw)\n", "    kind = None  # SABOTAGE S-MAGIC: by extension only\n",
                 {26, 27, 28, 29, 30}),
+    "S-XMPVAL": ("in raw and xmp_location_" + "value(raw):\n",
+                 "in raw and any(t in raw for t in XMP_LOC):  # SABOTAGE S-XMPVAL: token presence again\n", {33, 34}),
+    "S-XMPATTR": ("            if m.group(1)[1:-1]" + ".strip():\n                return True\n",
+                  "            if False:  # SABOTAGE S-XMPATTR\n                return True\n", {11, 36}),
+    "S-XMPOPEN": ("            if _attrs_have_value(at" + "trs):\n", "            if False:  # SABOTAGE S-XMPOPEN\n", {35}),
+    "S-XMPTEXT": ("            if re.sub(rb\"<[^>]*>\", b\"\", in" + "ner).strip():\n",
+                  "            if False:  # SABOTAGE S-XMPTEXT\n", {38}),
+    "S-XMPNEST": ("            if _attrs_have_value(in" + "ner):\n", "            if False:  # SABOTAGE S-XMPNEST\n", {37}),
+    "S-XMPUNACC": ("        if raw.count(tok) > se" + "en:\n", "        if False:  # SABOTAGE S-XMPUNACC\n", {39}),
     "S-TIFF": ("    if kind == \"ti" + "ff\":\n        return [raw], False\n",
                "    if kind == \"tiff\":  # SABOTAGE S-TIFF: a TIFF is not read\n        return [], False\n", {28}),
     "S-HEIF": ("    if kind == \"he" + "if\":\n        return heif_exif(raw)\n",
@@ -659,7 +746,7 @@ def sabotage(root):
     src = open(os.path.abspath(__file__), encoding="utf-8").read().replace("\r\n", "\n")
     ok = True
     rc, red, rows = _selftest_of(src, root)
-    good = rc == 0 and not red and len(rows) == 32
+    good = rc == 0 and not red and len(rows) == 39
     print("  %s control: the unplanted copy's selftest: exit %d, %d rows, red %s" % ("ok  " if good else "FAIL", rc,
                                                                                   len(rows), sorted(red) or "-"))
     ok &= good
@@ -672,7 +759,7 @@ def sabotage(root):
         planted = src.replace(anchor, repl)
         assert planted != src
         rc, red, rows = _selftest_of(planted, root)
-        good = rc == 1 and red == want and len(rows) == 32
+        good = rc == 1 and red == want and len(rows) == 39
         ok &= good
         print("  %s %s: exit %d, red %s (want %s)" % ("ok  " if good else "FAIL", name, rc, sorted(red), sorted(want)))
     print("SABOTAGE " + ("PASSED" if ok else "FAILED"))
