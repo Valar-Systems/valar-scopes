@@ -1,0 +1,32 @@
+# Census round 7 on the PRIMARY: the orchestrator's ruling (i), after 06:46:33Z 2026-11-14. Registered before it runs.
+# Why: round 6 (06:38-06:45Z) fetched 2 of 8 from www2 (27081 and 54093 linearwater, its last two attempts) and refused 6;
+#   form (d)'s switch_d.py apply refuses on any primary fetch, and M-1..M-3 name 8, so form (d) as registered cannot run.
+# The old retry tree exited 1 at 06:46:17Z ("retry: 6 still not fetched after the schedule"); 0 ingest-basemap processes at
+#   06:46:33Z. Only one retry tree runs.
+# The run, from sab-ingest/proxy (c3acc338, clean), the ingest's own retry, one file a minute, with its UA:
+#   bash runlog.sh census-r7 npx tsx scripts/ingest-basemap.ts retry --cache <bm-cache-qw4> --schedule-min 0 --urls <the 6>
+# The 6, www2.census.gov, as plan f12d3eb56040 names them, in round 6's order:
+#   tl_2024_38021_areawater, tl_2024_39167_areawater, tl_2024_44007_areawater, tl_2024_56029_areawater,
+#   tl_2024_17005_linearwater, tl_2024_19123_linearwater (.zip)
+
+R7-1  6 lines "<file>: fetched", one a minute, in that order; then "retry: all fetched"; exit 0 (the process's own); stderr 0 B.
+      A "fetched" line is written only after fetchOne's guards (length, checkBody) pass and the record reads back with a
+      64-hex sha256 (ingest-basemap.ts retryBlocked).
+R7-2  retry-fetched.json then holds 8 records (round 6's 2 + these 6), each a 64-hex sha256; retry-attempts.jsonl 48 -> 54
+      lines, the 6 new ones "fetched".
+R7-3  plan.json unchanged: f12d3eb56040.
+S1-8  S-1, the REGISTERED drift row (seastore/s01.py a3b285ea0a38, through runlog), on the cache after the retry, against
+      bm-obj/manifest.json: exit 0; S-0 ok, the 4 pins as before; water same 3144, rivers same 3144, changed 0 in both; every
+      other layer exactly as 5-s01.out (roads 51; places, population, states, counties 1 each; naturalearth 2; sea 1 same +
+      1 added; terrain 9638; peaks 51 changed); planned 16036, fetched 16036, planned_not_fetched 0.
+
+OUTSIDE THE SET
+- Any "not fetched" line. The round is the ingest's own and is NOT killed, because a kill could leave retry-fetched.json
+  half-written. It finishes its one pass (at most 6 attempts, about 6 minutes), and then STOP: no further step. Those files
+  go to (ii)'s re-registration (8 -> n, the guard skipping primary-fetched entries, red-first), brought to the orchestrator
+  before anything is applied. S-1 still runs on what was fetched. Its prediction: water same 3140 + the areawater fetched,
+  rivers same 3142 + the linearwater fetched, changed 0 in both, planned_not_fetched = the number refused, all else as above.
+- Any fetched TIGER file CHANGED at S-1: STOP before S-2 and report; no fix without a ruling.
+- Any other exit, stderr or count than above: STOP and decide. The run or the instrument is not what was registered.
+- If R7-1..R7-3 and S1-8 all read as predicted: M-1..M-5 are void (no mirror, no notes), and S-2 onward runs as registered
+  (the 10-28 path).
