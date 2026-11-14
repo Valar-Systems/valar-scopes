@@ -1,0 +1,347 @@
+=== runlog mirror-rehearse-n6 at 2026-11-14T07:08:55Z in /c/Users/DanielFrenkel/AppData/Local/Temp/claude/c--Github-Blipscope/42c0515f-3e14-4ac7-ad7f-52c73572a584/scratchpad: bash mirror/rehearse_n6.sh
+=== stdout (24311 B, whole)
+real before: plan f12d3eb56040, retry-fetched 89475784fe22, fetch-log c621cf79f08d, kept copies in mirror/ 0
+=== the guards that are not about placement
+--- N-R8 NEW, a rehearsal flag on the REAL cache (must STOP)
+STOP: the rehearsal flags are refused on the real cache
+    exit 1
+base N-R0 B2: plan f12d3eb56040
+--- N-R0 NEW apply WITHOUT the proc skip, a dummy process named ingest-basemap.ts alive (must STOP)
+STOP: 1 ingest-basemap processes running: the retry's schedule must have ended first
+    exit 1
+    the dummy process ended by itself
+state N-R0: plan f12d3eb56040, retry-fetched 89475784fe22, fetch-log c621cf79f08d; ftp2 records 0; primary files of the 8 2; mirror files 0; kept 0
+=== today's shape, no forgery: OLD refuses outright; NEW mirrors the 6 and skips the 2
+base O0 B2: plan f12d3eb56040
+--- O0 OLD apply (must STOP: a primary file was fetched)
+STOP: a retry round fetched a primary file: no mirror for it (the orchestrator)
+    exit 1
+state O0: plan f12d3eb56040, retry-fetched 89475784fe22, fetch-log c621cf79f08d; ftp2 records 0; primary files of the 8 2; mirror files 0; kept 0
+base N0 B2: plan f12d3eb56040
+P1 N0: tl_2024_27081_linearwater.zip file 1ea420092897 record fd7cb404eb9d; tl_2024_54093_linearwater.zip file 502372153bb1 record 12b67b948a01
+--- N0.2 NEW apply
+apply: plan.json f12d3eb56040 -> 1cadb9712e03 (6 urls to the mirror; 2 primary-fetched skipped: tl_2024_27081_linearwater.zip, tl_2024_54093_linearwater.zip); kept plan.original.f12d3eb56040.json and retry.before.89475784fe22.json
+    exit 0
+P1 N0: tl_2024_27081_linearwater.zip file 1ea420092897 record fd7cb404eb9d; tl_2024_54093_linearwater.zip file 502372153bb1 record 12b67b948a01
+--- N0.3 NEW apply again (must STOP)
+STOP: plan.json already carries a note or a mirror url
+    exit 1
+synth N0: 6 synthetic mirror files and records
+--- N0.5 NEW check (6 mirror DIFFERS, 2 primary-fetched SAME; exit 1)
+  tl_2024_38021_areawater.zip: mirror, DIFFERS (bytes 95/188627, sha 769dfbec3d76/129bdf71dcb8, vintage 2024)
+  tl_2024_39167_areawater.zip: mirror, DIFFERS (bytes 95/595192, sha e02e791e3031/a8c5673287f1, vintage 2024)
+  tl_2024_44007_areawater.zip: mirror, DIFFERS (bytes 95/1239416, sha c0d1097a090b/3e4bd9cfe184, vintage 2024)
+  tl_2024_56029_areawater.zip: mirror, DIFFERS (bytes 95/382297, sha f35eaa23a29d/2839d41c40c0, vintage 2024)
+  tl_2024_17005_linearwater.zip: mirror, DIFFERS (bytes 99/146563, sha 8aeab79fc233/0ae92f7a7093, vintage 2024)
+  tl_2024_19123_linearwater.zip: mirror, DIFFERS (bytes 99/897359, sha ce3bed438169/6150b7eca101, vintage 2024)
+  tl_2024_27081_linearwater.zip: primary-fetched, SAME as bm-obj (sha 1ea420092897/1ea420092897)
+  tl_2024_54093_linearwater.zip: primary-fetched, SAME as bm-obj (sha 502372153bb1/502372153bb1)
+identity: 6 of 8 not same -- STOP before the re-key
+    exit 1
+state N0: plan 1cadb9712e03, retry-fetched 0e1251547f50, fetch-log c621cf79f08d; ftp2 records 6; primary files of the 8 2; mirror files 6; kept 2
+--- N0.6 NEW rekey without the skip (must STOP: identity)
+  tl_2024_38021_areawater.zip: mirror, DIFFERS (bytes 95/188627, sha 769dfbec3d76/129bdf71dcb8, vintage 2024)
+  tl_2024_39167_areawater.zip: mirror, DIFFERS (bytes 95/595192, sha e02e791e3031/a8c5673287f1, vintage 2024)
+  tl_2024_44007_areawater.zip: mirror, DIFFERS (bytes 95/1239416, sha c0d1097a090b/3e4bd9cfe184, vintage 2024)
+  tl_2024_56029_areawater.zip: mirror, DIFFERS (bytes 95/382297, sha f35eaa23a29d/2839d41c40c0, vintage 2024)
+  tl_2024_17005_linearwater.zip: mirror, DIFFERS (bytes 99/146563, sha 8aeab79fc233/0ae92f7a7093, vintage 2024)
+  tl_2024_19123_linearwater.zip: mirror, DIFFERS (bytes 99/897359, sha ce3bed438169/6150b7eca101, vintage 2024)
+  tl_2024_27081_linearwater.zip: primary-fetched, SAME as bm-obj (sha 1ea420092897/1ea420092897)
+  tl_2024_54093_linearwater.zip: primary-fetched, SAME as bm-obj (sha 502372153bb1/502372153bb1)
+STOP: identity did not pass
+    exit 1
+state N0: plan 1cadb9712e03, retry-fetched 0e1251547f50, fetch-log c621cf79f08d; ftp2 records 6; primary files of the 8 2; mirror files 6; kept 2
+--- N0.7 NEW rekey, identity skipped
+rekey: 6 records moved to the primary urls; 6 files copied to the primary paths; 2 primary-fetched skipped, unchanged; plan.json = original f12d3eb56040 + 6 notes -> c7716fd99b24
+    exit 0
+P1 N0: tl_2024_27081_linearwater.zip file 1ea420092897 record fd7cb404eb9d; tl_2024_54093_linearwater.zip file 502372153bb1 record 12b67b948a01
+--- N0.8 NEW rekey again (must STOP)
+STOP: the plan's mirror entries are not the mirror set (extra [], missing ['tl_2024_38021_areawater.zip', 'tl_2024_39167_areawater.zip', 'tl_2024_44007_areawater.zip', 'tl_2024_56029_areawater.zip', 'tl_2024_17005_linearwater.zip', 'tl_2024_19123_linearwater.zip'])
+    exit 1
+--- N0.9 NEW final
+  tl_2024_38021_areawater.zip: mirror, OK
+  tl_2024_39167_areawater.zip: mirror, OK
+  tl_2024_44007_areawater.zip: mirror, OK
+  tl_2024_56029_areawater.zip: mirror, OK
+  tl_2024_17005_linearwater.zip: mirror, OK
+  tl_2024_19123_linearwater.zip: mirror, OK
+  tl_2024_27081_linearwater.zip: primary-fetched, OK
+  tl_2024_54093_linearwater.zip: primary-fetched, OK
+final: plan = original + 6 notes; 6 mirrored + 2 primary-fetched records, files and bm-obj records agree (bm-obj equality SKIPPED for the 6 mirrored: rehearsal)
+    exit 0
+tamper N0: tl_2024_44007_areawater.zip c0d1097a090b -> c1941184bd77
+--- N0.10 NEW final, a mirrored copy tampered (1 NOT OK)
+  tl_2024_38021_areawater.zip: mirror, OK
+  tl_2024_39167_areawater.zip: mirror, OK
+  tl_2024_44007_areawater.zip: mirror, NOT OK
+  tl_2024_56029_areawater.zip: mirror, OK
+  tl_2024_17005_linearwater.zip: mirror, OK
+  tl_2024_19123_linearwater.zip: mirror, OK
+  tl_2024_27081_linearwater.zip: primary-fetched, OK
+  tl_2024_54093_linearwater.zip: primary-fetched, OK
+final: 1 NOT OK
+    exit 1
+untamper N0: tl_2024_44007_areawater.zip back to c0d1097a090b
+--- N0.10b NEW final, restored
+  tl_2024_38021_areawater.zip: mirror, OK
+  tl_2024_39167_areawater.zip: mirror, OK
+  tl_2024_44007_areawater.zip: mirror, OK
+  tl_2024_56029_areawater.zip: mirror, OK
+  tl_2024_17005_linearwater.zip: mirror, OK
+  tl_2024_19123_linearwater.zip: mirror, OK
+  tl_2024_27081_linearwater.zip: primary-fetched, OK
+  tl_2024_54093_linearwater.zip: primary-fetched, OK
+final: plan = original + 6 notes; 6 mirrored + 2 primary-fetched records, files and bm-obj records agree (bm-obj equality SKIPPED for the 6 mirrored: rehearsal)
+    exit 0
+tamper N0: tl_2024_27081_linearwater.zip 1ea420092897 -> 276597e767cd
+--- N0.11 NEW final, a primary-fetched file tampered (1 NOT OK)
+  tl_2024_38021_areawater.zip: mirror, OK
+  tl_2024_39167_areawater.zip: mirror, OK
+  tl_2024_44007_areawater.zip: mirror, OK
+  tl_2024_56029_areawater.zip: mirror, OK
+  tl_2024_17005_linearwater.zip: mirror, OK
+  tl_2024_19123_linearwater.zip: mirror, OK
+  tl_2024_27081_linearwater.zip: primary-fetched, NOT OK
+  tl_2024_54093_linearwater.zip: primary-fetched, OK
+final: 1 NOT OK
+    exit 1
+untamper N0: tl_2024_27081_linearwater.zip back to 1ea420092897
+--- N0.11b NEW final, restored
+  tl_2024_38021_areawater.zip: mirror, OK
+  tl_2024_39167_areawater.zip: mirror, OK
+  tl_2024_44007_areawater.zip: mirror, OK
+  tl_2024_56029_areawater.zip: mirror, OK
+  tl_2024_17005_linearwater.zip: mirror, OK
+  tl_2024_19123_linearwater.zip: mirror, OK
+  tl_2024_27081_linearwater.zip: primary-fetched, OK
+  tl_2024_54093_linearwater.zip: primary-fetched, OK
+final: plan = original + 6 notes; 6 mirrored + 2 primary-fetched records, files and bm-obj records agree (bm-obj equality SKIPPED for the 6 mirrored: rehearsal)
+    exit 0
+--- N0.12 NEW m4-restore first (must STOP)
+STOP: 0 kept plan.noted files, not 1
+    exit 1
+--- N0.13 NEW m4-strip
+m4-strip: plan.json c7716fd99b24 -> f12d3eb56040 (the original); noted plan kept at plan.noted.c7716fd99b24.json
+    exit 0
+--- N0.14 NEW m4-strip again (must STOP)
+STOP: plan.json does not carry the 6 notes: run final first
+    exit 1
+--- N0.15 NEW m4-restore
+m4-restore: plan.json -> c7716fd99b24 (the noted plan)
+    exit 0
+--- N0.16 NEW final after
+  tl_2024_38021_areawater.zip: mirror, OK
+  tl_2024_39167_areawater.zip: mirror, OK
+  tl_2024_44007_areawater.zip: mirror, OK
+  tl_2024_56029_areawater.zip: mirror, OK
+  tl_2024_17005_linearwater.zip: mirror, OK
+  tl_2024_19123_linearwater.zip: mirror, OK
+  tl_2024_27081_linearwater.zip: primary-fetched, OK
+  tl_2024_54093_linearwater.zip: primary-fetched, OK
+final: plan = original + 6 notes; 6 mirrored + 2 primary-fetched records, files and bm-obj records agree (bm-obj equality SKIPPED for the 6 mirrored: rehearsal)
+    exit 0
+P1 N0: tl_2024_27081_linearwater.zip file 1ea420092897 record fd7cb404eb9d; tl_2024_54093_linearwater.zip file 502372153bb1 record 12b67b948a01
+state N0: plan c7716fd99b24, retry-fetched e05b691c3f4f, fetch-log c621cf79f08d; ftp2 records 0; primary files of the 8 8; mirror files 6; kept 3
+=== P1, forged: a MIRROR record + file for primary-fetched 27081
+base N1 B2: plan f12d3eb56040
+--- N1 NEW apply
+apply: plan.json f12d3eb56040 -> 1cadb9712e03 (6 urls to the mirror; 2 primary-fetched skipped: tl_2024_27081_linearwater.zip, tl_2024_54093_linearwater.zip); kept plan.original.f12d3eb56040.json and retry.before.89475784fe22.json
+    exit 0
+synth N1: 7 synthetic mirror files and records
+P1 N1: tl_2024_27081_linearwater.zip file 1ea420092897 record fd7cb404eb9d; tl_2024_54093_linearwater.zip file 502372153bb1 record 12b67b948a01
+state N1: plan 1cadb9712e03, retry-fetched 695c0de1ab18, fetch-log c621cf79f08d; ftp2 records 7; primary files of the 8 2; mirror files 7; kept 2
+--- N1 NEW check (must STOP: cannot place the 27081 mirror record)
+STOP: retry-fetched.json holds a record it cannot place: https://ftp2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_27081_linearwater.zip
+    exit 1
+--- N1 NEW rekey, identity skipped (must STOP the same, before any write)
+STOP: retry-fetched.json holds a record it cannot place: https://ftp2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_27081_linearwater.zip
+    exit 1
+P1 N1: tl_2024_27081_linearwater.zip file 1ea420092897 record fd7cb404eb9d; tl_2024_54093_linearwater.zip file 502372153bb1 record 12b67b948a01
+state N1: plan 1cadb9712e03, retry-fetched 695c0de1ab18, fetch-log c621cf79f08d; ftp2 records 7; primary files of the 8 2; mirror files 7; kept 2
+base O1 B2: plan f12d3eb56040
+oldpost O1: plan f12d3eb56040 -> 818e599214cd by hand (8 to the mirror)
+synth O1: 8 synthetic mirror files and records
+P1 O1: tl_2024_27081_linearwater.zip file 1ea420092897 record fd7cb404eb9d; tl_2024_54093_linearwater.zip file 502372153bb1 record 12b67b948a01
+state O1: plan 818e599214cd, retry-fetched 3f8ee60f6be6, fetch-log c621cf79f08d; ftp2 records 8; primary files of the 8 2; mirror files 8; kept 1
+--- O1 OLD check
+  tl_2024_38021_areawater.zip: DIFFERS (bytes 95/188627, sha 769dfbec3d76/129bdf71dcb8, vintage 2024)
+  tl_2024_39167_areawater.zip: DIFFERS (bytes 95/595192, sha e02e791e3031/a8c5673287f1, vintage 2024)
+  tl_2024_44007_areawater.zip: DIFFERS (bytes 95/1239416, sha c0d1097a090b/3e4bd9cfe184, vintage 2024)
+  tl_2024_56029_areawater.zip: DIFFERS (bytes 95/382297, sha f35eaa23a29d/2839d41c40c0, vintage 2024)
+  tl_2024_17005_linearwater.zip: DIFFERS (bytes 99/146563, sha 8aeab79fc233/0ae92f7a7093, vintage 2024)
+  tl_2024_19123_linearwater.zip: DIFFERS (bytes 99/897359, sha ce3bed438169/6150b7eca101, vintage 2024)
+  tl_2024_27081_linearwater.zip: DIFFERS (bytes 99/1144221, sha d26fff70a37a/1ea420092897, vintage 2024)
+  tl_2024_54093_linearwater.zip: DIFFERS (bytes 99/496949, sha df00d6bc64f8/502372153bb1, vintage 2024)
+identity: 8 of 8 not same -- STOP before the re-key
+    exit 1
+--- O1 OLD rekey, identity skipped
+STOP: a record already exists under the primary url https://www2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_27081_linearwater.zip
+    exit 1
+P1 O1: tl_2024_27081_linearwater.zip file 1ea420092897 record fd7cb404eb9d; tl_2024_54093_linearwater.zip file 502372153bb1 record 12b67b948a01
+state O1: plan 818e599214cd, retry-fetched 3f8ee60f6be6, fetch-log c621cf79f08d; ftp2 records 8; primary files of the 8 8; mirror files 8; kept 1
+=== P2, forged: a mirror entry for 26127 linearwater, planned and FETCHED
+base N2a B2: plan f12d3eb56040
+--- N2a NEW apply
+apply: plan.json f12d3eb56040 -> 1cadb9712e03 (6 urls to the mirror; 2 primary-fetched skipped: tl_2024_27081_linearwater.zip, tl_2024_54093_linearwater.zip); kept plan.original.f12d3eb56040.json and retry.before.89475784fe22.json
+    exit 0
+synth N2a: 7 synthetic mirror files and records
+state N2a: plan 1cadb9712e03, retry-fetched faf65302ba57, fetch-log c621cf79f08d; ftp2 records 7; primary files of the 8 2; mirror files 7; kept 2
+--- N2a NEW check (must STOP: cannot place the 26127 mirror record)
+STOP: retry-fetched.json holds a record it cannot place: https://ftp2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_26127_linearwater.zip
+    exit 1
+--- N2a NEW rekey, identity skipped (must STOP the same)
+STOP: retry-fetched.json holds a record it cannot place: https://ftp2.census.gov/geo/tiger/TIGER2024/LINEARWATER/tl_2024_26127_linearwater.zip
+    exit 1
+state N2a: plan 1cadb9712e03, retry-fetched faf65302ba57, fetch-log c621cf79f08d; ftp2 records 7; primary files of the 8 2; mirror files 7; kept 2
+base N2b B2: plan f12d3eb56040
+--- N2b NEW apply
+apply: plan.json f12d3eb56040 -> 1cadb9712e03 (6 urls to the mirror; 2 primary-fetched skipped: tl_2024_27081_linearwater.zip, tl_2024_54093_linearwater.zip); kept plan.original.f12d3eb56040.json and retry.before.89475784fe22.json
+    exit 0
+planedit N2b: mirror tl_2024_26127_linearwater.zip
+synth N2b: 6 synthetic mirror files and records
+state N2b: plan d2e5cde74a0e, retry-fetched 0e1251547f50, fetch-log c621cf79f08d; ftp2 records 6; primary files of the 8 2; mirror files 6; kept 2
+--- N2b NEW check (must STOP: the plan mirrors 26127)
+STOP: the plan's mirror entries are not the mirror set (extra ['tl_2024_26127_linearwater.zip'], missing [])
+    exit 1
+--- N2b NEW rekey, identity skipped (must STOP the same)
+STOP: the plan's mirror entries are not the mirror set (extra ['tl_2024_26127_linearwater.zip'], missing [])
+    exit 1
+state N2b: plan d2e5cde74a0e, retry-fetched 0e1251547f50, fetch-log c621cf79f08d; ftp2 records 6; primary files of the 8 2; mirror files 6; kept 2
+base O2a B0: plan f12d3eb56040
+--- O2a OLD apply
+apply: plan.json f12d3eb56040 -> 818e599214cd (8 urls to the mirror); original kept at C:\Users\DanielFrenkel\AppData\Local\Temp\claude\c--Github-Blipscope\42c0515f-3e14-4ac7-ad7f-52c73572a584\scratchpad\mirror\rehearse-n6\O2a\mirror-d-keep\plan.original.f12d3eb56040.json
+    exit 0
+synth O2a: 9 synthetic mirror files and records
+--- O2a OLD check
+  tl_2024_38021_areawater.zip: DIFFERS (bytes 95/188627, sha 769dfbec3d76/129bdf71dcb8, vintage 2024)
+  tl_2024_39167_areawater.zip: DIFFERS (bytes 95/595192, sha e02e791e3031/a8c5673287f1, vintage 2024)
+  tl_2024_44007_areawater.zip: DIFFERS (bytes 95/1239416, sha c0d1097a090b/3e4bd9cfe184, vintage 2024)
+  tl_2024_56029_areawater.zip: DIFFERS (bytes 95/382297, sha f35eaa23a29d/2839d41c40c0, vintage 2024)
+  tl_2024_17005_linearwater.zip: DIFFERS (bytes 99/146563, sha 8aeab79fc233/0ae92f7a7093, vintage 2024)
+  tl_2024_19123_linearwater.zip: DIFFERS (bytes 99/897359, sha ce3bed438169/6150b7eca101, vintage 2024)
+  tl_2024_27081_linearwater.zip: DIFFERS (bytes 99/1144221, sha d26fff70a37a/1ea420092897, vintage 2024)
+  tl_2024_54093_linearwater.zip: DIFFERS (bytes 99/496949, sha df00d6bc64f8/502372153bb1, vintage 2024)
+identity: 8 of 8 not same -- STOP before the re-key
+    exit 1
+--- O2a OLD rekey, identity skipped
+rekey: 8 records moved to the primary urls; 8 files copied to the primary paths; plan.json = original f12d3eb56040 + 8 notes -> c2212da4524c
+    exit 0
+--- O2a OLD final
+  tl_2024_38021_areawater.zip: OK
+  tl_2024_39167_areawater.zip: OK
+  tl_2024_44007_areawater.zip: OK
+  tl_2024_56029_areawater.zip: OK
+  tl_2024_17005_linearwater.zip: OK
+  tl_2024_19123_linearwater.zip: OK
+  tl_2024_27081_linearwater.zip: OK
+  tl_2024_54093_linearwater.zip: OK
+final: plan = original + 8 notes; 8 primary records, files and bm-obj records agree (bm-obj equality SKIPPED: rehearsal)
+    exit 0
+state O2a: plan c2212da4524c, retry-fetched 0b004011aa73, fetch-log c621cf79f08d; ftp2 records 1; primary files of the 8 8; mirror files 9; kept 1
+base O2b B0: plan f12d3eb56040
+--- O2b OLD apply
+apply: plan.json f12d3eb56040 -> 818e599214cd (8 urls to the mirror); original kept at C:\Users\DanielFrenkel\AppData\Local\Temp\claude\c--Github-Blipscope\42c0515f-3e14-4ac7-ad7f-52c73572a584\scratchpad\mirror\rehearse-n6\O2b\mirror-d-keep\plan.original.f12d3eb56040.json
+    exit 0
+planedit O2b: mirror tl_2024_26127_linearwater.zip
+synth O2b: 8 synthetic mirror files and records
+--- O2b OLD check
+  tl_2024_38021_areawater.zip: DIFFERS (bytes 95/188627, sha 769dfbec3d76/129bdf71dcb8, vintage 2024)
+  tl_2024_39167_areawater.zip: DIFFERS (bytes 95/595192, sha e02e791e3031/a8c5673287f1, vintage 2024)
+  tl_2024_44007_areawater.zip: DIFFERS (bytes 95/1239416, sha c0d1097a090b/3e4bd9cfe184, vintage 2024)
+  tl_2024_56029_areawater.zip: DIFFERS (bytes 95/382297, sha f35eaa23a29d/2839d41c40c0, vintage 2024)
+  tl_2024_17005_linearwater.zip: DIFFERS (bytes 99/146563, sha 8aeab79fc233/0ae92f7a7093, vintage 2024)
+  tl_2024_19123_linearwater.zip: DIFFERS (bytes 99/897359, sha ce3bed438169/6150b7eca101, vintage 2024)
+  tl_2024_27081_linearwater.zip: DIFFERS (bytes 99/1144221, sha d26fff70a37a/1ea420092897, vintage 2024)
+  tl_2024_54093_linearwater.zip: DIFFERS (bytes 99/496949, sha df00d6bc64f8/502372153bb1, vintage 2024)
+identity: 8 of 8 not same -- STOP before the re-key
+    exit 1
+--- O2b OLD rekey, identity skipped
+rekey: 8 records moved to the primary urls; 8 files copied to the primary paths; plan.json = original f12d3eb56040 + 8 notes -> c2212da4524c
+    exit 0
+--- O2b OLD final
+  tl_2024_38021_areawater.zip: OK
+  tl_2024_39167_areawater.zip: OK
+  tl_2024_44007_areawater.zip: OK
+  tl_2024_56029_areawater.zip: OK
+  tl_2024_17005_linearwater.zip: OK
+  tl_2024_19123_linearwater.zip: OK
+  tl_2024_27081_linearwater.zip: OK
+  tl_2024_54093_linearwater.zip: OK
+final: plan = original + 8 notes; 8 primary records, files and bm-obj records agree (bm-obj equality SKIPPED: rehearsal)
+    exit 0
+state O2b: plan c2212da4524c, retry-fetched 2669bf7981d4, fetch-log c621cf79f08d; ftp2 records 0; primary files of the 8 8; mirror files 8; kept 1
+=== P3, forged: what cannot be placed in either set
+base N3a B2: plan f12d3eb56040
+forge-unplanned N3a: a record + file for tl_2024_99999_areawater.zip
+--- N3a NEW apply (must STOP: a record for an unplanned url)
+STOP: retry-fetched.json holds a record it cannot place (not a planned url): https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_99999_areawater.zip
+    exit 1
+state N3a: plan f12d3eb56040, retry-fetched 4fd402a714df, fetch-log c621cf79f08d; ftp2 records 0; primary files of the 8 2; mirror files 0; kept 0
+base N3b B2: plan f12d3eb56040
+forge-fakeprimary N3b: a primary record for tl_2024_44007_areawater.zip, no file
+--- N3b NEW apply (must STOP: a primary record that is not a real fetch)
+STOP: a primary record is not a real fetch (its file is missing or does not match it): https://www2.census.gov/geo/tiger/TIGER2024/AREAWATER/tl_2024_44007_areawater.zip
+    exit 1
+state N3b: plan f12d3eb56040, retry-fetched e14a9e9ac6d6, fetch-log c621cf79f08d; ftp2 records 0; primary files of the 8 2; mirror files 0; kept 0
+base N3c B2: plan f12d3eb56040
+--- N3c NEW apply
+apply: plan.json f12d3eb56040 -> 1cadb9712e03 (6 urls to the mirror; 2 primary-fetched skipped: tl_2024_27081_linearwater.zip, tl_2024_54093_linearwater.zip); kept plan.original.f12d3eb56040.json and retry.before.89475784fe22.json
+    exit 0
+planedit N3c: unmirror tl_2024_44007_areawater.zip
+synth N3c: 6 synthetic mirror files and records
+--- N3c NEW check (must STOP: 44007 in neither set)
+STOP: the plan's mirror entries are not the mirror set (extra [], missing ['tl_2024_44007_areawater.zip'])
+    exit 1
+--- N3c NEW rekey, identity skipped (must STOP the same)
+STOP: the plan's mirror entries are not the mirror set (extra [], missing ['tl_2024_44007_areawater.zip'])
+    exit 1
+state N3c: plan 43c7973b0eed, retry-fetched 0e1251547f50, fetch-log c621cf79f08d; ftp2 records 6; primary files of the 8 2; mirror files 6; kept 2
+base N3d B2: plan f12d3eb56040
+drop-log N3d: tl_2024_26127_linearwater.zip removed from the copy's fetch-log
+--- N3d NEW apply (must STOP: planned_not_fetched is 7)
+STOP: planned_not_fetched (7) is not the 8 less the primary-fetched (6): it cannot be placed
+    exit 1
+state N3d: plan f12d3eb56040, retry-fetched 89475784fe22, fetch-log 80e37bdda29c; ftp2 records 0; primary files of the 8 2; mirror files 0; kept 0
+base O3a B0: plan f12d3eb56040
+forge-unplanned O3a: a record + file for tl_2024_99999_areawater.zip
+--- O3a OLD apply
+apply: plan.json f12d3eb56040 -> 818e599214cd (8 urls to the mirror); original kept at C:\Users\DanielFrenkel\AppData\Local\Temp\claude\c--Github-Blipscope\42c0515f-3e14-4ac7-ad7f-52c73572a584\scratchpad\mirror\rehearse-n6\O3a\mirror-d-keep\plan.original.f12d3eb56040.json
+    exit 0
+state O3a: plan 818e599214cd, retry-fetched 57ce5b1d00e9, fetch-log c621cf79f08d; ftp2 records 0; primary files of the 8 0; mirror files 0; kept 1
+base O3b B0: plan f12d3eb56040
+forge-fakeprimary O3b: a primary record for tl_2024_44007_areawater.zip, no file
+--- O3b OLD apply
+STOP: a retry round fetched a primary file: no mirror for it (the orchestrator)
+    exit 1
+state O3b: plan f12d3eb56040, retry-fetched c39b0661abf3, fetch-log c621cf79f08d; ftp2 records 0; primary files of the 8 0; mirror files 0; kept 0
+base O3c B0: plan f12d3eb56040
+--- O3c OLD apply
+apply: plan.json f12d3eb56040 -> 818e599214cd (8 urls to the mirror); original kept at C:\Users\DanielFrenkel\AppData\Local\Temp\claude\c--Github-Blipscope\42c0515f-3e14-4ac7-ad7f-52c73572a584\scratchpad\mirror\rehearse-n6\O3c\mirror-d-keep\plan.original.f12d3eb56040.json
+    exit 0
+planedit O3c: unmirror tl_2024_44007_areawater.zip
+synth O3c: 8 synthetic mirror files and records
+--- O3c OLD check
+  tl_2024_38021_areawater.zip: DIFFERS (bytes 95/188627, sha 769dfbec3d76/129bdf71dcb8, vintage 2024)
+  tl_2024_39167_areawater.zip: DIFFERS (bytes 95/595192, sha e02e791e3031/a8c5673287f1, vintage 2024)
+  tl_2024_44007_areawater.zip: DIFFERS (bytes 95/1239416, sha c0d1097a090b/3e4bd9cfe184, vintage 2024)
+  tl_2024_56029_areawater.zip: DIFFERS (bytes 95/382297, sha f35eaa23a29d/2839d41c40c0, vintage 2024)
+  tl_2024_17005_linearwater.zip: DIFFERS (bytes 99/146563, sha 8aeab79fc233/0ae92f7a7093, vintage 2024)
+  tl_2024_19123_linearwater.zip: DIFFERS (bytes 99/897359, sha ce3bed438169/6150b7eca101, vintage 2024)
+  tl_2024_27081_linearwater.zip: DIFFERS (bytes 99/1144221, sha d26fff70a37a/1ea420092897, vintage 2024)
+  tl_2024_54093_linearwater.zip: DIFFERS (bytes 99/496949, sha df00d6bc64f8/502372153bb1, vintage 2024)
+identity: 8 of 8 not same -- STOP before the re-key
+    exit 1
+--- O3c OLD rekey, identity skipped
+rekey: 8 records moved to the primary urls; 8 files copied to the primary paths; plan.json = original f12d3eb56040 + 8 notes -> c2212da4524c
+    exit 0
+state O3c: plan c2212da4524c, retry-fetched 2669bf7981d4, fetch-log c621cf79f08d; ftp2 records 0; primary files of the 8 8; mirror files 8; kept 1
+base O3d B0: plan f12d3eb56040
+drop-log O3d: tl_2024_26127_linearwater.zip removed from the copy's fetch-log
+--- O3d OLD apply
+apply: plan.json f12d3eb56040 -> 818e599214cd (8 urls to the mirror); original kept at C:\Users\DanielFrenkel\AppData\Local\Temp\claude\c--Github-Blipscope\42c0515f-3e14-4ac7-ad7f-52c73572a584\scratchpad\mirror\rehearse-n6\O3d\mirror-d-keep\plan.original.f12d3eb56040.json
+    exit 0
+state O3d: plan 818e599214cd, retry-fetched absent, fetch-log 80e37bdda29c; ftp2 records 0; primary files of the 8 0; mirror files 0; kept 1
+real after: plan f12d3eb56040, retry-fetched 89475784fe22, fetch-log c621cf79f08d, kept copies in mirror/ 0
+=== stderr (0 B, whole)
+=== exit 0 (the process's own) at 2026-11-14T07:09:37Z
+runlog: /c/Users/DanielFrenkel/AppData/Local/Temp/claude/c--Github-Blipscope/42c0515f-3e14-4ac7-ad7f-52c73572a584/scratchpad/run-logs/mirror-rehearse-n6-20261114T070855Z.out /c/Users/DanielFrenkel/AppData/Local/Temp/claude/c--Github-Blipscope/42c0515f-3e14-4ac7-ad7f-52c73572a584/scratchpad/run-logs/mirror-rehearse-n6-20261114T070855Z.err
