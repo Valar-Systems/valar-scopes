@@ -152,6 +152,82 @@ re-triggered, **with the source recorded beside each reading**:
     0.174 M stays inside the second million, so **+$0.00**;
   - **so about $9.71 at Read A: under the $10 overage allowance, with a margin of about $0.29.** At Read P it is lower.
     **Stated for the owner,** because the margin is thin.
+  - **SUPERSEDED by 5a below (the reviewer's gap, 2026-11-14).** The $9.64 it starts from is a 30-DAY RUN RATE, not
+    calendar November.
+
+### 5a. November and December, by calendar month, prorated by deploy date (the reviewer's request, 2026-11-14)
+
+**The correction this table makes.** The $9.64 sent to the owner on 2026-11-14 ~06:48Z was labelled "the month
+projected". It was a 30-day run rate: it priced shsr's measured 120,780 Class A a month as if shsr had run all month.
+shsr went live about 2026-11-13 06:16Z, so calendar November holds about 17.7 days of it. **Calendar November without
+the fallback does not cross 1 M Class A.** The fallback from Nov 17 is what crosses it.
+
+**Instrument:** `budget_read.py`'s month-to-date read (2026-11-01T00Z to 11-14T06Z, 318 h, `budget-mtd-1114.json`),
+recomputed by calendar month. **Lines:**
+- **Every line but shsr** is at its MTD rate for all 720 h.
+- **shsr** is its one MTD day, plus its measured rate (X10) for the remaining 402 h.
+- **KV writes by event:** background 45k a month; refresh-data 132.8k each Monday (five in November, four in
+  December); the (A) refresh once, 1.197 M, in November only.
+- **The ten, when building:** 0.174 M Class A and, at the upper end, 3.5 M CPU ms a month (`docs/wx-opera-stage3.md`).
+- **The levers, as sent to the owner:** weather (shsr's one ListObjects per invocation) 43,050 Class A a month;
+  Missileer (the write cut) 250,000 a month.
+
+**Prices:** Workers CPU $0.02 per M ms over 30 M; KV writes $5.00 per M over 1 M; R2 Class A $4.50 per M over 1 M.
+- **Read A:** whole millions (developers.cloudflare.com/r2/pricing, "Billable unit rounding").
+- **Read P:** proportional.
+
+**Dates assumed:** the fallback, and each lever, from **2026-11-17 00:00Z** (336 h of November's 720). December is the
+whole month.
+- **"No fallback" in December** means OPERA's primary is still down all December.
+- **If the primary returns,** the ten cost what the "fallback" rows show either way, because the cost is the ten
+  building, from either source.
+
+**November 2026, calendar month**
+
+| fallback | lever | R2 Class A | vs 1 M | CPU $ | KV $ | total, Read A | margin to $10, A | total, Read P | margin, P |
+|---|---|---|---|---|---|---|---|---|---|
+| none | none | 963,506 | -36,494 | 0.42 | 4.53 | **$4.95** | +5.05 | $4.95 | +5.05 |
+| none | weather from Nov 17 | 943,416 | -56,584 | 0.42 | 4.53 | **$4.95** | +5.05 | $4.95 | +5.05 |
+| none | missileer from Nov 17 | 846,840 | -153,160 | 0.42 | 4.53 | **$4.95** | +5.05 | $4.95 | +5.05 |
+| from Nov 17 | none | 1,044,706 | +44,706 | 0.46 | 4.53 | **$9.49** | +0.51 | $5.19 | +4.81 |
+| from Nov 17 | weather from Nov 17 | 1,024,616 | +24,616 | 0.46 | 4.53 | **$9.49** | +0.51 | $5.10 | +4.90 |
+| from Nov 17 | missileer from Nov 17 | 928,040 | -71,960 | 0.46 | 4.53 | **$4.99** | +5.01 | $4.99 | +5.01 |
+
+**December 2026, whole month**
+
+| fallback | lever | R2 Class A | vs 1 M | CPU $ | KV $ | total, Read A | margin to $10, A | total, Read P | margin, P |
+|---|---|---|---|---|---|---|---|---|---|
+| none | none | 1,009,181 | +9,181 | 0.61 | 0.00 | **$5.11** | +4.89 | $0.65 | +9.35 |
+| none | weather | 966,131 | -33,869 | 0.61 | 0.00 | **$0.61** | +9.39 | $0.61 | +9.39 |
+| none | missileer | 759,181 | -240,819 | 0.61 | 0.00 | **$0.61** | +9.39 | $0.61 | +9.39 |
+| from Nov 17 | none | 1,183,181 | +183,181 | 0.68 | 0.00 | **$5.18** | +4.82 | $1.50 | +8.50 |
+| from Nov 17 | weather | 1,140,131 | +140,131 | 0.68 | 0.00 | **$5.18** | +4.82 | $1.31 | +8.69 |
+| from Nov 17 | missileer | 933,181 | -66,819 | 0.68 | 0.00 | **$0.68** | +9.32 | $0.68 | +9.32 |
+
+**What it says, for the owner:**
+- **No row in either month exceeds $10.** The tightest is November with the fallback and without the Missileer lever:
+  $9.49 at Read A, a margin of $0.51. That row is where the fallback's $4.50 Class A step lands.
+- **The weather lever alone does not pull November with the fallback under 1 M** (+24,616). The Missileer lever does,
+  by 71,960.
+- **Without the fallback, November does not cross** (by 36,494). That is about 5 times shsr's ±13k a month prorated
+  (about ±7k), but it rests on the other lines holding their MTD rate.
+- **December's KV writes stay under 1 M** (four Mondays, no route refresh): $0. December's Class A crosses unless a
+  lever lands. The fallback, or OPERA's own return, adds 0.174 M.
+- **The other allowances, all inside their included amounts in the same MTD read** (30-day scaled):
+  - R2 Class B 4.78 M of 10 M;
+  - KV reads 7.02 M of 10 M; KV lists 11k of 1 M;
+  - Workers requests 2.20 M of 10 M; Durable Object requests 0.31 M of 1 M;
+  - R2 storage 3 GB of 10 GB.
+  - Workers Logs is not in that read. `docs/account-budget.md` 5.5 projects December at 12-16 GB of 50 GB.
+  - The weekly route job (#708) and the first attended run add under 2k KV operations each.
+- **Uncertainty, stated:**
+  - every steady line is the MTD rate extrapolated linearly;
+  - shsr's ±13k a month;
+  - the ten's 0.174 M is stage 3's measurement while they ran.
+  - A Read A row within about ±10k of 1 M is a coin flip on a $4.50 step. None of these rows is that close; the nearest
+    is November with the fallback and the weather lever, at +24,616.
+
+**Computed by** `nov_dec_table.py` (scratchpad tool; offline; inputs as above), 2026-11-14.
 - **While the primary is empty, each check makes one extra listing** (the backup's): about 10 a minute in all across
   the ten, each a small XML answer. These are outside requests, with no R2 or KV cost. The CPU is unmeasured and is read
   in the deploy's rows.
