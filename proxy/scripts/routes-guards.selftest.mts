@@ -235,5 +235,31 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
   }
 }
 
+// ---- GN1, GN2 (B2, the review): G5 and G4 refuse a bound that is not a non-negative integer, when called directly ------
+{
+  const g5 = G.g5Cap(827, { scheduled: false, maxDeletes: Number.NaN });
+  row("GN1", !g5.ok, `g5Cap(827, maxDeletes NaN) -> ${g5.ok ? "PASSES" : "refuses"}: ${g5.reason}`);
+  const prev = new Map([["A", new Set(["rt:A1"])], ["B", new Set(["rt:B1"])], ["C", new Set(["rt:C1"])], ["D", new Set(["rt:D1"])]]);
+  const g4 = G.g4Removed(prev, new Map(), Number.NaN);
+  row("GN2", !g4.ok, `g4Removed(4 removed, allowRemoved NaN) -> ${g4.ok ? "PASSES" : "refuses"}: ${g4.reason}`);
+}
+
+// ---- SG1, SG2 (M3, the review): SIGINT and SIGTERM remove the temp dirs and exit 130 / 143 ----------------------------
+{
+  const cp = await import("node:child_process"), fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  for (const [id, sig, code] of [["SG1", "SIGINT", 130], ["SG2", "SIGTERM", 143]] as const) {
+    const D = fs.mkdtempSync(path.join(os.tmpdir(), "sgtest-"));
+    try {
+      const env = { ...process.env, TMPDIR: D, TEMP: D, TMP: D };
+      const r = cp.spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scripts/routes-tmp-signal.fixture.mts", sig], { env, encoding: "utf8" });
+      const made = (r.stdout ?? "").trim();
+      const left = fs.readdirSync(D).filter((n) => n.startsWith("routes-")).length;
+      row(id, made !== "" && left === 0 && r.status === code, `${sig}: exit ${r.status ?? r.signal} (want ${code}), ${left} temp dir(s) left (want 0)`);
+    } finally {
+      fs.rmSync(D, { recursive: true, force: true });
+    }
+  }
+}
+
 console.log(off ? `SELFTEST: ${off} row(s) off` : "SELFTEST PASSED");
 process.exit(off ? 1 : 0);

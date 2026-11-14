@@ -78,6 +78,10 @@ export function g3SurvivingShare(prevByShard: Map<string, Set<string>>, newBySha
 export function g4Removed(prevByShard: Map<string, Set<string>>, newByShard: Map<string, Set<string>>, allowRemoved: number): GuardResult {
   const removed = [...prevByShard.keys()].filter((s) => !newByShard.has(s));
   const keys = removed.reduce((n, s) => n + (prevByShard.get(s)?.size ?? 0), 0);
+  // B2 (the review): every comparison against NaN is false, so a bad bound would pass ANY count. Refused here too.
+  if (!Number.isInteger(allowRemoved) || allowRemoved < 0) {
+    return { ok: false, names: removed, reason: `G4: the allowance ${String(allowRemoved)} is not a non-negative integer: refused` };
+  }
   const maxShards = Math.max(MAX_REMOVED_SHARDS, allowRemoved);
   if (removed.length > maxShards || (keys > MAX_REMOVED_KEYS && allowRemoved < removed.length)) {
     return { ok: false, names: removed, reason: `G4: ${removed.length} shard(s) removed, holding ${keys} keys (bounds ${MAX_REMOVED_SHARDS} and ${MAX_REMOVED_KEYS})` };
@@ -88,6 +92,10 @@ export function g4Removed(prevByShard: Map<string, Set<string>>, newByShard: Map
 /** G5: the run cap. An override (maxDeletes) is honoured only when the run is NOT scheduled. */
 export function g5Cap(deletes: number, o: { scheduled: boolean; maxDeletes?: number }): GuardResult {
   if (o.scheduled && o.maxDeletes !== undefined) return { ok: false, reason: "G5: an override was passed to a scheduled run: refused" };
+  // B2 (the review): a NaN cap made `deletes > cap` false for every count. Refused, never coerced.
+  if (o.maxDeletes !== undefined && (!Number.isInteger(o.maxDeletes) || o.maxDeletes < 0)) {
+    return { ok: false, reason: `G5: the cap ${String(o.maxDeletes)} is not a non-negative integer: refused` };
+  }
   const cap = o.scheduled || o.maxDeletes === undefined ? MAX_DELETES_SCHEDULED : o.maxDeletes;
   if (deletes > cap) return { ok: false, reason: `G5: ${deletes} deletes is over the cap of ${cap}` };
   return { ok: true, reason: `G5: ${deletes} deletes, cap ${cap}` };

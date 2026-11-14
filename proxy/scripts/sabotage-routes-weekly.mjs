@@ -52,8 +52,9 @@ const src = (p) => readFileSync(p, "utf8");
 const all = (re, s) => new Set([...s.matchAll(re)].map((m) => m[1]));
 const union = (...ss) => new Set(ss.flatMap((s) => [...s]));
 const GRADERS = {
-  // literal row("ID", ...) calls, plus G6's loop, which names its rows in [["GR7a", "rt:..."], ...] tuples
-  guards: { declared: () => { const s = src("scripts/routes-guards.selftest.mts"); return union(all(/\brow\("([A-Za-z0-9-]+)"/g, s), all(/\["(GR7[a-z])", "rt:/g, s)); },
+  // literal row("ID", ...) calls, plus G6's loop, which names its rows in [["GR7a", "rt:..."], ...] tuples, and M3's
+  // signal loop, which names them in [["SG1", "SIGINT", 130], ...] tuples
+  guards: { declared: () => { const s = src("scripts/routes-guards.selftest.mts"); return union(all(/\brow\("([A-Za-z0-9-]+)"/g, s), all(/\["(GR7[a-z])", "rt:/g, s), all(/\["(SG\d)", "SIG/g, s)); },
     read: () => passFail(run(NODE, [TSX, "scripts/routes-guards.selftest.mts"])) },
   writer: { declared: () => { const s = src("scripts/routes-writer.selftest.sh"); return union(all(/\b(?:ok|bad) ([A-Z][A-Za-z0-9-]*)\b/g, s), all(/^gr9 (GR9[a-z])\b/gm, s), all(/^un (UN\d)\b/gm, s)); },
     read: () => passFail(run("bash", ["scripts/routes-writer.selftest.sh"])) },

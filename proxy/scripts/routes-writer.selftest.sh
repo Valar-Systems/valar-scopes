@@ -28,6 +28,10 @@ run() { # run <outfile> <args...>: the writer through the fake, stdout+stderr to
   echo $?
 }
 has() { grep -qF -- "$2" "$1"; }
+# M1 (the review): GR10 and GR11 compare a WHOLE line, never a fragment ("MISMATCH 1" is a fragment of "MISMATCH 10").
+# CMP is the comparator they use; M1c grades CMP itself.
+line_is() { grep -qxF -- "$2" "$1"; }
+CMP=line_is
 receipt() { # receipt <file> <field=value>...: a valid receipt for new.tar.gz on staging, with fields overridden
   local out="$1"; shift
   node -e '
@@ -113,6 +117,23 @@ fresh; receipt "$T/sd1.json"; h0=$(sha "$T/s.json")
 rc=$(run "$T/sd1.out" "${SO[@]}" --receipt "$T/sd1.json" --source-date yesterday)
 if [ "$rc" = 2 ] && has "$T/sd1.out" "(SD1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok SD1; else bad SD1 "exit $rc"; fi
 
+# ---- SOD (B1, the review): --seal-only --dry-run is refused before any KV call, with nothing written ----------------
+fresh; receipt "$T/sod.json"; h0=$(sha "$T/s.json")
+rc=$(run "$T/sod.out" "${SO[@]}" --receipt "$T/sod.json" --dry-run)
+if [ "$rc" = 2 ] && has "$T/sod.out" "(SOD)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok SOD; else bad SOD "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+
+# ---- OV1-OV5 (B2, the review): an override that is not a non-negative integer is refused, never read as NaN ----------
+ovr() { # ovr <flag> <value>: true when the writer refuses it, exit 2 with (OVR), and the store is byte-identical
+  fresh; local h; h=$(sha "$T/s.json")
+  local r; r=$(run "$T/ovr.out" "${KL[@]}" --file "$F/new.tar.gz" --dry-run "$1" "$2")
+  [ "$r" = 2 ] && has "$T/ovr.out" "(OVR)" && [ "$(sha "$T/s.json")" = "$h" ]
+}
+if ovr --max-deletes "1,000"; then ok OV1; else bad OV1 "--max-deletes 1,000 was not refused"; fi
+if ovr --max-deletes "5x"; then ok OV2; else bad OV2 "--max-deletes 5x was not refused"; fi
+if ovr --max-deletes ""; then ok OV3; else bad OV3 "an empty --max-deletes was not refused"; fi
+if ovr --max-deletes "-1"; then ok OV4; else bad OV4 "--max-deletes -1 was not refused"; fi
+if ovr --allow-removed "5x"; then ok OV5; else bad OV5 "--allow-removed 5x was not refused"; fi
+
 # =================================== W3: the verify, the receipt, and the replay ===================================
 vrun() { # vrun <outfile> <args...>: the verify through the fake; echoes the exit status
   local o="$1"; shift
@@ -151,13 +172,17 @@ if [ "$rc" = 0 ] && [ -f "$T/r.json" ] && [ "$sr" = 0 ] && [ "$sc" = "$(printf '
 # ---- GR10: one written value planted wrong; RCP1: a stale receipt does not survive the failure --------------------
 from_written; plantkv changed '{"o":"XXX","d":"YYY"}'; echo '{"stale":true}' > "$T/r.json"
 rc=$(vrun "$T/gr10.out" "${V[@]}" --receipt "$T/r.json")
-if [ "$rc" = 1 ] && has "$T/gr10.out" "MISMATCH 1" && [ ! -f "$T/r.json" ]; then ok GR10; else bad GR10 "exit $rc"; fi
+if [ "$rc" = 1 ] && $CMP "$T/gr10.out" "values: checked 70, match 69, MISMATCH 1, ABSENT 0" && [ ! -f "$T/r.json" ]; then ok GR10; else bad GR10 "exit $rc"; fi
 if [ ! -f "$T/r.json" ]; then ok RCP1; else bad RCP1 "the stale receipt survived a failed verify"; fi
 
 # ---- GR11: one deleted key planted back ---------------------------------------------------------------------------
 from_written; plantkv deleted '{"o":"AAA","d":"BBB"}'; rm -f "$T/r.json"
 rc=$(vrun "$T/gr11.out" "${V[@]}" --receipt "$T/r.json")
-if [ "$rc" = 1 ] && has "$T/gr11.out" "PRESENT 1" && [ ! -f "$T/r.json" ]; then ok GR11; else bad GR11 "exit $rc"; fi
+if [ "$rc" = 1 ] && $CMP "$T/gr11.out" "absence: checked 25, absent 24, PRESENT 1" && [ ! -f "$T/r.json" ]; then ok GR11; else bad GR11 "exit $rc"; fi
+
+# ---- M1c: the comparator GR10 and GR11 use rejects a near miss (MISMATCH 10 where it wants MISMATCH 1) --------------
+printf 'values: checked 70, match 60, MISMATCH 10, ABSENT 0\n' > "$T/m1c.out"
+if ! $CMP "$T/m1c.out" "values: checked 70, match 69, MISMATCH 1, ABSENT 0" && ! $CMP "$T/m1c.out" "MISMATCH 1"; then ok M1c; else bad M1c "the comparator accepted MISMATCH 10 as MISMATCH 1"; fi
 
 # ---- UN1-UN3: an unchanged source is replayed, verified, and only then re-sealed ----------------------------------
 RP=(--key-level --replay --env staging --prev "$F/prev.tar.gz" --file "$F/new.tar.gz" --out-written "$T/w2.json" --out-deleted "$T/d2.json")

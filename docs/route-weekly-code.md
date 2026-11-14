@@ -532,7 +532,7 @@ diff still touches `proxy/**` and `docs/`, so the same four workflows run. Outsi
    that makes production writes happen weekly with no person present, so nothing else rides in it. It must land before
    about 11-24 01:30Z, or the alert fires.
 
-**The owner's deadline** (in his digest): the `routes-refresh` environment, `ROUTES_KV_TOKEN` and `ROUTES_NTFY_TOPIC`
+**The owner's deadline** (in the owner's digest): the `routes-refresh` environment, `ROUTES_KV_TOKEN` and `ROUTES_NTFY_TOPIC`
 must exist by about **11-22**, leaving margin before the 11-24 alert. Without them the first attended run cannot
 happen, and the alert firing is correct.
 
@@ -685,3 +685,32 @@ is engineering and a guarded write path, not money. That decision is the owner's
 | TMP1, the plant | the reviewer's "skip the cleanup once", in both tools (registered in the run's own message before it ran): the writer selftest red exactly {TMP1}, with 32 dirs left; the run selftest red exactly {TMP1}, with 19 left, all in the private temp that the selftests' traps remove. Restored from byte copies, sha256 equal. W8 gains S-TMP-W and S-TMP-V | **as predicted** |
 | W8, instrument failures #1 and #2 | **#1** (the first full run): `execFileSync("npx")` is ENOENT on Windows without a shell, so six graders never started and read as red `[]`. Recorded: 7 of 14 OFF, not re-graded. **#2** (the re-run's baseline, which STOPPED as designed, with no plant applied): the vitest parser wanted `RH` right after the mark, but vitest prints `✓ <file> > <describe> > RH1: ...`, and two rows read `RH8 (control):`. A probe showed vitest starts (exit 0, 11 marked lines), excluding "cannot start". **The fix, as ruled:** graders run as `node node_modules/<bin>`; the id is taken after the last `> ` up to a word boundary; and the baseline compares the SET of ids each grader reads with the set its source DECLARES (literal row names; G6's three tuple-named rows included), not only the count. Every declared set read equal (guards 54, writer 25, freeze 4, run 7, health 11). `--sabotage-blind` re-proved under the set compare: 0 of 54 declared, STOP, exit 2 | **as ruled** |
 | W8, the full re-run | driver `26b21391`, 2026-11-14 06:19-06:27Z. **BASELINE first:** every grader read exactly its declared set (guards 55, writer 25, freeze 4, run 7, routes-health 11, reconcile 1), 0 red. Then **14 of 14 as registered:** S-GR9, S-GR8 (as re-registered), S-FK1, S-VAL, S-RH9s, S-TK1, S-FZ, S-FZC, S-SC4, S-SC2, S-RR3, S-TMP, S-SW (as re-registered, {SW2, SW5}) and S-RC6, each restored from a byte copy with sha256 equal. Free 38.35 GB before, 38.24 after; 0 temp leftovers. `SABOTAGE PASSED (14 plant(s), after a full baseline)` | **as registered** |
+| 2h, red-first | the 2h rows added, against `0439ebf4`'s code (2026-11-14 ~07:1xZ): the guards selftest red exactly {GN1, GN2, SG1, SG2}, its 55 earlier rows green; the writer selftest red exactly {SOD, OV1, OV2, OV3, OV4, OV5, M1c}, its 25 earlier rows green; W10's CTL red with 2 PIN2 findings, one per checkout | **as predicted** |
+| 2h, green | after the fixes: the guards selftest **59 of 59**, the writer **32 of 32**, the run 7 of 7, the freeze 4 of 4, each with no token variable present. `typecheck:scripts` exit 0. W10: `routes workflow: OK (SC1, SC3, SC5, PIN1, PIN2, NPM1)`; its selftest PASSED, the PIN2 plant reading `['PIN2']`, CTL clean, and S1, S3 and S5 as before | **as predicted** |
+| W8 after 2h, run 1 | predicted before it ran: the guards BASELINE is BLIND, because SG1 and SG2 are named in a `[["SG1", "SIGINT", 130], ...]` tuple loop that the declared-set regex cannot see. Read: `BLIND -- read 59 of 57 declared ids (0 missing, 2 not declared), 0 red`; no plant applied, porcelain unchanged. The declared union gains `\["(SG\d)", "SIG` (the same move as G6's tuples). A second start, sent while that edit had been refused, read the same and is not a separate result | **as predicted** |
+| W8 after 2h, run 2: **an instrument failure, no verdict** | the guards baseline read 59 of 59. Then the writer BASELINE read `BLIND -- read 32 of 32 declared ids (0 missing, 0 not declared), 22 red` and STOPPED, with no plant applied and porcelain unchanged.<br>**Cause:** the invocation EXPORTED `BLIPSCOPE_TOKEN_FILE`, and the file it names exists. So FK1 refused the fake KV (exit 2, `(FK1)`) in every writer row that runs a tool. Every earlier W8 run (05:26, 05:37, 06:02, 06:07 and 06:19Z) was started with `env -u BLIPSCOPE_TOKEN_FILE`; this one was not. FK1 did its job; the run's setup did not.<br>**Alternative: the 2h code broke 22 writer rows under the driver.** Excluded. The same selftest on the same tree (only the driver's regex has changed since) read 32 of 32 minutes earlier with the variable unset. And the only comparator change (M1) reaches 3 rows at most (GR10, GR11, M1c), not 22.<br>**Alternative: the driver's `bash` resolved to another shell.** Not excluded by any read; the re-run below decides it | **OFF**: stopped and reported, no re-run before the ruling |
+
+**Proposed after run 2 (awaiting the reviewer's ruling; nothing re-run):**
+
+- **(a) The re-run, set up as every earlier run was:** `env -u BLIPSCOPE_TOKEN_FILE node scripts/sabotage-routes-weekly.mjs`.
+- **(b) Recommended: the check goes where the information is.** The two fake-KV selftests (writer, run) refuse to START
+  when FK1's credential conditions already hold in their own environment: `BLIPSCOPE_TOKEN_FILE` names an existing
+  file, or `ROUTES_KV_TOKEN` or `CLOUDFLARE_API_TOKEN` is set. They exit 2 with one line naming the variable, never its
+  value, and print no row. The driver then reads them BLIND with 0 ids, which is the truth. Today the same mistake
+  reads as 22 red rows whose reasons ("exit 2, store changed: no") point nowhere near the cause. **BL1, BL2, red-first:**
+  each selftest started with `BLIPSCOPE_TOKEN_FILE` naming an empty file in its own temp (never the real file): today
+  it prints rows; after (b) it exits 2 with the line and no row. The control: with the variable unset, the full counts.
+- **(c) Optional: S-TMP-G.** S-TMP's anchor is the cleanup loop, which M3's signal handlers now share, so SG1 and SG2
+  go red under it too. But S-TMP is graded by the writer only, and the writer has no SG rows. S-TMP-G is the same plant
+  graded by the guards selftest: **red exactly {SG1, SG2}**.
+
+**The re-run's predictions (frozen 2026-11-14 ~07:50Z; the same under (b), since the variable is unset):**
+- **BASELINE:** guards 59, writer 32, freeze 4, run 7, routes-health 11, reconcile 1; 0 red.
+- **Plants:** 14 of 14 as registered, with the same sets as at 06:19Z. None of the 2h rows sits in a plant's path:
+  - SOD and OV1-OV5 refuse before any KV call;
+  - M1c runs no tool;
+  - GN1 and GN2 are pure;
+  - S-TMP is graded by the writer only, so its {TMP1} stands.
+- **After:** each restore sha-equal, porcelain unchanged, 0 temp leftovers.
+- **Under (c):** S-TMP-G red exactly {SG1, SG2}.
+- **Outside the set:** stop and decide.

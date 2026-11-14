@@ -159,6 +159,16 @@ interface Args {
   replay: boolean;
 }
 
+/** B2 (the review): an override is a non-negative integer or it is refused. Number("1,000") is NaN, and every guard
+ *  comparison against NaN is false, so a NaN cap would silently pass any count. Never coerced, never defaulted. */
+function countArg(flag: string, v: string | undefined): number {
+  if (v === undefined || !/^\d+$/.test(v)) {
+    console.error(`REFUSING (OVR): ${flag} must be a non-negative integer such as 1000 (no commas, signs or units). Nothing done.`);
+    process.exit(2);
+  }
+  return Number(v);
+}
+
 function parseArgs(argv: string[]): Args {
   const a: Args = { dryRun: false, forceShards: [], keyLevel: false, noSeal: false, sealOnly: false, readback: "on", allowShards: [], allowRemoved: 0, replay: false };
   for (let i = 0; i < argv.length; i++) {
@@ -174,9 +184,9 @@ function parseArgs(argv: string[]): Args {
     else if (argv[i] === "--seal-only") a.sealOnly = true;
     else if (argv[i] === "--receipt") a.receipt = argv[++i];
     else if (argv[i] === "--readback") a.readback = argv[++i] === "off" ? "off" : "on";
-    else if (argv[i] === "--max-deletes") a.maxDeletes = Number(argv[++i]);
+    else if (argv[i] === "--max-deletes") a.maxDeletes = countArg("--max-deletes", argv[++i]);
     else if (argv[i] === "--allow-shard") a.allowShards.push(argv[++i] as string);
-    else if (argv[i] === "--allow-removed") a.allowRemoved = Number(argv[++i]);
+    else if (argv[i] === "--allow-removed") a.allowRemoved = countArg("--allow-removed", argv[++i]);
     else if (argv[i] === "--out-written") a.outWritten = argv[++i];
     else if (argv[i] === "--out-deleted") a.outDeleted = argv[++i];
     else if (argv[i] === "--source-date") a.sourceDate = argv[++i];
@@ -595,6 +605,9 @@ function sealOnlyMain(args: Args) {
  */
 async function keyLevelMain(args: Args) {
   if (!args.env) refuse(2, "REFUSING: the key-level mode needs --env <staging|production>");
+  // B1 (the review): a seal has no dry run. --seal-only went straight to its meta write, ignoring --dry-run, so the
+  // combination is REFUSED before any KV call rather than half-honoured.
+  if (args.sealOnly && args.dryRun) refuse(2, "REFUSING (SOD): --seal-only cannot be a --dry-run: a seal writes meta:routes and nothing else. Nothing done.");
   if (args.sealOnly) return sealOnlyMain(args);
   if (args.replay) return replayMain(args);
   if (!args.file || !args.prev) refuse(2, "REFUSING: the key-level mode needs --file <the new source> and --prev <the snapshot meta:routes was built from>");

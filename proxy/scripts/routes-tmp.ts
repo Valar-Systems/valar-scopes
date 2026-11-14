@@ -25,9 +25,14 @@ export function tmpDir(prefix: string): string {
   made.push(d);
   return d;
 }
-process.on("exit", () => {
+const cleanup = () => {
   for (const d of made) { try { rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ } }
-});
+};
+process.on("exit", cleanup);
+// M3 (the review): a GitHub cancel or timeout arrives as SIGINT or SIGTERM, which skip the "exit" handler. Clean up,
+// then exit with the shell's conventional 128 + signal number, so the caller still sees the run was stopped.
+process.on("SIGINT", () => { cleanup(); process.exit(130); });
+process.on("SIGTERM", () => { cleanup(); process.exit(143); });
 
 /** Remove THIS tool's stale dirs in `dir`: name `<prefix><6 chars>`, mtime older than STALE_MS, content only ours.
  *  Returns counts; a fresh dir is kept, a stale dir with foreign content is kept and counted as foreign. */
