@@ -42,6 +42,17 @@ const TARBALL = "https://codeload.github.com/vradarserver/standing-data/tar.gz/r
 /** Every KV call goes through the helper. ROUTES_KV_CLI is for TESTS ONLY (the writer's same hook; FK1 below). */
 const KV_CLI = process.env.ROUTES_KV_CLI ?? "scripts/wrangler-run.mjs";
 const MADE_UP = "rt:ZZQQQQQX"; // GR10a: a key nobody writes, which must read null
+
+// Temp dirs are removed on every exit, process.exit() included (see ingest-routes.ts, tmpDir; TMP1 counts what is left).
+const TMP_DIRS: string[] = [];
+function tmpDir(prefix: string): string {
+  const d = mkdtempSync(join(tmpdir(), prefix));
+  TMP_DIRS.push(d);
+  return d;
+}
+process.on("exit", () => {
+  for (const d of TMP_DIRS) { try { rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ } }
+});
 /** THE value comparison, byte for byte. The GR10m control calls it too, so the control and the check share one path. */
 const same = (expected: string, got: string | null | undefined) => got === expected;
 
@@ -145,7 +156,7 @@ async function main() {
   // RCP1: a stale receipt never survives this run. It is written again only on a full PASS, at the very end.
   if (args.receipt && existsSync(args.receipt)) rmSync(args.receipt);
 
-  const tmp = mkdtempSync(join(tmpdir(), "verify-"));
+  const tmp = tmpDir("verify-");
   const tarPath = args.file ?? join(tmp, "sd.tar.gz");
   if (!args.file) {
     execSync(`curl -sL --max-time 300 ${q(TARBALL)} -o ${q(sh(tarPath))}`, { stdio: "inherit" });

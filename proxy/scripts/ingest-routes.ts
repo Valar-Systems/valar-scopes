@@ -88,7 +88,7 @@
  */
 import { execFileSync, execSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { putWithBackoff } from "./chunk-retry";
@@ -409,6 +409,20 @@ function refuse(code: number, ...lines: string[]): never {
   process.exit(code);
 }
 
+// TEMP DIRS ARE REMOVED ON EVERY EXIT (2026-11-14: 371 left behind, 4.7 GB, found by the reviewer on a disk with no
+// margin). Each extracted snapshot is ~13 MB, and the selftests make dozens. Not try/finally: every refusal here is
+// process.exit(), which skips finally blocks; an "exit" handler runs on process.exit() and on the uncaught-error path
+// (main().catch -> process.exit). Only a kill -9 skips it. TMP1 in the selftests counts what a run leaves: 0.
+const TMP_DIRS: string[] = [];
+function tmpDir(prefix: string): string {
+  const d = mkdtempSync(join(tmpdir(), prefix));
+  TMP_DIRS.push(d);
+  return d;
+}
+process.on("exit", () => {
+  for (const d of TMP_DIRS) { try { rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ } }
+});
+
 type Enrich = (cs: string) => { o?: string; d?: string } | null;
 /**
  * The live read path, as the TEST identity: the base URL and a GET /v1/enrich probe. Shared by the full mode and the
@@ -495,8 +509,8 @@ function kvChunks(kind: "put" | "delete", items: unknown[], env: string, tmp: st
 function replayMain(args: Args) {
   const env = args.env as string;
   if (!args.file || !args.prev) refuse(2, "REFUSING (UN): --replay needs --file <the sealed source> and --prev <the snapshot its last change came from>.");
-  const nw = parseSource(args.file as string, mkdtempSync(join(tmpdir(), "routes-rp-new-")), "new: ");
-  const pv = parseSource(args.prev as string, mkdtempSync(join(tmpdir(), "routes-rp-prev-")), "prev: ");
+  const nw = parseSource(args.file as string, tmpDir("routes-rp-new-"), "new: ");
+  const pv = parseSource(args.prev as string, tmpDir("routes-rp-prev-"), "prev: ");
   const m = readMeta(env);
   if (m.kind === "absent") refuse(1, "REFUSING (UN): no meta:routes, so nothing is sealed to replay.");
   const { meta, raw } = m as { kind: "ok"; meta: Meta; raw: string };
@@ -539,7 +553,7 @@ function sealOnlyMain(args: Args) {
   try { r = JSON.parse(readFileSync(args.receipt as string, "utf8")) as Record<string, unknown>; }
   catch { refuse(2, "REFUSING (GR9): the receipt does not parse. Nothing sealed."); }
   const sourceSha256 = sha256File(args.file as string);
-  const nw = parseSource(args.file as string, mkdtempSync(join(tmpdir(), "routes-seal-")), "new: ");
+  const nw = parseSource(args.file as string, tmpDir("routes-seal-"), "new: ");
   const m = readMeta(env);
   if (m.kind === "absent") refuse(1, "REFUSING (GR9): no meta:routes to seal over; the key-level mode needs the meta its run was proven against.");
   const metaSha = sha256Text((m as { raw: string }).raw);
@@ -571,7 +585,7 @@ function sealOnlyMain(args: Args) {
     shards: Object.fromEntries([...nw.shards.entries()].map(([n, s]) => [n, `${s.hash}:${s.pairs.length}`])),
   };
   if (!pfxOk(META_KEY)) refuse(1, "REFUSING (PFX1): the meta key is outside the route prefix.");
-  kvChunks("put", [{ key: META_KEY, value: JSON.stringify(meta) }], env, mkdtempSync(join(tmpdir(), "routes-meta-")));
+  kvChunks("put", [{ key: META_KEY, value: JSON.stringify(meta) }], env, tmpDir("routes-meta-"));
   console.log(`meta sealed: rows=${nw.totalRows} written=${String(r.written)} deleted=${String(r.deleted)} mode=key-level source ${nw.commit.slice(0, 12)} readback=${String(r.readback)}`);
 }
 
@@ -600,8 +614,8 @@ async function keyLevelMain(args: Args) {
     refuse(2, "REFUSING (KL1): a key-level run that writes must be given --no-seal. meta:routes is written only by --seal-only, with a verify receipt.");
   }
 
-  const nw = parseSource(args.file, mkdtempSync(join(tmpdir(), "routes-new-")), "new: ");
-  const pv = parseSource(args.prev, mkdtempSync(join(tmpdir(), "routes-prev-")), "prev: ");
+  const nw = parseSource(args.file, tmpDir("routes-new-"), "new: ");
+  const pv = parseSource(args.prev, tmpDir("routes-prev-"), "prev: ");
 
   // ---- proof 1: --prev IS the snapshot the current meta:routes was built from ---------------------------------
   const m = readMeta(args.env as string);
@@ -617,7 +631,7 @@ async function keyLevelMain(args: Args) {
   let also: ParsedSource | null = null;
   if (args.prevAlso) {
     if (!args.prevManifest) refuse(2, "REFUSING: --prev-also needs --prev-manifest <the saved meta:routes it was built into>");
-    also = parseSource(args.prevAlso, mkdtempSync(join(tmpdir(), "routes-also-")), "prev-also: ");
+    also = parseSource(args.prevAlso, tmpDir("routes-also-"), "prev-also: ");
     const man = (JSON.parse(readFileSync(args.prevManifest as string, "utf8")) as Meta).shards;
     const all = new Set([...Object.keys(man), ...also.shards.keys()]);
     let eqRule = 0, eqPlain = 0;
@@ -676,7 +690,7 @@ async function keyLevelMain(args: Args) {
 
   // ---- stage 2: write, delete, read back; NEVER seal (W2) --------------------------------------------------------
   const env = args.env as string;
-  const tmp = mkdtempSync(join(tmpdir(), "routes-kl-"));
+  const tmp = tmpDir("routes-kl-");
   const writes = [...newVal].filter(([k, v]) => prevVal.get(k) !== v);
   const dels = deletesAllowed ? deletes : [];
   const live = args.readback === "off" ? null : liveReader(env);
@@ -775,7 +789,7 @@ async function main() {
     process.exit(2);
   }
 
-  const tmp = mkdtempSync(join(tmpdir(), "routes-"));
+  const tmp = tmpDir("routes-");
   const tarPath = args.file ?? join(tmp, "sd.tar.gz");
 
   if (!args.file) {

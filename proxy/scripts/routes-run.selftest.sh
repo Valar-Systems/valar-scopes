@@ -5,6 +5,8 @@
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 T="$(mktemp -d)"; F="$T/fx"; trap 'rm -rf "$T"' EXIT
+# TMP1: every child's temp dirs go to a private dir, so what a run LEAVES can be counted exactly (see the writer's).
+mkdir -p "$T/tmp"; PT="$(cygpath -w "$T/tmp" 2>/dev/null || echo "$T/tmp")"; export TMPDIR="$T/tmp" TEMP="$PT" TMP="$PT"
 npx tsx scripts/routes-fixture.mts "$F" > "$T/fixture.out" 2>&1 || { cat "$T/fixture.out"; echo "SELFTEST FAILED: the fixture did not build"; exit 1; }
 P1=$(printf '1%.0s' $(seq 40)); P2=$(printf '2%.0s' $(seq 40))
 mkdir -p "$T/src"; cp "$F/prev.tar.gz" "$T/src/$P1.tar.gz"; cp "$F/new.tar.gz" "$T/src/$P2.tar.gz"
@@ -63,6 +65,12 @@ cp "$T/store-kl.json" "$T/s.json"
 rc=$(run "$T/rr5.out" ROUTES_FREEZE_UNTIL=2099-01-01T00:00:00Z ROUTES_KV_CLI=scripts/no-such-kv-cli.mjs)
 if [ "$rc" = 0 ] && has "$T/rr5.out" "freeze: SKIP -- frozen until 2099-01-01T00:00:00Z" && has "$T/rr5.out" "routes-refresh: frozen, nothing done"; then ok RR5
 else bad RR5 "exit $rc"; fi
+
+# ---- TMP1: the run leaves no temp dir behind (its own mktemp is trapped; the tools' are removed on exit) -------------
+seen=$(node -e 'process.stdout.write(require("os").tmpdir())')
+case "$(echo "$seen" | tr '\\' '/' | tr 'A-Z' 'a-z')" in *"$(basename "$T" | tr 'A-Z' 'a-z')/tmp"*) ok TMP1-ctl ;; *) bad TMP1-ctl "a child's temp is not the private one" ;; esac
+left=$(ls -1 "$T/tmp" 2>/dev/null | grep -cE '^(routes|verify)-|^tmp\.')
+if [ "$left" = 0 ]; then ok TMP1; else bad TMP1 "$left temp dir(s) left behind"; fi
 
 echo "rows: $pass passed, $fail failed"
 if [ "$fail" -gt 0 ]; then echo "SELFTEST FAILED:$failed"; exit 1; fi

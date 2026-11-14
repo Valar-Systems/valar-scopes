@@ -8,6 +8,9 @@
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 T="$(mktemp -d)"; F="$T/fx"; trap 'rm -rf "$T"' EXIT
+# TMP1: every child's temp dirs go to a private dir, so what a run LEAVES can be counted exactly (2026-11-14: the tools
+# left 371 dirs, 4.7 GB, in the system temp). Windows node reads TEMP/TMP, POSIX reads TMPDIR.
+mkdir -p "$T/tmp"; PT="$(cygpath -w "$T/tmp" 2>/dev/null || echo "$T/tmp")"; export TMPDIR="$T/tmp" TEMP="$PT" TMP="$PT"
 npx tsx scripts/routes-fixture.mts "$F" > "$T/fixture.out" 2>&1 || { cat "$T/fixture.out"; echo "SELFTEST FAILED: the fixture did not build"; exit 1; }
 # The base store is a mirror built from prev: its meta AND every prev key at its value (the fixture writes it). So "a
 # deleted key is gone" and "a changed key holds its new value" can each fail, and the verify's whole-prefix listing
@@ -179,6 +182,12 @@ un() { # un <row> <plant: none|changed|deleted>
 un UN1 none
 un UN2 changed
 un UN3 deleted
+
+# ---- TMP1: the tools leave no temp dir behind; TMP1-ctl: the children really used the private temp -----------------
+seen=$(node -e 'process.stdout.write(require("os").tmpdir())')
+case "$(echo "$seen" | tr '\\' '/' | tr 'A-Z' 'a-z')" in *"$(basename "$T" | tr 'A-Z' 'a-z')/tmp"*) ok TMP1-ctl ;; *) bad TMP1-ctl "a child's temp is not the private one" ;; esac
+left=$(ls -1 "$T/tmp" 2>/dev/null | grep -cE '^(routes|verify)-')
+if [ "$left" = 0 ]; then ok TMP1; else bad TMP1 "$left temp dir(s) left behind"; fi
 
 echo "rows: $pass passed, $fail failed"
 if [ "$fail" -gt 0 ]; then echo "SELFTEST FAILED:$failed"; exit 1; fi
