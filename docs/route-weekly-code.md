@@ -761,6 +761,10 @@ before the push).**
 **CI-C7, the push of section 4a (docs only; predicted 2026-11-14 ~07:00Z, before the push):** 36 = 34 + 2. The PR's
 diff still touches `proxy/**` and `docs/`, so the same four workflows run. Outside the set: stop and decide.
 
+**CI-C7, read: AS PREDICTED** at `0439ebf4`: 36 = 34 success + 2 skipped, 0 other. The last check finished at
+07:14:12Z, and the run was identical at 15:44:21Z and 15:45:23Z. It tested `Merge 0439ebf4... into 6f6dae93...` (the
+`test (proxy)` checkout log). Recorded late (read 2026-11-14 15:44Z), before the next push.
+
 ## 4. The staging rehearsal and the first runs
 
 1. **A dry run of each environment**, attended. It prints counts only: `sourceCommit`, rows, writes, deletes by kind
@@ -1031,3 +1035,31 @@ is engineering and a guarded write path, not money. That decision is the owner's
 - **After:** each restore sha-equal, porcelain unchanged, 0 temp leftovers.
 - **Under (c):** S-TMP-G red exactly {SG1, SG2}.
 - **Outside the set:** stop and decide.
+
+**W8, the owner's one re-run (2026-11-14 15:29:07-15:55:07Z, driver at `6f7ccb89`): OFF, 17 of 18 as registered.
+Stopped; nothing re-run; with the owner.**
+- **Before the run:** every anchor exactly once (18 plants). Each plant was read in its final-code context. The declared
+  sets computed from source were guards 63, writer 48, freeze 4, runs 8, health 11 and reconcile 1, with every plant id
+  declared. `BLIPSCOPE_TOKEN_FILE`, `ROUTES_KV_TOKEN` and `CLOUDFLARE_API_TOKEN` were all absent.
+- **BASELINE:** every grader read its full declared set, 0 red.
+- **As registered:** S-GR9, S-GR8, S-FK1 (BL1 and BL2 included), S-RH9s, S-TK1, S-FZ, S-FZC, S-SC4, S-SC2, S-RR3, S-TMP,
+  S-TMP-G, S-SW, S-RC6, S-JN-W, S-JN-R and S-J7.
+- **S-VAL, OFF:** red {GR10, GR10a, GR10m, GR11, J3, J7, JR1, RCP2, **SN1, SN1-ctl**, UN1, UN2, UN3}. That is the
+  registered set plus exactly two rows, with none missing.
+- **After:** the driver exited 1 (OFF, not BLIND), with empty stderr; porcelain 0, the tree equal to HEAD, and 0 temp
+  leftovers.
+- **The cause, from the code (a registration defect, 2o):**
+  - SN1 and SN1-ctl run the verify with `${V[@]}`, which carries `--check-values`. Each asserts both `rc = 0` and the
+    count line.
+  - The count line prints at `verify-routes.ts` ~317, before the GR10m control (~330-332). Under S-VAL that control
+    exits 2.
+  - 2o's line "the count line is printed by every verify, under every plant" is true of the line, and it ignored the
+    exit-0 half of the same row. That is one row with two properties, in the registration's reasoning.
+- **Alternatives:**
+  - the count path: excluded, since it is a regex over the listing, never `same()`;
+  - a transient: excluded, since both rows were green in the baseline and under the other five writer-graded plants;
+  - the driver: excluded, since it read 48 of 48 ids under the plant.
+  - SN1's own FAIL text was not captured: the driver records ids only.
+- **Proposed** (with the owner; nothing runs before his word): F1, the 13-row set frozen first, then one `--only S-VAL`
+  run after the full baseline, capturing SN1's and SN1-ctl's FAIL text (predicted `exit 2; the count line 1 time(s)`).
+  F2, splitting the two rows, would re-run all of W8.
