@@ -502,6 +502,23 @@ before the run.
 refuse(1, \`REFUSING (GR9)`) is not in these lines, and FS2 refuses before GR9's receipt check, so S-GR9's set
 {GR9b, GR9c, GR9e, GR9f, GR9g} stands. Re-checked with the anchor tool before any W8 run. **Outside the set:** stop.
 
+### 2l. D4, the full mode refused for production writes (ruled before S-ON, 2026-11-14 by 07:40Z; registered 07:58Z, before the code)
+
+**The change:** `main()` refuses the FULL mode under `--env production` without `--dry-run`: exit 2, `(FM1)`, before any
+KV call. The check sits BEFORE FK1's, because a fake-KV run on production is refused by FK1 too, and a row must be able
+to tell the two refusals apart. A production dry run of the full mode stays allowed: it reads only.
+
+| row (writer selftest) | the test | red against today's code because |
+|---|---|---|
+| **FM1** | the full mode, `--env production`, no `--dry-run`, through the fake: exit 2, `(FM1)` printed, store byte-identical | today FK1 refuses first (exit 2, `(FK1)`): the right exit for the wrong rule, so the `(FM1)` check fails |
+| **FM-ctl** | the full mode, `--env staging --dry-run`, through the fake: exit 0 (the refactor proof's path, still open) | green before and after: the control that FM1 is scoped to production writes |
+
+**Residual, stated:** a full-mode WRITE on staging is still possible, and would break staging's chain the same way.
+The next weekly staging job then refuses it loudly as `meta-not-key-level` (RR4). It stays open for staging repairs.
+**Red-first, predicted:** writer red exactly **{FM1}**, the other 36 green (FM-ctl among them). **After:** writer **38 of
+38**, `typecheck:scripts` exit 0. **W8:** the writer's declared set becomes 38. No plant's anchor is in `main()`'s new
+lines, which the anchor tool re-checks. **Outside the set:** stop.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
