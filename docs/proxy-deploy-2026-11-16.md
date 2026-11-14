@@ -54,18 +54,27 @@ until it is planned. A deploy never carries a change nobody predicted.
   - staging (`2026-11-13T17:44:25.919Z`): 2 until 11-16 17:44:25.919Z.
   Both read 2 inside the slot.
 
-**C3, the site feed** (production only):
-- **The prediction:** the snapshot's `centre` equals `BEND` in `bend.ts` at the deployed sha, and valarscopes-site still
-  accepts it under its 1 km rule.
-- The snapshot is reachable only through the `BendFeed` service binding. So the read comes from the consumer's side: a
-  count-only or boolean read, from the valarscopes-site session or a tool it names.
+**C3, the site feed** (production only). The snapshot is reachable only through the `BendFeed` service binding, so
+the reads come from the consumer's side. valarscopes-site's PREVIEW Workers bind PRODUCTION's `BendFeed`, with the same
+`SNAPSHOT_RULES` as the site (the reviewer, 2026-11-14).
+- **The trigger:** as soon as C1 passes on production, uk-data sends the site session the deploy's completion time,
+  from this run's ledger. The site session runs both reads after 16:30Z, on that signal, and sends both booleans with
+  stamps to uk-data and the reviewer.
+- **(1), on #11's preview:** `/live`'s centre equals the 2-dp `BEND` (from `bend.ts` at the deployed sha), as a
+  boolean.
+- **(2), on #19's preview:** `/blips` answers 200 with a `t` NEWER than the deploy's completion time, AND `/diag` is not
+  503 `not_bend` or `radius`.
 - A new centre appears at the first accepted write after the deploy. That is within the 30 s gate plus the next device
-  tile refresh, so the read waits for a snapshot newer than D3.
-- If no such read is available on the day, C3 is reported **"not run"**, never passed.
-- The reviewer, 2026-11-14: the site ships dark (its data routes 404 until switched on, #11), so it may have no
-  production path that reads the snapshot yet. The reviewer asked valarscopes-site and valarscopes-app, which holds the
-  same binding. If neither can give the boolean, C3 is "not run", and it is covered when the site switches on.
-- A rejection by the site is a failure: roll back.
+  tile refresh, so `t` newer than the completion time is what proves the read saw the new code's snapshot.
+- **Predicted: both true.** A refusal (`/diag` 503 `not_bend` or `radius`), a centre that is not `BEND`, or a `t` that
+  is not newer than the completion time is a failure: roll back.
+- If the site session cannot run the reads on the day, C3 is reported **"not run"**, never passed.
+- **valarscopes-app's code prediction (a prediction, NOT a reading):**
+  - `validate()` (valarscopes-app `src/live.ts:98`) refuses only beyond `maxCentreOffsetKm`, which is 1 km for bend
+    (`src/places.ts:22`), so a 0.46 km move is ACCEPTED.
+  - The side effect: a screen at its maximum range can lose up to about 0.46 km of coverage on its far edge.
+  - The app has no read-only path on production: the centre is never exposed, and acceptance shows only as `/blips`
+    rows for a paired screen, and none is paired. So the app's side is predicted from its code only.
 
 **C4, the credits page.** `/credits` contains `camera location and serial metadata are removed.` exactly once. The
 existing NOAA MRMS and OPERA lines are still there; smoke-prod.sh checks those.
