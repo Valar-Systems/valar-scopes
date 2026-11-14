@@ -543,6 +543,63 @@ NPM1c has no sabotage row; NPM1 and NPM1x are its neighbours.
 **After:** `SELFTEST PASSED`, and `routes workflow: OK` on the real file, with S1, S3 and S5 turning exactly their new
 sets. **Outside the set:** stop.
 
+### 2n. D1, the write-ahead journal (ruled before S-ON, 2026-11-14 by 07:40Z; registered 08:36Z, before the code)
+
+**The defect (4b, D1):** the diff is against the SEALED `--prev` only, so writes from a run that did not seal are
+invisible to every later run. A wrong value can be sealed around, and an unsealed add is orphaned for good.
+
+**The journal:** one key, `meta:routes-pending`, holding `{v: 1, since: <sha256 of the meta:routes it was written
+against>, keys: [every rt: key an unsealed run has written or deleted, sorted]}`. PFX1 gains exactly this key.
+1. **Read at the start of every key-level run, dry runs included.** A journal whose `since` is not the current meta's
+   sha256 is STALE (a seal happened after it, and its clear failed): it is ignored, with a printed line.
+2. **The diff takes it in:**
+   - writes = the keys whose value differs from `--prev`, plus every pending key the new source holds (rewritten to
+     the new value);
+   - deletes = the proven keys the new source lacks, plus every pending key it lacks.
+   - Pending keys count as the mirror's own for G6's provenance, and G5 counts every delete.
+   - The plan line prints `pending: <n> key(s) from unsealed runs (rewrite <r>, delete <d>)`, `pending: none` or
+     `pending: stale, ignored`.
+3. **Write-ahead:** after PFX1 and BEFORE the first data write, the run puts the journal: the current journal's keys (if
+   not stale) plus this run's write and delete keys, with `since` the current meta's sha256.
+4. **The seal clears it:** `--seal-only` writes `meta:routes`, then deletes `meta:routes-pending`. A failed delete is a
+   WARN line, not a refusal. The journal is then stale by construction (its `since` is the old meta), and the next run
+   ignores it.
+5. **Replay:** `--replay` with a current (not stale) journal REFUSES (exit 6, `(JN1)`), because a replay writes nothing
+   and cannot clear what it holds. The run script then takes the key-level write for the same source: `--prev` is the
+   sealed snapshot and `--file` the same source, so the writes are exactly the pending keys the source holds and the
+   deletes the ones it lacks. Then it verifies and seals.
+
+**Rows, red against today's code** (writer selftest unless named; fake KV only):
+
+| row | the scenario and what it asserts |
+|---|---|
+| **J4** | run A (`--file new --no-seal`, not sealed) leaves `meta:routes-pending` with `since` = sha256(meta) and the 95 keys it touched (70 written, 25 deleted). Red today: there is no journal |
+| **J5** | sealing run A's own verified write removes the journal (it existed before the seal, and is gone after). Red today |
+| **J1** | after run A is left unsealed, run B with `--file prev` (the source reverts) rewrites A's 30 changed keys to prev's values. Today B's diff against prev is empty, so they keep A's values: red |
+| **J2** | in the same B: A's 40 ADDED keys, absent from prev, are deleted. Today they are orphaned: red |
+| **J3** | in the same B: A's 25 deleted keys, present in prev, are written back. Then B is verified and sealed: every `rt:` key equals prev's mirror byte for byte, nothing extra, and no journal. Red today |
+| **J6** | a STALE journal (`since` all zeros) is ignored: the plan prints `pending: stale, ignored`, and the counts equal the no-journal case. Red today: the line is never printed |
+| **JR1** | `--replay` with a current journal: exit 6, `(JN1)`, the store byte-identical. Red today: the replay proceeds |
+| **RR6** (run selftest) | an unchanged source with a current journal: the script does NOT replay. It runs the key-level write, verifies and seals, then the journal is gone and the store equals the source's mirror. Red today |
+
+**Red-first, predicted:**
+- writer red exactly **{J1, J2, J3, J4, J5, J6, JR1}**, the other 38 green;
+- run red exactly **{RR6}**, the other 7 green.
+
+**After:** writer **45 of 45**, run **8 of 8**, `typecheck:scripts` exit 0.
+
+**Cost:** per run, +1 KV read (the journal); per writing run, +1 KV write (the journal put); per seal, +1 KV delete. On
+the first attended run (4a): `pending: none` in both environments' dry runs, which joins 4a's predicted lines. Anything
+else is a STOP before any write.
+
+**W8:**
+- the writer and run declared sets grow (+7, +1);
+- every anchor is re-checked with the anchor tool;
+- one plant is proposed, **S-JN** (the journal read as always empty): red exactly {J1, J2, J3, J4, J5, J6, JR1} plus
+  {RR6} under the run grader. As two plants: S-JN-W graded by the writer, S-JN-R by the run.
+
+**Outside the set:** stop.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
