@@ -1923,3 +1923,28 @@ held p4's seven arms. That worktree was deleted after the build, and the file wa
 one. **That the flag took is read from the image, not the ini**: a scene is 3 bytes (kind, level, wx). lv-P carries
 the seven-arm list (3 occurrences in `firmware.bin`) and not C1's image-B list (0); lv-B carries C1's list (1) and not
 the profile's (0). This was not a registered row. It proves the scratch build compiled the profile's list rather than C1's.
+
+### THE LEVELS FIX, registered before its code (2026-11-14T20:39:53Z, on the orchestrator's ruling)
+
+C1's first window found the (a) hook storing each row's hex and flight by pointer, so 40 rows carried one hex. That
+is C1's first OFF reading, recorded in "C1's bench". `bench/frame-bench-levels` carries the same two lines
+(`FrameBench.h:351-352` at `40f02c0fa812`), and p4's profile trees sit on it. The same fix goes here, and p4
+re-applies its regions onto the fixed sha.
+- **The change:** from `40f02c0fa812`, exactly the two lines `e.add(r.hex);` and `e.add(r.flight);` become
+  `e.add(static_cast<const char*>(r.hex));` and the same for `r.flight`. Nothing else changes.
+- **The instrument, v3 of `c1_discrim.py`, registered with it.** The levels loop reads `const int n = Level();` before
+  the loop, and `Level()` lives in `FrameBench.h`, not in the copied block. So the harness gains one stub,
+  `static int Level() { return kLevel; }`, at C1-L's default level of 40. Nothing else in the script changes.
+- **Predicted, each read after the commit:**
+  - the diff against `40f02c0fa812`: 1 file, 2 lines changed;
+  - `check_frame_bench.py`: 14 rows, 0 failed at the fix, the same as at `40f02c0fa812` (run there too);
+  - v3 at `40f02c0fa812`, default mode: TODAY 1 distinct hex, CONTROL 40. Exit 0;
+  - v3 at the fix, `--fixed`: TODAY 40, PLANT 1. Exit 0. Default mode at the fix: STOP, exit 2;
+  - v3 reproduces v2 on C1's two commits: `bfcb47e01c3d` reads 1 / 40, and `a599fcaaffc6` reads 40 / 1 under
+    `--fixed`. The stub is unused there;
+  - `c1_lines_diff.py` at the fix: "9 lines compared, 0 lines differ" against C1's frozen `bfcb47e01c3d`. Its control
+    reads 1.
+- **Outside the set:** any other diff, a red row, any other count, or a v3 reading on C1's commits that differs from
+  v2's: stop and decide.
+- **Then:** the sha goes to p4. No images are built from this branch for C1; C1's images come from
+  `bench/frame-bench-c1`.
