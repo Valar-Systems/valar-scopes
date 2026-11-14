@@ -148,5 +148,29 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
   row("TK1e", tv !== undefined && inactive.action === "fail", `a token that is not active -> ${inactive.action}: ${inactive.line}`);
 }
 
+// ---- SC4 (section 2): the failure notice -- fixed text per class, counts only, no id, no key, no position -------------
+{
+  const mod = await import("./routes-notify").catch(() => null);
+  type N = { title: string; body: string };
+  const render = mod?.renderNotice as undefined | ((cls: string, env: string, counts: Record<string, number>) => N);
+  const classes = (mod?.CLASSES as readonly string[] | undefined) ?? [];
+  const want = ["refused-g1", "refused-g2", "refused-g3", "refused-g4", "refused-g5", "refused-g6", "verify-fail",
+    "seal-refused", "source-unreachable", "secrets-not-set", "frozen-malformed", "token-expiring"];
+  row("SC4set", render !== undefined && JSON.stringify([...classes].sort()) === JSON.stringify([...want].sort()), `the closed set: ${classes.length} classes`);
+  const counts = { written: 70, deleted: 25, mismatched: 1, days: 13 };
+  let clean = 0, named = 0;
+  for (const c of want) {
+    const n = render ? render(c, "production", counts) : { title: "", body: "" };
+    const t = `${n.title}\n${n.body}`;
+    if (!/[0-9a-f]{16}/i.test(t) && !/-?\d{1,3}\.\d{3,}/.test(t) && !/\brt:[A-Z0-9]/.test(t)) clean++;
+    if (n.body.trim() !== "" && t.includes(c)) named++;
+  }
+  row("SC4", render !== undefined && clean === want.length, `no 16-hex run, no coordinate and no rt: key in any class: ${clean}/${want.length}`);
+  row("SC4c", render !== undefined && named === want.length, `(control) every class is non-empty and names itself: ${named}/${want.length}`);
+  let refused = "no throw";
+  try { if (render) render("not-a-class", "production", counts); } catch { refused = "throws"; }
+  row("SC4x", render !== undefined && refused === "throws", `a class outside the closed set -> ${refused}`);
+}
+
 console.log(off ? `SELFTEST: ${off} row(s) off` : "SELFTEST PASSED");
 process.exit(off ? 1 : 0);
