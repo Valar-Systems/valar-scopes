@@ -840,6 +840,9 @@ is engineering and a guarded write path, not money. That decision is the owner's
 | D2 + D5, red-first | section 2k's rows, before the code (07:50-07:51Z): writer red exactly {PFX1d, FS1, FS2}, 33 green. PFX1d's dry run exited 0; FS1 ran, exit 0; FS2 SEALED, store changed | **as predicted** |
 | D2 + D5, green | PFX1 counted before the dry-run return, ending the plan line with `PFX1: <n> outside` and refusing a non-zero count (exit 1). `--force-shard` refused first in `keyLevelMain` (exit 2, `(FS1)`). Writer **36 of 36** (PFX1 still green: the earlier check now refuses first, with the same tag); run 7 of 7; `typecheck:scripts` exit 0; the anchor tool reads 15 plants, each anchor once; 0 temp leftovers | **as predicted** |
 
+| D4, red-first | section 2l's rows, before the code (07:58-07:59Z): writer red exactly {FM1}: exit 2, but from FK1, with `(FM1)` absent. FM-ctl and the other 36 green | **as predicted** |
+| D4, green | the full mode refuses `--env production` without `--dry-run` (exit 2, `(FM1)`), checked before FK1. Writer **38 of 38**, FM1 and FM-ctl both green; run 7 of 7; `typecheck:scripts` exit 0; the anchor tool reads 15 plants, each anchor once | **as predicted** |
+
 **Proposed after run 2 (awaiting the reviewer's ruling; nothing re-run):**
 
 - **(a) The re-run, set up as every earlier run was:** `env -u BLIPSCOPE_TOKEN_FILE node scripts/sabotage-routes-weekly.mjs`.

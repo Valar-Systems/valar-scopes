@@ -153,6 +153,12 @@ fresh; receipt "$T/fs2.json"; h0=$(sha "$T/s.json")
 rc=$(run "$T/fs2.out" "${SO[@]}" --receipt "$T/fs2.json" --force-shard S01)
 if [ "$rc" = 2 ] && has "$T/fs2.out" "(FS1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok FS2; else bad FS2 "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
 
+# ---- FM1, FM-ctl (D4, section 2l): the FULL mode never writes production; its staging dry run stays open ----------
+fresh; h0=$(sha "$T/s.json"); rc=$(run "$T/fm1.out" --env production --file "$F/new.tar.gz")
+if [ "$rc" = 2 ] && has "$T/fm1.out" "(FM1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok FM1; else bad FM1 "exit $rc, (FM1) $(has "$T/fm1.out" "(FM1)" && echo printed || echo absent)"; fi
+fresh; rc=$(run "$T/fmc.out" --env staging --dry-run --file "$F/new.tar.gz")
+if [ "$rc" = 0 ]; then ok FM-ctl; else bad FM-ctl "the full mode's staging dry run exited $rc"; fi
+
 # =================================== W3: the verify, the receipt, and the replay ===================================
 vrun() { # vrun <outfile> <args...>: the verify through the fake; echoes the exit status
   local o="$1"; shift

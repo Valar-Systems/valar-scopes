@@ -803,6 +803,12 @@ async function main() {
   // would turn a run into a silent green -- "writes" to a file, verified against the same file. So it is refused, before
   // any KV call, wherever a REAL credential is in reach: the routes-refresh workflow, --env production, or a token
   // variable by name (revised by the reviewer, section 2e; the one rule lives in routes-fk1.ts, shared with the verify).
+  // D4 (docs/route-weekly-code.md 2l): the FULL mode never writes production. It has no PFX1, and its meta carries no
+  // sourceCommit, so one production write would break the key-level chain (the next weekly run refuses as
+  // meta-not-key-level). Checked BEFORE FK1, so the two refusals stay distinguishable; a production dry run still reads.
+  if (!args.keyLevel && !args.sealOnly && args.env === "production" && !args.dryRun) {
+    refuse(2, "REFUSING (FM1): the full mode does not write production -- use --key-level (it has PFX1, G5, G6 and the seal chain). A production --dry-run is still allowed. Nothing done.");
+  }
   const fk1 = process.env.ROUTES_KV_CLI ? fk1Refusal(process.env, args.env, existsSync) : null;
   if (fk1) refuse(2, `REFUSING (FK1): ROUTES_KV_CLI is a test-only stand-in for KV, and it is not allowed here: ${fk1}.`);
   sweepAtStart(TEMP_PREFIXES); // a killed run's leftovers, older than 6 h and only ours (routes-tmp.ts)
