@@ -784,21 +784,28 @@ added first. Then everything is run against `620a215d`'s code.
 | **UNDO-ctl** | writer | the same without the restore: the store DIFFERS from the snapshot, so UNDO1's comparison can fail | green before and after |
 | **BK-SAME** | writer | two fresh fake stores, the same run A on each, one with `--backup` and one without: the stores are byte-identical, with `meta:routes-pending` compared with its `runId` masked (random per run by J7's design), and the two runs' out-files hold equal sets | **green before (and NOT a red-first):** today `--backup` is ignored, so the two runs are trivially the same. Its value comes after the code: the backup cannot change what the run does |
 | **BK-SAME-ctl** | writer | BK-SAME's comparator, given the store after a run and the pre-run snapshot, reports a difference, so BK-SAME can fail | green before and after |
-| **UF1** | writer | `--dryrun`: exit 2, `(UF)`, the flag named, store byte-identical | red: ignored, and the run WRITES |
-| **UF2** | writer | `--bakup <f>`: the same | red: ignored |
+| **UF1** | writer | `--no-seal --dryrun` (a dry run's typo on a writing command line): exit 2, `(UF)`, the flag named, store byte-identical | red: `--dryrun` is ignored, and the run WRITES |
+| **UF2** | writer | `--no-seal --bakup <f>`: the same | red: ignored, and the run writes |
 | **UF-ctl** | writer | `--dry-run`, correctly spelled, on the same fixture: exit 0 | green before and after |
 | **J7w** | writer | with the fake's get-suffix mode (`ROUTES_FAKEKV_GET_SUFFIX`, a newline appended to every `kv key get`; the fake's only), a run, its verify and its own seal PASS | red: J7 refuses the run's own seal |
 | **J7w-ctl** | writer | under the same mode, J7's old-receipt case still refuses | green before and after |
 | **J6x** | writer | J6's comparator, given a plan line reading `delete 250`, rejects it | red: the substring test accepts it |
 | **BK2** | guards | `writeBackup()` with an after-write hook that flips one byte: throws `(BK2)` | red: the stub does not read back |
 | **G4nx** | guards | G4n's comparator, given `11 removed shard(s) not named`, rejects it | red: `includes` accepts it |
+| **BK2s** (the reviewer's condition) | guards, static | `ingest-routes.ts` calls `writeBackup(` exactly once, with exactly two arguments (no hook). The hook is a function parameter only, which no flag or environment variable reaches | red: there is no call yet |
+
+**Amended before any code** (the reviewer's acceptance and the fixtures, 2026-11-14):
+- **UF1 and UF2 carry `--no-seal`.** Without it, KL1 refuses the typo'd command first (exit 2, the wrong rule), and the
+  row would test KL1, not the parser.
+- **UNDO1, UNDO-ctl, BK-SAME and BK-SAME-ctl compare the store key by key:** every key present on both sides, and every
+  value byte-equal. The fake's JSON file follows insertion order, so a whole-file byte compare would fail on order alone.
 
 **Red-first, predicted:**
 - writer red exactly **{BK-W, BK-M, BK-H, BK0, BK0d, BK1, BK3, UNDO1, UF1, UF2, J7w, J6x}**; green: UNDO-ctl, BK-SAME,
   BK-SAME-ctl, UF-ctl, J7w-ctl and the 48 earlier rows;
-- guards red exactly **{BK2, G4nx}**, the other 63 green.
+- guards red exactly **{BK2, G4nx, BK2s}**, the other 63 green.
 
-**After the code:** writer **65 of 65**, guards **65 of 65**, run 8 of 8, freeze 4 of 4; `typecheck:scripts` exit 0; 0
+**After the code:** writer **65 of 65**, guards **66 of 66**, run 8 of 8, freeze 4 of 4; `typecheck:scripts` exit 0; 0
 temp leftovers.
 
 **W8 is not re-run** (the owner's "once"). Its anchor check is re-run read-only against this code: 18 plants, each
