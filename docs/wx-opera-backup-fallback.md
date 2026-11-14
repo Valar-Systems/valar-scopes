@@ -273,7 +273,7 @@ whole month.
 - **CI-F1**, the registration push (docs only), at `3bf4d660`: 33 = 31 success + 2 skipped. Read twice, 08:42:08Z and
   08:43:38Z. Tested commit `a7c5759` (the merge into `6f6dae93`). **As predicted.**
 - **CI-F2**, the docs push (5a and the amended 2a), at `b43126d6`: predicted 33 = 31 + 2 (docs only, the same anchor).
-- **CI-F3, the code push: predicted (2026-11-14 ~09:09Z, before the push) 36 = 34 success + 2 skipped + 0 other.**
+- **CI-F3, the code push: predicted (2026-11-14 09:08Z, before the push) 36 = 34 success + 2 skipped + 0 other.**
   - The diff now touches `proxy/**`, which `workers.yml` is filtered to: the three runs a docs-only PR lacks.
   - The anchor is #695 (proxy, docs and scripts; 36 at its head), with no workflow change on main since.
   - `tools/wx/` triggers nothing extra: only `account-budget.yml` (`tools/budget/**`) and `web-renderer.yml`
