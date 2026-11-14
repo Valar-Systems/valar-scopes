@@ -9,6 +9,30 @@ waits on the two conditions below. **Every prediction here is frozen before any 
 C1's port showed four parts of this registration to be stale. **Where this section and the ones below disagree, this
 section governs.** Nothing has been built or run.
 
+**RE-PIN (2026-11-15, 00:0xZ): the current pins.** These supersede every earlier sha in this section, which stays below
+as history.
+- **A0a's tree** is map-client's `bench/frame-bench-levels` at `a0583e88b1424a03bee03fcacf2fb29bef75e25e`. That is C1-L
+  (`40f02c0fa812`) plus two fixes:
+  - **the hex fix** (`a9894185b2a8`): the (a) hook's rows were stored by pointer, so 40 rows carried one hex;
+  - **the include-order fix** (`d813ea42be08` + `a0583e88b142`): `FrameBench.h` includes `variants/Variant.h` before its
+    push-task test, with check_frame_bench's FB-TU row.
+- **The profile** is `bench/frame-profile-p1-final` at `1d9e91740e1ee050b03a25be02cd1970ca2ff805`: p4's two commits,
+  cherry-picked. The patch is identical line for line to the earlier `40f02c0f` → `6979d2d7`.
+- **The static checks there:** check_frame_bench 15/0, FB-TU included, its selftest PASSED; check_frame_profile_keys
+  K1-K3 ok, its selftest PASSED.
+- **P1 is not exposed to the include-order fault.** FrameProfileScenes.h tests no macro. main.cpp's profile calls
+  read no scene table. Under FRAME_PROFILE every translation unit gets the 7-entry list.
+- **PLACED, read as predicted (2026-11-14, 23:37-23:55Z)**: base `a0583e88` against change `1d9e9174`, one worktree
+  path, epoch 1762862445.
+  - `blipscope-s3-128` (1,934,304 B), `-framebench-c1a` (1,963,568 B) and `-framebench-c1b` (1,965,792 B) each differ
+    only in the 65 hash bytes, other 0.
+  - `blipscope-s3-128-frameprofile` compiled: sha256 `15f15d39474a`, 1,968,752 B. It carries
+    `[frame-profile] cost` and `answered`.
+  - The disk, in GiB (`(Get-PSDrive C).Free/1GB`), was read before every build and cleared the 30.2 guard each time.
+- **No A0a reading exists yet.** When the reader is written, it grades drawn == the scene's level on every measured
+  frame, as a STOP row with its plant.
+
+
 **(a) THE TREE.**
 - A0a runs on map-client's **`bench/frame-bench-c1`** at `bfcb47e01c3d767b770ee4c26d18676e7c590e33`, not on main or
   `bench/frame-bench-v19`.
