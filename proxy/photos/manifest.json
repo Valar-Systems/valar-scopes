@@ -1787,7 +1787,8 @@
     "license": "CC BY 2.0",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/su95.jpg"
+    "file": "src/su95.jpg",
+    "changesNoted": "EXIF camera serial removed 2026-11-14; pixels unchanged"
   },
   {
     "target": "AT43",
