@@ -4,4 +4,4 @@
 # 1 fail. The rule is G.freeze in routes-guards.ts; routes-freeze.ts applies it at the job's actual start.
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-exec npx tsx scripts/routes-freeze.ts
+exec npx --no-install tsx scripts/routes-freeze.ts # NPM1: never a download inside the token job

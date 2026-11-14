@@ -385,6 +385,16 @@ commit, with its own prediction.
   suite; locally it reads 11 of 11.
 - **Outside the set:** any other total or split. Stop and decide.
 
+**CI-C5, the push of W5, W7, W10 and the run script (predicted 2026-11-14 ~05:25Z, before the push).**
+- **This push CHANGES workflows,** which a `pull_request` run takes from the PR's own merge:
+  - `routes-refresh.yml` is new, with no `pull_request` trigger, so it adds no check-run;
+  - `workers.yml` gains four steps in its `test` job;
+  - `device-ids.yml` gains two steps in its one job.
+- **Predicted: 36 check-runs = 34 success + 2 skipped (promote, version) + 0 other.** The four `pull_request`
+  workflows all succeed, and each new step passes on Linux, the first time any of them runs there.
+- **Outside the set:** any other total or split, or a new step red. Stop and decide; a Linux-only failure is a finding,
+  never a re-baseline.
+
 ## 4. The staging rehearsal and the first runs
 
 1. **A dry run of each environment**, attended. It prints counts only: `sourceCommit`, rows, writes, deletes by kind
@@ -475,3 +485,6 @@ is engineering and a guarded write path, not money. That decision is the owner's
 | W5's run script, red-first | `routes-run.selftest.sh`, RR1-RR5, with `routes-refresh-run.sh` moved aside: 5 of 5 red (exit 127). Restored by bytes | **as predicted** |
 | W5's run script, green | **5 of 5**, through the fake KV, with no token variable present:<br>- RR1 writes, verifies and seals the new source, so meta's `sourceCommit` is new, `prevSourceCommit` is prev, and `sourceCommittedAt` is the commit date;<br>- RR2 replays the unchanged source and re-seals, so `builtAt` moves;<br>- RR3, a value planted wrong after every write, takes its one repair and ends `verify-fail` with meta byte-identical, and the dry-run notice reads `Route refresh, staging: verify-fail`;<br>- RR4, a meta with no `sourceCommit`, is refused as `meta-not-key-level` with the store byte-identical;<br>- RR5, a future freeze, ends green with the stated line, with KV pointed at a script that does not exist, so no KV was read | **as predicted** |
 | W5's run script, sabotage | **S-RR3** (registered in the run's own message before it ran): the second verify's failure swallowed. Red exactly {RR3}. A second layer held: with no receipt written, `--seal-only` refused, so meta stayed unchanged and the class read `seal-refused`, not `verify-fail`. Restored from a byte copy, sha256 equal | **as predicted** |
+| W5, the workflow | `.github/workflows/routes-refresh.yml`: `workflow_dispatch` only (`target`: staging or both), with the schedule commented out for S-ON. Two jobs, `staging` then `production` (`needs: staging`, only for `both`). Each has `environment: routes-refresh`, `concurrency: routes-refresh`, `permissions: contents: read, issues: write`; checkout `11d5960a326750d5838078e36cf38b85af677262` and setup-node `49933ea5288caeca8642d1e84afbd3f7d6820020`, both v4, each read from `gh api repos/<action>/commits/v4` and never typed; `npm ci`; then one step mapping only `secrets.ROUTES_*` (and `github.token`, `vars.ROUTES_FREEZE_UNTIL`) into `routes-refresh-run.sh`. `routes-freeze.sh` now calls `npx --no-install tsx`, so nothing inside the token job can download | **built** |
+| W10, the static check | `scripts/check_routes_workflow.py`, stdlib only, line-based. **No separate red-first run before its code: its plants ARE its red side, and its first run found two defects of mine.** First, the trigger parser's `on:\s*` crossed the newline and read the block's first line as an inline trigger (a false SC1t on the real file); it is now `[ \t]*`. Second, **S3 as registered ("the scan limited to env: blocks") cannot work**, because env blocks legitimately map `${{ secrets.ROUTES_* }}`, so that scan flags everything. Re-registered before its next run: "the scan sees no run: line", turning exactly {SC3e, SC3x, SC3p} green. Then: the real workflows read clean; each of the 10 plants (SC1t, SC1e, SC1k, SC3e, SC3x, SC3p, SC5, PIN1, NPM1, NPM1x) reads its own row red; S1 turns exactly {SC1t} green, S3 exactly {SC3e, SC3x, SC3p}, S5 exactly {SC5}. `SELFTEST PASSED` | **as re-registered** |
+| W7, the CI wiring | `workers.yml`'s `test` job (proxy leg only; no job-level env, so FK1 allows the fake) gains four steps: `routes-guards.selftest.mts` (50 rows), `routes-freeze.selftest.sh` (4), `routes-writer.selftest.sh` (23), `routes-run.selftest.sh` (5). `device-ids.yml` gains `check_routes_workflow.py` and its `--selftest`. Steps only, no job. The proxy test job took 5.3 minutes on CI-C4 against its 20-minute limit; these add about 3-4 minutes, measured on Windows | **built** |

@@ -127,6 +127,21 @@ jobs:
         if: matrix.worker == 'proxy'
         run: bash scripts/routes-age-verdict.selftest.sh
 
+      # W7 (docs/route-weekly-code.md): the weekly route refresh's rows, all through the FAKE KV (no network, no real
+      # namespace). FK1 refuses the fake wherever a real credential is in reach; this job holds none, so they run here.
+      - name: the route refresh's guards, FK1, TK1, SC2 and SC4 (selftest)
+        if: matrix.worker == 'proxy'
+        run: npx --no-install tsx scripts/routes-guards.selftest.mts
+      - name: the route refresh's freeze, as the workflow sees it (selftest)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/routes-freeze.selftest.sh
+      - name: the key-level writer, verify, seal and replay (selftest, fake KV)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/routes-writer.selftest.sh
+      - name: the routes-refresh run, end to end (selftest, fake KV)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/routes-run.selftest.sh
+
       # /healthz's build stamp, the TOP-LEVEL "commit" only (docs/healthz-commit-read.md), as confirm-deploy.sh,
       # smoke-prod.sh and tools/wx/r12_prod.sh read it through one helper: rows HC1-HC5, CD1-CD2, SM1-SM5, R12 and
       # W1-W3, and two plants (P-OLD, P-FIRST) whose whole red sets must equal the registered ones.
