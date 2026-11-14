@@ -132,6 +132,15 @@ commit, with its own prediction.
    expected near 830: 827, plus the 24ce5424 keys the new source dropped. The overrides are named and counted.
 3. **Staging:** the run, verify PASS (presence, values, absence), seal. Its KV writes and deletes are read from
    analytics against the prediction before production is scheduled (condition 5).
+   - **The analytics count is an UPPER BOUND only: a cost stop, never a completeness grade** (the reviewer's ruling,
+     2026-11-14 ~02:17Z, on (A)'s P5).
+     - A read ABOVE the predicted writes plus the stated retry and background allowance stops the run's next step.
+     - A read BELOW the prediction grades nothing.
+   - **Why:** in (A) the same count read 0.039% under the run's real writes on staging, and 0.052% under on
+     production. D1 then showed that none of the missing writes had been stamped outside the window
+     (`docs/route-refresh-2026-11.md`, P5 and D1). At that precision the meter cannot say whether a write landed.
+   - **Completeness is graded by the run's own receipt and the verify** (condition 8: presence, values and absence),
+     never by the meter.
 4. **Production:** the same, attended.
 5. **The final row, S-ON: turning the schedule on is its OWN step** (ruled 18:23:38Z). It is a one-line PR that
    un-comments the `schedule:` trigger. It is made only after the first attended run's verify PASS (presence, values
