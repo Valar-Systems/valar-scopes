@@ -22,8 +22,11 @@ PLANTS = [  # (name, needle, replacement, the set of controls predicted to FAIL)
     ("S3 unknown allowance accepted", 'if r["allowance"] not in al:', "if False:", {"P3"}),
     ("S4 anchor tolerance unbounded", "FLAG_AT, ANCHOR_TOL = 0.80, 0.01", "FLAG_AT, ANCHOR_TOL = 0.80, 1e9", {"P4"}),
     ("S5 render always current", "    return have == render(b)", "    return True", {"P5"}),
-    ("S6 excluded rows summed", 'for st, wt in w[r["product"]] if st == r["state"])',
-     'for st, wt in w[r["product"]] if st == r["state"] or r["state"] == EXCLUDED)', {"P6"}),
+    # Instrument failure #1 (2026-11-14): anchored on the inner clause alone, this plant was semantically the clean
+    # code -- the outer clause still dropped every excluded row -- and P6 rightly stayed green. It now takes both lines.
+    ("S6 excluded rows summed",
+     'if r["allowance"] == a and r["state"] != EXCLUDED\n                      for st, wt in w[r["product"]] if st == r["state"])',
+     'if r["allowance"] == a\n                      for st, wt in w[r["product"]] if st == r["state"] or r["state"] == EXCLUDED)', {"P6"}),
     # 9.3's registered sabotage. With the value-equals-product check off, P-ONE's x 30 row reads clean, so P-ONE fails:
     # exactly {P-ONE} ("turns P-ONE's row green" in 9.3's words).
     ("S-ONE value == per_event x events unchecked", 'if abs(r["value"] - want) > 1e-9 * max(abs(want), 1.0):', "if False:", {"P-ONE"}),
