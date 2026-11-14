@@ -1841,6 +1841,64 @@ The fixed images, the acknowledged manifest, the PC kept quiet. The restore PASS
 - **Stopped,** to the owner. No fix and no re-run before the ruling. A third C1 window would first need the plant
   wiring found and fixed, with a check that reads red on today's images.
 
+### THE PLANTS' CAUSE, FIX, CHECK AND PROOF (the owner's ruling (a); registered 2026-11-14T22:46:01Z, before their code)
+
+The owner: "Investigate why the 10 ms and 60 ms deliberate slowdowns didn't fire (read-only, no board), fix it, and
+prove the fix fires both at their true size before the next C1 run."
+- **THE CAUSE, read as predicted (alternative (iv)):** `BLIPSCOPE_PUSH_TASK` is defined by a HEADER
+  (`include/variants/s3_128.h:89`), and `FrameBench.h` chooses its `static` scene table by testing it (`:37-40`;
+  `:48-52` on the levels tree).
+  - main.cpp includes `FrameBench.h` at `:7`, before any header that brings in `variants/Variant.h`.
+  - Under each file's own c1b compile command, `pp_read.py` (`b1f5bf5f28a8`) shows that main.cpp keeps image A's
+    1-scene table and AircraftManager.cpp keeps B's 4-scene table.
+  - main.cpp's two plants (`DelayOn`, `PushDelayMs`, at `:1355` and `:241`) therefore index a 1-element table with
+    scenes 1 to 3, and neither can fire.
+  - (ii) is excluded by the ELF (one `S()`), and (iii) by S3's unmoved p2p. The disassembly was the instrument's
+    limit: IRAM targets behind `callx8` cannot be labelled.
+  - The per-file items under the test are `kScenes` and `kNumScenes`, and nothing else.
+- **THE FIX, on `bench/frame-bench-c1` (from `a599fcaaffc6`) and `bench/frame-bench-levels` (from `a9894185b2a8`):**
+  `FrameBench.h` includes `"variants/Variant.h"` itself, before its push-task test. **Predicted diff:** 1 file, 1 line
+  added, nothing removed, on each tree.
+- **THE CHECK, red first:** `pp_read.py` v2 adds `--same`, which passes only if every named file keeps the same table.
+  Its v1 prediction mode is unchanged.
+
+  | env (compile database) | today (c1 `a599fcaaffc6`, levels `a9894185b2a8`) | after the fix |
+  |---|---|---|
+  | c1b | RED: main.cpp A, AircraftManager.cpp B | GREEN: B and B |
+  | c1a | green: A and A | green: A and A |
+
+  Predicted on both trees. The c1a row is the control showing that `--same` can pass on today's code.
+- **THE GUARD IN THE TREE (the orchestrator: "so the class can't come back silently"):** `check_frame_bench.py` gains
+  **FB-TU**. Every macro that `FrameBench.h` tests in an `#if`/`#ifdef`/`#elif` and that a project header `#define`s
+  (`include/**`) must be defined only after `FrameBench.h` includes that header, or `variants/Variant.h` for one under
+  `include/variants/`.
+  - **Its plant:** the new include removed. It reads exactly {FB-TU} red.
+  - **Predicted:** c1 goes from 13 rows to 14, 0 failed; levels from 14 to 15, 0 failed. The selftest PASSES.
+  - It runs on every bench tree, the v20 sibling included.
+- **I-3:** `FrameBench.h` compiles only under `FRAME_BENCH`. So the shipping `blipscope-s3-128` built at the fix is
+  predicted byte-identical to c1fix-I3 (`de75e3606ba7`).
+- **THE PROOF, a short window before any further C1 run:**
+  - **The image:** c1-B built from the c1 fix commit.
+  - **The window:** read-mac, write B (ota_0 only), one bench-trace of about 17 min (S0-S3), read-mac, then the v19
+    restore, its boot read and HTTP 200. About 25 min on E2:08, with the PC kept quiet.
+  - **The reader:** `fb_read_plants.py`. It imports `fb_read_c1.py` (`f210ea1cf2ef`, sha asserted), uses its own
+    `read_trace` on the B trace, and applies C1's own row formulas.
+  - **Graded at true size:**
+    - DELAYED-FLAG: the record's bit 2 set on every measured frame of S3, and on no frame of S0-S2;
+    - D=10 push: the push_avg rise is +9.0 to +10.0 ms;
+    - D=60 push: +59 to +60 ms;
+    - loop +10: Δp2p p95 is +10.0 ± 1.5, with push_avg unchanged within ± 1.0.
+  - **Reported only:** D=10 p2p and D=60 p2p, read with E = U = 1.54 ms, because there are no A arms here to give N.
+  - **Its selftest, red first:**
+    - the clean synthetic B trace: every graded row in;
+    - the synthetic D10 and LOOP plants: red on exactly D=10 push and loop +10;
+    - an INERT case (the S1-S3 readings equal to S0's): red on D=10 push, D=60 push and loop +10;
+    - **today's real B trace from the retake: red on all four graded rows.**
+  - **Predicted:** every graded row in. An off row is C1's THIRD OFF, which goes to the owner. Anything else is
+    outside the set: stop and decide.
+- **Then:** the next C1 window (A1, B, A2), with images from the fix commit, placed under the standing rule. The levels
+  sha goes to p4.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
