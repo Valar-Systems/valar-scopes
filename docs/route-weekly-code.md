@@ -704,7 +704,7 @@ is engineering and a guarded write path, not money. That decision is the owner's
   go red under it too. But S-TMP is graded by the writer only, and the writer has no SG rows. S-TMP-G is the same plant
   graded by the guards selftest: **red exactly {SG1, SG2}**.
 
-**The re-run's predictions (frozen 2026-11-14 ~07:50Z; the same under (b), since the variable is unset):**
+**The re-run's predictions (frozen 2026-11-14 07:27Z, read from `date -u`; the same under (b), since the variable is unset):**
 - **BASELINE:** guards 59, writer 32, freeze 4, run 7, routes-health 11, reconcile 1; 0 red.
 - **Plants:** 14 of 14 as registered, with the same sets as at 06:19Z. None of the 2h rows sits in a plant's path:
   - SOD and OV1-OV5 refuse before any KV call;
