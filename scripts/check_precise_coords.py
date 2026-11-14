@@ -6,8 +6,9 @@ WHY. A number with 3 or more decimals inside +-0.5 deg of Bend's 2-dp centre (44
 street; 2 dp is a neighbourhood. The rule has no carve-out: alone or in a pair, signed or unsigned, any tracked file.
 
 COUNTED: every number with 3 or more decimals whose absolute value lies in the latitude band [43.56, 44.56] or the
-longitude band [120.82, 121.82], in every tracked text file. A digit or a dot directly before or after it makes it part
-of a different token (a version string, a longer number), so it is not one. A C float suffix (44.0f style) is fine.
+longitude band [120.82, 121.82], in every tracked text file. It is part of a DIFFERENT token, and not counted, only
+when a digit touches it, or a dot that itself touches a digit ("1.44.1234", "44.1234.5": version strings). A full stop
+that ends a sentence does not stop a number counting -- it once hid one (reviewer, #711). A C float suffix is fine.
 
 NOT COUNTED, by the owner's ruling (Daniel, 2026-11-14 01:43Z), and nothing else:
   clock time  the seconds of an EXACT H:MM:SS or HH:MM:SS: a non-digit (or the line's start), 1-2 digits, a colon, 2
@@ -34,7 +35,7 @@ PRINTS NO VALUE: a finding is path:line. The whole-tree count prints on every ru
     python scripts/check_precise_coords.py                 the tree against the baseline
     python scripts/check_precise_coords.py --diff BASE     and: lines added since BASE, and the baseline against BASE's
     python scripts/check_precise_coords.py --list          every counted path:line, then the count (the inventory)
-    python scripts/check_precise_coords.py --selftest      rows PC1-PC22 on values generated at run time
+    python scripts/check_precise_coords.py --selftest      rows PC1-PC25 on values generated at run time
     python scripts/check_precise_coords.py --sabotage      each plant, in a copy of this file, turns exactly its rows red
 
 Exit 0 clean; 1 refused; 2 BLIND (no tracked text file read, or the baseline unreadable).
@@ -53,7 +54,7 @@ BASELINE = "scripts/precise-coords-baseline.txt"
 LAT_BAND = (43.56, 44.56)      # Bend's 2-dp centre +-0.5; never written past 2 dp
 LON_BAND = (120.82, 121.82)
 MIN_DP = 3
-NUM = re.compile(rb"(?<![0-9.])-?([0-9]{1,3}\.([0-9]+))(?![0-9.])")
+NUM = re.compile(rb"(?<![0-9])(?<![0-9]\.)-?([0-9]{1,3}\.([0-9]+))(?![0-9])(?!\.[0-9])")
 CLOCK = re.compile(rb"(?<![0-9])[0-9]{1,2}:[0-9]{2}:$")      # what must sit directly before a clock time's seconds
 EXEMPT_TYPES = (".step", ".stp")
 ESC =re.compile(rb"\\\\|\\x([0-9A-Fa-f]{2})|\\u([0-9A-Fa-f]{4})|\\([0-7]{1,3})")
@@ -205,7 +206,7 @@ def _in_band(rng, band, dp, sign=""):
 
 
 def selftest():
-    """PC1-PC9, PC15-PC21: the matcher, decode and the clock rule on generated values. PC10-PC14, PC22: throwaway repos."""
+    """PC1-PC9, PC15-PC21, PC23-PC25: the matcher, decode, the clock rule and the boundary on generated values. PC10-PC14, PC22: throwaway repos."""
     rng = random.Random()
     rows = []
 
@@ -226,7 +227,7 @@ def selftest():
     row("PC7 the band edge is in, one thousandth past it is out", n(edge_in) == 1 and n(edge_out) == 0)
     row("PC8 a 3-dp number outside both bands is not counted", n("%.3f %.4f" % (rng.uniform(10, 40), rng.uniform(60, 100))) == 0)
     row("PC9 a version string or a longer digit run is not counted",
-        n("v%s.5 and 1%s" % (la4, la4)) == 0 and n("%s." % la4) == 0)
+        n("v%s.5 and 1%s" % (la4, la4)) == 0)
     # PC15-PC18: escapes, built at run time from generated values; counted through decode() as the tree scan does.
     bs = chr(92)
     nd = lambda s: len(counted(decode(s.encode())))                       # noqa: E731
@@ -245,6 +246,12 @@ def selftest():
     row("PC20 \"lat: <in-band>\" is counted", n("lat: %s" % la4) == 1)
     row("PC21 near-misses are counted: MM:SS with no hour, and an hour preceded by a digit",
         n("%02d:%s" % (rng.randint(0, 59), la4)) == 1 and n("1%02d:%02d:%s" % (rng.randint(10, 23), rng.randint(0, 59), la4)) == 1)
+    # PC23-PC25: the boundary (reviewer, #711): a full stop ending a sentence does not hide a number; versions stay out.
+    row("PC23 a number ending a sentence is counted", n("The point is %s." % la4) == 1 and n("(%s.)" % lo5) == 1)
+    row("PC24 version strings are not counted: a dot touching a digit on either side",
+        n("v%s.3" % la4) == 0 and n("1.%s" % la4) == 0 and n("%s.0.2" % la4) == 0)
+    row("PC25 a clock time ending a sentence is still exempt",
+        n("at %02d:%02d:%s." % (rng.randint(0, 23), rng.randint(0, 59), ss3)) == 0)
     d = tempfile.mkdtemp(prefix="pcoords-")
     try:
         g = ["-c", "user.name=pc", "-c", "user.email=pc@example.invalid"]
@@ -312,7 +319,7 @@ def selftest():
 SABOTAGES = [
     ("S1 the band test always false", "if LAT_BAND[0] <= v <= LAT_BAND[1] or LON_BAND[0] <= v <= LON_BAND[1]:",
      "if False:", {"PC1", "PC2", "PC3", "PC4", "PC5", "PC7", "PC10", "PC11", "PC13", "PC15", "PC16", "PC17", "PC18",
-                   "PC20", "PC21", "PC22"}),
+                   "PC20", "PC21", "PC22", "PC23"}),
     ("S2 3 dp no longer enough (MIN_DP 4)", "MIN_DP = 3", "MIN_DP = 4", {"PC7", "PC11", "PC13"}),
     ("S3 renames not followed", '"diff", "-M", "-U0"', '"diff", "--no-renames", "-U0"', {"PC11"}),
     ("S4 the ratchet's stale direction off", "    if total < want:", "    if False:", {"PC14"}),
@@ -320,6 +327,9 @@ SABOTAGES = [
     ("S6 the clock exemption widened to any colon directly before",
      'CLOCK = re.compile(rb"(?<![0-9])[0-9]{1,2}:[0-9]{2}:$")', 'CLOCK = re.compile(rb":$")', {"PC21"}),
     ("S7 the .step/.stp type exclusion off", 'EXEMPT_TYPES = (".step", ".stp")', "EXEMPT_TYPES = ()", {"PC22"}),
+    ("S8 the old boundary (any dot touching blocks)",
+     'NUM = re.compile(rb"(?<![0-9])(?<![0-9]\\.)-?([0-9]{1,3}\\.([0-9]+))(?![0-9])(?!\\.[0-9])")',
+     'NUM = re.compile(rb"(?<![0-9.])-?([0-9]{1,3}\\.([0-9]+))(?![0-9.])")', {"PC23"}),
 ]
 
 
@@ -328,7 +338,8 @@ def sabotage():
     bad = 0
     for name, a, b, want in SABOTAGES:
         table = me.index("SABOTAGES = [")
-        if me.count(a) != 2 or me.index(a) > table:      # once in the code, once in this table
+        if me[:table].count(a) != 1:                      # exactly once in the code above this table (the table's own
+                                                          # copy may be escaped differently, so it is not counted)
             print("BAD %s: its anchor is not once in the code (stale plant)" % name); bad += 1; continue
         d = tempfile.mkdtemp(prefix="pcsab-")
         try:
