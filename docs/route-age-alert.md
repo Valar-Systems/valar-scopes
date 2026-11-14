@@ -106,3 +106,42 @@ is now at".
 
 Also run: `wx-products-lines.selftest.sh` and `healthz-commit.selftest.sh`, which grep `smoke-prod.sh`'s text. Both
 passed. `sabotage-smoke-basemap.mjs`'s S-SQ anchor (`&eps=$BM_EPS`) is still found exactly once.
+
+### 5.2 CI
+
+| row | read | verdict |
+|---|---|---|
+| CI-B1 | at the code commit `8bfc403032c3`, read 2026-11-13 17:35Z (PR comment): 36 check-runs = 34 success + 2 skipped (promote, version), 0 other. The run was finished, and the total was the same on a re-read 90 s later. The four `pull_request` workflows succeeded: device-ids, firmware, no-traffic-captures, workers. The tested commit, from the workers checkout log (run 43469909704): `HEAD is now at b329af5 Merge 8bfc4030... into 86077c7f...`, one docs commit behind main at the time (#701, docs only) | **as predicted** |
+
+**CI-B2, predicted before its run: the results commit (this one, docs only).**
+- **The baseline has moved since CI-B1.** Main is `26f486ab` (#711), read with `git ls-remote` at 02:24:09Z on 11-14.
+  - #711 changed `.github/workflows/device-ids.yml`: three steps added to its one job, `no-real-device-ids`
+    (`check_precise_coords.py --selftest`, `--sabotage` and `--diff HEAD^1`), plus `fetch-depth: 2`.
+  - It added no job, and no other workflow changed since `aa40aa43`.
+  - No file this PR touches was changed on main since its base.
+- **Predicted: 36 check-runs = 34 success + 2 skipped (promote, version) + 0 other.** The same four `pull_request`
+  workflows all succeed, because the PR's diff still touches `proxy/**` and `docs/`.
+- **The tested commit** is a merge of this head into main as it stands when the run starts. It is read from the
+  checkout log's "HEAD is now at", from a FINISHED run, twice, at least 60 s apart.
+- **Outside the set:** any other total or split. Stop and decide; never re-baseline after the fact.
+
+### 5.3 The merge gate: met
+
+(A)'s production verify, the gate in section 4, is in #700 (head `7cca8662`):
+- P3, the verify after the write: `RESULT: PASS`, 1591/1591 shards and 628956/628956 keys, at 2026-11-14 01:57:06Z.
+- P4: production `/healthz` at 02:03:40Z and 02:04:41Z, identical:
+  `{"builtAt":"2026-11-14T01:52:29.338Z","ageDays":0,"rows":628956,"stale":false,"maxAgeDays":14}`.
+
+(A) counts as NOT CLEAN on P5 alone, an analytics write count 14 below its band, with no data defect. The reviewer
+recorded it OFF and ruled no repair.
+
+### 5.4 After the deploy: the rows of section 3.3, made concrete before the deploy
+
+Day boundaries computed by script from the seals, with `stale` true only when t - builtAt is MORE than 10 days
+(`routeshealth.ts`, RH3's boundary):
+
+| row | predicted |
+|---|---|
+| D-B1, production | `{"builtAt":"2026-11-14T01:52:29.338Z","ageDays":N,"rows":628956,"stale":false,"maxAgeDays":10}`, no `why`. N is 0 before 2026-11-15T01:52:29.338Z, 1 before 2026-11-16T01:52:29.338Z, and so on. `stale` stays false through 2026-11-24T01:52:29.338Z, when N is 10, and turns true after it |
+| D-B2, `smoke-prod.sh` against production | `RESULT: PASS -- built 2026-11-14T01:52:29.338Z, N d old (limit 10 d)   (mode fail)`, counted in PASS, with N as in D-B1. Every other verdict is unchanged from the same script's run before the deploy |
+| D-B3, staging, when staging is deployed | `{"builtAt":"2026-11-13T17:44:25.919Z","ageDays":M,"rows":628956,"stale":false,"maxAgeDays":10}`, no `why`. M is 0 before 2026-11-14T17:44:25.919Z, 1 before 2026-11-15T17:44:25.919Z, and so on. `stale` stays false through 2026-11-23T17:44:25.919Z |
