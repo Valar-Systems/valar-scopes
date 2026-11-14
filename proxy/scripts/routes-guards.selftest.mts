@@ -225,8 +225,11 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
     const r: S = sweep ? sweep(D, ["routes-new-"], now) : { removed: -1, kept: -1, foreign: -1 };
     row("SW1", sweep !== undefined && !fs.existsSync(stale), `a stale dir of its own -> ${fs.existsSync(stale) ? "KEPT" : "removed"}`);
     row("SW2", sweep !== undefined && fs.existsSync(fresh), `a fresh dir (1 h) -> ${fs.existsSync(fresh) ? "kept" : "REMOVED"}`);
-    row("SW3", sweep !== undefined && fs.existsSync(foreign) && r.foreign === 1, `a stale dir with foreign content -> ${fs.existsSync(foreign) ? "kept" : "REMOVED"}, foreign ${r.foreign}`);
-    row("SW4", sweep !== undefined && fs.existsSync(other) && r.removed === 1, `another prefix -> ${fs.existsSync(other) ? "untouched" : "REMOVED"}; removed ${r.removed} in all`);
+    // ONE PROPERTY PER ROW (the reviewer, after S-SW's first run read SW4 red for its count half): each row asserts one
+    // dir's fate, and SW5 alone asserts the sweep's counts.
+    row("SW3", sweep !== undefined && fs.existsSync(foreign), `a stale dir with foreign content -> ${fs.existsSync(foreign) ? "kept" : "REMOVED"}`);
+    row("SW4", sweep !== undefined && fs.existsSync(other), `another prefix -> ${fs.existsSync(other) ? "untouched" : "REMOVED"}`);
+    row("SW5", sweep !== undefined && r.removed === 1 && r.kept === 1 && r.foreign === 1, `the sweep's counts -> removed ${r.removed}, kept ${r.kept}, foreign ${r.foreign} (want 1, 1, 1)`);
   } finally {
     fs.rmSync(D, { recursive: true, force: true });
   }

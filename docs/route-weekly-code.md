@@ -384,6 +384,28 @@ Only S-GR8 predated W3.
 - The guards baseline is **54**: 50, plus SW1-SW4.
 - The driver therefore has 14 plants: the 12 others plus S-TMP and S-SW.
 
+**S-SW's first run: RECORDED OFF, red {SW2, SW4} against {SW2}.** A registration defect: SW4 asserted two properties
+in one row. With the age test off, the other prefix stayed untouched, but the count "removed 1 in all" did not hold.
+
+**The fix, as ruled: ONE PROPERTY PER ROW** (2026-11-14 ~06:18Z, before the re-run).
+- SW4 asserts only "the other prefix is untouched".
+- **SW3 had the same defect** (it was "kept" AND "foreign = 1"), and now asserts only "kept".
+- A new **SW5** asserts the sweep's counts: removed 1, kept 1, foreign 1.
+- The guards selftest is 55 rows; the driver reads its declared set from the source.
+- **S-SW is re-registered as {SW2, SW5}.**
+
+**Every plant re-derived against SW5, row by row:**
+
+| plant | does it reach the sweep's counts? | set |
+|---|---|---|
+| S-GR9, S-GR8, S-VAL, S-TMP | graded by the writer selftest, which has no SW rows. S-TMP changes `routes-tmp.ts`'s exit cleanup, never `sweepStale` | unchanged |
+| S-FK1 | `routes-fk1.ts` only; `sweepStale` never calls it | unchanged |
+| S-TK1 | `routes-token-check.ts` only | unchanged |
+| S-FZ | `routes-guards.ts`'s freeze; `sweepStale` imports nothing from it | unchanged |
+| S-SC4, S-SC2 | `routes-notify.ts` and `routes-env-check.ts` only | unchanged |
+| S-FZC, S-RR3, S-RH9s, S-RC6 | graded by freeze, run, health and reconcile, none of which has SW rows | unchanged |
+| **S-SW** | the age test off: the fresh dir is removed too, so SW2 goes red and the counts become removed 2, kept 0, so SW5 goes red. SW1, SW3 and SW4 stay green | **{SW2, SW5}** |
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
