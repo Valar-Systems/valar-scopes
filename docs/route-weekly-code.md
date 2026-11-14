@@ -1338,3 +1338,14 @@ and the fake's two modes added): AS PREDICTED (amendment 3's set).**
 - **Refusals with no row, stated:** RS0 (`--restore` with any other mode flag), RS1 (not a v1 backup for this
   environment), and JN2 after the journal put (the journal does not read back as current). Each is defensive and
   refuses before any further write.
+
+**CI-B1, this follow-up PR's first push (predicted 2026-11-14 17:30:17Z, before the push).**
+- **The push carries** section 2q with its amendments, `routes-backup.ts`, `routes-kvread.ts`, and the writer,
+  verify, fake-KV and selftest changes. It changes no workflow.
+- **The baseline:** main is `620a215d` (#708; `git ls-remote` at 17:30:17Z), with no workflow commit since. #708's CI-C8 ran
+  the same four `pull_request` workflows at 36 = 34 + 2, and this PR touches the same paths (`proxy/**`, `docs/`).
+- **Predicted: 36 check-runs = 34 success + 2 skipped (promote, version) + 0 other.** On Linux, the guards selftest
+  reads 66 rows, the writer 67, the run 8 and the freeze 4, with 0 FAIL lines. BK0's git check runs inside the CI
+  checkout, which is a work tree, as it is locally.
+- **Outside the set:** any other total or split, or a step red, is a stop. A Linux-only failure is a finding, never a
+  re-baseline.
