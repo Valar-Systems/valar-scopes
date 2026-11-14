@@ -445,3 +445,82 @@ held; the outcome simply fell on L1.
   19:06:30Z). So:
   - **the build commit: 33 = 31/2/0;**
   - every head already pushed (`86a7930b` to `6dca0e6d`) finished under the old set at 32 = 29/3/0, as predicted then.
+
+## 9. The one-off basis, and the 2026-11-14 update (registered 09:24Z, before any code or read)
+
+**Why.** `budget_read.py` scales every row linearly to 30 days. That is right for a steady line and wrong for an event:
+- the 7-day read behind today's KV writes (0.608 M) holds ONE refresh-data Monday, scaled x 4.29;
+- on 2026-11-14 a 30-day run rate was sent as "the month" and had to be corrected by calendar month
+  (`docs/wx-opera-backup-fallback.md` 5a).
+
+A one-off scaled as if steady is a plausible number of the wrong kind: "a truncated row is a lie", one level up.
+
+**9.1 The data change.**
+- Every row gains `cadence`: `"steady"` or `"one-off"`.
+- **A one-off row also carries `per_event` (one event, measured) and `events` (a whole number: how many fall in the
+  modelled month), and its `value` must equal `per_event x events` exactly.**
+- Any row may carry `reader_30d`, the reader's linear 30-day figure, shown beside it.
+- The file gains `month`, the calendar month the one-offs are counted for. Here it is **`2026-12`**: the next whole month,
+  and the month of the owner's open bill question.
+
+**9.2 The checker (`scripts/account_budget.py`).** Exit 2 (malformed) when:
+- a row has no `cadence`, or one outside the two;
+- a one-off row lacks `per_event` or `events`, or `events` is not a non-negative integer;
+- a one-off row's `value` differs from `per_event x events` (relative 1e-9);
+- a steady row carries `per_event` or `events`;
+- the file has no `month`.
+
+The rendered table gains one line per one-off row, beneath it: product, allowance, `per_event x events = value`, and the
+reader's 30-day figure beside it. "Each line marked steady or one-off beside the reader's 30-day figure."
+
+**9.3 Controls (`--selftest`), red-first against today's checker:**
+- **P-ONE (the registered sabotage):** a one-off row whose value is scaled x 30 (`per_event x events x 30`) must exit 2.
+  Today it reads clean, because there is no cadence, so it is red.
+- **P-ONE-ctl:** the same row unscaled reads clean, before and after.
+- **P-ONE-steady:** a steady row carrying `per_event` must exit 2. Red today.
+- **P-ONE-none:** a row with no `cadence` must exit 2. Red today.
+- **The sabotage driver** (`tools/budget/sabotage_account_budget.py`) gains **S-ONE**: the value-equals-product check
+  disabled. It turns exactly {P-ONE} green.
+
+**9.4 The rows, and the one read they need.**
+- **shsr, from X10 as measured** (weatherscope S4.28b, `9d8ed07d`): `cpu_ms` 22,392,657 (520.2 ms x 43,050
+  invocations), `r2_class_a` 120,780 (± 13k), `requests` 43,050.
+  - New read `x10`. It anchors on its own figures.
+  - It REPLACES `proj-shsr`'s three rows of those allowances. Class B, storage and Logs stay projected, because X10
+    did not measure them. Said so in their `how`.
+- **KV writes, by event, from the per-day reader.** The reader joins `tools/budget/` as `kv_by_day.py`: counts per UTC
+  day, by action and namespace, analytics token from the token file; logic unchanged from the 2026-11-14 read.
+  - **ONE registered read:** `kv-days`, 2026-11-01T00:00:00Z to 2026-11-15T00:00:00Z, whole days.
+  - **Events by date, named before the read:** refresh-data Mondays 11-02 and 11-09; the (A) route refresh 11-13.
+    Background is the median of the other days.
+  - **Rows:**
+    - background, steady (median day x 31);
+    - the refresh-data Monday, one-off (`per_event` = the mean of 11-02 and 11-09; `events` 4: December 2026 has four
+      Mondays);
+    - the (A) refresh, one-off (`per_event` measured; `events` 0 in December).
+    - Each row per namespace (proxy, proxy-staging).
+  - **The r-7d `kv_write` rows move to state `excluded`,** as section 5.1 provides, so r-7d still anchors on its own
+    totals.
+  - **Predicted bands,** from the 2026-11-14 06:48Z read of the same instrument: a Monday 120-146k across both
+    namespaces; background 1.35-1.65k a day; (A) 1.08-1.32 M. **Outside a band: STOP before any row is written.**
+- **`budget_read.py` maps shsr:** `SCRIPT["blipscope-wx-ingest-shsr"] = "shsr"`, written in state `built` (its
+  product's state), so the next read attributes it rather than calling it unattributed.
+- **Read A cited where the doc states it:** developers.cloudflare.com/r2/pricing, "Billable unit rounding".
+
+**9.5 Predictions for the rendered table after 9.4, by arithmetic, frozen now:**
+- "OPERA running + shsr":
+  - Class A 1.159 M - 132,450 + 120,780 = **1.147 M (OVER, $4.50)**, unchanged at Read A;
+  - CPU 94.564 M - 26.406 M + 22.393 M = **90.551 M, $1.21** (from $1.29);
+  - requests within 0.001 M.
+- "today" and "OPERA running": unchanged except KV writes.
+- **KV writes, every scenario:** about **0.58 M** (background about 46k + 4 Mondays of about 133k), against 0.608 M
+  now. The exact figure is the read's. Under 1 M: $0.
+- **Totals (Read A):** today $0.12; OPERA running $5.26; OPERA running + shsr **$5.71**.
+- **Outside these:** stop.
+
+**9.6 Asked, not assumed.** The scenario named "today" still has shsr `absent`, but shsr has been live since
+2026-11-13. Re-labelling the scenarios to match today is a separate question for the reviewer; this PR does not change
+them.
+
+**9.7 CI for this registration (docs only):** predicted **33 = 31 success + 2 skipped + 0 other.** The anchor is
+#714's and #718's docs-only heads (both 33 = 31/2/0), with no workflow change on main since. **Outside the set:** stop.
