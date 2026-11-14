@@ -655,7 +655,7 @@ else is a STOP before any write.
 
 **Outside the set:** stop.
 
-### 2o. D3's waiver condition: each verify counts leftover sentinels (ruled 2026-11-14 by 07:40Z; registered 09:12Z, before the code)
+### 2o. D3's waiver condition: each verify counts leftover sentinels (ruled 2026-11-14 by 07:40Z; registered 09:11Z, before the code)
 
 D3 was WAIVED on one condition: "each verify LISTS any it finds, as a count". The verify already enumerates every `rt:`
 key, and counts the ones the corpus does not expect as `extra`. It now also prints, on its own line, how many of those
