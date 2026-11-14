@@ -10,7 +10,7 @@
 # "-" is a field the deployed Worker does not report (the shape before docs/wx-healthz-products.md). It ALWAYS returns
 # 0 and touches neither of smoke's counters: a WARN is information, never a FAIL, so it never changes smoke's exit code.
 wx_products_section() {
-  local body="$1" pre='"wx":' block entries entry id routed age stale mark
+  local body="$1" pre='"wx":' block entries entry id routed age stale mark src
   if printf '%s' "$body" | grep -qE '"wx":"not_configured"'; then
     printf '     wx not_configured\n'; return 0
   fi
@@ -26,9 +26,16 @@ wx_products_section() {
     routed="$(printf '%s' "$entry" | grep -oE '"routed":(true|false)' | cut -d: -f2)"
     age="$(printf '%s' "$entry" | grep -oE '"frameAgeS":(null|-?[0-9]+)' | cut -d: -f2)"
     stale="$(printf '%s' "$entry" | grep -oE '"stale":(true|false|null)' | cut -d: -f2)"
+    # N6 (docs/wx-opera-backup-fallback.md 9): an OPERA product (every id beginning "op", per products.ts) also shows
+    # which host its newest frame came from. "-" is a Worker before the field; NOAA lines carry no source.
+    src=""
+    case "$id" in op*)
+      src="$(printf '%s' "$entry" | grep -oE '"source":("primary"|"backup"|null)' | cut -d: -f2 | tr -d '"')"
+      src=" source=${src:--}" ;;
+    esac
     mark="    "
     [ "$stale" = "true" ] && mark="WARN"
-    printf '%s wx.%s routed=%s age=%s stale=%s\n' "$mark" "$id" "${routed:--}" "${age:--}" "${stale:--}"
+    printf '%s wx.%s routed=%s age=%s stale=%s%s\n' "$mark" "$id" "${routed:--}" "${age:--}" "${stale:--}" "$src"
   done <<< "$entries"
   return 0
 }
