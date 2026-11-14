@@ -301,7 +301,7 @@ whole month.
   - **Corrected 09:34Z, before any run:** the first draft had FB4d green here. But FB4d asserted N1's text (`OPERA
     backup list`), which `cdb19df1` cannot produce; its throw already happens there.
   - **READ 09:34:49Z, as corrected:** 5 failed {FB3, FB4b, FB4c, FB4d, ERR1}, 11 passed.
-  - **Then RULED (the reviewer, received by 09:36Z): one property per row.** FB4d holds two (B1's throw, and N1's
+  - **Then RULED (the reviewer, received by 09:35Z): one property per row.** FB4d holds two (B1's throw, and N1's
     prefix). The prefix lives in ERR1 only; FB4d asserts "it throws (any OPERA error), 0 GETs, nothing written".
   - **RE-REGISTERED for the two runs, before either:**
     - **against `cdb19df1`:** red exactly {FB3, FB4b, FB4c, ERR1}, 12 green, FB4d among them;
