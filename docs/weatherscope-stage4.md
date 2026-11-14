@@ -2433,3 +2433,49 @@ and goes to the owner, through the reviewer.
 - **A figure outside S4.12.4's bands is not a stop.** It is the registered trigger.
 
 **After the read:** the numbers go to uk-data, stamped, and the reviewer is told; then they are recorded here.
+
+#### S4.28a, 2026-11-14 06:10Z: the other writers, excluded or bounded before the read
+
+The reviewer accepted S4.28 at f86732dfa3ee and asked for one alternative to be excluded first. A difference of two
+windows attributes **everything** that changed between them to `shsr`. uk-data, the budget's owner, raised the same
+point for the ten.
+
+**Every Worker bound to `blipscope-wx`, from origin/main `0c3341d30a4f`'s wrangler configs (names and bindings only):**
+15 names, every binding `WX`.
+
+| Worker | R2 writer? | deploys from W0's start to now (`deployments list`, through the helper, 06:08Z) |
+|---|---|---|
+| `blipscope-proxy`, `blipscope-proxy-staging` | **No.** `src/index.ts` never imports `wx/ingest.ts`, the only module with an R2 `put` or `list`. Class B only | not read: a reader cannot move Class A |
+| `blipscope-wx-ingest-opera` | **No.** The config's top-level name never deploys: "This Worker does not exist on your account" (10007) | none |
+| `blipscope-wx-ingest` (cref) | yes | **none**: the last was 11-06T04:44:02Z (`257f49eb`) |
+| `blipscope-wx-ingest-shsr` | yes | `19b85e60` (inert) at 11-12T22:25:56Z, inside W0, with 0 R2 calls before or after it; `c6d27f8f` (O1) at 11-13T06:15:21Z, 39 s before W1 |
+| the ten (`-opuk`, `-opis`, `-opib`, `-opmt`, `-opwe`, `-opce`, `-opse`, `-opba`, `-opsw`, `-opsn`) | yes, while OPERA runs | **none**: the last were 11-11T15:00-16:23Z |
+
+**So no writer but `shsr` was deployed between W0's start and W1's end.** That alternative is excluded.
+
+**The ten's state is not shown by a deploy.** OPERA's upstream can come back with no deploy at all. C2 and C3 print the
+ten's `cpu_ms` row (`opera-ten`, a month), and the two states sit far apart in the budget's own reads: **1.20 M ms
+silent** (r-silent) against **33.4 M ms running** (r-run).
+
+| row | predicted |
+|---|---|
+| X10-ten | The ten are silent in a window if their `cpu_ms` row is at most **3.0 M**. Both windows silent: X10-A is `shsr`'s |
+
+The ten outside that, fixed now:
+- **W1 above 3.0 M, W0 at most 3.0 M:** X10-A is an **UPPER BOUND** ("shsr plus the ten"), and the band verdict reads
+  it as one.
+- **W0 above 3.0 M, W1 at most 3.0 M:** X10-A is a **LOWER BOUND**.
+- **Both above 3.0 M:** the sign is unknown. No Class A figure goes out as measured; stop and report.
+
+**What the difference still folds in, stated now:**
+- **cref's day-to-day variation.** The anchor bounds W0, not W1. A cref that moved 10% between the days moves X10-A by
+  about 13 k a month, so **X10-A is reported ± 13 k**.
+- **Read tools that list the bucket** (`tools/wx/r3_list.py` and its siblings). A run adds a few ListObjects, which is
+  inside that ± 13 k.
+- **A Worker bound to the bucket outside every repo config** cannot be seen from the configs. C2's `UNATTRIBUTED` list
+  is printed. This alternative is not excluded, and there is no evidence for it.
+
+**uk-data's cross-check, from `shsr`'s own side:** X10-A-design (S4.28) is printed with the ratio X10-A / X10-A-design.
+- The design count is not calibrated. cref's own r-silent Class A, 132,450, against its design count, 86,400, is
+  **1.53**. So about **1.5** is predicted if `shsr` behaves like cref.
+- A ratio outside **1.2-1.9** is reported as a finding (the gap is the finding). It is not a stop.
