@@ -1,0 +1,260 @@
+// The v20 airport-label sweep (docs/v20-label-collision.md, row a). A POPULATION, not one case: it counts where the
+// airport code lands (right / left / dropped) and whether it lands on traffic text, an aircraft symbol or off the
+// glass, under the OLD rule (blind, always right) and under airportlabel::Place.
+//
+// The expected side of every scene is derived HERE, independently of the header: a candidate is usable iff it is on
+// the glass and clear; right iff the right box is usable; left iff right is not and left is; dropped iff neither. So
+// the identity rows cannot simply agree with whatever Place does. "On the glass" is the disc rule every text caller
+// shares, discgeom::ChordWidthPx (graded on its own in test_follow_state.cpp); the test applies it here itself
+// (OnDisc below) rather than through the header's OnGlass.
+//
+// The geometry is the device's:
+//   - the font is 6 x 8 px a character at size 1, and a label row is fontHeight() + 1 = 9 px;
+//   - LabelLayout puts row k of a contact at (x, y) at (x+5, y+5+9k);
+//   - the NEAR tag is at (x - width - 9, y - 4); the NEW tag at (x + 11, y + 6);
+//   - the airport code is at (mx+5, my-3) when right, and its right edge 5 px left of the mark when left.
+#include <cstdio>
+#include "../../include/AirportLabel.h"
+#include "../../include/DiscGeometry.h"   // the oracle applies the disc rule itself
+
+using airportlabel::Box;
+using airportlabel::Obstacles;
+using airportlabel::Placement;
+using airportlabel::Rect;
+using airportlabel::Side;
+
+static int failures = 0;
+static void row(bool cond, const char* what)
+{
+    printf("  %s %s\n", cond ? "ok  " : "BAD ", what);
+    if (!cond) ++failures;
+}
+
+static const int CW = 6, CH = 8, ROW = 9;
+static const int CODE_W = 3 * CW, CODE_H = CH;        // "BDN"
+static const int LABEL_CHARS = 7;                     // e.g. a callsign over a type
+
+static Rect LabelBox(int x, int y, int lines) { return Box(x + 5, y + 5, LABEL_CHARS * CW, ROW * lines - 1); }
+static Rect NearTag(int x, int y)             { return Box(x - 4 * CW - 9, y - 4, 4 * CW, CH); }
+static Rect NewTag(int x, int y)              { return Box(x + 11, y + 6, 3 * CW, CH); }
+static Rect Symbol(int x, int y)              { return Box(x - 6, y - 6, 13, 13); }   // the default dart, tip 6 px
+
+// On the glass, applied here: the box fits in the chord's centred span at its rows (the rule LabelLayout's rows use).
+static bool OnDisc(const Rect& b, int face)
+{
+    const int avail = discgeom::ChordWidthPx(b.y0, b.y1 - b.y0, face);
+    return avail > 0 && b.x0 >= face / 2 - avail / 2 && b.x1 <= face / 2 + avail / 2;
+}
+
+typedef Obstacles<16> List;
+
+struct Counts {
+    long scenes = 0, right = 0, left = 0, dropped = 0;
+    long overText = 0, overSymbol = 0, offGlass = 0, identityMiss = 0;
+    long beforeOverText = 0, beforeOverSymbol = 0, beforeOffGlass = 0;
+};
+
+static Placement PlaceIn(int face, int mx, int my, const List& text, const List& symbols)
+{
+    return airportlabel::Place(mx, my, CODE_W, CODE_H, face,
+                               [&](const Rect& b) { return text.Hits(b); },
+                               [&](const Rect& b) { return symbols.Hits(b); });
+}
+
+static void Scene(Counts& c, int face, int mx, int my, const List& text, const List& symbols)
+{
+    ++c.scenes;
+    // The OLD rule, written here, not taken from the header: blind, always right.
+    const Rect old = Box(mx + 5, my - 3, CODE_W, CODE_H);
+    if (text.Hits(old))     ++c.beforeOverText;
+    if (symbols.Hits(old))  ++c.beforeOverSymbol;
+    if (!OnDisc(old, face)) ++c.beforeOffGlass;
+
+    const Placement p = PlaceIn(face, mx, my, text, symbols);
+
+    // The expected side, derived independently.
+    const Rect r = Box(mx + 5, my - 3, CODE_W, CODE_H);
+    const Rect l = Box(mx - 5 - CODE_W, my - 3, CODE_W, CODE_H);
+    const bool rUse = OnDisc(r, face) && !text.Hits(r) && !symbols.Hits(r);
+    const bool lUse = OnDisc(l, face) && !text.Hits(l) && !symbols.Hits(l);
+    const Side want = rUse ? Side::Right : (lUse ? Side::Left : Side::Dropped);
+    if (p.side != want) ++c.identityMiss;
+
+    if (p.side == Side::Right)   ++c.right;
+    if (p.side == Side::Left)    ++c.left;
+    if (p.side == Side::Dropped) { ++c.dropped; return; }
+    const Rect placed = Box(p.x, p.y, CODE_W, CODE_H);
+    if (text.Hits(placed))     ++c.overText;
+    if (symbols.Hits(placed))  ++c.overSymbol;
+    if (!OnDisc(placed, face)) ++c.offGlass;
+}
+
+// Population 1: one contact at every offset from the mark; 2- and 3-line labels; no tag, NEAR, NEW, or both.
+static Counts OneContact(int face)
+{
+    Counts c;
+    const int mx = face / 2, my = face / 2;
+    for (int lines = 2; lines <= 3; ++lines)
+        for (int tags = 0; tags < 4; ++tags)
+            for (int dx = -48; dx <= 48; dx += 2)
+                for (int dy = -32; dy <= 32; dy += 2) {
+                    const int x = mx + dx, y = my + dy;
+                    List text, symbols;
+                    text.Add(LabelBox(x, y, lines));
+                    if (tags & 1) text.Add(NearTag(x, y));
+                    if (tags & 2) text.Add(NewTag(x, y));
+                    symbols.Add(Symbol(x, y));
+                    Scene(c, face, mx, my, text, symbols);
+                }
+    return c;
+}
+
+// Populations 2 and 3: the same sweep with a second contact B fixed so that its label covers ONE candidate.
+//   - B on the LEFT (bx = mx-50): its label spans mx-45..mx-3, so it covers the left candidate (mx-23..mx-5) and not
+//     the right (from mx+5). LEFT therefore CANNOT occur here: AL16 asserts that construction, scene by scene.
+//   - B on the RIGHT (bx = mx+2): its label spans mx+7..mx+49, covering the right candidate and not the left. Right
+//     is always blocked, so LEFT is exercised with two contacts (AL17).
+// `bBlocksLeft` counts the scenes where B's own label lands on the left candidate.
+static Counts TwoContacts(int face, int bdx, long* bBlocksLeft)
+{
+    Counts c;
+    const int mx = face / 2, my = face / 2;
+    const int bx = mx + bdx, by = my - 8;
+    const Rect leftCandidate = Box(mx - 5 - CODE_W, my - 3, CODE_W, CODE_H);
+    for (int dx = -48; dx <= 48; dx += 2)
+        for (int dy = -32; dy <= 32; dy += 2) {
+            const int x = mx + dx, y = my + dy;
+            List text, symbols;
+            text.Add(LabelBox(x, y, 2));
+            text.Add(LabelBox(bx, by, 2));
+            symbols.Add(Symbol(x, y));
+            symbols.Add(Symbol(bx, by));
+            if (bBlocksLeft && overlapcount::IntersectArea(LabelBox(bx, by, 2), leftCandidate)) ++*bBlocksLeft;
+            Scene(c, face, mx, my, text, symbols);
+        }
+    return c;
+}
+
+// Population 4: the mark at every position on the disc (step 2), with nothing near it, and with a TEXT box on its right
+// candidate. The disc binds here: near the rim a candidate is off the glass, and only the disc test can refuse it.
+static Counts WholeDisc(int face)
+{
+    Counts c;
+    const int R = face / 2;
+    for (int variant = 0; variant < 2; ++variant)
+        for (int my = 0; my < face; my += 2)
+            for (int mx = 0; mx < face; mx += 2) {
+                if ((mx - R) * (mx - R) + (my - R) * (my - R) >= R * R) continue;   // the mark itself is on the disc
+                List text, symbols;
+                if (variant == 1) text.Add(Box(mx + 5, my - 3, CODE_W, CODE_H));
+                Scene(c, face, mx, my, text, symbols);
+            }
+    return c;
+}
+
+static Side SideAt(int face, int mx, int my, bool blockRight, int* px, int* py)
+{
+    List text, symbols;
+    if (blockRight) text.Add(Box(mx + 5, my - 3, CODE_W, CODE_H));
+    const Placement p = PlaceIn(face, mx, my, text, symbols);
+    *px = p.x;
+    *py = p.y;
+    return p.side;
+}
+
+static void Print(const char* name, int face, const Counts& c)
+{
+    printf("    %-13s face %3d: scenes %ld | right %ld left %ld dropped %ld | over-text %ld over-symbol %ld off-glass %ld | "
+           "BEFORE over-text %ld over-symbol %ld off-glass %ld | identity misses %ld\n",
+           name, face, c.scenes, c.right, c.left, c.dropped, c.overText, c.overSymbol, c.offGlass, c.beforeOverText,
+           c.beforeOverSymbol, c.beforeOffGlass, c.identityMiss);
+}
+
+int main()
+{
+    printf("airport label: the code yields to traffic text, symbols and the rim; the mark always stays\n");
+
+    // CONTROL: no obstacle at all, near the centre, so every label goes right.
+    {
+        List none;
+        long right = 0, n = 0;
+        for (int dx = -48; dx <= 48; dx += 2) {
+            const Placement p = PlaceIn(240, 120 + dx, 120, none, none);
+            ++n;
+            if (p.side == Side::Right && p.x == 120 + dx + 5 && p.y == 117) ++right;
+        }
+        row(right == n, "AL1 CONTROL: no obstacle -> every label RIGHT at (mx+5, my-3)");
+    }
+
+    // The two read-only queries.
+    {
+        overlapcount::Frame<2> f;
+        row(!f.Hits(Box(0, 0, 10, 10)), "AL2 Frame::Hits on an empty frame is false");
+        f.Add(Box(0, 0, 10, 10));
+        row(f.Hits(Box(5, 5, 10, 10)) && !f.Hits(Box(10, 0, 5, 5)),
+            "AL3 Frame::Hits: an overlap is true, a shared edge is false");
+        const uint32_t pairs = f.Pairs();
+        (void)f.Hits(Box(0, 0, 10, 10));
+        row(f.Pairs() == pairs && f.Count() == 1, "AL4 Frame::Hits counts nothing and adds nothing");
+        f.Add(Box(100, 100, 5, 5));
+        f.Add(Box(200, 200, 5, 5));                                  // past the cap of 2: dropped
+        row(f.Dropped() == 1 && f.Hits(Box(500, 500, 1, 1)), "AL5 Frame::Hits is TRUE once anything was dropped");
+        Obstacles<1> o;
+        o.Add(Box(0, 0, 1, 1));
+        o.Add(Box(50, 50, 1, 1));
+        row(o.Overflow() && o.Hits(Box(900, 900, 1, 1)), "AL6 Obstacles::Hits is TRUE once the list overflowed");
+    }
+
+    long bLeft = 0;
+    const Counts p1a = OneContact(240), p1b = OneContact(960);
+    const Counts p2a = TwoContacts(240, -50, &bLeft), p2b = TwoContacts(960, -50, nullptr);
+    const Counts p3a = TwoContacts(240, 2, nullptr), p3b = TwoContacts(960, 2, nullptr);
+    const Counts p4 = WholeDisc(240);
+    Print("one contact", 240, p1a);
+    Print("one contact", 960, p1b);
+    Print("two, B left", 240, p2a);
+    Print("two, B left", 960, p2b);
+    Print("two, B right", 240, p3a);
+    Print("two, B right", 960, p3b);
+    Print("whole disc", 240, p4);
+
+    row(p1a.beforeOverText > 0 && p2a.beforeOverText > 0 && p3a.beforeOverText > 0,
+        "AL7 BEFORE (the old rule): over-text > 0 in every population");
+    row(p1a.beforeOverSymbol > 0, "AL8 BEFORE: over-symbol > 0");
+    row(p1a.overText == 0 && p2a.overText == 0 && p3a.overText == 0, "AL9 AFTER: over-text == 0 exactly");
+    row(p1a.overSymbol == 0 && p2a.overSymbol == 0 && p3a.overSymbol == 0, "AL10 AFTER: over-symbol == 0 exactly");
+    row(p1a.identityMiss == 0 && p2a.identityMiss == 0 && p3a.identityMiss == 0,
+        "AL11 AFTER: every scene's side is the independent rule's (right / left / dropped)");
+    row(p1a.right + p1a.left + p1a.dropped == p1a.scenes && p2a.right + p2a.left + p2a.dropped == p2a.scenes &&
+            p3a.right + p3a.left + p3a.dropped == p3a.scenes,
+        "AL12 AFTER: right + left + dropped == scenes");
+    row(p1a.left > 0, "AL13 AFTER: left > 0 (the left candidate is used)");
+    row(p2a.dropped > 0, "AL14 AFTER: dropped > 0 with B on the left");
+    row(p1a.scenes == p1b.scenes && p1a.right == p1b.right && p1a.left == p1b.left && p1a.dropped == p1b.dropped &&
+            p2a.right == p2b.right && p2a.left == p2b.left && p2a.dropped == p2b.dropped &&
+            p3a.right == p3b.right && p3a.left == p3b.left && p3a.dropped == p3b.dropped,
+        "AL15 away from the rim the disc never binds: faces 240 and 960 read identical counts (Place reads the face)");
+    row(bLeft == p2a.scenes && p2a.left == 0,
+        "AL16 B on the left blocks the left candidate in EVERY scene, so left == 0 there by construction");
+    row(p3a.left > 0 && p3a.right == 0, "AL17 B on the right: right is always blocked and LEFT is used (two contacts)");
+
+    // THE RIM (face 240, code 18 x 8). Each expected side is derived from ChordWidthPx's arithmetic in the frozen
+    // predictions; none of them comes from running Place.
+    int px = 0, py = 0;
+    row(SideAt(240, 20, 120, true, &px, &py) == Side::Dropped,
+        "AL18 left rim, right blocked: the left candidate (-3,117) is off the glass, so DROPPED, never cut");
+    row(SideAt(240, 220, 120, false, &px, &py) == Side::Left && px == 197 && py == 117,
+        "AL19 right rim: the right candidate (225,117) is off the glass, so LEFT at (197,117)");
+    row(SideAt(240, 120, 4, false, &px, &py) == Side::Dropped,
+        "AL20 top rim: the chord is 22 px, neither candidate fits, so DROPPED");
+    row(SideAt(240, 120, 236, false, &px, &py) == Side::Dropped,
+        "AL21 bottom rim: the candidate rows are off the glass, so DROPPED");
+    row(SideAt(240, 20, 120, false, &px, &py) == Side::Right && px == 25 && py == 117,
+        "AL22 CONTROL left rim, nothing near: the right candidate (25,117) fits, so RIGHT (the disc does not over-block)");
+    row(p4.offGlass == 0 && p4.beforeOffGlass > 0,
+        "AL23 the whole disc: no placed code is off the glass, where the old rule put some off");
+    row(p4.identityMiss == 0, "AL24 the whole disc: every scene's side is the independent rule's");
+
+    printf(failures ? "\nairport label: %d FAILURE(S)\n" : "\nairport label: all good\n", failures);
+    return failures ? 1 : 0;
+}

@@ -93,6 +93,17 @@ class Frame
     uint32_t Px()      const { return px_; }      ///< summed intersection area
     uint32_t Dropped() const { return dropped_; } ///< rectangles past the cap
 
+    /// READ-ONLY: does `q` land on any rectangle recorded this frame? It adds nothing and counts nothing, so the
+    /// numbers above are unchanged by asking (docs/v20-label-collision.md, F3). Once anything was DROPPED past the cap
+    /// it answers yes: a rectangle that could not be stored cannot be shown clear.
+    bool Hits(const Rect& q) const
+    {
+        if (dropped_) return true;
+        for (int i = 0; i < n_; ++i)
+            if (IntersectArea(r_[i], q)) return true;
+        return false;
+    }
+
   private:
     Rect     r_[CAP];
     int      n_      = 0;

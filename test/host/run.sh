@@ -350,6 +350,31 @@ fi
 )
 note_block $? "overlap count (labels AND badges)"
 
+# --- the airport code yields to traffic (v20, docs/v20-label-collision.md) --
+#
+# A population sweep: the code is tried right, then left, else dropped, against traffic text and symbols; over-text
+# and over-symbol must be 0, and every scene's side must be the independently derived one. Its sabotages are
+# test/host/sabotage_airport_label.py, run by hand before a PR, like the other drivers.
+echo "== airport label (yields to traffic text and symbols) =="
+(
+  fail=0
+if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_airport_label.cpp" \
+      -o "$OUT/test_airport_label.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the airport label test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_airport_label.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "airport label (yields to traffic text and symbols)"
+
 # --- the coordinate boxes a customer actually types into (2026-09-17) -------
 #
 # Found by the fresh-boot acceptance stalling at step 2 on an iPhone: the lat/lon
