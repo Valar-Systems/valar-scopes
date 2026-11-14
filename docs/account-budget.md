@@ -576,7 +576,7 @@ checked scenarios here, and #720's 5a points at them.
     hand table disagree; decide". 9.6's 11-12-base figures are marked SUPERSEDED once (v) lands.
 - **5a in #720** then carries no table: a pointer to these rows, its v1 kept and marked superseded with the cause.
 
-**9.9 Two details 9.8 needs, registered 2026-11-14 09:55Z before any code: proposed for acceptance.**
+**9.9 Two details 9.8 needs, registered 2026-11-14 09:54Z before any code: proposed for acceptance.**
 - **(a) Segments, not one `from`.** The weather lever changes shsr's state twice in November: `absent`, then `built`
   from 2026-11-13T06:16Z, then `built-no-list` from 11-17. So a product's state in a month scenario is an ordered list
   `[{state}, {state, from}, ...]`, where the first segment has no `from`. 9.8(ii)'s `{state, from, before}` is the
