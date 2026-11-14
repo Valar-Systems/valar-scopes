@@ -1172,6 +1172,65 @@ satisfied by the pin plus the step-1 check.
   environment and about 3,350 for both: about $0. An undo, if ever run, writes 828 keys and deletes up to 2 per
   environment.
 
+### 4d. The first run against merged main `7606224c`, and an EARLY read-only reading (registered 2026-11-14 19:22:53Z)
+
+**The code** is main `7606224c` (#723's squash): `--backup`, `--restore` and every refusal of 2q and 2r. The run on
+2026-11-18 16:00Z takes its checkout from main's sha at that moment. If main has moved, the list of commits touching
+`proxy/scripts/` since `7606224c` is read first, and any change to the writer, the verify or the guards stops the run
+until it is planned.
+
+**The inputs: one private folder, outside every git tree** (`~/.config/blipscope/routes-first-run/`; git there says
+"not a git repository"). They were copied from the session scratchpad on 2026-11-14, because the two pre-(A) manifests
+cannot be re-made: (A)'s seal replaced the meta they record. Each was read twice:
+
+| file | sha256 (12) | |
+|---|---|---|
+| `meta-pre-staging.json` | `1276a0c25ffc` | D10's pin |
+| `meta-pre-production.json` | `846627447b35` | D10's pin |
+| `sd-24ce5424.tar.gz` | `28ab57d0a9ba` | `--file` and `--prev` |
+| `sd-dff309eb.tar.gz` | `620ff8f41820` | `--prev-also` |
+
+**The run's order, per environment, staging first** (4a's steps, with 4c's backup):
+0. `sha256sum` of the two manifests against D10's pins. A mismatch is a STOP.
+1. Upstream main re-read with `gh api`. It must be `24ce54242aca`; otherwise these predictions are void: STOP and
+   re-register.
+2. The dry run with the overrides, which must read exactly as the early reading below.
+3. The write: `--key-level --no-seal --readback on` with the overrides, `--out-written`, `--out-deleted` and
+   `--backup ~/.config/blipscope/routes-backup-<env>-<UTC stamp>.json`. The test identity is set.
+   - Predicted, before the journal and the first write: `backup: 827 key(s) (827 to delete, 0 to write), meta and
+     journal saved, sha256 <hex>`.
+   - Then `journal: 827 key(s) recorded in meta:routes-pending before the first write`, and 4a's lines (the sentinel,
+     827 deletes, `wrote 0 route keys (+1 sentinel); deleted 827`).
+4. The verify, then 5. the seal, then 6. `/healthz`, as 4a.
+- **STOP before any write:** ANY BK refusal (BK0, BK0d, BK1, BK2, BK3, BK-R, BK-X); any UF, VF, OVR or FS1 refusal; or
+  any count but 827 to delete and 0 to write. The backup file is then checked once more by `sha256sum` and kept.
+
+**The EARLY reading** (approved under the owner's rule that a test starts once it is ready, 2026-11-14). It is
+read-only, an EXTRA reading, and it does NOT replace step 2 on 11-18, which re-reads upstream and dry-runs immediately
+before the run. Steps 0-2 now, per environment, through the real KV and the helper:
+- **0:** both manifests equal their pins.
+- **1:** upstream main is `24ce54242aca9291432ec67b7bab4d39f038913c`. A read at 19:22:07Z, made while locating the
+  files and before this registration, already said so; it does not count, and step 1 is read again after this commit.
+- **2a, the dry run WITHOUT the overrides** (`--key-level --dry-run --env <env> --file sd-24ce5424 --prev sd-24ce5424
+  --prev-also sd-dff309eb --prev-manifest meta-pre-<env>.json`). Predicted, the same in both environments except the
+  prev-also scheme:
+  - `prev proof: 1591/1591`;
+  - `prev-also proof: 1575/1575`, `pre-rule plain hash` on staging and `rule-hashed` on production;
+  - `pending: none` (new since 4a: no journal exists yet);
+  - writes 0 (added 0, value changed 0); deletes 827, which is 715 from surviving shards and 112 from removed shards;
+  - G1, G2 and G6 ok;
+  - G3 FAIL (1 shard, RSC);
+  - G4 FAIL, with `shard(s):` naming exactly the five of 2j;
+  - G5 FAIL (827 over 250);
+  - `plan: write 0; delete NONE (refused), so the run would NOT seal`;
+  - exit 0.
+- **2b, the same WITH the overrides** (`--max-deletes 1000 --allow-shard routes/schema-01/R/RSC-all.csv` and the five
+  `--allow-removed` names). Predicted: all six guards ok, and `plan: write 0; delete 827; seal: never in-run
+  (--seal-only after a verify PASS); PFX1: 0 outside`, with exit 0.
+- **KV reads:** one `meta:routes` get and one journal get per dry run, so 2 x 4 = **8** in all. That corrects 4a's "4",
+  which predates D1's journal read.
+- **Outside the set:** any other line, count or exit. Stop with nothing further run, and report.
+
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 
 **The alternative.** The workflow holds no KV token. It POSTs batches of `[key, value]` and `delete` lists to a
