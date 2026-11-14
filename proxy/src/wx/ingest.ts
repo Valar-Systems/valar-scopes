@@ -20,6 +20,8 @@ export const OPERA_BUCKET = "https://s3.waw3-1.cloudferro.com/openradar-24h";
 export const OPERA_BACKUP_BUCKET = "https://object-store.os-api.cci1.ecmwf.int/openradar-24h-backup";
 export type OperaSource = "primary" | "backup";
 const OPERA_HOST: Record<OperaSource, string> = { primary: OPERA_BUCKET, backup: OPERA_BACKUP_BUCKET };
+/** N1: the host a request goes to, for its error text. A base that is neither (a tool's own) reads as itself. */
+const hostLabel = (base: string): string => (base === OPERA_BACKUP_BUCKET ? "backup" : base === OPERA_BUCKET ? "primary" : base);
 /** K14: every request to the cache names us, with a contact URL, as the map server's ingest does. */
 export const OPERA_UA = "BlipscopeWxIngest/1 (+https://github.com/Valar-Systems/valar-scopes; support@valarsystems.com)";
 export const RETAIN_S = 3600;
@@ -122,7 +124,8 @@ export async function operaKeys(p: Product, nowMs: number, doFetch: Fetch, opts:
     const prefix = `${operaDay(s)}/OPERA/COMP/`;
     const after = s === from ? `&start-after=${encodeURIComponent(`${prefix}OPERA@${operaStamp(from)}`)}` : "";
     const url = `${base}/?list-type=2&prefix=${encodeURIComponent(prefix)}${after}`;
-    const r = await noaaRequest("OPERA list", url, opts.list, doFetch, (res) => res.text(),
+    // N1 (docs/wx-opera-backup-fallback.md 9): every OPERA error names its host, so a log line says which one failed
+    const r = await noaaRequest(`OPERA ${hostLabel(base)} list`, url, opts.list, doFetch, (res) => res.text(),
                                 x.uaOff === "list" ? undefined : { "User-Agent": OPERA_UA });
     attempts = Math.max(attempts, r.attempts);
     for (const m of r.value.matchAll(/<Key>([^<]+)<\/Key>/g)) {
@@ -149,7 +152,7 @@ export async function operaListing(p: Product, nowMs: number, doFetch: Fetch, op
   try { back = await operaKeys(p, nowMs, doFetch, opts, x, OPERA_BACKUP_BUCKET); }
   catch (err) {
     if (!(err instanceof NoaaError)) throw err;
-    if (pErr) throw new NoaaError(`${pErr.message}; backup: ${err.message}`, Math.max(pErr.attempts, err.attempts));
+    if (pErr) throw new NoaaError(`${pErr.message}; ${err.message}`, Math.max(pErr.attempts, err.attempts));   // each names its host
     throw err;                                                   // the primary answered empty: the backup's failure is the error
   }
   const attempts = Math.max(prim?.attempts ?? pErr?.attempts ?? 0, back.attempts);
@@ -248,7 +251,7 @@ export async function buildOperaFrame(p: Product, key: string, epoch: number, do
     first = false;
     const h: Record<string, string> = { Range: `bytes=${a}-${z}` };
     if (x.uaOff !== kind) h["User-Agent"] = OPERA_UA;
-    const got = await noaaRequest("OPERA get", url, opts.get, doFetch, async (res) => new Uint8Array(await res.arrayBuffer()), h);
+    const got = await noaaRequest(`OPERA ${hostLabel(base)} get`, url, opts.get, doFetch, async (res) => new Uint8Array(await res.arrayBuffer()), h);
     attempts.get = Math.max(attempts.get, got.attempts);
     return got.value;
   };
@@ -324,7 +327,9 @@ export async function ingestOnce(bucket: R2Bucket, p: Product, nowMs: number, do
     let bytes: Uint8Array;
     let customMetadata: Record<string, string> | undefined;
     if (p.source === "opera") {
-      const b = await buildOperaFrame(p, key, epoch, doFetch, opts, attempts, x, bucket, OPERA_HOST[source ?? "primary"]);
+      // N4 (section 9): never a silent default to a host. operaListing names a source with every non-empty listing.
+      if (!source) throw new Error("OPERA check without a source");
+      const b = await buildOperaFrame(p, key, epoch, doFetch, opts, attempts, x, bucket, OPERA_HOST[source]);
       out.map = b.map;
       if (b.mapRefused) out.mapRefused = true;
       if (b.mapPutErr !== undefined) { out.mapPutErrors = 1; out.mapPutErr = b.mapPutErr.slice(0, 80); }
