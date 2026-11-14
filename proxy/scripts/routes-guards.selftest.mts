@@ -261,5 +261,34 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
   }
 }
 
+// ---- BL1, BL2 (section 2i; the reviewer's ruling, 2026-11-14 07:28Z, after W8's instrument failure #3) ---------------
+// A fake-KV selftest started where FK1 would refuse the fake must refuse to START: exit 2, FK1's condition named (never
+// a value), and no row printed. Otherwise the same state reads as rows red for a reason none of them names. The trigger
+// is an EMPTY file in a private temp, never the real token file. Literal row("BL1"/"BL2") calls, so W8's declared set
+// sees them.
+{
+  const cp = await import("node:child_process"), fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  const blind = (script: string) => {
+    const D = fs.mkdtempSync(path.join(os.tmpdir(), "bltest-"));
+    try {
+      const tf = path.join(D, "tokens");
+      fs.writeFileSync(tf, "");
+      const env: Record<string, string | undefined> = { ...process.env, BLIPSCOPE_TOKEN_FILE: tf };
+      delete env.ROUTES_KV_TOKEN;
+      delete env.CLOUDFLARE_API_TOKEN;
+      const r = cp.spawnSync("bash", [script], { env, encoding: "utf8", maxBuffer: 64 << 20 });
+      const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+      const rows = (out.match(/^(?:PASS|FAIL) /gm) ?? []).length, red = (out.match(/^FAIL /gm) ?? []).length;
+      const named = out.includes("SELFTEST BLIND") && out.includes("BLIPSCOPE_TOKEN_FILE"), leaked = out.includes(tf);
+      return { ok: r.status === 2 && rows === 0 && named && !leaked,
+        detail: `${script}: exit ${r.status}, ${rows} row(s) printed (${red} red), the condition ${named ? "named" : "NOT named"}, the path ${leaked ? "PRINTED" : "not printed"}` };
+    } finally {
+      fs.rmSync(D, { recursive: true, force: true });
+    }
+  };
+  { const b = blind("scripts/routes-writer.selftest.sh"); row("BL1", b.ok, b.detail); }
+  { const b = blind("scripts/routes-run.selftest.sh"); row("BL2", b.ok, b.detail); }
+}
+
 console.log(off ? `SELFTEST: ${off} row(s) off` : "SELFTEST PASSED");
 process.exit(off ? 1 : 0);

@@ -7,6 +7,12 @@
 # file) where the row says nothing may be written. Keys are compared inside node and never printed.
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+# BL1 (section 2i; the reviewer, 2026-11-14 07:28Z, after W8's instrument failure #3): where FK1 refuses the fake KV, no
+# row can be graded, so refuse to START -- exit 2, FK1's condition named (never a value), before any temp dir or row.
+# FK1's own check, so the rule keeps one home. Run with env -u BLIPSCOPE_TOKEN_FILE and no token variable set.
+if ! fk1=$(npx --no-install tsx scripts/routes-fk1.ts --check staging 2>&1); then
+  echo "SELFTEST BLIND (exit 2): FK1 refuses the fake KV in this environment, so no row can be graded. $fk1"; exit 2
+fi
 T="$(mktemp -d)"; F="$T/fx"; trap 'rm -rf "$T"' EXIT
 # TMP1: every child's temp dirs go to a private dir, so what a run LEAVES can be counted exactly (2026-11-14: the tools
 # left 371 dirs, 4.7 GB, in the system temp). Windows node reads TEMP/TMP, POSIX reads TMPDIR.

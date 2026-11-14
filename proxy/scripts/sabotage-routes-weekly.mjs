@@ -85,7 +85,7 @@ if (BLIND_SAB) { console.log("--sabotage-blind: the baseline did NOT stop on a m
 const PLANTS = [
   { id: "S-GR9", file: "scripts/ingest-routes.ts", a: "  if (why.length > 0) refuse(1, `REFUSING (GR9)", b: "  if (false && why.length > 0) refuse(1, `REFUSING (GR9)", grade: "writer", want: ["GR9b", "GR9c", "GR9e", "GR9f", "GR9g"] },
   { id: "S-GR8", file: "scripts/ingest-routes.ts", a: '  console.log(`wrote ${writes.length} route keys${live ? " (+1 sentinel)" : ""}; deleted ${dels.length}`);', b: '  kvChunks("put", [{ key: META_KEY, value: "planted" }], env, tmp);\n  console.log(`wrote ${writes.length} route keys${live ? " (+1 sentinel)" : ""}; deleted ${dels.length}`);', grade: "writer", want: ["GR8", "RCP2", "UN1", "UN2", "UN3"] },
-  { id: "S-FK1", file: "scripts/routes-fk1.ts", a: "  for (const v of CREDENTIAL_VARS) if (env[v]) return `a real credential variable is set (${v})`;\n  const tf = env.BLIPSCOPE_TOKEN_FILE;\n  if (tf && exists(tf)) return", b: "  const tf = env.BLIPSCOPE_TOKEN_FILE;\n  if (false && tf && exists(tf)) return", grade: "guards", want: ["FK1d", "FK1e", "FK1f", "FK1h"] },
+  { id: "S-FK1", file: "scripts/routes-fk1.ts", a: "  for (const v of CREDENTIAL_VARS) if (env[v]) return `a real credential variable is set (${v})`;\n  const tf = env.BLIPSCOPE_TOKEN_FILE;\n  if (tf && exists(tf)) return", b: "  const tf = env.BLIPSCOPE_TOKEN_FILE;\n  if (false && tf && exists(tf)) return", grade: "guards", want: ["FK1d", "FK1e", "FK1f", "FK1h", "BL1", "BL2"] },
   { id: "S-VAL", file: "scripts/verify-routes.ts", a: "const same = (expected: string, got: string | null | undefined) => got === expected;", b: "const same = (expected: string, got: string | null | undefined) => true || got === expected;", grade: "writer", want: ["GR10m", "GR10a", "RCP2", "GR10", "GR11", "UN1", "UN2", "UN3"] },
   { id: "S-RH9s", file: "src/routeshealth.ts", a: 'typeof sc === "string" && SOURCE_DATE.test(sc) && Number.isFinite(Date.parse(sc))', b: 'typeof sc === "string"', grade: "health", want: ["RH9s"] },
   { id: "S-TK1", file: "scripts/routes-token-check.ts", a: "if (days <= WARN_DAYS) return", b: "if (days < 0) return", grade: "guards", want: ["TK1a"] },
@@ -95,6 +95,8 @@ const PLANTS = [
   { id: "S-SC2", file: "scripts/routes-env-check.ts", a: "    mainOnly = !!p && p.protected_branches === false", b: "    mainOnly = !!p || p.protected_branches === false", grade: "guards", want: ["SC2b", "SC2c"] },
   { id: "S-RR3", file: "scripts/routes-refresh-run.sh", a: "  verify || finish verify-fail\n", b: "  verify || true\n", grade: "runs", want: ["RR3"] },
   { id: "S-TMP", file: "scripts/routes-tmp.ts", a: "  for (const d of made) { try { rmSync(", b: "  for (const d of [] as string[]) { try { rmSync(", grade: "writer", want: ["TMP1"] },
+  // (c), section 2i: the same plant graded by the guards selftest, whose SG rows share the cleanup M3 added
+  { id: "S-TMP-G", file: "scripts/routes-tmp.ts", a: "  for (const d of made) { try { rmSync(", b: "  for (const d of [] as string[]) { try { rmSync(", grade: "guards", want: ["SG1", "SG2"] },
   { id: "S-SW", file: "scripts/routes-tmp.ts", a: "    if (nowMs - st.mtimeMs < STALE_MS) { out.kept++; continue; }", b: "    if (false && nowMs - st.mtimeMs < STALE_MS) { out.kept++; continue; }", grade: "guards", want: ["SW2", "SW5"] },
   { id: "S-RC6", file: "../scripts/reconcile-fleet.py", a: 'key.strip() in ("test-device", "ci-test-device")', b: 'key.strip() in ("test-device",)', grade: "reconcile", want: ["RC6"] },
 ];
