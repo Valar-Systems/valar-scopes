@@ -1742,6 +1742,35 @@ doc exactly as the hook does and counts the distinct `a[i][0]`.
   found exactly once, or a compile failure is outside the set: stop and decide.
 - **After it:** the fix (a copied string), with the same test reading 40 on the fixed code. Then new C1 images, a new
   manifest, p4's sign-off and a new C1 window. A second OFF on C1 goes to the owner.
+- **READ, as predicted:** `c1_discrim.py` v1 (`e6ded270d311`) at `bfcb47e01c3d` exits 0. It copies an 18-line block
+  (sha `4619171116bf`; FrameBench.h `332128cf1dee`, FrameBenchTable.h `bade87e921d4`, ArduinoJson 7.4.3 asserted).
+  TODAY reads 40 rows, 1 distinct hex, 1 distinct pointer. CONTROL reads 40 rows, 40 distinct hexes and 40 distinct
+  pointers. **The stated cause is confirmed and the alternative is excluded:** the doc itself carries one hex.
+
+**THE FIX, registered before its code.**
+- **The change:** on `bench/frame-bench-c1` from `bfcb47e01c3d`, exactly two lines of `include/FrameBench.h` change:
+  `e.add(r.hex);` becomes `e.add(static_cast<const char*>(r.hex));`, and the same for `r.flight`. ArduinoJson copies a
+  `const char*`. No scene, Kind, Override or table line changes.
+- **Predicted, each read after the commit and before any build:**
+  - the commit's diff against `bfcb47e01c3d`: 1 file, 2 lines changed, nothing else;
+  - `check_frame_bench.py` at the fix: the same rows as at `bfcb47e01c3d`, 0 failed;
+  - `c1_discrim.py` v2 (`fb202ecd1e87`) `--fixed` at the fix: TODAY 40 distinct hexes in 40 rows, and its PLANT (the
+    casts removed, the old pattern restored) 1 distinct hex. Exit 0;
+  - v2 without `--fixed` at the fix: STOP, exit 2, because the old lines are absent. That is the refusal control. v2
+    without `--fixed` at `bfcb47e01c3d` still reads 1 and 40, exit 0, the same as v1. Its `--fixed` mode there
+    refuses with exit 2;
+  - C1's scene-list lines and its Kind enum and arrays are byte-identical to `bfcb47e01c3d` (`c1_lines_diff.py`:
+    "0 lines differ"; its no-control is non-zero).
+- **The images,** built only when the bench PC is free (after 5c's (d)) and free space reads at least 30 GB twice:
+  - c1-A and c1-B from the fix commit. Their shas differ from `5eb7c4ad525d` and `1132863bd0df`;
+  - I-3: the shipping `blipscope-s3-128` env at the fix against `bfcb47e01c3d`'s reads "elsewhere 0", because the
+    fix is inside `FRAME_BENCH` code;
+  - `c1_artifacts.py`'s artifact lines as before.
+- **Then:** a new manifest, acknowledged; p4's sign-off; a new C1 window, proposed under the standing rule.
+- **Outside the set:** any other diff, a red row, a discriminator count other than those predicted, I-3 not 0
+  elsewhere: stop and decide.
+- **The same two lines** sit on `bench/frame-bench-levels` (`40f02c0fa812`), the base for p4's profile trees. The same
+  fix there is proposed for a ruling, and its sha goes to p4.
 
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
