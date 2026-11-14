@@ -139,6 +139,8 @@ if ovr --max-deletes "5x"; then ok OV2; else bad OV2 "--max-deletes 5x was not r
 if ovr --max-deletes ""; then ok OV3; else bad OV3 "an empty --max-deletes was not refused"; fi
 if ovr --max-deletes "-1"; then ok OV4; else bad OV4 "--max-deletes -1 was not refused"; fi
 if ovr --allow-removed "5x"; then ok OV5; else bad OV5 "--allow-removed 5x was not refused"; fi
+# OV6 (D8, section 2j): --allow-removed takes shard NAMES; the old count form is refused loudly, never read as a name
+if ovr --allow-removed "5"; then ok OV6; else bad OV6 "--allow-removed 5 (the old count form) was not refused"; fi
 
 # =================================== W3: the verify, the receipt, and the replay ===================================
 vrun() { # vrun <outfile> <args...>: the verify through the fake; echoes the exit status

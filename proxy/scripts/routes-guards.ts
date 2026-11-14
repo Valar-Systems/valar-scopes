@@ -74,19 +74,23 @@ export function g3SurvivingShare(prevByShard: Map<string, Set<string>>, newBySha
   return { ok: true, reason: "G3: no surviving shard over its bound" };
 }
 
-/** G4: shards removed from the source entirely -- at most MAX_REMOVED_SHARDS holding at most MAX_REMOVED_KEYS. */
-export function g4Removed(prevByShard: Map<string, Set<string>>, newByShard: Map<string, Set<string>>, allowRemoved: number): GuardResult {
+/** G4: shards removed from the source entirely -- at most MAX_REMOVED_SHARDS holding at most MAX_REMOVED_KEYS, unless
+ *  EVERY removed shard is named in the allowance (D8, docs/route-weekly-code.md 2j: names, never a count, so an override
+ *  admits exactly the shards a person looked at). A named shard that is not removed refuses: a stale or mistyped
+ *  override is refused, never ignored. */
+export function g4Removed(prevByShard: Map<string, Set<string>>, newByShard: Map<string, Set<string>>, allow: Set<string>): GuardResult {
   const removed = [...prevByShard.keys()].filter((s) => !newByShard.has(s));
   const keys = removed.reduce((n, s) => n + (prevByShard.get(s)?.size ?? 0), 0);
-  // B2 (the review): every comparison against NaN is false, so a bad bound would pass ANY count. Refused here too.
-  if (!Number.isInteger(allowRemoved) || allowRemoved < 0) {
-    return { ok: false, names: removed, reason: `G4: the allowance ${String(allowRemoved)} is not a non-negative integer: refused` };
+  const removedSet = new Set(removed);
+  const stale = [...allow].filter((s) => !removedSet.has(s));
+  if (stale.length > 0) {
+    return { ok: false, names: stale, reason: `G4: ${stale.length} shard(s) named but not removed: refused (a stale or mistyped override)` };
   }
-  const maxShards = Math.max(MAX_REMOVED_SHARDS, allowRemoved);
-  if (removed.length > maxShards || (keys > MAX_REMOVED_KEYS && allowRemoved < removed.length)) {
-    return { ok: false, names: removed, reason: `G4: ${removed.length} shard(s) removed, holding ${keys} keys (bounds ${MAX_REMOVED_SHARDS} and ${MAX_REMOVED_KEYS})` };
+  const unnamed = removed.filter((s) => !allow.has(s));
+  if ((removed.length > MAX_REMOVED_SHARDS || keys > MAX_REMOVED_KEYS) && unnamed.length > 0) {
+    return { ok: false, names: unnamed, reason: `G4: ${removed.length} shard(s) removed, holding ${keys} keys (bounds ${MAX_REMOVED_SHARDS} and ${MAX_REMOVED_KEYS}); ${unnamed.length} removed shard(s) not named` };
   }
-  return { ok: true, reason: `G4: ${removed.length} shard(s) removed, holding ${keys} keys` };
+  return { ok: true, reason: `G4: ${removed.length} shard(s) removed, holding ${keys} keys${allow.size > 0 ? `, all ${allow.size} named` : ""}` };
 }
 
 /** G5: the run cap. An override (maxDeletes) is honoured only when the run is NOT scheduled. */

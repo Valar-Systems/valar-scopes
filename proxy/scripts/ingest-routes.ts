@@ -152,7 +152,7 @@ interface Args {
   readback: "on" | "off";
   maxDeletes?: number;
   allowShards: string[];
-  allowRemoved: number;
+  allowRemoved: string[];
   outWritten?: string;
   outDeleted?: string;
   sourceDate?: string;
@@ -169,8 +169,20 @@ function countArg(flag: string, v: string | undefined): number {
   return Number(v);
 }
 
+/** D8 (docs/route-weekly-code.md 2j): --allow-removed names a SHARD FILE, as G4 prints it. The shape fits 1,591 of 1,591
+ *  names in standing-data 24ce5424; a count such as "5" (the old form) or "5x" is refused loudly, never read as a name.
+ *  Whether the named shard is actually removed is G4's check, on the proven snapshots. */
+const SHARD_NAME = /^routes\/schema-\d{2}\/[A-Z0-9]\/[A-Z0-9]+-[A-Za-z0-9]+\.csv$/;
+function shardNameArg(flag: string, v: string | undefined): string {
+  if (v === undefined || !SHARD_NAME.test(v)) {
+    console.error(`REFUSING (OVR): ${flag} takes a shard file as G4 prints it, such as routes/schema-01/B/BES-all.csv, once per shard (never a count). Nothing done.`);
+    process.exit(2);
+  }
+  return v;
+}
+
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dryRun: false, forceShards: [], keyLevel: false, noSeal: false, sealOnly: false, readback: "on", allowShards: [], allowRemoved: 0, replay: false };
+  const a: Args = { dryRun: false, forceShards: [], keyLevel: false, noSeal: false, sealOnly: false, readback: "on", allowShards: [], allowRemoved: [], replay: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--dry-run") a.dryRun = true;
     else if (argv[i] === "--env") a.env = argv[++i];
@@ -186,7 +198,7 @@ function parseArgs(argv: string[]): Args {
     else if (argv[i] === "--readback") a.readback = argv[++i] === "off" ? "off" : "on";
     else if (argv[i] === "--max-deletes") a.maxDeletes = countArg("--max-deletes", argv[++i]);
     else if (argv[i] === "--allow-shard") a.allowShards.push(argv[++i] as string);
-    else if (argv[i] === "--allow-removed") a.allowRemoved = countArg("--allow-removed", argv[++i]);
+    else if (argv[i] === "--allow-removed") a.allowRemoved.push(shardNameArg("--allow-removed", argv[++i]));
     else if (argv[i] === "--out-written") a.outWritten = argv[++i];
     else if (argv[i] === "--out-deleted") a.outDeleted = argv[++i];
     else if (argv[i] === "--source-date") a.sourceDate = argv[++i];
@@ -612,7 +624,7 @@ async function keyLevelMain(args: Args) {
   if (args.replay) return replayMain(args);
   if (!args.file || !args.prev) refuse(2, "REFUSING: the key-level mode needs --file <the new source> and --prev <the snapshot meta:routes was built from>");
   const scheduled = process.env.GITHUB_EVENT_NAME === "schedule";
-  const overrides = args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved > 0;
+  const overrides = args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved.length > 0;
   if (scheduled && overrides) refuse(5, "REFUSING: an override was passed to a scheduled run. A scheduled run can never override a guard (G5).");
   // KL1, seal last by construction: a key-level run that writes never seals, so it must say so.
   if (!args.dryRun && !args.noSeal) {
@@ -678,7 +690,7 @@ async function keyLevelMain(args: Args) {
   const verdicts = [
     G.g2Anchors(anchors, prevKeys, newKeys),
     G.g3SurvivingShare(unionByShard, newByShard, new Set(args.allowShards)),
-    G.g4Removed(unionByShard, newByShard, args.allowRemoved),
+    G.g4Removed(unionByShard, newByShard, new Set(args.allowRemoved)),
     G.g5Cap(deletes.length, { scheduled, maxDeletes: args.maxDeletes }),
     G.g6ShapeAndProvenance(deletes, ours),
   ];
@@ -787,7 +799,7 @@ async function main() {
   sweepAtStart(TEMP_PREFIXES); // a killed run's leftovers, older than 6 h and only ours (routes-tmp.ts)
   if (args.keyLevel || args.sealOnly) return keyLevelMain(args);
   const keyLevelOnly = args.noSeal || args.prev || args.prevAlso || args.prevManifest || args.receipt || args.readback === "off"
-    || args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved > 0
+    || args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved.length > 0
     || args.outWritten || args.outDeleted || args.sourceDate !== undefined || args.replay;
   if (keyLevelOnly) refuse(2, "REFUSING: --no-seal, --prev, --prev-also, --prev-manifest, --receipt, --readback, --out-written, --out-deleted, --source-date, --replay and the overrides belong to --key-level.");
   if (!args.dryRun && !args.env) {

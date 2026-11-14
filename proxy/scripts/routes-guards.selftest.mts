@@ -65,15 +65,24 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
 
 // ---- G4, removed shards (registered: refuse past 3 shards OR past 200 keys) ----------------------------------------
 {
+  // D8 (section 2j): the allowance is a SET of shard names. Each row also asserts WHICH rule decided (the GR1 lesson).
+  const BOUND = "(bounds 3 and 200)";
   const n4 = clone(prevByShard); for (const s of ["S01", "S02", "S03", "S04"]) n4.delete(s);
-  const r = G.g4Removed(prevByShard, n4, 0);
-  row("GR5a", !r.ok, `4 shards removed -> ${r.ok ? "passes" : "refuses deletes"}`);
+  const r = G.g4Removed(prevByShard, n4, new Set());
+  row("GR5a", !r.ok && r.reason.includes(BOUND), `4 shards removed -> ${r.ok ? "passes" : "refuses deletes"}: ${r.reason}`);
   const n5 = clone(prevByShard); for (const s of ["A80", "A76", "A45"]) n5.delete(s); // 3 shards, 201 keys
-  const r2 = G.g4Removed(prevByShard, n5, 0);
-  row("GR5b", !r2.ok, `3 shards removed holding 201 keys -> ${r2.ok ? "passes" : "refuses deletes"}`);
+  const r2 = G.g4Removed(prevByShard, n5, new Set());
+  row("GR5b", !r2.ok && r2.reason.includes(BOUND), `3 shards removed holding 201 keys -> ${r2.ok ? "passes" : "refuses deletes"}: ${r2.reason}`);
   const n6 = clone(prevByShard); for (const s of ["S05", "S06", "S07"]) n6.delete(s); // 3 shards, 75 keys
-  const c = G.g4Removed(prevByShard, n6, 0);
-  row("GR5c", c.ok, `3 shards removed holding 75 keys -> ${c.ok ? "passes" : "refuses"}`);
+  const c = G.g4Removed(prevByShard, n6, new Set());
+  row("GR5c", c.ok, `3 shards removed holding 75 keys -> ${c.ok ? "passes" : "refuses"}: ${c.reason}`);
+  // ---- G4n, G4n-ok, G4n-stale (D8): by name, never by count ----
+  const g4n = G.g4Removed(prevByShard, n4, new Set(["S01", "S02", "S03"]));
+  row("G4n", !g4n.ok && g4n.reason.includes("1 removed shard(s) not named"), `4 removed, 3 named -> ${g4n.ok ? "passes" : "refuses"}: ${g4n.reason}`);
+  const g4ok = G.g4Removed(prevByShard, n4, new Set(["S01", "S02", "S03", "S04"]));
+  row("G4n-ok", g4ok.ok, `4 removed, all 4 named -> ${g4ok.ok ? "passes" : "refuses"}: ${g4ok.reason}`);
+  const g4st = G.g4Removed(prevByShard, n4, new Set(["S01", "S02", "S03", "S04", "S05"]));
+  row("G4n-stale", !g4st.ok && g4st.reason.includes("named but not removed"), `4 removed, all named plus one not removed -> ${g4st.ok ? "passes" : "refuses"}: ${g4st.reason}`);
 }
 
 // ---- G5, the run cap -----------------------------------------------------------------------------------------------
@@ -235,13 +244,11 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
   }
 }
 
-// ---- GN1, GN2 (B2, the review): G5 and G4 refuse a bound that is not a non-negative integer, when called directly ------
+// ---- GN1 (B2, the review): G5 refuses a bound that is not a non-negative integer, when called directly ----------------
+// GN2 (G4's NaN allowance) is RETIRED by D8 (section 2j): the allowance is a set of names, which a NaN cannot reach.
 {
   const g5 = G.g5Cap(827, { scheduled: false, maxDeletes: Number.NaN });
   row("GN1", !g5.ok, `g5Cap(827, maxDeletes NaN) -> ${g5.ok ? "PASSES" : "refuses"}: ${g5.reason}`);
-  const prev = new Map([["A", new Set(["rt:A1"])], ["B", new Set(["rt:B1"])], ["C", new Set(["rt:C1"])], ["D", new Set(["rt:D1"])]]);
-  const g4 = G.g4Removed(prev, new Map(), Number.NaN);
-  row("GN2", !g4.ok, `g4Removed(4 removed, allowRemoved NaN) -> ${g4.ok ? "PASSES" : "refuses"}: ${g4.reason}`);
 }
 
 // ---- SG1, SG2 (M3, the review): SIGINT and SIGTERM remove the temp dirs and exit 130 / 143 ----------------------------
