@@ -174,6 +174,19 @@ re-triggered, **with the source recorded beside each reading**:
 
 ### 5a. November and December, by calendar month, prorated by deploy date (the reviewer's request, 2026-11-14)
 
+> **SUPERSEDED (2026-11-14 ~09:27Z). The table below is WRONG in every row with the fallback. It is kept only as the
+> record of the error.**
+> - **The cause, two errors.** (1) The ten's CPU: stage 3's "about 2.6-3.5 M ms a PRODUCT" was taken as the ten's
+>   TOTAL (3.5 M ms a month), where the ten's measured `running` rows (`docs/account-budget.json`, read `r-run`) give
+>   33,445,105. (2) R2 Class B was never priced. The ten read about 5.37 M a month, and with OPERA back December
+>   crosses the 10 M Class B allowance.
+> - **The corrected figures, as the reviewer has given the owner:** November $4.95 / $9.77 / $5.27 (none / fallback /
+>   fallback + Missileer), and December $5.11 / $6.14 / $1.64.
+> - **This section carries no table of its own from now on** (the reviewer's structural rule: every cost figure for the
+>   owner comes from the checked budget file's rendered output). The checked figures are the calendar-month scenarios
+>   registered in `docs/account-budget.md` 9.8, rendered by `scripts/account_budget.py` once the budget PR lands.
+>   This was a hand-built table outside that checker, which is how an unpriced line got through.
+
 **The correction this table makes.** The $9.64 sent to the owner on 2026-11-14 ~06:48Z was labelled "the month
 projected". It was a 30-day run rate: it priced shsr's measured 120,780 Class A a month as if shsr had run all month.
 shsr went live about 2026-11-13 06:16Z, so calendar November holds about 17.7 days of it. **Calendar November without
