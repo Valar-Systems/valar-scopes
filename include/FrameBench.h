@@ -31,6 +31,7 @@
 #include <algorithm>
 #include "FrameBenchTable.h"
 #include "WxCrop.h"
+#include "variants/Variant.h"   // BLIPSCOPE_PUSH_TASK is a variant HEADER's: included here so every file sees one kScenes
 
 namespace framebench {
 
