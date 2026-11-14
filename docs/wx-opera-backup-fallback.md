@@ -281,7 +281,7 @@ whole month.
   - `workers.yml`'s proxy job runs the whole proxy suite, the new file included, on Linux.
   - **Outside the set:** stop and decide.
 
-## 9. The review's fixes (CHANGES REQUESTED at `cdb19df1`; registered 2026-11-14 ~09:33Z, before the code)
+## 9. The review's fixes (CHANGES REQUESTED at `cdb19df1`; registered 2026-11-14 09:32Z, before the code)
 
 **The review found no defect in the code. One gap blocks the merge (B1), and N1-N7 are to fix before it.**
 
