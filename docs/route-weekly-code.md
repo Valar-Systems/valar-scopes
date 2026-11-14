@@ -195,6 +195,41 @@ inside 7, which covers the owner's "remind me 7 days before it ends". TK1's red-
 | UN2 | the same, one value planted wrong | | no receipt, meta byte-identical |
 | UN3 | the same, one deleted key planted back | | no receipt, meta byte-identical |
 
+### 2e. FK1, revised by the reviewer (2026-11-14 ~04:20Z, before W7's code)
+
+**The ruling:** "Tie the refusal to the property that actually matters, a REAL CREDENTIAL in reach, not to 'running in
+CI'." FK1 refuses `ROUTES_KV_CLI` when ANY of these holds:
+- **the routes-refresh workflow:** `GITHUB_WORKFLOW` is `routes-refresh`, or `GITHUB_WORKFLOW_REF` names
+  `.github/workflows/routes-refresh.yml`;
+- **`--env production`;**
+- **a real token variable in the environment, judged by NAME only and never by value:** `ROUTES_KV_TOKEN`,
+  `CLOUDFLARE_API_TOKEN`, or `BLIPSCOPE_TOKEN_FILE` naming a file that exists.
+
+In `workers.yml` none of these holds, so the fake-KV selftest runs there as a normal step. The rejected options:
+- (a), unsetting a variable for the child process, is a path round the guard;
+- (c), local-only, leaves a guard that never runs.
+
+**One rule, one home:** `proxy/scripts/routes-fk1.ts` exports `fk1Refusal(env, target, exists)`. It returns the NAME of
+the condition that holds, or null, and never a value. Both the writer and the verify call it before any KV call. Its
+rows are in `routes-guards.selftest.mts`:
+
+| row | environment | predicted |
+|---|---|---|
+| FK1a | a workers-like environment: none of the conditions, `--env staging` | allowed (null) |
+| FK1b | `GITHUB_WORKFLOW=routes-refresh` | refused, naming the workflow |
+| FK1b2 | `GITHUB_WORKFLOW_REF` ending in `/.github/workflows/routes-refresh.yml@refs/heads/main` | refused |
+| FK1c | `--env production` | refused |
+| FK1d | `ROUTES_KV_TOKEN` set | refused, naming `ROUTES_KV_TOKEN` |
+| FK1e | `CLOUDFLARE_API_TOKEN` set | refused, naming `CLOUDFLARE_API_TOKEN` |
+| FK1f | `BLIPSCOPE_TOKEN_FILE` naming a file that exists | refused |
+| FK1g | **the control for FK1f:** `BLIPSCOPE_TOKEN_FILE` naming a file that does not exist | allowed |
+| FK1h | a refusal's text contains none of the variables' VALUES (planted values, checked absent) | true |
+
+**End to end,** the writer selftest's FKV row (the verify on `--env production`) stays, and a new row FKW runs the
+writer with `CLOUDFLARE_API_TOKEN` set. Each refuses with exit 2 and the store byte-identical.
+
+**Sabotage S-FK1:** the credential condition dropped. Red is exactly {FK1d, FK1e, FK1f}.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
