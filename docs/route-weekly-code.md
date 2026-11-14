@@ -655,6 +655,21 @@ else is a STOP before any write.
 
 **Outside the set:** stop.
 
+### 2o. D3's waiver condition: each verify counts leftover sentinels (ruled 2026-11-14 by 07:40Z; registered 09:12Z, before the code)
+
+D3 was WAIVED on one condition: "each verify LISTS any it finds, as a count". The verify already enumerates every `rt:`
+key, and counts the ones the corpus does not expect as `extra`. It now also prints, on its own line, how many of those
+are the writer's sentinel shape (`^rt:ZZ[0-9A-F]{5}S$`): `sentinels: <n> leftover rt:ZZ sentinel key(s)`. A count
+only, never a key, and not a failure: a leftover sentinel is inert. The verify's verdict is unchanged.
+
+| row (writer selftest) | the test | red today because |
+|---|---|---|
+| **SN1** | the written store with one planted leftover sentinel (`rt:ZZ0A1B2S`): the verify prints exactly `sentinels: 1 leftover rt:ZZ sentinel key(s)` (a whole-line compare) and still exits 0 | the line does not exist |
+| **SN1-ctl** | the same store with none: exactly `sentinels: 0 leftover rt:ZZ sentinel key(s)` | the line does not exist |
+
+**Red-first, predicted:** writer red exactly **{SN1, SN1-ctl}**, the other 46 green. **After:** writer **48 of 48**.
+**W8:** the writer's declared set becomes 48. No plant anchor is in these lines.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
