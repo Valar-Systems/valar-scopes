@@ -1706,6 +1706,43 @@ never from the live log); read-mac recovers the download mode. W2 B the same, ~1
 A again (A2), ~6 min, grabs. W4 the v19 restore, its boot read (the accepted tokens), read-mac, HTTP 200, release, END.
 About 39 min; the ungraded 100 % stress pair runs only if the graded set and the restore still fit.
 
+### C1's window, run 2026-11-14 19:40:56-20:15:00Z: C1's FIRST OFF reading (INSTRUMENT)
+
+Moved forward under the owner's standing rule (a window starts once its dependencies are done and its board is free).
+- **The instruments, as registered:** rig check PASS on A1, B and A2; PIX-WX above 0 in each arm, `[9, 15, 15]`
+  from nine distinct grab files; the reader's selftest PASSED, output `3aaedfe98289`. The restore PASSED (boot read,
+  HTTP 200 at 20:14:55Z).
+- **The read:** `fb_read_c1.py` exit 2, `INSTRUMENT / STOP: A1 S0 C1: a frame with drawn != 40`. Nothing is read from
+  B.
+  - Every measured frame in every arm (A1 S0; B S0-S3; A2 S0) holds tracked = 1 and drawn = 1, by the reader's parse
+    and by a hand decode of the raw dump.
+  - The board's `[perf]` reads `ac=40/40` (rows received and kept per poll) and `table served n 40`, and TBL-DEV's sum
+    `b1ace60e` matched.
+- **The named cause, from the code:** the (a) hook adds `r.hex` and `r.flight` from a loop-local `const fbtable::Row r`
+  (`FrameBench.h:312-315` at `bfcb47e01c3d`). ArduinoJson 7.4.3 adapts a `const char (&)[N]` as
+  `RamString(p, N - 1, true)` (`Strings/Adapters/RamString.hpp:90-95`), which stores it BY POINTER, as a literal. So
+  every row's hex and flight point at r's one stack slot, and the hex-keyed tracked set keeps one aircraft. TBL-DEV
+  and the served CRC are computed from `fbtable` directly, not through the doc, so both pass.
+- **The alternative, named and still open:** something after the parse collapses 40 distinct hexes into one entry.
+- **The same lines** are on `bench/frame-bench-levels` `40f02c0fa812` and p4's `bench/frame-profile-p1`
+  `ef79bf8282fd` and `-levels` `6979d2d7ff5b`. None of their images ran on a board (p4's audit and C1-L's table).
+  The v19 benches do not carry the lines.
+
+**THE DISCRIMINATOR, registered before its code (the orchestrator's ruling, after 20:20Z).** `c1_discrim.py` builds the
+doc exactly as the hook does and counts the distinct `a[i][0]`.
+- **How:** the hook's row loop is copied verbatim from `FrameBench.h` at the named commit, between two anchors that
+  each occur exactly once. It is compiled on the host with that commit's `FrameBenchTable.h` and the image's
+  ArduinoJson 7.4.3 at `-Os`, as the image is. The count is taken right after the loop, in the same function, where
+  the hook's `ParseBlips` reads the doc.
+- **Predicted on `bfcb47e01c3d` (today's hook): 1 distinct hex in 40 rows.** That is the stated cause, read red.
+- **Its control:** the same copied loop with `r.hex` and `r.flight` cast to `const char*` (a pointer ArduinoJson
+  copies). **Predicted: 40 distinct.** This shows the counter can read 40.
+- **The meanings:** 1 and 40 confirm the cause. 40 on today's code is the alternative: the doc is built right, so the
+  collapse happens after the parse. Then it stops and goes to the orchestrator. Any other count, an anchor that is not
+  found exactly once, or a compile failure is outside the set: stop and decide.
+- **After it:** the fix (a copied string), with the same test reading 40 on the fixed code. Then new C1 images, a new
+  manifest, p4's sign-off and a new C1 window. A second OFF on C1 goes to the owner.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
