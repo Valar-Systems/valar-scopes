@@ -287,3 +287,43 @@ reviewer's 17:17:05Z go: weatherscope's combined deploy was closed and verified 
 | S5 | the analytics API (`kvOperationsAdaptiveGroups`), window 17:25:00-17:45:00Z, read at 17:59:50Z and again at 18:00:56Z with identical results. Staging namespace: **write 628,713**, delete 1, list 2, read 57. Production in the same window: write 48, list 6, read 5,632. The reader's control: it read 11-09 as 67,301 production and 65,678 staging writes, equal to the per-day read | **OFF: 245 BELOW the 628,958-628,978 band.** The outcome table has no row for under, so "anything else": stopped before production, and reported for the ruling |
 | D1 (approved 18:02:49Z) | the same reader over 17:15:00-17:55:00Z at 18:03:30Z: staging write 628,713, the same as the run window. The sub-windows 17:15-17:25 and 17:45-17:55 hold no staging writes. The wider window's 1,256 staging lists are S1's and S3's two listings | **(b) excluded**: no write fell outside the run window |
 | D2 (approved 18:02:49Z) | every key's value read back with `kv bulk get` through the helper, 100 keys a call (380 calls, 18:04:45-18:07:28Z), compared byte for byte with the pinned source, built as the writer builds it. The controls ran first:<br>- (i) a known-correct key compared against a deliberately wrong value: exactly 1 mismatch;<br>- (ii) a made-up key `rt:ZZQQQQQX`: read `null`;<br>- (iii) 1,000 unchanged keys on a fixed stride: 1,000 match.<br>**added: 10,680 checked, 10,680 match, 0 mismatched, 0 absent. value-changed: 26,106 checked, 26,106 match, 0 mismatched, 0 absent.** | **(c) excluded for every key whose value matters.** What the data cannot exclude: dropped writes to UNCHANGED keys, which are harmless and look exactly like an analytics undercount. So the 245 (0.039%) is read as the analytics being imprecise, and P5 is re-registered below |
+| P0 | production `/healthz` at 01:30:59Z and 01:32:04Z on 11-14, both HTTP 200, commit aa40aa43: `{"builtAt":"2026-08-26T17:25:54.476Z","ageDays":79,"rows":619103,"stale":true,"maxAgeDays":14}`; the two reads identical | **as predicted** |
+| P1 | pre-verify, 01:32:17-01:36:34Z, exit 1:<br>- `expected: 1591 shards, 628956 distinct keys`; `actual: 619103 keys present under rt:`;<br>- `shards complete: 1018/1591`; `keys present: 618276/628956`;<br>- `RESULT: FAIL -- 10680 keys missing across 573 shard(s)`;<br>- 0 manufactured self-loops (38 genuine); `extra ... 827`.<br>Production, like staging, holds exactly the old corpus with no runtime rows. Before P2, production's `meta:routes` was read again at 01:37:05Z: byte-identical to the copy saved at 16:54Z (86,938 bytes) | **as predicted** (missing 10,680 in 10,000-10,680; complete 1,018 in 1,018-1,040; extra 827, at least 827) |
+| P2 | `BLIPSCOPE_TOKEN_FILE set: true` printed first; 01:37:20-01:52:31Z, exit 0.<br>- the pre-write lines as predicted: airports 6413/0; 1591 shards, 628956 usable; rule rev 3, 8994; previous manifest 1575; `diff: 634/1591 shards changed -> 568226 keys to write`; the 644 NOTE; no `swept` line;<br>- `anchor: ZZ.....A is absent`;<br>- 57 bulk-put chunks (the last 8227, 568227/568227, at 01:52:04), 0 retries;<br>- `wrote 568226 route keys (+1 sentinel)`;<br>- the sentinel's provenance proved on attempt 1, after 1 s;<br>- `sample: 12/12`; canaries 5/5;<br>- the five ruled lines, with `wrangler 4.35.0 (update available 4.162.0)`;<br>- `meta written: rows=628956 written=568226 sentinel=OK canaries=5/5` at 01:52:30, so **the seal fell between 01:52:27 and 01:52:30**;<br>- `cleanup: ... deleted`.<br>stderr: wrangler's config warnings and the token-file reader's Windows-permissions note only | **as predicted**. Production **sealed, unverified** until P3 |
+| P3 | verify, 01:52:54-01:57:06Z, exit 0:<br>- `expected: 1591 shards, 628956 distinct keys`; `actual: 629783 keys present under rt:` (= 628,956 + 827);<br>- `shards complete: 1591/1591`; `keys present: 628956/628956`;<br>- `RESULT: PASS -- every expected key present, in every shard`;<br>- 0 manufactured self-loops (38 genuine); `extra ... 827`;<br>- 0 per-shard failure lines; no stderr other than wrangler's config warnings | **as predicted. Production VERIFIED at 01:57:06Z**, at the first verify, with no repair |
+| P4 | production `/healthz` at 02:03:40Z and 02:04:41Z (11 and 12 minutes after the seal, after P3's PASS), both HTTP 200, commit aa40aa43: `{"builtAt":"2026-11-14T01:52:29.338Z","ageDays":0,"rows":628956,"stale":false,"maxAgeDays":14}`; the two reads identical | **as predicted** (builtAt inside 01:52:27-01:52:30Z) |
+| P6 | the D2 tool against production, `dff309eb` to `24ce5424`, 380 calls, 02:04:57-02:07:18Z, exit 0. The controls ran first:<br>- (i) a known-correct key against a deliberately wrong value: exactly 1 mismatch;<br>- (ii) the made-up key: read `null`;<br>- (iii) 1,000 unchanged keys on a fixed stride: 1,000 match.<br>**added: 10,680 checked, 10,680 match, 0 mismatched, 0 absent. value-changed: 26,106 checked, 26,106 match, 0 mismatched, 0 absent.** The local mismatched and absent files are both empty lists | **as predicted** (0 mismatched, 0 absent) |
+| P5 | the analytics API, window 01:37:00-01:53:00Z (the run, rounded outward to whole minutes, fixed before the read), read at 02:07:41Z and again at 02:08:46Z with identical results. Production namespace: **write 567,930**, delete 1, list 4, read 1,451. The reader's control: 11-09 read again as 67,301 production and 65,678 staging writes, equal to the earlier reads | **OFF: 14 BELOW the 567,944-568,254 band** (568,228 + 0 retries + 100 x 16/60). 298 below the 568,228 the run wrote: an undercount of 0.052%, against staging's 0.039%. Stopped and reported (NOT CLEAN, 02:09:26Z) |
+
+**Ruled by the reviewer on the NOT CLEAN (received 02:17Z on 11-14, after the reviewer's terminal crash):**
+- P5 is recorded OFF, with no re-grade.
+- No repair: P3 (every key present) and P6 (all 36,786 added and value-changed keys correct) exclude a data
+  defect.
+- The deploy claim was released at 02:17:57Z.
+- The weekly job (C) takes the analytics write count as an upper bound only, a cost stop. Completeness is graded by
+  the run's own receipt and verify (condition 8 of its plan).
+- A production D1 is approved, read-only, needing no claim. It tests alternative (c): that the analytics stamped
+  some of the run's writes outside its window.
+
+**P5's alternatives, as reported at 02:09:26Z:**
+- (a) the analytics count undercounts by more than staging's one sample suggested;
+- (b) the bulk put dropped up to about 300 writes. P3 and P6 exclude this as a harm, but not as an event: a dropped
+  write could only fall on a key whose stored value was already correct;
+- (c) the analytics stamped some of the run's writes outside the window;
+- (d) the reader is broken. Excluded by the 11-09 control and the two identical reads.
+
+**D1 on production: what each result will mean, frozen before the read.**
+- **The reads.** The same reader as P5 over two sub-windows, 01:27:00-01:37:00Z and 01:53:00-02:03:00Z on 11-14.
+  Each is read twice, at least 60 s apart, and then the 11-09 control runs again.
+- **W** is production's `write` count, summed over both sub-windows.
+- **The background allowance is 100 writes across the 20 minutes, which is 300 an hour.** Production showed 48
+  writes in staging's 20-minute run window, 144 an hour. The run's own writes all fell between 01:37:20 and
+  01:52:31Z.
+
+| W, and the other readings | meaning |
+|---|---|
+| W at least 398 (298 or more above the allowance) | (c) explains P5 |
+| W at most 100 | about 0 run-attributable writes: (a) and (b) remain, and the analytics write count is recorded as unable to grade a run at this precision |
+| W from 101 to 397; or a sub-window's two reads disagree; or the control does not read 67,301 production and 65,678 staging writes | none of the above: the instrument is unreliable at this scale. Stop and record |
+
+Staging's counts in the sub-windows are reported and not graded: they cannot bear on production's window.
