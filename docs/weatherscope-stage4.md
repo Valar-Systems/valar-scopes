@@ -2479,3 +2479,52 @@ The ten outside that, fixed now:
 - The design count is not calibrated. cref's own r-silent Class A, 132,450, against its design count, 86,400, is
   **1.53**. So about **1.5** is predicted if `shsr` behaves like cref.
 - A ratio outside **1.2-1.9** is reported as a finding (the gap is the finding). It is not a stop.
+
+#### S4.28b, 2026-11-14 06:43-06:48Z: X10 read, on the wake
+
+**The runs.** The wakes fired at 06:43:00Z: the bash chain's leg 3, the session cron and the reviewer's message. The read
+started at 06:43:20Z, from `aa40aa43d8c9`, whose three tools are the same as origin/main's. C1, C2 and C3 each exited 0,
+at 06:43:49Z, 06:43:23Z and 06:43:24Z. Each stderr holds only the token file's Windows note.
+
+| row | predicted | read | verdict |
+|---|---|---|---|
+| X10-n | records 1,400-1,440; `exceededCpu` 0; ABR 1 | 1,439 records (1,440 seen), all `ok`; `exceededCpu` 0; ABR `[1]` | as predicted |
+| X10-b | `single_build` n about 720 | 714, plus 5 backfill or multi-build invocations (9 builds) | printed |
+| X10-cpu | median-weighted, **507-653 ms** | **480.5 ms** (single-build median 938.5 × 714, rest median 19.0 × 720, `beside` 7,674, over 1,439), which is 20.76 M ms a month at 43,200 | **OUTSIDE THE BAND, below it** |
+| X10-cpu-sum | `UNATTRIBUTED` exactly `shsr`, so its row is `shsr`'s sum | `UNATTRIBUTED` is exactly `cpu_ms` and `requests` of `blipscope-wx-ingest-shsr`. **22,392,657 ms a month**, which is 520.2 ms per invocation over 43,050 | inside 21.9-28.2 M (printed beside) |
+| X10-anchor | C3's `cref` Class A, 117,936-144,144 | **130,560** (181.3 an hour) | as predicted |
+| X10-ten | each window at most 3.0 M | W1 **1,179,014**, W0 **1,199,602**: both silent | as predicted, so X10-A is `shsr`'s |
+| X10-A | **43 k-140 k** a month, near 131 k | 251,340 − 130,560 = **120,780 a month, ± 13 k** (≤ 133,780) | inside the band |
+| X10-A-design | the ratio X10-A / design, 1.2-1.9 (about 1.5) | (1,439 + 2 × 714 + 9) × 30 = 86,280, so the ratio is **1.400** | inside |
+
+**The one row outside its band is X10-cpu, and it is below the band, not above it.** By S4.28 that is the registered
+trigger, not a stop: the price is re-done and goes to the owner, through the reviewer. **No re-price is sent before the
+reviewer's ruling.** What the ruling has in front of it:
+- **The two CPU rows disagree on the verdict, and the measured one is inside.** X10-cpu is a median-weighted estimate.
+  X10-cpu-sum is Workers analytics' own `cpuTimeUs` sum for the script, and `UNATTRIBUTED` shows the row holds only
+  `shsr`.
+- **Why they differ:** a median is not a mean. The single-build CPU is skewed right (median 938.5, p99 2,174 for all
+  invocations, max 2,871), so n × median understates the sum.
+- **The alternative, that the sum carries something besides `shsr`, is excluded:** the row has exactly one script.
+- **At $0.02 a million, the sum is $0.45 a month,** the low end of S4.12.2's CPU line ($0.44-$0.56). The median-weighted
+  figure would be $0.42.
+- **Per build, `shsr` costs more than cref:** a median of 938.5 ms against cref's 645. It costs less per invocation
+  because about half its invocations build nothing (median 19 ms), since SeamlessHSR publishes every 2 minutes and the
+  cron runs every minute.
+
+**Class A, against the account:**
+- The bucket-wide totals (all buckets, a month) read 930,480 in W0 and **1,050,690 in W1**.
+- So `shsr` takes the account's Class A across the included million while OPERA is silent. That is S4.12.2's
+  "$4.50 in a month OPERA is down" case (0.955 M to 1.09 M predicted; 0.930 M to 1.051 M read).
+- Under Read A (whole millions) that is $4.50. Under Read P (proportional) it is about $0.23.
+- The account's month is uk-data's read, not this one.
+
+**Seen in C2 and not part of X10 (information, for uk-data):**
+- KV writes, a month, rose from 51,180 (W0) to 17,092,980 (W1) for `proxy`, and from none to 18,861,480 for
+  `proxy-staging`.
+- Unscaled, those are about 570 k and 629 k writes in the day. That is the shape of a one-off bulk load, such as the
+  route mirror's refresh (619,103 `rt:` keys), which the budget's × 30 turns into a monthly figure that does not recur.
+- The alternative is a recurring writer. One window cannot separate the two, so it goes to uk-data, who knows whether
+  the refresh ran in W1.
+
+**Sent:** the numbers to uk-data, and the trigger to the reviewer.
