@@ -34,7 +34,8 @@ const keyAt = (e: number) => {
 };
 
 type Mode = "frame" | "empty" | "fail";
-interface Plan { primary: Mode; backup: Mode; primaryReads?: "ok" | "fail"; primaryKeys?: string[]; backupKeys?: string[] }
+interface Plan { primary: Mode; backup: Mode; primaryReads?: "ok" | "fail"; backupReads?: "ok" | "fail";
+                 primaryKeys?: string[]; backupKeys?: string[] }
 interface Seen { host: "primary" | "backup" | "other"; kind: "list" | "head" | "tiles"; ua: string | undefined }
 
 function twoHosts(plan: Plan, seen: Seen[]): Fetch {
@@ -51,6 +52,7 @@ function twoHosts(plan: Plan, seen: Seen[]): Fetch {
       return new Response(`<ListBucketResult>${keys.map((k) => `<Contents><Key>${k}</Key></Contents>`).join("")}</ListBucketResult>`);
     }
     if (host === "primary" && plan.primaryReads === "fail") return new Response("", { status: 503 });
+    if (host === "backup" && plan.backupReads === "fail") return new Response("", { status: 503 });
     const m = /^bytes=(\d+)-(\d+)$/.exec(h.Range ?? "");
     const s = m ? OFFS.get(`${m[1]}-${m[2]}`) : undefined;
     if (s === undefined) return new Response("", { status: 400 });
@@ -66,7 +68,7 @@ async function reset(p: Product = opukFx) {
 async function run(plan: Plan, nowMs: number): Promise<{ r?: IngestResult; threw: string; seen: Seen[] }> {
   const seen: Seen[] = [];
   try { return { r: await ingestOnce(env.WX!, opukFx, nowMs, twoHosts(plan, seen), FAST), threw: "", seen }; }
-  catch (err) { return { threw: String(err).slice(0, 80), seen }; }
+  catch (err) { return { threw: String(err).slice(0, 200), seen }; }
 }
 const hostKinds = (seen: Seen[]) => [...new Set(seen.map((s) => `${s.host}:${s.kind}`))].sort();
 const frameSource = async (e: number) => (await env.WX!.head(frameKey(opukFx, e)))?.customMetadata?.source;
@@ -101,11 +103,12 @@ describe("FB: one source per check, never mixed (section 2a)", () => {
     await reset();
     const x = await run({ primary: "fail", backup: "frame" }, T);
     const src = await frameSource(E0);
-    console.log(`FB3: ${x.r?.status ?? x.threw}; ${JSON.stringify(hostKinds(x.seen))}; source ${src}`);
+    console.log(`FB3: ${x.r?.status ?? x.threw}; ${JSON.stringify(hostKinds(x.seen))}; source ${src}; primaryListError ${x.r?.primaryListError ?? "none"}`);
     expect(x.threw).toBe("");
     expect(x.r?.status).toBe("stored");
     expect(hostKinds(x.seen)).toEqual(BACKUP_READ);
     expect(src).toBe("backup");
+    expect(x.r?.primaryListError ?? "").toMatch(/^OPERA primary list /);   // N3: the primary's failure, named, in the result
   }, SLOW);
 
   it("FB4: both empty -- no-frame; both listed; no GET; nothing written", async () => {
@@ -123,8 +126,9 @@ describe("FB: one source per check, never mixed (section 2a)", () => {
   it("FB4b: both listings fail every attempt -- the check throws (the primary's OPERA list failure named); no GET; nothing written", async () => {
     await reset();
     const x = await run({ primary: "fail", backup: "fail" }, T);
-    console.log(`FB4b: threw ${x.threw !== ""} (${x.threw.includes("OPERA list") ? "names OPERA list" : "does NOT name OPERA list"}); GETs ${noGet(x.seen)}; frames ${await frames()}`);
-    expect(x.threw).toContain("OPERA list");
+    console.log(`FB4b: threw ${x.threw !== ""} (primary ${x.threw.includes("OPERA primary list") ? "named" : "NOT named"}, backup ${x.threw.includes("OPERA backup list") ? "named" : "NOT named"}); GETs ${noGet(x.seen)}; frames ${await frames()}`);
+    expect(x.threw).toContain("OPERA primary list");   // N3: both hosts' texts
+    expect(x.threw).toContain("OPERA backup list");
     expect(noGet(x.seen)).toBe(0);
     expect(await frames()).toBe(0);
     expect(await latest()).toBeNull();
@@ -132,8 +136,20 @@ describe("FB: one source per check, never mixed (section 2a)", () => {
   it("FB4c: the primary fails every attempt, the backup lists empty -- throws the primary's OPERA list error; no GET; nothing written", async () => {
     await reset();
     const x = await run({ primary: "fail", backup: "empty" }, T);
-    console.log(`FB4c: threw ${x.threw !== ""} (${x.threw.includes("OPERA list") ? "names OPERA list" : "does NOT name OPERA list"}); GETs ${noGet(x.seen)}; frames ${await frames()}`);
-    expect(x.threw).toContain("OPERA list");
+    console.log(`FB4c: threw ${x.threw !== ""} (${x.threw.includes("OPERA primary list") ? "names OPERA primary list" : "does NOT name OPERA primary list"}); GETs ${noGet(x.seen)}; frames ${await frames()}`);
+    expect(x.threw).toContain("OPERA primary list");
+    expect(noGet(x.seen)).toBe(0);
+    expect(await frames()).toBe(0);
+    expect(await latest()).toBeNull();
+  }, SLOW);
+  // FB4d (B1, the review): production's state now -- the primary lists EMPTY and the backup's listing FAILS. That is
+  // a throw (the backup's error), never a no-frame: an unreachable backup must not read as "OPERA has no frame".
+  it("FB4d: primary empty, the backup's listing fails every attempt -- throws the backup's error; no GET; nothing written", async () => {
+    await reset();
+    const x = await run({ primary: "empty", backup: "fail" }, T);
+    console.log(`FB4d: ${x.r?.status ?? "threw"} (an OPERA error: ${x.threw.includes("OPERA") ? "yes" : "no"}); GETs ${noGet(x.seen)}; frames ${await frames()}`);
+    // ONE property (the reviewer): it throws -- any OPERA error. Which host the text names is ERR1's row, not this one.
+    expect(x.threw).toContain("OPERA");
     expect(noGet(x.seen)).toBe(0);
     expect(await frames()).toBe(0);
     expect(await latest()).toBeNull();
@@ -227,12 +243,36 @@ describe("HZ1: /healthz shows each OPERA product's source", () => {
   });
 });
 
+describe("ERR1: every OPERA error names its host (N1, section 9)", () => {
+  // Four paths, one message each. FB4d's scenario is deliberately NOT used, so S-EMPTYFAIL turns exactly {FB4d}.
+  it("ERR1: primary list, backup list, primary get and backup get failures each name their host", async () => {
+    await reset(); const pl = (await run({ primary: "fail", backup: "empty" }, T)).threw;                          // FB4c
+    await reset(); const bl = (await run({ primary: "fail", backup: "fail" }, T)).threw;                           // FB4b
+    await reset(); const pg = (await run({ primary: "frame", backup: "frame", primaryReads: "fail" }, T)).threw;   // FB5
+    await reset(); const bg = (await run({ primary: "empty", backup: "frame", backupReads: "fail" }, T)).threw;
+    const got = [/^Error: OPERA primary list /.test(pl) && pl.includes("the backup listed empty"),
+                 bl.includes("OPERA backup list"), /^Error: OPERA primary get /.test(pg), /^Error: OPERA backup get /.test(bg)];
+    console.log(`ERR1: primary list ${got[0]}, backup list ${got[1]}, primary get ${got[2]}, backup get ${got[3]}`);
+    expect(got).toEqual([true, true, true, true]);
+  }, SLOW);
+});
+
 describe("UA: one User-Agent on both hosts (section 2b)", () => {
-  it("UA1: every request in FB1-FB3's checks, on either host, carries exactly OPERA_UA", async () => {
+  it("UA1: every request in every scenario's checks (FB1-FB7, FB4b-d, ERR1's), on either host, carries exactly OPERA_UA", async () => {
     const seen: Seen[] = [];
-    for (const plan of [{ primary: "frame", backup: "frame" }, { primary: "empty", backup: "frame" }, { primary: "fail", backup: "frame" }] as Plan[]) {
+    const E = [E0, E0 + 300, E0 + 600, E0 + 900];
+    const T7 = (E[3]! + 60) * 1000;
+    const plans: [Plan, number][] = [
+      [{ primary: "frame", backup: "frame" }, T], [{ primary: "empty", backup: "frame" }, T], [{ primary: "fail", backup: "frame" }, T],
+      [{ primary: "empty", backup: "empty" }, T], [{ primary: "fail", backup: "fail" }, T], [{ primary: "fail", backup: "empty" }, T],
+      [{ primary: "empty", backup: "fail" }, T], [{ primary: "frame", backup: "frame", primaryReads: "fail" }, T],
+      [{ primary: "empty", backup: "frame", backupReads: "fail" }, T],
+      [{ primary: "empty", backup: "frame", backupKeys: E.slice(0, 3).map(keyAt) }, T7],
+      [{ primary: "frame", backup: "frame", primaryKeys: E.slice(1).map(keyAt) }, T7],
+    ];
+    for (const [plan, now] of plans) {
       await reset();
-      seen.push(...(await run(plan, T)).seen);
+      seen.push(...(await run(plan, now)).seen);
     }
     const ours = seen.filter((s) => s.host !== "other");
     const missing = ours.filter((s) => s.ua !== OPERA_UA).length;
