@@ -244,6 +244,86 @@ writer with `CLOUDFLARE_API_TOKEN` set. Each refuses with exit 2 and the store b
     control did not even share the comparison it guards, a defect found while writing this row and fixed in the same
     commit.
 
+### 2f. W5, the workflow, and W10, its static checks (registered 2026-11-14 ~05:10Z, before their code)
+
+**The shape: a thin workflow over ONE run script.** `proxy/scripts/routes-refresh-run.sh <staging|production>` is the
+job's whole logic, so it can be graded end to end through the fake KV. The YAML stays small enough for W10 to read
+every line of it.
+
+**The run script, in order:**
+1. **The environment check** (W11). A refusal is class `secrets-not-set`.
+2. **The freeze** (W4). Exit 4 ends the run green with the stated line. A malformed freeze is `frozen-malformed`.
+3. **The token check** (TK1). A warning sends `token-expiring` and the run continues; a failure stops it.
+4. **The source:**
+   - main's sha and commit date from `gh api repos/vradarserver/standing-data/commits/main`;
+   - the tarball downloaded by that sha from codeload, with its sha256.
+   - Either failing is `source-unreachable`.
+5. **Meta, through the helper:**
+   - **no `sourceCommit` (a meta (A) or the full mode wrote) REFUSES:** the first key-level run is the attended local
+     one (section 4), never CI's;
+   - the snapshot of meta's `sourceCommit` is downloaded by sha.
+6. **The write:**
+   - **a changed source** runs `--key-level --no-seal --prev <meta's sourceCommit> --file <new>`, with
+     `--readback on|off` from W11's output;
+   - **an unchanged source** runs `--replay --prev <meta's prevSourceCommit> --file <new>` (UN1-UN3);
+   - a G1 refusal is `refused-g1`;
+   - when the deletes are refused, the first failing guard names the class, `refused-g2` to `refused-g6`.
+7. **The verify,** with `--check-values`, `--expect-absent` and `--receipt`.
+8. **At most one repair.** On a verify FAIL, the same write runs once more (the writes are idempotent), then the
+   verify again. A second FAIL is `verify-fail`.
+9. **The seal:** `--seal-only --receipt <r> --source-date <the commit date>`. A refusal is `seal-refused`.
+10. **On any class,** `routes-notify.ts` runs with it and the counts, and the job fails. With no class, the job is green.
+
+**The workflow (`.github/workflows/routes-refresh.yml`):**
+- **Triggers:**
+  - `workflow_dispatch` only, with an input `target`, `staging` or `both`;
+  - the `schedule:` block (Tuesday 05:47Z) ships COMMENTED OUT; S-ON un-comments it, in its own PR.
+- **Two jobs:**
+  - `staging`;
+  - `production`, which `needs: staging` and runs only for `both` (and later for the schedule).
+- **Each job:**
+  - `environment: routes-refresh`, `concurrency: routes-refresh`, `permissions: contents: read, issues: write`;
+  - checkout and setup-node pinned by full sha (PIN1), each sha read from the GitHub API at the time of writing,
+    never typed;
+  - `npm ci` in `proxy/`, then every tool through `npx --no-install tsx` (NPM1);
+  - one step that maps `secrets.ROUTES_*` into its environment: `CLOUDFLARE_API_TOKEN` from `ROUTES_KV_TOKEN` for the
+    helper, plus the ntfy topic and the identity, with `GH_TOKEN` from `github.token`. No other `secrets.` name appears
+    (SC5).
+
+**W10, `scripts/check_routes_workflow.py`, run in device-ids.yml.**
+- **SC1:**
+  - `routes-refresh.yml`'s triggers are only `workflow_dispatch` and `schedule`;
+  - no other workflow names `environment: routes-refresh`;
+  - no workflow names `ROUTES_KV_CLI`.
+- **SC3:** in `routes-refresh.yml`, no `run:` text contains `secrets.`, `set -x` or `printenv`.
+- **SC5:** every `secrets.<NAME>` in it is a `ROUTES_` name.
+- **PIN1:** every `uses:` is `owner/repo@<40 hex>`, with an optional `# vN` comment.
+- **NPM1, stricter than its row, which is simpler to check:** nowhere in `routes-refresh.yml` does `npm install`,
+  `npm i `, `yarn`, `pnpm`, `pip install`, or an `npx` without `--no-install` appear.
+
+**`--selftest`** plants one copy per row, each of which must read red, and the real file must read green (the
+control). **`--sabotage <name>`** weakens one check, and the selftest's red set must change exactly as stated:
+- SC1's trigger list loosened turns {SC1t} green;
+- SC3's scan limited to `env:` blocks turns {SC3e} green;
+- SC5's allowed names widened to `secrets.*` turns {SC5} green.
+
+**The run script, end to end, through the fake KV** (`routes-run.selftest.sh`). Test hooks: `ROUTES_SOURCE_DIR` (local
+tarballs by sha) and `ROUTES_RUN_GH` (canned API answers). FK1 refuses both under the same conditions as
+`ROUTES_KV_CLI`:
+
+| row | the case | predicted |
+|---|---|---|
+| RR1 | a changed source | write, verify, seal; meta's `sourceCommit` is the new one; no class |
+| RR2 | the next run, with the same source | replay, verify, re-seal; `builtAt` moves |
+| RR3 | one value planted wrong, and it stays wrong after the one repair (planted again between the write and the verify) | class `verify-fail`; meta byte-identical; the notify called with that class |
+| RR4 | a meta with no `sourceCommit` | refused before any write ("the first run is attended") |
+| RR5 | a future freeze | exit 0 with the stated line; nothing read from KV |
+
+**CI for this push** (its own commit, CI-C5, before the push):
+- the new workflow has no `pull_request` trigger, so it adds no check-run;
+- W10 and W7 add STEPS to the one-job `device-ids` and `workers` workflows;
+- so the predicted total is unchanged at 36.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
