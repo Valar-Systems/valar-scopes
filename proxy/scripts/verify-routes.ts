@@ -36,6 +36,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isGenuineSelfLoop, routeEndpoints } from "./routerule";
 import { fk1Refusal } from "./routes-fk1";
+import { bulkGet as readBulk } from "./routes-kvread";
 import { sweepAtStart, tmpDir } from "./routes-tmp";
 import { q, sh } from "./shquote";
 
@@ -68,21 +69,9 @@ function parseArgs(argv: string[]): Args {
   return a;
 }
 
-/** `kv bulk get` through the helper, 100 keys a call: the JSON object between the first "{" and the last "}" (wrangler
- *  prints "Success!" after it). The same parse as #700's D2, which read 36,786 production values with it. */
-function bulkGet(keys: string[], env: string, tmp: string): Map<string, string | null> {
-  const out = new Map<string, string | null>();
-  for (let i = 0; i < keys.length; i += 100) {
-    const f = join(tmp, `bulk-get-${i / 100}.json`);
-    writeFileSync(f, JSON.stringify(keys.slice(i, i + 100)));
-    const stdout = execSync(["node", KV_CLI, "kv", "bulk", "get", q(sh(f)), "--binding=ENRICH_KV", `--env=${env}`, "--remote"].join(" "),
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 });
-    const start = stdout.indexOf("{"), end = stdout.lastIndexOf("}");
-    if (start < 0 || end < start) throw new Error(`bulk get chunk ${i / 100}: no JSON object in the output`);
-    for (const [k, v] of Object.entries(JSON.parse(stdout.slice(start, end + 1)) as Record<string, string | null>)) out.set(k, v);
-  }
-  return out;
-}
+/** `kv bulk get` through the helper: the ONE reader the route tools share (routes-kvread.ts, docs/route-weekly-code.md
+ *  2q), so the writer's backup and this verify can never read a value two ways. */
+const bulkGet = (keys: string[], env: string, tmp: string) => readBulk(keys, env, tmp, KV_CLI);
 
 /**
  * Quote-aware CSV split -- the same one ingest-routes.ts uses, and it must stay

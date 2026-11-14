@@ -719,6 +719,174 @@ scripts/sabotage-routes-weekly.mjs --only S-VAL --show-fail SN1,SN1-ctl,GR10m`, 
 exit other than 2, refutes the cause given in section 7. Any other red set, a BLIND, GR10m's line absent or different,
 or any other outcome is a STOP that goes to the owner, with no re-run.
 
+### 2q. The backup before any delete, its undo, and the re-review's N7, N2 and N3 (registered 2026-11-14 17:07:52Z, before the code)
+
+**The owner's words** (relayed): *"Before deleting, save the 827 routes (keys and values) to a private file, so the run
+can be undone."* The reviewer ruled the design (2026-11-14):
+- the backup lives inside the writer;
+- the undo carries meta and the journal's prior state;
+- BK-SAME is added;
+- it goes in this follow-up PR after #708 (merged as `620a215d`), with W8's anchor check re-run read-only against it;
+- it must merge before 2026-11-18 16:00Z.
+
+**Why inside the writer.** The list to back up is the writer's own `dels`, computed in `keyLevelMain` after the guards.
+A separate tool would have to derive that list a second time, which is the second-path hazard this repo names.
+
+**`--backup <file>`** (key-level, a writing run only). After PFX1 and the anchor, and BEFORE the write-ahead journal and
+the first write, the writer:
+1. **refuses `(BK0)`, exit 2, before any KV call,** when `<file>` lies inside any git work tree or already exists. It
+   also refuses `--backup` combined with `--dry-run`, `--seal-only` or `--replay`, since none of those deletes;
+2. reads the values of exactly `dels` (bulk get), plus the raw `meta:routes` and journal it has already read;
+3. **refuses `(BK1)`, exit 1, nothing written,** unless it holds exactly `dels.length` keys, each with a non-empty value;
+4. writes `{v: 1, env, runId, sentinel, meta, journal, keys}` through `routes-backup.ts`'s `writeBackup()`, with mode
+   600 on POSIX. It reads the file back, and **refuses `(BK2)`, exit 1, nothing written,** unless the read-back equals
+   what was written;
+5. prints `backup: <n> key(s), meta and journal saved, sha256 <hex>`: a count and a hash, never a key.
+
+**`--max-deletes` in a writing run without `--backup` is refused `(BK3)`, exit 2.** So the attended over-cap path cannot
+skip the backup. A dry run with `--max-deletes` stays allowed (4a's step 2), and the scheduled run never passes it.
+
+**`--restore <file>`** (key-level), the undo. It re-puts every key and value in the file, and re-puts `meta` as it was.
+It restores the journal's prior state, deleting `meta:routes-pending` if the file recorded none. It deletes the run's
+sentinel if it is present. PFX1 covers every key it touches, and it prints counts only.
+- **Why meta and the journal, beyond the request as worded:** after a seal, re-putting only the 827 keys would leave
+  `meta:routes` describing the post-run state. The next run's diff takes its deletes from the snapshots meta names, and
+  those lack the 827. So the restored keys would never be in `ours`, never deleted again, and counted as `extra` for
+  good.
+
+**N7 (unknown flags).** parseArgs refuses any argument it does not know: exit 2, `(UF)`, naming the flag, before any KV
+call.
+- **Checked before this registration:** every flag in the two selftests, the run script and the workflow that the
+  writer's parser does not know belongs to another tool. Those are the verify's `--check-values` and `--expect-absent`,
+  wrangler's `--binding` and `--remote`, `--max-time`, `--jq`, `--no-install`, FK1's `--check`, and notify's `--class`
+  and `--count`. No writer invocation carries one. So N7 is predicted to turn no existing row red.
+
+**N2 (J7's two sides).** The receipt's `journalSha256` is taken from a `readPending()` after the put. The seal already
+hashes a `readPending()`, so both sides hash bytes read by the same reader. Today the writer hashes the string it put
+(~807, ~862), and the seal hashes `kv key get`'s raw stdout (~504, ~619).
+
+**N3 (substrings).** J6's plan check and G4n's reason check become whole-line or whole-clause compares, each through
+one shared comparator with a near-miss control, as M1c.
+
+**Rows, red first.** The rows, a stub `routes-backup.ts` (exports that do nothing) and the fake KV's get-suffix mode are
+added first. Then everything is run against `620a215d`'s code.
+
+| row | selftest | the test | before the code |
+|---|---|---|---|
+| **BK-W** | writer | run A (`--file new --no-seal --backup <private>`): the file's `keys` are exactly the run's delete set (equal to `--out-deleted`'s), each value equal to the pre-run store's | red: `--backup` is ignored, so there is no file |
+| **BK-M** | writer | the same file: `meta` equals the pre-run `meta:routes`, and `journal` records the pre-run journal (none) | red: no file |
+| **BK-H** | writer | the printed `backup: ... sha256 <hex>` line's hash equals the file's sha256 (a whole-line compare) | red: no line |
+| **BK0** | writer | `--backup` naming a path inside a git work tree: exit 2, `(BK0)`, store byte-identical, no file | red: ignored, the run proceeds |
+| **BK0d** | writer | `--backup` with `--dry-run`: exit 2, `(BK0)` | red: ignored, exit 0 |
+| **BK1** | writer | one planted empty value among the delete set: exit 1, `(BK1)`, store byte-identical | red: the run deletes it, exit 0 |
+| **BK3** | writer | `--max-deletes 1000` in a writing run without `--backup`: exit 2, `(BK3)`, store byte-identical | red: it runs |
+| **UNDO1** | writer | run A with `--backup`, verified and sealed; then `--key-level --restore <file>`: every key in the fake store, meta and journal included, byte-identical to the pre-run snapshot | red: `--restore` is ignored, and without `--file` the run refuses, so nothing is restored |
+| **UNDO-ctl** | writer | the same without the restore: the store DIFFERS from the snapshot, so UNDO1's comparison can fail | green before and after |
+| **BK-SAME** | writer | two fresh fake stores, the same run A on each, one with `--backup` and one without: the stores are byte-identical, with `meta:routes-pending` compared with its `runId` masked (random per run by J7's design), and the two runs' out-files hold equal sets | **green before (and NOT a red-first):** today `--backup` is ignored, so the two runs are trivially the same. Its value comes after the code: the backup cannot change what the run does |
+| **BK-SAME-ctl** | writer | BK-SAME's comparator, given the store after a run and the pre-run snapshot, reports a difference, so BK-SAME can fail | green before and after |
+| **UF1** | writer | `--no-seal --dryrun` (a dry run's typo on a writing command line): exit 2, `(UF)`, the flag named, store byte-identical | red: `--dryrun` is ignored, and the run WRITES |
+| **UF2** | writer | `--no-seal --bakup <f>`: the same | red: ignored, and the run writes |
+| **UF-ctl** | writer | `--dry-run`, correctly spelled, on the same fixture: exit 0 | green before and after |
+| **J7w** | writer | with the fake's get-suffix mode (`ROUTES_FAKEKV_GET_SUFFIX`, a newline appended to every `kv key get`; the fake's only), a run, its verify and its own seal PASS | red: J7 refuses the run's own seal |
+| **J7w-ctl** | writer | under the same mode, J7's old-receipt case still refuses | green before and after |
+| **J6x** | writer | J6's comparator, given a plan line reading `delete 250`, rejects it | red: the substring test accepts it |
+| **BK2** | guards | `writeBackup()` with an after-write hook that flips one byte: throws `(BK2)` | red: the stub does not read back |
+| **G4nx** | guards | G4n's comparator, given `11 removed shard(s) not named`, rejects it | red: `includes` accepts it |
+| **BK2s** (the reviewer's condition) | guards, static | `ingest-routes.ts` calls `writeBackup(` exactly once, with exactly two arguments (no hook). The hook is a function parameter only, which no flag or environment variable reaches | red: there is no call yet |
+
+**Amended before any code** (the reviewer's acceptance and the fixtures, 2026-11-14):
+- **UF1 and UF2 carry `--no-seal`.** Without it, KL1 refuses the typo'd command first (exit 2, the wrong rule), and the
+  row would test KL1, not the parser.
+- **UNDO1, UNDO-ctl, BK-SAME and BK-SAME-ctl compare the store key by key:** every key present on both sides, and every
+  value byte-equal. The fake's JSON file follows insertion order, so a whole-file byte compare would fail on order alone.
+
+**Amendment 2, before any code: the backup covers EVERY key the run touches, not only `dels`.** Found while writing
+UNDO1's fixture (2026-11-14 ~17:25Z). It supersedes steps 2, 3 and 5 above, the `--restore` paragraph, BK-W and BK1.
+- **The defect in the design as accepted:** the fixture's run A writes 70 keys (30 changed, 40 added) and deletes 25.
+  A backup of `dels` alone restores the 25, but leaves the 30 changed keys at their NEW values and the 40 added keys in
+  place. So UNDO1 would fail after the code, and "so the run can be undone" would be false for any run that writes.
+- **For 4a the two designs agree** (writes 0, deletes 827), so the first run's prediction is unchanged in substance.
+- **Step 2 becomes:** it reads the pre-run values of exactly `writes ∪ dels` (bulk get), recording `null` for a key
+  absent before the run.
+- **Step 3 (BK1) becomes:** it refuses, exit 1, nothing written, unless it holds an entry for every touched key, and
+  every key to DELETE has a non-empty pre-run value. A delete of a key that holds no value means the plan and the store
+  disagree. A key to WRITE may be `null` (it was added).
+- **Step 5's line becomes:** `backup: <n> key(s) (<d> to delete, <w> to write), meta and journal saved, sha256 <hex>`.
+- **`--restore` becomes:** it re-puts every non-null key at its recorded value, and deletes every key recorded as
+  `null` (the run added it). Meta, the journal and the sentinel are as before.
+- **BK-W becomes:** the file's `keys` are exactly the run's touched set (`--out-written`'s keys plus `--out-deleted`).
+  Each holds its pre-run value, or `null` where the pre-run store lacked the key.
+- **BK1 is unchanged in its fixture** (a planted empty value on a key to delete) and in its prediction.
+- **The red-first sets and the counts are unchanged.**
+
+**Amendment 3, before any code: a `null` is an OBSERVATION, never a default** (the reviewer, 2026-11-14, on amendment
+2). The undo DELETES a key the backup records as `null`. So a `null` that came from a failed read would make the undo
+delete a key that existed: the reassuring-direction failure.
+- **A `null` only from a positive "not found":** the key present in the bulk get's answer with the value `null`. A read
+  error, a requested key missing from the answer, or a short answer REFUSES: `(BK-R)`, exit 1, nothing written.
+- **Cross-checked against the plan, which already knows each key's class:**
+  - a key the plan calls CHANGED or DELETED must hold a non-null pre-run value;
+  - a key the plan calls ADDED must be `null`.
+  - **The exception, stated:** a key in a CURRENT journal (an unsealed run's) may legitimately be present or absent, so
+    it is recorded as observed and not class-checked.
+  - Any other disagreement means the store is not the proven snapshot: `(BK-X)`, exit 1, nothing written.
+- **Rows (writer selftest), red against `620a215d` first:**
+  - **BK-R:** with the fake's `ROUTES_FAKEKV_BULKGET_OMIT=1` (the fake's only; it drops the first requested key from
+    each bulk-get answer), a run with `--backup`: exit 1, `(BK-R)`, store byte-identical. Red today: `--backup` is
+    ignored, and the run writes.
+  - **BK-X:** a fake store seeded so that one key the plan calls ADDED already holds a value, with `--backup`: exit 1,
+    `(BK-X)`, store byte-identical. Red today: ignored, and the run overwrites it.
+- **Red-first, re-registered:** writer red exactly **{BK-W, BK-M, BK-H, BK0, BK0d, BK1, BK3, BK-R, BK-X, UNDO1, UF1,
+  UF2, J7w, J6x}**; guards red exactly {BK2, G4nx, BK2s}. **After the code:** writer **67 of 67**, guards 66 of 66.
+
+**Red-first, predicted:**
+- writer red exactly **{BK-W, BK-M, BK-H, BK0, BK0d, BK1, BK3, UNDO1, UF1, UF2, J7w, J6x}**; green: UNDO-ctl, BK-SAME,
+  BK-SAME-ctl, UF-ctl, J7w-ctl and the 48 earlier rows;
+- guards red exactly **{BK2, G4nx, BK2s}**, the other 63 green.
+
+**After the code:** writer **65 of 65**, guards **66 of 66**, run 8 of 8, freeze 4 of 4; `typecheck:scripts` exit 0; 0
+temp leftovers.
+
+**W8 is not re-run** (the owner's "once"). Its anchor check is re-run read-only against this code: 18 plants, each
+anchor exactly once. None of the changes touches a plant's anchor:
+- S-J7's anchor is the seal's comparison (~621), which N2 leaves as it is;
+- S-JN's is `pendingKeys` (~726);
+- parseArgs holds no anchor.
+
+**Outside the set:** any other red, a regression in an earlier row, or an anchor not exactly once is a stop.
+
+### 2r. The review of #723 at `1f57d913`: nine fixes before merge (the reviewer, 2026-11-14; registered 18:22:53Z, before the code)
+
+The review found nothing that lets the first production run delete before a verified backup. Because the PR feeds an
+attended production run, these are fixed first, each red-first where it is code.
+
+| # | the finding | the fix | rows (red against `1f57d913` unless stated) |
+|---|---|---|---|
+| 1 | W8's plant sets are STALE: the new rows move them, and W8 runs once (the owner) | re-derive every plant's set from the code, row by row, written down as **"derived, not run"**, after this section's code | none: the driver itself is not run |
+| 2 | the restore re-puts the prior journal BEFORE the data deletes, so a failed delete chunk could leave added keys that no journal names | the journal step moves to just before meta: data puts, then data deletes, then the journal, then meta | **RO1** (guards, static): in `restoreMain`, the journal's own `kvChunks` call sits after the data delete and before the meta put. Red: the journal rides in the first put. **UNDO2** (writer): run A unsealed, then run B with `--backup` over A's journal, then the restore: the store equals the pre-B snapshot, A's journal included. Green today, so it is NOT red-first: it is the non-null-prior-journal fixture, and UNDO-ctl shows the comparator can fail |
+| 3 | BK-X's "must be found" side is untested | rows, each proved by a plant | **BK-Xc** (a CHANGED key absent from the store) and **BK-Xd** (a DELETED key absent): exit 1, `(BK-X)`, store byte-identical. Green today (the code exists), so NOT red-first. **Plant P-BKX:** both "must be found" checks off; predicted red exactly {BK-Xc, BK-Xd} |
+| 4 | the `--prev-also` exemption for an ADDED key was never registered, and the code's comment calls it "stated" | registered here: an ADDED key held only by `--prev-also` is recorded as observed, not class-checked. It is first-run-only, and 4a has 0 writes, so it cannot arise on 11-18. If the exemption were wrong, the backup would still record the value it observed, so the undo stays true. Rowless, with that reason. The comment is corrected. 4c's STOP list now reads "ANY BK refusal", with BK-X's safe-direction stop predicted | none (the reason above) |
+| 5 | BK0: any non-zero git exit counts as "outside a work tree", including 128 for dubious ownership or an unreadable `.git` | only git's own "not a git repository" answer allows the path; any other failure REFUSES. The git call becomes an injectable function parameter (the CLI passes none) | **BK0g** (guards): an injected answer of exit 128 with "dubious ownership" is refused. **BK0e** (guards): an injected spawn error is refused. **BK0n** (guards): an injected exit 128 with "not a git repository" is allowed: the control. **BK0s** (guards, static): `ingest-routes.ts` calls `backupPathRefusal(` exactly once, with one argument. Red today: BK0g, BK0e (the injected answer is ignored, and the real git answers "not a repository" for the temp path). BK0n and BK0s are green today |
+| 6 | a value-taking flag swallows the next flag: `--readback --dry-run` drops `--dry-run`, and with `--no-seal` that run WRITES | every value-taking flag refuses a missing value or one starting with `--`; `--readback` refuses anything but `on` or `off`. All `(VF)`, exit 2, before any KV call | **VF1** `--no-seal --readback --dry-run`; **VF2** `--readback maybe`; **VF3** `--file --no-seal`. Each: exit 2, `(VF)`, store byte-identical. Red today: the run proceeds |
+| 7a | RS0 says "alone" but accepts `--max-deletes`, `--allow-*`, `--receipt` and more | parseArgs records every flag SEEN; `--restore` refuses any flag but `--key-level`, `--env` and `--restore` | **RS0b:** `--restore <f> --max-deletes 1000`: exit 2, `(RS0)`, store byte-identical. Red today |
+| 7b | a stale backup, restored after later runs, would orphan keys | a STATE check (RS2). The restore proceeds only when (a) the current journal is a v1 journal whose `runId` is the backup's, or (b) there is no journal and the current meta is the one this run sealed: its `sourceCommit` is the backup's `source`, and its `prevSourceCommit` is the backup's `prevSource`. The backup gains `source` and `prevSource`, the run's own commits | **RS2:** run A backed up, verified and sealed; then run B (`--prev new --file prev --no-seal`, unsealed); then A's backup is restored: exit 2, `(RS2)`, store byte-identical from the post-B store. Red today. **UNDO3** (the (a) branch): run A with `--backup`, unsealed, then the restore: the store equals the pre-run snapshot. Green today, so NOT red-first. UNDO1 is the (b) branch |
+| 8 | types | at backup time, a bulk-get value that is neither a string nor the answer's `null` refuses `(BK-R)`. RS1 refuses a backup whose values, journal, `runId`, `source` or `prevSource` are not the right types | **BK-T:** a key to delete holding a number in the fake store: exit 1, `(BK-R)`, store byte-identical. **RS1t:** a backup with one value a number: exit 2, `(RS1)`, store byte-identical. Both red today |
+| 9 | tests | UNDO1 asserts the seal CHANGED meta before the restore: meta parses and names the new source (`"2"` x 40). G4nx compares the whole clause: G4n's reason must contain the exact clause `1 removed shard(s) not named` as one `; `-separated part | UNDO1 and G4nx strengthened, both green today and after |
+
+**Also, outside the code:** 4b gains the Worker's TTL'd `rt:` puts as a before-S-ON item. 4c's STOP list now reads
+"ANY BK refusal". Mode 600 is POSIX-only, as written; the file holds no secret (accepted).
+
+**Red-first, predicted** (the rows added, the code at `1f57d913`):
+- writer red exactly **{RS0b, RS1t, RS2, BK-T, VF1, VF2, VF3}**; green: UNDO1 (strengthened), UNDO2, UNDO3, BK-Xc,
+  BK-Xd and the 70 earlier rows;
+- guards red exactly **{BK0g, BK0e, RO1}**; green: BK0n, BK0s, G4nx (whole clause) and the 66 earlier rows.
+
+**After the code:** writer **81 of 81**, guards **71 of 71**, run 8 of 8, freeze 4 of 4; `typecheck:scripts` exit 0.
+- **Then ONE plant run, P-BKX:** both "must be found" checks off, red exactly {BK-Xc, BK-Xd}, restored sha-equal.
+- **Then W8's sets, derived and not run** (item 1), and the anchor check read-only.
+
+**Outside the set:** any other red, or a regression in an earlier row, is a stop.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
@@ -972,6 +1140,38 @@ satisfied by the pin plus the step-1 check.
   - **D9:** the self-loop lines are public route data. They are masked anyway the next time that block is touched.
 - **D10: PINNED**, read three times. The first run's step 1 runs `sha256sum -c`.
 
+**Added before S-ON (the reviewer's re-review at `8d3492d4`; non-blocking for the first run):**
+- **N1:** the journal read's 1 MiB `maxBuffer` (`readPending`) can wedge every run on a big journal. Raise it, as the
+  verify does.
+- **N4:** SC3 misses `secrets['X']` inside an echo, and `set -ex` / `set -eux`.
+- **N5:** the replay-to-write conversion (`routes-refresh-run.sh`, `--prev` == `--file`) leaves later replays with empty
+  sets. Their verify then skips GR10m and the value checks, silently. Make it say so, or do not seal prev == source.
+- **N6:** journal keys are trusted too far: a journal naming a meta key passes PFX1, and only G6's shape test stops its
+  delete. Check journal keys against `MIRROR_KEY` on read (JN2), and limit the data plan's PFX1 to mirror and sentinel
+  keys.
+- None of these can bite on 11-18. The first run writes the first journal (N1, N6), N5 needs a replay, and N4 the
+  schedule.
+- **The Worker's TTL'd `rt:<cs>` puts** (`enrich.ts` ~556, the runtime route cache) can make a later WRITING run meet a
+  spurious BK-X on an ADDED key: the cache holds a key the snapshot lacks. The first run has 0 writes, so it cannot meet
+  this (the reviewer's re-review of #723, 2026-11-14). Before S-ON, decide how a backed-up weekly run treats such a key.
+
+### 4c. The first run, re-registered with the backup (section 2q)
+
+4a stands, with one step added and one stop branch:
+- **Step 3 gains `--backup ~/.config/blipscope/routes-backup-<env>-<UTC stamp>.json`.** That is beside the token file,
+  outside every git tree. Predicted, before the journal and the first write: `backup: 827 key(s) (827 to delete, 0 to
+  write), meta and journal saved, sha256 <hex>` (2q's amendment 2). The hash is recorded in the run's record at 12 hex.
+- **STOP before any write: ANY BK refusal** (BK0, BK0d, BK1, BK2, BK3, BK-R, BK-X), or any count other than 827 to
+  delete and 0 to write (re-registered by 2r). **Predicted, and in the safe direction:** if any of the 827 (deleted keys
+  held only by `--prev-also`) is absent on production, BK-X refuses the first run before any write, because a DELETED
+  key must be found.
+- **After the run,** the file is checked once more against its recorded sha256 (`sha256sum`), and it stays where it is.
+  The undo, if it is ever needed, is `--key-level --restore <file> --env <env>`, attended. It is a production write, so
+  it needs the owner's word.
+- **Cost per environment:** about 827 KV reads for the backup (9 bulk gets), on top of 4a's ~850. So about 1,680 per
+  environment and about 3,350 for both: about $0. An undo, if ever run, writes 828 keys and deletes up to 2 per
+  environment.
+
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 
 **The alternative.** The workflow holds no KV token. It POSTs batches of `[key, value]` and `delete` lists to a
@@ -1147,3 +1347,121 @@ reading or re-grade it.
 - **After:** restored, sha equal; porcelain 0; the tree equal to HEAD; 0 routes-/verify- temp leftovers.
 - **With the 15:55Z run's other 17 plants as registered,** every one of the 18 plants has now read its registered set
   once. The 15:55Z S-VAL reading stays a MISS, as above.
+
+**2q, red-first (2026-11-14 17:14:55-17:19:52Z, against `620a215d`'s code, with only the rows, a stub `routes-backup.ts`
+and the fake's two modes added): AS PREDICTED (amendment 3's set).**
+- **guards:** 66 rows, red exactly {G4nx, BK2, BK2s}, each for its registered reason:
+  - G4nx: the comparator accepts `11 removed`;
+  - BK2: the stub does not read back;
+  - BK2s: 0 calls.
+- **writer:** 67 rows, red exactly {J6x, BK-W, BK-M, BK-H, BK0, BK0d, BK1, BK-R, BK-X, BK3, UNDO1, UF1, UF2, J7w}.
+  - UF1 and UF2: the typo'd runs WROTE (store changed).
+  - J7w: verify 0, then seal 1 with `(J7)`. That is N2's hazard reproduced: one byte more on a `kv key get` refuses a
+    run's own seal.
+  - **UNDO1's red is NOT its property** (the reviewer): it came from the key-level refusal of a missing `--file` (exit
+    2), not from a missing undo. The proof that its comparator can fail is UNDO-ctl. After the code, UNDO1 also asserts
+    that the run wrote 70 and deleted 25 before the restore.
+- Empty stderr; no backup file left inside the repo.
+
+**2q, green (17:23:26-17:29:19Z): AS PREDICTED.**
+- guards **66 of 66**, writer **67 of 67**, run 8 of 8, freeze 4 of 4;
+- `typecheck:scripts` exit 0; 0 routes-/verify- temp leftovers; empty stderr everywhere;
+- W8's anchor check, read-only: 18 plants, each anchor exactly once. W8 is not re-run (the owner's "once").
+- **The code:**
+  - `routes-backup.ts`: BK0's path check (refused inside a git work tree, over an existing file, or when git cannot
+    answer), and `writeBackup` with mode 600, `wx` and a read-back (BK2). The hook is a parameter only (BK2s).
+  - `routes-kvread.ts`: the one `kv bulk get` reader, now shared by the verify and the backup.
+  - In the writer: `--backup` (BK0, BK0d, BK-R, BK-X, BK1, then the file and the line, before the journal and the
+    first write), BK3, `--restore` (meta last), N7 (UF) and N2 (the journal hash read back through `readPending`).
+- **Refusals with no row, stated:** RS0 (`--restore` with any other mode flag), RS1 (not a v1 backup for this
+  environment), and JN2 after the journal put (the journal does not read back as current). Each is defensive and
+  refuses before any further write.
+
+**CI-B1, this follow-up PR's first push (predicted 2026-11-14 17:30:17Z, before the push).**
+- **The push carries** section 2q with its amendments, `routes-backup.ts`, `routes-kvread.ts`, and the writer,
+  verify, fake-KV and selftest changes. It changes no workflow.
+- **The baseline:** main is `620a215d` (#708; `git ls-remote` at 17:30:17Z), with no workflow commit since. #708's CI-C8 ran
+  the same four `pull_request` workflows at 36 = 34 + 2, and this PR touches the same paths (`proxy/**`, `docs/`).
+- **Predicted: 36 check-runs = 34 success + 2 skipped (promote, version) + 0 other.** On Linux, the guards selftest
+  reads 66 rows, the writer 67, the run 8 and the freeze 4, with 0 FAIL lines. BK0's git check runs inside the CI
+  checkout, which is a work tree, as it is locally.
+- **Outside the set:** any other total or split, or a step red, is a stop. A Linux-only failure is a finding, never a
+  re-baseline.
+
+**2q, RS0 and RS1 get rows (the reviewer's condition, before CI-B1's push; registered 17:31:32Z, after the code).** They guard
+the undo, a production write on the owner's word. RS1 refuses the attended undo's likeliest mistake: a backup from
+another environment.
+- **RS0** (writer): `--key-level --env staging --restore <file> --dry-run`: exit 2, `(RS0)`, store byte-identical.
+- **RS1e** (writer): BK-W's backup with its `env` set to `production`, offered to `--env staging`: exit 2, `(RS1)`,
+  store byte-identical.
+  - **Why not the reverse,** a staging file offered to `--env production` as the reviewer put it: FK1 refuses the fake
+    KV on production first, so that row would test FK1, not RS1.
+  - RS1's rule is `b.env !== env`, which has no direction. So this fixture grades the same comparison.
+- **RS1v** (writer): the same backup with `v` set to 2: exit 2, `(RS1)`, store byte-identical.
+- **Predicted on the current code:** writer **70 of 70**, the three green.
+- **Can each fail? One plant run, on the file, restored from a byte copy with its sha256 checked:**
+  - RS0's condition and RS1's condition are both disabled (`false &&`), in one run of the writer selftest;
+  - predicted red exactly **{RS0, RS1e, RS1v}**, the other 67 green;
+  - restored sha-equal, with porcelain unchanged after.
+- **Outside the set:** stop.
+- **Amended before any run:** RS0, RS1e and RS1v start from the POST-run store (BK-W's run, saved). The pre-run store
+  holds exactly the backup's values, so a wrongful restore there would rewrite identical values, and the store-identity
+  check could not fail. From the post-run store, a restore that ran would change the store.
+- **The plants, exactly:**
+  - RS0's whole `if (args.dryRun || ... || args.noSeal) {` becomes `if (false) {`;
+  - RS1's `if (!b || b.v !== 1 || ... || b.keys === null) {` becomes `if (!b) {`, so an unparsable file still refuses
+    and only the version, environment and shape checks are removed.
+
+**RS0 and RS1, read (2026-11-14 17:32:41-17:41:27Z, at `2888a9e7`): AS PREDICTED, both runs.**
+- **Green:** writer **70 of 70**, 0 red.
+- **Planted** (both guards disabled, one run): red exactly {RS0, RS1e, RS1v}, with the other 67 green and empty stderr.
+- `ingest-routes.ts` was restored from its byte copy sha-equal; porcelain 0; the tree equal to HEAD; 0 temp leftovers.
+- So each undo guard has now been seen to refuse, and each row has been seen to go red without its guard.
+
+**2r, red-first (2026-11-14 18:25:03-18:30:55Z, at `d3ce8ac1`, with the code unchanged from `1f57d913`): the red SETS
+exactly as predicted.**
+- **guards:** 71 rows, red exactly {BK0g, BK0e, RO1}.
+  - BK0g and BK0e read "ALLOWED": the injected answer was ignored, and the real git said not-a-repository.
+  - RO1: the journal's own call was not found (-1).
+- **writer:** 81 rows, red exactly {RS0b, RS1t, RS2, BK-T, VF1, VF2, VF3}. RS0b, RS1t, RS2 and BK-T each read "exit 0,
+  store changed: yes", as registered.
+- **VF1-VF3's registered MECHANISM was wrong** ("the run proceeds"). As read:
+  - VF3 is refused by KL1 (`--file --no-seal` swallows `--no-seal`), exit 2;
+  - VF1 and VF2 end at `liveReader`'s refusal for a missing test identity, exit 1. The swallowed token leaves
+    `--readback` "on", and the selftest sets no identity.
+  - The store is unchanged in all three. They are red for the right property (no `(VF)` refusal), not by the stated
+    mechanism. The same treatment as UNDO1's (the reviewer, 2026-11-14), with no re-run.
+- **The stated limit:** the write itself, with an identity, is not demonstrated; the parser refusal that prevents it
+  is. So VF1-VF3 pass only on `(VF)` itself (exit 2 and its message, at parse time), with neither `(KL1)` nor the
+  missing-identity refusal in their output (the reviewer's condition).
+
+**2r, green (18:34:09-18:47:36Z, at `6e3f372f`): AS PREDICTED.**
+- guards **71 of 71**, writer **81 of 81** (VF1-VF3 each on `(VF)` itself, with no `(KL1)` or missing-identity line),
+  run 8 of 8, freeze 4 of 4;
+- `typecheck:scripts` exit 0; empty stderr; 0 routes-/verify- temp leftovers.
+- **P-BKX** (both "must be found" checks off, one run): red exactly {BK-Xc, BK-Xd}. Restored from its byte copy
+  sha-equal; the tree equal to HEAD.
+
+**W8's plant sets, re-derived from the code (2r item 1): DERIVED, NOT RUN.** W8 runs once (the owner). These are
+written into the driver's `want` arrays with that label, so its record is not silently stale. Every writer-graded
+plant was checked against every row added since its last derivation (2o, 2q and 2r).
+
+| plant | its derived set | why the new rows move it |
+|---|---|---|
+| **S-GR8** | GR8, RCP2, UN1-UN3, J1-J5, J7, JR1, **UNDO1, UNDO2, UNDO3, RS2, J7w, J7w-ctl** | the planted meta `planted` fails every later parse: the seal refuses (UNDO1's meta is not sealed; J7w; J7w-ctl ends without `(J7)`), run B refuses before its backup (UNDO2 has no file to restore), and the restore's state check exits 1 through `readMeta` (UNDO3, and RS2 without `(RS2)`) |
+| **S-VAL** | GR10m, GR10a, RCP2, GR10, GR11, UN1-UN3, J3, J7, JR1, SN1, SN1-ctl, **UNDO1, RS2, J7w, J7w-ctl** | the verify refuses, so there is no receipt and no seal: UNDO1's meta is not sealed; J7w; J7w-ctl has no receipt. RS2: run B's proof fails, journal A is current, so the restore passes branch (a) and proceeds |
+| **S-JN-W** | J1, J2, J3, J7, **J7w-ctl, UNDO2** | J7w-ctl is J7's case. UNDO2: with the journal ignored, run B treats A's deleted keys as DELETED, finds them absent, and BK-X refuses, so there is no backup |
+| **S-J7** | J7, **J7w-ctl** | the old receipt seals |
+
+**Unchanged, each checked:**
+- S-GR9: every new seal holds a valid receipt, and J7w-ctl's GR9 passes before J7;
+- S-TMP: {TMP1}, which counts the restore's `routes-rs-` dirs too;
+- S-JN-R and S-RR3: the run selftest gains no row;
+- every guards plant: the new guards rows make their own temp dirs, and none touches FK1;
+- freeze, health and reconcile.
+W8's baseline would read guards 71, writer 81, freeze 4, runs 8, health 11 and reconcile 1. The anchor check
+(read-only, at this driver) reads 18 plants, each anchor exactly once.
+
+**CI-B2, the push of 2r (predicted 18:48:27Z, before the push):** 36 = 34 success + 2 skipped (promote, version) + 0 other. The
+four workflows are unchanged and no workflow file changes. On Linux: guards 71, writer 81, run 8, freeze 4, with 0 FAIL
+lines. Outside the set: stop.
