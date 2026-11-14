@@ -1,8 +1,8 @@
 # The OPERA backup fallback: registered before its code
 
-**Status:** registration only. No code is written until the reviewer has read this. Then comes the code, red first,
-then CI, in this one PR. **The deploy needs the owner's word and the deploy claim**, outside Monday's proxy slot
-(2026-11-16 16:00-17:00Z).
+**Status:** merged 2026-11-14 at 10:14:49Z as `b2233f0c` (section 6), and **not deployed**. It was registered here
+before its code, then coded red first in the same PR (sections 7 and 9a). **The deploy needs the owner's word and the
+deploy claim**, outside Monday's proxy slot (2026-11-16 16:00-17:00Z).
 
 ## 1. Why: the readings that started it (2026-11-14, read-only)
 
@@ -268,6 +268,11 @@ whole month.
 - **The proxy Worker** carries `/healthz`'s `source`. That waits for a proxy deploy, which is not Monday's slot.
 - **Until both are deployed,** a frame's source is readable from `latest` itself (`opera_latest.py`).
 - **Each deploy has its own predicted rows,** registered before it, on the owner's word and under the deploy claim.
+- **The code's commit is `b2233f0c`,** #720's squash of the approved head `5ae2a048`. Its parent is `6f6dae93` (H), and
+  its tree equals merge-tree(H, `5ae2a048`). The deploy record names this commit.
+  - **Its subject is stale:** "registered before its code (no code yet)". That was the PR's title from the
+    registration, never updated after the code landed, and a squash takes the title verbatim. Main is not rewritten for
+    it. The PR page was retitled after the merge.
 
 ## 7. Results, local (2026-11-14)
 
@@ -372,3 +377,5 @@ whose read this waits for.
 | N6, red-first | the smoke selftest against today's script: red (a), (b), (c), (g); green (d), (f), (f2), (e) | **as corrected before the run** |
 | N6, green | `SELFTEST PASSED`; H6s's plant still detected | **as predicted** |
 | sabotages | 09:40:44Z: BASELINE 16 of 16, 0 red. S-MIX {FB1, FB2, FB3, FB5, FB7, ERR1}; S-FALLREAD {FB5, ERR1}; S-SRC {FB1, FB2, FB3, FB6, FB7, FB7 (lagging)}; S-EMPTYFAIL {FB4d}. Each restored sha-equal; `ingest.ts` equal to HEAD's blob after | **as registered** |
+| CI-F4 | at `5ae2a048`: 36 = 34 success + 2 skipped (promote, version), read twice (10:10:03Z, 10:11:33Z). Tested `3648fbd` (the merge into `6f6dae93`) | **as predicted** |
+| merge | approved at `5ae2a048`; `scripts/merge-by-rule.sh` re-read main as `6f6dae93` (H) in the merge command. Squash `b2233f0c`: parent H, tree equal to merge-tree(H, head), branch deleted. Nothing deployed | **as ruled** |
