@@ -488,6 +488,13 @@ before the push).**
   rows pass on Linux.
 - **Outside the set:** any other total or split, or a step red. Stop and decide.
 
+**CI-C6, read: AS PREDICTED** at `76f7ae75`: 36 = 34 success + 2 skipped, finished at 06:56:14Z and identical at
+06:57:45Z. It tested `Merge 76f7ae75... into 0c3341d3...`. SW1-SW5 pass on Linux. The device-ids log shows
+`routes workflow: OK`, CTL clean, and S1, S3 and S5 each turning exactly their own plants green.
+
+**CI-C7, the push of section 4a (docs only; predicted 2026-11-14 ~07:00Z, before the push):** 36 = 34 + 2. The PR's
+diff still touches `proxy/**` and `docs/`, so the same four workflows run. Outside the set: stop and decide.
+
 ## 4. The staging rehearsal and the first runs
 
 1. **A dry run of each environment**, attended. It prints counts only: `sourceCommit`, rows, writes, deletes by kind
