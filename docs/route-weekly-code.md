@@ -376,6 +376,15 @@ commit, with its own prediction.
   `pull_request` workflows, all success.
 - **Outside the set:** any other total or split. Stop and decide.
 
+**CI-C4b, the push of W13, TK1, W4, W9 and W11 (predicted 2026-11-14 ~05:10Z, before the push).**
+- **The push carries:** main `cb65380c` merged in; W13 (`proxy/src/routeshealth.ts` and its test); TK1, W4, W9 and W11
+  under `proxy/scripts/`; sections 2f and 7. It changes no workflow: W5, W7 and W10 are the next push, CI-C5.
+- **The baseline:** main is `cb65380c` (read with `git ls-remote` at ~05:09Z). No workflow changed since #711.
+- **Predicted: 36 check-runs = 34 success + 2 skipped (promote, version) + 0 other,** across the four
+  `pull_request` workflows, all success. The workers job now runs `routes-health.test.ts` with RH9-RH9s inside the
+  suite; locally it reads 11 of 11.
+- **Outside the set:** any other total or split. Stop and decide.
+
 ## 4. The staging rehearsal and the first runs
 
 1. **A dry run of each environment**, attended. It prints counts only: `sourceCommit`, rows, writes, deletes by kind
