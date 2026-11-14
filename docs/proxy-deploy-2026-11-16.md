@@ -9,8 +9,8 @@ under its own deploy claim, and runs the checks below.
 
 ## 1. What the deploy carries, read from git at plan time
 
-Production's `/healthz` reports `aa40aa43` (read 2026-11-14 03:34:50Z), and staging's reports `b7184243`. Main is
-`5b8ee36d6ce9` (read with `git ls-remote`, 03:34:50Z). These are the commits from `aa40aa43` to main that touch `proxy/`,
+Production's `/healthz` reports `aa40aa43` (read 2026-11-14 03:34:50Z), and staging's reports `b7184243`. Main was
+`5b8ee36d6ce9` at plan time (read with `git ls-remote`, 03:34:50Z), and `ce726004` (#713) when the table was last updated. These are the commits from `aa40aa43` to main that touch `proxy/`,
 from `git log aa40aa43..origin/main -- proxy/`:
 
 | commit | PR | what changes in the deployed Worker | its check after the deploy |
@@ -20,6 +20,7 @@ from `git log aa40aa43..origin/main -- proxy/`:
 | `26f486ab` | #711 | `src/sitefeed/bend.ts`: the snapshot centre becomes `BEND`, the public 2-dp value, which is about 0.46 km from the old one | C3 |
 | `9ca8736d` | #703 | `src/routeshealth.ts`: `ROUTES_MAX_AGE_DAYS` 14 -> 10 (and `smoke-prod.sh` in FAIL mode, which is not deployed) | C2, C5 |
 | `5b8ee36d` | #712 | `src/photolicense.ts`: the credits page gains "camera location and serial metadata are removed." Its photo and manifest files are ingest inputs, not part of the Worker | C4 |
+| `ce726004` | #713 | nothing: `photos/manifest.json` and `photos/src/su95.jpg` are ingest inputs. No Worker source reads them (`git grep` over `proxy/src` and `wrangler.toml`: 0 references; the one `manifest.json` match is the basemap's R2 key pattern) | none of its own (C6). Landed after the plan was written, at 2026-11-14 ~04:00Z |
 
 **On the day, the list is read again** (D0.2). A proxy-touching commit that is not in this table stops the deploy
 until it is planned. A deploy never carries a change nobody predicted.
@@ -29,7 +30,7 @@ until it is planned. A deploy never carries a change nobody predicted.
 | step | when | what | predicted |
 |---|---|---|---|
 | D0.1 | 15:55Z | the wake fires; `date -u` read | between 15:55 and 16:00Z on 11-16 |
-| D0.2 | before 16:00Z | `git ls-remote` main, and the carried list from `git log aa40aa43..<main> -- proxy/` | the five commits above, or more that touch only files no Worker build reads. Anything else: stop |
+| D0.2 | before 16:00Z | `git ls-remote` main, and the carried list from `git log aa40aa43..<main> -- proxy/` | the six commits above, or more that touch only files no Worker build reads. Anything else: stop |
 | D0.3 | before 16:00Z | the owner's other conditions: no S1, S2, S4 or Sunday sitting is on (asked of the reviewer), and valarscopes-site PR #19 (the live scope on /blipscope/) has not merged on 11-16: `gh pr view 19 --repo Valar-Systems/valarscopes-site --json mergedAt` | both true. If either is not, no deploy: report |
 | D0.4 | before 16:00Z | the rollback targets, from `deployments list --json` through the helper, ids only | production `69072b90-575a-4984-b704-3e101cd0e36a`, staging `1f1a0fae-7674-43d5-9499-e3b35c00ba68` (read 11-14 03:37-03:38Z). A different id means someone deployed since: write the new id down, and report before going on |
 | D0.5 | before 16:00Z | `/healthz` on both, twice, at least 60 s apart | production: commit `aa40aa43`, `routes.maxAgeDays` 14. Staging: commit `b7184243`, `routes.maxAgeDays` 14. The `builtAt` of each is written down; it carries into C2 |
