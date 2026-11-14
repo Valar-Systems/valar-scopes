@@ -94,7 +94,9 @@ import { join } from "node:path";
 import { putWithBackoff } from "./chunk-retry";
 import { sleepSync } from "./exec-retry";
 import { RULE_REV, routeEndpoints } from "./routerule";
+import { type BackupPayload, backupPathRefusal, writeBackup } from "./routes-backup";
 import { fk1Refusal } from "./routes-fk1";
+import { bulkGet } from "./routes-kvread";
 import { sweepAtStart, tmpDir } from "./routes-tmp";
 import * as G from "./routes-guards";
 import { q, sh } from "./shquote";
@@ -157,6 +159,8 @@ interface Args {
   outDeleted?: string;
   sourceDate?: string;
   replay: boolean;
+  backup?: string;    // 2q: the file a writing run saves every touched key's pre-run value to, before any write
+  restore?: string;   // 2q: the undo, from such a file
 }
 
 /** B2 (the review): an override is a non-negative integer or it is refused. Number("1,000") is NaN, and every guard
@@ -203,6 +207,15 @@ function parseArgs(argv: string[]): Args {
     else if (argv[i] === "--out-deleted") a.outDeleted = argv[++i];
     else if (argv[i] === "--source-date") a.sourceDate = argv[++i];
     else if (argv[i] === "--replay") a.replay = true;
+    else if (argv[i] === "--backup") a.backup = argv[++i];
+    else if (argv[i] === "--restore") a.restore = argv[++i];
+    else {
+      // N7 (the re-review, 2q): an argument the writer does not know is REFUSED, never ignored -- a hand-typed --dryrun
+      // would otherwise run for real. Only a flag-shaped token is named; anything else could be a pasted value.
+      const t = argv[i] as string;
+      console.error(`REFUSING (UF): unknown argument ${/^--[a-z][a-z-]*$/.test(t) ? t : "(not flag-shaped, not shown)"}. A flag the writer does not know is refused, never ignored. Nothing done.`);
+      process.exit(2);
+    }
   }
   return a;
 }
@@ -435,7 +448,7 @@ function refuse(code: number, ...lines: string[]): never {
 // TEMP DIRS: tmpDir() and the start-of-run sweep live in routes-tmp.ts, shared with the verify (2026-11-14: 371 dirs,
 // 4.7 GB, left behind before it existed). Every dir this tool makes goes through tmpDir(), and is removed on exit.
 const TEMP_PREFIXES = ["routes-", "routes-new-", "routes-prev-", "routes-also-", "routes-kl-", "routes-seal-", "routes-meta-",
-  "routes-rp-new-", "routes-rp-prev-"];
+  "routes-rp-new-", "routes-rp-prev-", "routes-rs-"];
 
 type Enrich = (cs: string) => { o?: string; d?: string } | null;
 /**
@@ -586,6 +599,36 @@ function replayMain(args: Args) {
 }
 
 /**
+ * --restore <file> (2q): the undo of one backed-up run. It re-puts every key the backup holds a value for, deletes every
+ * key it recorded as "not found" (the run added it), restores the journal's prior state, deletes the run's sentinel, and
+ * re-puts meta:routes LAST. PFX1 covers every key. Attended only: on production it is a write, on the owner's word.
+ */
+function restoreMain(args: Args) {
+  const env = args.env as string;
+  if (args.dryRun || args.sealOnly || args.replay || args.backup !== undefined || args.file || args.prev || args.noSeal) {
+    refuse(2, "REFUSING (RS0): --restore runs alone, with --key-level and --env only. Nothing done.");
+  }
+  let b: BackupPayload | null = null;
+  try { b = JSON.parse(readFileSync(args.restore as string, "utf8")) as BackupPayload; } catch { /* refused below */ }
+  if (!b || b.v !== 1 || b.env !== env || typeof b.meta !== "string" || typeof b.keys !== "object" || b.keys === null) {
+    refuse(2, "REFUSING (RS1): the file is not a v1 backup for this environment. Nothing done.");
+  }
+  const bk = b as BackupPayload;
+  const puts = Object.entries(bk.keys).filter(([, v]) => v !== null).map(([key, value]) => ({ key, value: value as string }));
+  const dels = Object.entries(bk.keys).filter(([, v]) => v === null).map(([k]) => k);
+  if (bk.sentinel) dels.push(bk.sentinel);
+  if (bk.journal === null) dels.push(META_PENDING_KEY);
+  else puts.push({ key: META_PENDING_KEY, value: bk.journal });
+  const outside = [...puts.map((p) => p.key), ...dels, META_KEY].filter((k) => !pfxOk(k)).length;
+  if (outside > 0) refuse(1, `REFUSING (PFX1): ${outside} key(s) in the backup outside the route prefix. Nothing restored.`);
+  const tmp = tmpDir("routes-rs-");
+  kvChunks("put", puts, env, tmp);
+  kvChunks("delete", dels, env, tmp);
+  kvChunks("put", [{ key: META_KEY, value: bk.meta }], env, tmp);   // meta last, as in every write here
+  console.log(`restore: re-put ${puts.length} key(s), deleted ${dels.length} key(s) (added by the run, the sentinel, or a journal that was not there), meta:routes restored`);
+}
+
+/**
  * --seal-only: write meta:routes and nothing else, and only on a verify receipt for THIS source, THIS environment and
  * the meta the run was built against (GR9). The manifest comes from the source, so the next run can prove it.
  */
@@ -672,6 +715,14 @@ async function keyLevelMain(args: Args) {
   // D5 (docs/route-weekly-code.md 2k): --force-shard is a full-mode repair. Every key-level path would ignore it, so it is
   // refused here, before the seal-only and replay dispatch. The key-level repair is the verify's.
   if (args.forceShards.length > 0) refuse(2, "REFUSING (FS1): --force-shard is a full-mode repair, and the key-level mode would ignore it. The key-level repair is the verify's. Nothing done.");
+  // 2q, BK0: a backup is for a run that writes and deletes, and it lives outside every git tree. Both checked before any
+  // KV call. --dry-run, --seal-only and --replay change no route key, so a --backup there would be silently ignored (N7).
+  if (args.backup !== undefined) {
+    if (args.dryRun || args.sealOnly || args.replay) refuse(2, "REFUSING (BK0): --backup is for a run that writes; --dry-run, --seal-only and --replay change no route key. Nothing done.");
+    const why = backupPathRefusal(args.backup);
+    if (why) refuse(2, `REFUSING (BK0): ${why}. A backup is private and is never written over. Nothing done.`);
+  }
+  if (args.restore !== undefined) return restoreMain(args);
   if (args.sealOnly) return sealOnlyMain(args);
   if (args.replay) return replayMain(args);
   if (!args.file || !args.prev) refuse(2, "REFUSING: the key-level mode needs --file <the new source> and --prev <the snapshot meta:routes was built from>");
@@ -681,6 +732,11 @@ async function keyLevelMain(args: Args) {
   // KL1, seal last by construction: a key-level run that writes never seals, so it must say so.
   if (!args.dryRun && !args.noSeal) {
     refuse(2, "REFUSING (KL1): a key-level run that writes must be given --no-seal. meta:routes is written only by --seal-only, with a verify receipt.");
+  }
+  // 2q, BK3: the attended over-cap path cannot skip the backup. A dry run with --max-deletes stays allowed (it writes
+  // nothing), and a scheduled run never passes --max-deletes (refused above).
+  if (!args.dryRun && args.maxDeletes !== undefined && args.backup === undefined) {
+    refuse(2, "REFUSING (BK3): --max-deletes lifts the delete cap, so a writing run must also pass --backup <file outside every git tree>. Nothing done.");
   }
 
   const nw = parseSource(args.file, tmpDir("routes-new-"), "new: ");
@@ -797,6 +853,45 @@ async function keyLevelMain(args: Args) {
     console.log(`anchor: ${anchorCs} is absent through the live path (as required)`);
   }
 
+  // 2q and its amendments 2 and 3: THE BACKUP, before the journal and the first write. Every key this run touches, read
+  // with meta and the journal through the reader the verify uses. A null is an OBSERVATION -- the answer's own "not
+  // found" -- and is checked against the plan's classes, because the undo deletes every key recorded as null.
+  if (args.backup !== undefined) {
+    const touched = [...new Set([...writes.map(([k]) => k), ...dels])].sort();
+    const want = [...touched, META_KEY, META_PENDING_KEY];
+    let got = new Map<string, string | null>();
+    try { got = bulkGet(want, env, tmp, KV_CLI); }
+    catch { refuse(1, "REFUSING (BK-R): the backup's read failed, so no pre-run value can be trusted. Nothing written."); }
+    const short = want.filter((k) => !got.has(k)).length;
+    if (short > 0) refuse(1, `REFUSING (BK-R): the backup's read answered for ${want.length - short} of ${want.length} keys; a missing answer is not "not found". Nothing written.`);
+    const metaNow = got.get(META_KEY);
+    if (typeof metaNow !== "string") refuse(1, "REFUSING (BK-R): meta:routes read as not found for the backup. Nothing written.");
+    // BK-X and BK1: each touched key against its class in the plan. A key in a CURRENT journal (an unsealed run's), or
+    // one only --prev-also holds (the first run's older snapshot), was written by the mirror since --prev, so it may be
+    // present or absent: recorded as observed, never class-checked (amendment 3's stated exception).
+    const writeKeys = new Set(writes.map(([k]) => k));
+    let disagree = 0, emptyDeletes = 0;
+    for (const k of touched) {
+      if (pendingKeys.has(k)) continue;
+      const v = got.get(k) ?? null;
+      if (writeKeys.has(k)) {
+        if (prevVal.has(k)) { if (v === null) disagree++; }          // CHANGED: must be found
+        else if (!alsoKeys.has(k) && v !== null) disagree++;          // ADDED: must be "not found"
+      } else if (v === null) disagree++;                              // DELETED: must be found ...
+      else if (v === "") emptyDeletes++;                              // ... and hold a value
+    }
+    if (disagree > 0) refuse(1, `REFUSING (BK-X): ${disagree} touched key(s) disagree with the plan (a changed or deleted key not found, or an added key already present), so the store is not the proven snapshot. Nothing written.`);
+    if (emptyDeletes > 0) refuse(1, `REFUSING (BK1): ${emptyDeletes} key(s) to delete hold an empty value, so the plan and the store disagree. Nothing written.`);
+    const payload: BackupPayload = {
+      v: 1, env, runId, sentinel: live ? `rt:${sentinelCs}` : null, meta: metaNow as string,
+      journal: got.get(META_PENDING_KEY) ?? null, keys: Object.fromEntries(touched.map((k) => [k, got.get(k) ?? null])),
+    };
+    let digest = "";
+    try { digest = writeBackup(args.backup, payload); }
+    catch (e) { refuse(1, e instanceof Error ? e.message : "REFUSING (BK2): the backup could not be written. Nothing written to KV."); }
+    console.log(`backup: ${touched.length} key(s) (${dels.length} to delete, ${writes.length} to write), meta and journal saved, sha256 ${digest}`);
+  }
+
   // D1 (2n), WRITE-AHEAD: before the first data write, the journal names every key this run may touch, plus a current
   // journal's keys. If the run then dies or never seals, the next run still knows them. A stale journal is overwritten.
   const journalKeys = [...new Set([...pendingKeys, ...writes.map(([k]) => k), ...dels])].sort();
@@ -806,6 +901,11 @@ async function keyLevelMain(args: Args) {
     // still changes it -- and an older receipt can never match it again.
     journalRaw = JSON.stringify({ v: 1, since: sha256Text(metaRaw), source: nw.commit, runId, keys: journalKeys });
     kvChunks("put", [{ key: META_PENDING_KEY, value: journalRaw }], env, tmp);
+    // N2 (the re-review, 2q): the receipt's journal hash is taken from the journal AS READ BACK, through readPending --
+    // the reader the seal uses -- so both sides of J7 hash the same bytes even if the store's output adds one.
+    const back = readPending(env, metaRaw);
+    if (back.kind !== "current") refuse(1, `REFUSING (JN2): the journal just put reads back as ${back.kind}. The route keys are untouched; nothing else written.`);
+    journalRaw = (back as { raw: string }).raw;
     console.log(`journal: ${journalKeys.length} key(s) recorded in ${META_PENDING_KEY} before the first write`);
   }
 
@@ -887,8 +987,9 @@ async function main() {
   if (args.keyLevel || args.sealOnly) return keyLevelMain(args);
   const keyLevelOnly = args.noSeal || args.prev || args.prevAlso || args.prevManifest || args.receipt || args.readback === "off"
     || args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved.length > 0
-    || args.outWritten || args.outDeleted || args.sourceDate !== undefined || args.replay;
-  if (keyLevelOnly) refuse(2, "REFUSING: --no-seal, --prev, --prev-also, --prev-manifest, --receipt, --readback, --out-written, --out-deleted, --source-date, --replay and the overrides belong to --key-level.");
+    || args.outWritten || args.outDeleted || args.sourceDate !== undefined || args.replay
+    || args.backup !== undefined || args.restore !== undefined;
+  if (keyLevelOnly) refuse(2, "REFUSING: --no-seal, --prev, --prev-also, --prev-manifest, --receipt, --readback, --out-written, --out-deleted, --source-date, --replay, --backup, --restore and the overrides belong to --key-level.");
   if (!args.dryRun && !args.env) {
     console.error("refusing to run: pass --env <staging|production> or --dry-run");
     process.exit(2);

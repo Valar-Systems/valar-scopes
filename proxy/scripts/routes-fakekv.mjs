@@ -7,7 +7,9 @@
 //   ROUTES_FAKEKV_STORE=<file.json> node routes-fakekv.mjs kv key get <key> --binding=X --env=E --remote
 //   ... kv key list --prefix=<p> ...   kv bulk put <file> ...   kv bulk delete <file> --force ...   kv bulk get <file> ...
 // The store is { "<env>": { "<key>": "<value>" } }. ROUTES_FAKEKV_DROP=<n> silently drops every n-th key of a bulk put
-// (the failure the real API has shown twice), so a verifier can be shown to catch it.
+// (the failure the real API has shown twice), so a verifier can be shown to catch it. ROUTES_FAKEKV_GET_SUFFIX=newline
+// appends a newline to every `kv key get` (N2, docs/route-weekly-code.md 2q): real output may differ from the bytes put by
+// a byte like that, so J7w can show both sides of J7 hash bytes read by the same reader.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const STORE = process.env.ROUTES_FAKEKV_STORE;
@@ -26,7 +28,7 @@ if (kv !== "kv") { console.error(`routes-fakekv: unsupported: ${pos.join(" ")}`)
 if (a === "key" && b === "get") {
   const k = unq(target ?? "");
   if (!(k in ns)) { console.error("Value not found"); process.exit(1); }
-  process.stdout.write(ns[k]);
+  process.stdout.write(ns[k] + (process.env.ROUTES_FAKEKV_GET_SUFFIX === "newline" ? "\n" : ""));
 } else if (a === "key" && b === "list") {
   const p = flag("prefix") ?? "";
   process.stdout.write(JSON.stringify(Object.keys(ns).filter((k) => k.startsWith(p)).map((name) => ({ name }))));
@@ -41,8 +43,10 @@ if (a === "key" && b === "get") {
   save();
   console.log("Success!");
 } else if (a === "bulk" && b === "get") {
-  const out = {};
-  for (const k of JSON.parse(readFileSync(unq(target), "utf8"))) out[k] = k in ns ? ns[k] : null;
+  // ROUTES_FAKEKV_BULKGET_OMIT=1 drops the first requested key from each answer (2q amendment 3, BK-R): a short answer
+  // must be refused, never read as "not found".
+  const out = {}, omit = process.env.ROUTES_FAKEKV_BULKGET_OMIT === "1";
+  JSON.parse(readFileSync(unq(target), "utf8")).forEach((k, i) => { if (!(omit && i === 0)) out[k] = k in ns ? ns[k] : null; });
   console.log(JSON.stringify(out, null, 2));
   console.log("Success!");
 } else {

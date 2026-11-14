@@ -1309,3 +1309,32 @@ reading or re-grade it.
 - **After:** restored, sha equal; porcelain 0; the tree equal to HEAD; 0 routes-/verify- temp leftovers.
 - **With the 15:55Z run's other 17 plants as registered,** every one of the 18 plants has now read its registered set
   once. The 15:55Z S-VAL reading stays a MISS, as above.
+
+**2q, red-first (2026-11-14 17:14:55-17:19:52Z, against `620a215d`'s code, with only the rows, a stub `routes-backup.ts`
+and the fake's two modes added): AS PREDICTED (amendment 3's set).**
+- **guards:** 66 rows, red exactly {G4nx, BK2, BK2s}, each for its registered reason:
+  - G4nx: the comparator accepts `11 removed`;
+  - BK2: the stub does not read back;
+  - BK2s: 0 calls.
+- **writer:** 67 rows, red exactly {J6x, BK-W, BK-M, BK-H, BK0, BK0d, BK1, BK-R, BK-X, BK3, UNDO1, UF1, UF2, J7w}.
+  - UF1 and UF2: the typo'd runs WROTE (store changed).
+  - J7w: verify 0, then seal 1 with `(J7)`. That is N2's hazard reproduced: one byte more on a `kv key get` refuses a
+    run's own seal.
+  - **UNDO1's red is NOT its property** (the reviewer): it came from the key-level refusal of a missing `--file` (exit
+    2), not from a missing undo. The proof that its comparator can fail is UNDO-ctl. After the code, UNDO1 also asserts
+    that the run wrote 70 and deleted 25 before the restore.
+- Empty stderr; no backup file left inside the repo.
+
+**2q, green (17:23:26-17:29:19Z): AS PREDICTED.**
+- guards **66 of 66**, writer **67 of 67**, run 8 of 8, freeze 4 of 4;
+- `typecheck:scripts` exit 0; 0 routes-/verify- temp leftovers; empty stderr everywhere;
+- W8's anchor check, read-only: 18 plants, each anchor exactly once. W8 is not re-run (the owner's "once").
+- **The code:**
+  - `routes-backup.ts`: BK0's path check (refused inside a git work tree, over an existing file, or when git cannot
+    answer), and `writeBackup` with mode 600, `wx` and a read-back (BK2). The hook is a parameter only (BK2s).
+  - `routes-kvread.ts`: the one `kv bulk get` reader, now shared by the verify and the backup.
+  - In the writer: `--backup` (BK0, BK0d, BK-R, BK-X, BK1, then the file and the line, before the journal and the
+    first write), BK3, `--restore` (meta last), N7 (UF) and N2 (the journal hash read back through `readPending`).
+- **Refusals with no row, stated:** RS0 (`--restore` with any other mode flag), RS1 (not a v1 backup for this
+  environment), and JN2 after the journal put (the journal does not read back as current). Each is defensive and
+  refuses before any further write.

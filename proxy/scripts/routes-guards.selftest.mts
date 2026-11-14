@@ -78,7 +78,12 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
   row("GR5c", c.ok, `3 shards removed holding 75 keys -> ${c.ok ? "passes" : "refuses"}: ${c.reason}`);
   // ---- G4n, G4n-ok, G4n-stale (D8): by name, never by count ----
   const g4n = G.g4Removed(prevByShard, n4, new Set(["S01", "S02", "S03"]));
-  row("G4n", !g4n.ok && g4n.reason.includes("1 removed shard(s) not named"), `4 removed, 3 named -> ${g4n.ok ? "passes" : "refuses"}: ${g4n.reason}`);
+  // N3 (2q): G4n's reason check, ONE comparator shared with its near-miss control G4nx ("1 removed" is a fragment of
+  // "11 removed").
+  const g4nReasonOk = (reason: string) => /(^|[^0-9])1 removed shard\(s\) not named/.test(reason);
+  row("G4n", !g4n.ok && g4nReasonOk(g4n.reason), `4 removed, 3 named -> ${g4n.ok ? "passes" : "refuses"}: ${g4n.reason}`);
+  const nearG4n = "deletes refused: 11 removed shard(s) not named (bounds 3 and 200)";
+  row("G4nx", !g4nReasonOk(nearG4n), `G4n's comparator given "11 removed shard(s) not named" -> ${g4nReasonOk(nearG4n) ? "ACCEPTS it" : "rejects it"}`);
   const g4ok = G.g4Removed(prevByShard, n4, new Set(["S01", "S02", "S03", "S04"]));
   row("G4n-ok", g4ok.ok, `4 removed, all 4 named -> ${g4ok.ok ? "passes" : "refuses"}: ${g4ok.reason}`);
   const g4st = G.g4Removed(prevByShard, n4, new Set(["S01", "S02", "S03", "S04", "S05"]));
@@ -295,6 +300,39 @@ const clone = (m: Map<string, Set<string>>) => new Map([...m].map(([k, v]) => [k
   };
   { const b = blind("scripts/routes-writer.selftest.sh"); row("BL1", b.ok, b.detail); }
   { const b = blind("scripts/routes-run.selftest.sh"); row("BL2", b.ok, b.detail); }
+}
+
+// ---- BK2, BK2s (2q): the backup's read-back, and the hook that tests it is unreachable from the CLI ------------------
+{
+  const mod = await import("./routes-backup").catch(() => null);
+  const fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  const D = fs.mkdtempSync(path.join(os.tmpdir(), "routes-bk2-"));
+  try {
+    const f = path.join(D, "b.json");
+    const payload = { v: 1 as const, env: "staging", runId: "AB12C", sentinel: null, meta: "{}", journal: null, keys: { "rt:QX00001": "{\"o\":\"AAA\",\"d\":\"BBB\"}" } };
+    // the hook flips one byte of the file after it is written; the read-back must notice and refuse (BK2)
+    const flip = (p: string) => { const b = fs.readFileSync(p); b[b.length - 2] ^= 1; fs.writeFileSync(p, b); };
+    let refused = false, why = "";
+    try { mod?.writeBackup(f, payload, { afterWrite: flip }); } catch (e) { refused = String(e).includes("(BK2)"); why = String(e).slice(0, 80); }
+    row("BK2", !!mod && refused, `writeBackup with a byte flipped after the write -> ${refused ? "refused (BK2)" : `NOT refused${why ? `: ${why}` : ""}`}`);
+  } finally {
+    fs.rmSync(D, { recursive: true, force: true });
+  }
+  // BK2s (the reviewer's condition): ingest-routes.ts calls writeBackup( exactly once, with exactly two arguments, so
+  // the hook -- a function parameter only -- is never reached from a flag or an environment variable.
+  const src = fs.readFileSync("scripts/ingest-routes.ts", "utf8");
+  const calls: string[] = [];
+  for (let at = src.indexOf("writeBackup("); at >= 0; at = src.indexOf("writeBackup(", at + 1)) {
+    let depth = 0, i = at + "writeBackup".length, commas = 0;
+    for (; i < src.length; i++) {
+      const ch = src[i];
+      if (ch === "(" || ch === "{" || ch === "[") depth++;
+      else if (ch === ")" || ch === "}" || ch === "]") { depth--; if (depth === 0) break; }
+      else if (ch === "," && depth === 1) commas++;
+    }
+    calls.push(String(commas + 1));
+  }
+  row("BK2s", calls.length === 1 && calls[0] === "2", `writeBackup( calls in ingest-routes.ts: ${calls.length}, argument counts [${calls.join(", ")}] (want exactly one call with 2)`);
 }
 
 console.log(off ? `SELFTEST: ${off} row(s) off` : "SELFTEST PASSED");
