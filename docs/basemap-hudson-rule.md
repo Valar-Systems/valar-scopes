@@ -163,6 +163,15 @@ KEWR goes from 25 water rings to 130 under (a), MIDTOWN, KJFK and KLGA gain ring
 - **The scene:** FIXED's, the home set to the airport, **40 drawn aircraft, map AND weather ON** -- unlike FT-SEA, whose amendment
   turned weather off to isolate the map; here the reviewer's ruling puts the device's normal load on, the same for both packages.
   Rungs 10, 25 and 50 mi, each a 100 s settle and 120 s measured; run 10's package first, then the option's.
+- **The guard (the orchestrator's ruling Q-FT1, 2026-11-14):** every measured frame is held to "THE FT GUARD ROW", kind **FT-WX**,
+  in map-client's `docs/frame-time-bench.md` (branch `docs/frame-time-bench` at `2cc682d0b4b9`). FT-WX is H4's FIXED-(a) rule exactly:
+  STATE bits 1 and 2 SET (the weather crop and the map drawn) and bit 3 CLEAR (no night poll, no night clock). The kind is read from
+  the record, and any measured frame otherwise makes that scene the INSTRUMENT. The row's selftest (eleven cases, including the FT-MAP
+  and FT-WX cross-plants) must read as predicted before its reader is used. FT-SEA is held to the same row's FT-MAP kind.
+  - **The limit, stated in the reading (ruling Q-FT2: no PIX-WX):** "weather-ON rests on bit 1 (the code's state), not on pixels".
+    FT-HR grades no frame buffer.
+  - **The time of day:** bit 3 follows the sun at the scene's home, so the window sits in all six homes' daylight, with at least
+    10 min clear of each edge. The sun times are placement data and are never committed.
 - **The packages, pinned and staged** in `C:\Github\_handoffs\map-server\frame-row-packages-hudson\` (copies of the measured builds):
 
   | point | run 10 | (a) | (b) | (c) |
@@ -225,6 +234,11 @@ The question is with the owner, at the top of his digest. **Nothing goes into OP
 **Outside the set: stop and report, no reading.**
 
 **The bench (held after 06:04Z):** one shared no-hands window for FT-SEA and FT-HR on E2:08, 11-16 04:00-07:30Z, after map-client's v20 bench. It is granted on a frozen manifest. The packages are frozen once the chosen build reads.
+
+**That window is VOID (the orchestrator, 2026-11-14).** At 11-16 04:00-07:30Z every FT home is in night. Every FT scene would read
+the INSTRUMENT on bit 3: the night poll, which follows the sun at the scene's home. FT waits on the sibling's code, which is not yet
+written. Its window comes from map-client's calendar, in the homes' daylight and clear of the Monday 16:00-17:00Z deploy, as the
+orchestrator places it. The packages stay as frozen.
 
 ### 5b. The owner's answer: the rule. HR-KBOS-E1 read as predicted; Boston's pictures
 
@@ -787,6 +801,7 @@ KEWR-2L194 48efc61020cf, MIDTOWN-2L194 c5e8359531ba, KJFK-2L194 da8fb0e97024, KL
 re-freeze through the orchestrator. The 19.4 km sheets replace the 17 km ones for what ships.
 
 **What still gates the merge:** FT-HR's reading inside M on these six (the 11-16 window), and the code PR's condition (a).
+The 11-16 window is VOID (section 5a's bench note), so the reading takes the window placed then.
 
 ## 6. This PR's CI, predicted
 
@@ -822,6 +837,21 @@ GitHub-side re-run rule applies. Anything else: stop and report.
 - **Predicted for the 5j reading's head** (docs/basemap-hudson-rule.md and docs/basemap-route.md; no workflow's path filter names
   either: `workers.yml` filters on proxy/, dashboard/ and the wx fixtures, `account-budget.yml` on its own paths): **33 = 31 / 2 / 0**,
   on main as it then stands (e9aa69a19a6b at this writing).
+- **Read at fbcffaa96260:** 33 = 31 / 2 / 0 as predicted (all completed; read twice on 11-14, the second at 18:15:17Z), tested on
+  "Merge fbcffaa96260... into e9aa69a19a6b...".
+- **Predicted for this head** (the FT-WX cross-reference; docs/basemap-hudson-rule.md only): main is 620a215d0e5f at this writing,
+  and its own push runs are green. Its workflow changes since e9aa69a19a6b, each read:
+  - `device-ids.yml` gains STEPS in its existing job: `fetch-depth: 2`, `check_precise_coords.py` (selftest, sabotage and
+    `--diff HEAD^1`), and `check_routes_workflow.py` with its selftest.
+  - `workers.yml` gains steps and runs no job for this PR's paths.
+  - The new `routes-refresh.yml` triggers on `workflow_dispatch` only.
+
+  So: **33 check runs, 31 success, 2 skipped (`promote`, `version`), 0 failed**, tested on the merge into main as it then stands, read
+  from the run's own checkout log.
+  - **The coordinate gate is new to this PR.** `--diff HEAD^1` sees both of this PR's docs as added lines. Main's gate
+    (e31e8305b3a6), imported, counts **0** numbers in both files. A planted in-band 3-dp line counted 1, so the scan is not blind.
+  - A new red from `ship-alert` reads INSTRUMENT. Any further workflow change before the run is read first; anything else: stop and
+    report.
 
 ## 7. Where the measurements are (scratch, sha256 first 12)
 
