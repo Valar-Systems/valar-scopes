@@ -855,6 +855,38 @@ anchor exactly once. None of the changes touches a plant's anchor:
 
 **Outside the set:** any other red, a regression in an earlier row, or an anchor not exactly once is a stop.
 
+### 2r. The review of #723 at `1f57d913`: nine fixes before merge (the reviewer, 2026-11-14; registered 18:22:53Z, before the code)
+
+The review found nothing that lets the first production run delete before a verified backup. Because the PR feeds an
+attended production run, these are fixed first, each red-first where it is code.
+
+| # | the finding | the fix | rows (red against `1f57d913` unless stated) |
+|---|---|---|---|
+| 1 | W8's plant sets are STALE: the new rows move them, and W8 runs once (the owner) | re-derive every plant's set from the code, row by row, written down as **"derived, not run"**, after this section's code | none: the driver itself is not run |
+| 2 | the restore re-puts the prior journal BEFORE the data deletes, so a failed delete chunk could leave added keys that no journal names | the journal step moves to just before meta: data puts, then data deletes, then the journal, then meta | **RO1** (guards, static): in `restoreMain`, the journal's own `kvChunks` call sits after the data delete and before the meta put. Red: the journal rides in the first put. **UNDO2** (writer): run A unsealed, then run B with `--backup` over A's journal, then the restore: the store equals the pre-B snapshot, A's journal included. Green today, so it is NOT red-first: it is the non-null-prior-journal fixture, and UNDO-ctl shows the comparator can fail |
+| 3 | BK-X's "must be found" side is untested | rows, each proved by a plant | **BK-Xc** (a CHANGED key absent from the store) and **BK-Xd** (a DELETED key absent): exit 1, `(BK-X)`, store byte-identical. Green today (the code exists), so NOT red-first. **Plant P-BKX:** both "must be found" checks off; predicted red exactly {BK-Xc, BK-Xd} |
+| 4 | the `--prev-also` exemption for an ADDED key was never registered, and the code's comment calls it "stated" | registered here: an ADDED key held only by `--prev-also` is recorded as observed, not class-checked. It is first-run-only, and 4a has 0 writes, so it cannot arise on 11-18. If the exemption were wrong, the backup would still record the value it observed, so the undo stays true. Rowless, with that reason. The comment is corrected. 4c's STOP list now reads "ANY BK refusal", with BK-X's safe-direction stop predicted | none (the reason above) |
+| 5 | BK0: any non-zero git exit counts as "outside a work tree", including 128 for dubious ownership or an unreadable `.git` | only git's own "not a git repository" answer allows the path; any other failure REFUSES. The git call becomes an injectable function parameter (the CLI passes none) | **BK0g** (guards): an injected answer of exit 128 with "dubious ownership" is refused. **BK0e** (guards): an injected spawn error is refused. **BK0n** (guards): an injected exit 128 with "not a git repository" is allowed: the control. **BK0s** (guards, static): `ingest-routes.ts` calls `backupPathRefusal(` exactly once, with one argument. Red today: BK0g, BK0e (the injected answer is ignored, and the real git answers "not a repository" for the temp path). BK0n and BK0s are green today |
+| 6 | a value-taking flag swallows the next flag: `--readback --dry-run` drops `--dry-run`, and with `--no-seal` that run WRITES | every value-taking flag refuses a missing value or one starting with `--`; `--readback` refuses anything but `on` or `off`. All `(VF)`, exit 2, before any KV call | **VF1** `--no-seal --readback --dry-run`; **VF2** `--readback maybe`; **VF3** `--file --no-seal`. Each: exit 2, `(VF)`, store byte-identical. Red today: the run proceeds |
+| 7a | RS0 says "alone" but accepts `--max-deletes`, `--allow-*`, `--receipt` and more | parseArgs records every flag SEEN; `--restore` refuses any flag but `--key-level`, `--env` and `--restore` | **RS0b:** `--restore <f> --max-deletes 1000`: exit 2, `(RS0)`, store byte-identical. Red today |
+| 7b | a stale backup, restored after later runs, would orphan keys | a STATE check (RS2). The restore proceeds only when (a) the current journal is a v1 journal whose `runId` is the backup's, or (b) there is no journal and the current meta is the one this run sealed: its `sourceCommit` is the backup's `source`, and its `prevSourceCommit` is the backup's `prevSource`. The backup gains `source` and `prevSource`, the run's own commits | **RS2:** run A backed up, verified and sealed; then run B (`--prev new --file prev --no-seal`, unsealed); then A's backup is restored: exit 2, `(RS2)`, store byte-identical from the post-B store. Red today. **UNDO3** (the (a) branch): run A with `--backup`, unsealed, then the restore: the store equals the pre-run snapshot. Green today, so NOT red-first. UNDO1 is the (b) branch |
+| 8 | types | at backup time, a bulk-get value that is neither a string nor the answer's `null` refuses `(BK-R)`. RS1 refuses a backup whose values, journal, `runId`, `source` or `prevSource` are not the right types | **BK-T:** a key to delete holding a number in the fake store: exit 1, `(BK-R)`, store byte-identical. **RS1t:** a backup with one value a number: exit 2, `(RS1)`, store byte-identical. Both red today |
+| 9 | tests | UNDO1 asserts the seal CHANGED meta before the restore: meta parses and names the new source (`"2"` x 40). G4nx compares the whole clause: G4n's reason must contain the exact clause `1 removed shard(s) not named` as one `; `-separated part | UNDO1 and G4nx strengthened, both green today and after |
+
+**Also, outside the code:** 4b gains the Worker's TTL'd `rt:` puts as a before-S-ON item. 4c's STOP list now reads
+"ANY BK refusal". Mode 600 is POSIX-only, as written; the file holds no secret (accepted).
+
+**Red-first, predicted** (the rows added, the code at `1f57d913`):
+- writer red exactly **{RS0b, RS1t, RS2, BK-T, VF1, VF2, VF3}**; green: UNDO1 (strengthened), UNDO2, UNDO3, BK-Xc,
+  BK-Xd and the 70 earlier rows;
+- guards red exactly **{BK0g, BK0e, RO1}**; green: BK0n, BK0s, G4nx (whole clause) and the 66 earlier rows.
+
+**After the code:** writer **81 of 81**, guards **71 of 71**, run 8 of 8, freeze 4 of 4; `typecheck:scripts` exit 0.
+- **Then ONE plant run, P-BKX:** both "must be found" checks off, red exactly {BK-Xc, BK-Xd}, restored sha-equal.
+- **Then W8's sets, derived and not run** (item 1), and the anchor check read-only.
+
+**Outside the set:** any other red, or a regression in an earlier row, is a stop.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
@@ -1119,6 +1151,9 @@ satisfied by the pin plus the step-1 check.
   keys.
 - None of these can bite on 11-18. The first run writes the first journal (N1, N6), N5 needs a replay, and N4 the
   schedule.
+- **The Worker's TTL'd `rt:<cs>` puts** (`enrich.ts` ~556, the runtime route cache) can make a later WRITING run meet a
+  spurious BK-X on an ADDED key: the cache holds a key the snapshot lacks. The first run has 0 writes, so it cannot meet
+  this (the reviewer's re-review of #723, 2026-11-14). Before S-ON, decide how a backed-up weekly run treats such a key.
 
 ### 4c. The first run, re-registered with the backup (section 2q)
 
@@ -1126,7 +1161,10 @@ satisfied by the pin plus the step-1 check.
 - **Step 3 gains `--backup ~/.config/blipscope/routes-backup-<env>-<UTC stamp>.json`.** That is beside the token file,
   outside every git tree. Predicted, before the journal and the first write: `backup: 827 key(s) (827 to delete, 0 to
   write), meta and journal saved, sha256 <hex>` (2q's amendment 2). The hash is recorded in the run's record at 12 hex.
-- **STOP before any delete:** BK0, BK1, BK2 or BK3 refusing, or any count other than 827 to delete and 0 to write.
+- **STOP before any write: ANY BK refusal** (BK0, BK0d, BK1, BK2, BK3, BK-R, BK-X), or any count other than 827 to
+  delete and 0 to write (re-registered by 2r). **Predicted, and in the safe direction:** if any of the 827 (deleted keys
+  held only by `--prev-also`) is absent on production, BK-X refuses the first run before any write, because a DELETED
+  key must be found.
 - **After the run,** the file is checked once more against its recorded sha256 (`sha256sum`), and it stays where it is.
   The undo, if it is ever needed, is `--key-level --restore <file> --env <env>`, attended. It is a production write, so
   it needs the owner's word.
