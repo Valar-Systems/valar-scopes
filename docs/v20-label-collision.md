@@ -80,6 +80,10 @@ watchlist ring, the pin reticle, the Follow rings, and the emergency and LOOK UP
 ruled. So a code can now sit on top of a ring that crosses it, where before the ring sat on the code. That is the visible
 change, in full, for the go/no-go.
 
+**And a second visible change, beside it (the rim, review F1):** near the rim, a code that wouldn't fit is dropped,
+never cut. On the RIGHT rim codes used to be drawn cut off by the bezel; they now read to the left of their mark, or are
+dropped if the left will not fit either. The mark stays in every case.
+
 ### Decision 2, the overlap counter (row c)
 
 **Recommended: airport labels stay OUT of the counter's pairs and area.** The counter is #310's measure of traffic text
