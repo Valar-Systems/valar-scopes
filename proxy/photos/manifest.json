@@ -31,7 +31,8 @@
     "license": "CC BY 2.0",
     "layer": "auto",
     "autoPicked": false,
-    "file": "src/p28r.jpg"
+    "file": "src/p28r.jpg",
+    "changesNoted": "EXIF camera serial removed 2026-11-14; pixels unchanged"
   },
   {
     "target": "P28A",
@@ -324,7 +325,7 @@
     "layer": "auto",
     "autoPicked": false,
     "file": "src/e75l.jpg",
-    "changesNoted": "resized for device display"
+    "changesNoted": "resized for device display; EXIF camera serial removed 2026-11-14; pixels unchanged"
   },
   {
     "target": "E75S",
@@ -1099,7 +1100,8 @@
     "license": "CC BY 4.0",
     "layer": "auto",
     "autoPicked": true,
-    "file": "src/c700.jpg"
+    "file": "src/c700.jpg",
+    "changesNoted": "EXIF GPS removed 2026-11-14; pixels unchanged"
   },
   {
     "target": "C750",
@@ -2156,7 +2158,7 @@
     "layer": "auto",
     "autoPicked": true,
     "file": "src/rv10.jpg",
-    "changesNoted": "resized and crop-fitted for device display"
+    "changesNoted": "resized and crop-fitted for device display; EXIF camera serial removed 2026-11-14; pixels unchanged"
   },
   {
     "target": "SR2T",

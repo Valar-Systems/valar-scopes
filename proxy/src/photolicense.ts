@@ -322,7 +322,7 @@ volunteers pay for it.</p>
 <a href="https://commons.wikimedia.org" rel="noopener">Wikimedia Commons</a> and shown on
 Blipscope devices in cloud mode. Public-domain
 images are credited as a courtesy; CC BY, CC BY-SA, and OGL images are attributed as
-their licenses require. Images are resized for the device display.</p>
+their licenses require. Images are resized for the device display; camera location and serial metadata are removed.</p>
 <p class="note">${esc(SHAREALIKE_NOTE)}</p>
 <ul>
 ${rows}

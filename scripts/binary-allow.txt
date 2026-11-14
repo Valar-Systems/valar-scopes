@@ -10,6 +10,5 @@ font	proxy/fonts/inter.woff2	1e61128f5e83f486c63c85310a5171fcb62c822241d881d087a
 font	proxy/fonts/mono.woff2	f824d3d29e747f13d636206461b3f0531fd96455f585028965d24868527c6806	third-party font (OFL 1.1), self-hosted for the leaderboard page
 # A PDF is not read: it is allowed only by its exact hash, after a recorded text read, counts only (Q82 (c)).
 pdf	docs/Blipscope-WiFi-Field-Test.pdf	382f831cde7465126e3a1a18c8bc138505716d14303a12e4385be52e2564ea23	the field-test document, text read 2026-11-06: pdftotext 4.00 (Xpdf) 4 pages, 124 lines, 0 findings, 0 network contexts; poppler (the reviewer) 4 pages, 153 lines, 0 findings, 0 network contexts
-# Q81 (a): a Wikimedia Commons photo, "Cessna Citation Longitude N807QS" by Sewageboy, CC BY 4.0
-# (proxy/photos/manifest.json). Its EXIF GPS is the photographer's location, public in Commons' copy; the file stays
-# byte-identical to its licensed source.
+# Q81 (a) is closed (2026-11-14): proxy/photos/src/c700.jpg's EXIF GPS was removed at the owner's word, so its
+# allowance is gone. No image in the tree is allowed GPS by this file.
