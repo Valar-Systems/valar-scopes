@@ -336,6 +336,7 @@ BKA=(--file "$F/new.tar.gz" --no-seal --readback off)
 # ---- BK-W, BK-M, BK-H: run A with --backup: the file holds every touched key's pre-run value, meta and the journal ----
 fresh; cp "$T/s.json" "$T/bk-pre.json"; rm -f "$T/bk.json"
 rc=$(run "$T/bkw.out" "${KL[@]}" "${BKA[@]}" --backup "$T/bk.json" --out-written "$T/bkw.json" --out-deleted "$T/bkd.json")
+cp "$T/s.json" "$T/bk-post.json"   # the post-run store: RS0/RS1's start, where a wrongful restore WOULD change the store
 bkw=$(node -e '
 const fs=require("fs"),[P,B,W,D]=process.argv.slice(1);
 let b,w,d; try{b=JSON.parse(fs.readFileSync(B,"utf8"));}catch{process.stdout.write("no backup file");process.exit(0);}
@@ -400,6 +401,18 @@ rr=$(run "$T/undo-x.out" --key-level --env staging --restore "$T/undo-bk.json");
 if [ "$ue" = ran ] && [ "$rr" = 0 ] && [ "$u1" = equal ]; then ok UNDO1; else bad UNDO1 "the run $ue; restore exit $rr; the store $u1"; fi
 undo_run undoc; uc=$(storecmp "$T/s.json" "$T/undoc-pre.json")
 if [ "$uc" != equal ]; then ok UNDO-ctl; else bad UNDO-ctl "the store equals the pre-run snapshot with no restore"; fi
+
+# ---- RS0, RS1e, RS1v (the reviewer's condition): the undo refuses another mode flag, another environment's backup, and
+# a file that is not a v1 backup -- each before any KV change. BK-W's own backup is the fixture.
+rsfix() { # rsfix <out> <field> <value>: BK-W's backup with one field overridden
+  node -e 'const fs=require("fs"),[B,O,f,v]=process.argv.slice(1); const b=JSON.parse(fs.readFileSync(B,"utf8")); b[f]= f==="v" ? Number(v) : v; fs.writeFileSync(O, JSON.stringify(b));' "$T/bk.json" "$1" "$2" "$3"
+}
+cp "$T/bk-post.json" "$T/s.json"; h0=$(sha "$T/s.json"); rc=$(run "$T/rs0.out" --key-level --env staging --restore "$T/bk.json" --dry-run)
+if [ "$rc" = 2 ] && has "$T/rs0.out" "(RS0)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok RS0; else bad RS0 "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+cp "$T/bk-post.json" "$T/s.json"; rsfix "$T/rs1e.json" env production; h0=$(sha "$T/s.json"); rc=$(run "$T/rs1e.out" --key-level --env staging --restore "$T/rs1e.json")
+if [ "$rc" = 2 ] && has "$T/rs1e.out" "(RS1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok RS1e; else bad RS1e "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+cp "$T/bk-post.json" "$T/s.json"; rsfix "$T/rs1v.json" v 2; h0=$(sha "$T/s.json"); rc=$(run "$T/rs1v.out" --key-level --env staging --restore "$T/rs1v.json")
+if [ "$rc" = 2 ] && has "$T/rs1v.out" "(RS1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok RS1v; else bad RS1v "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
 
 # ---- BK-SAME, BK-SAME-ctl: the backup cannot change what the run does ----------------------------------------------
 fresh; cp "$T/s.json" "$T/same-pre.json"

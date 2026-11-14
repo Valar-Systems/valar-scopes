@@ -1366,3 +1366,10 @@ another environment.
   - predicted red exactly **{RS0, RS1e, RS1v}**, the other 67 green;
   - restored sha-equal, with porcelain unchanged after.
 - **Outside the set:** stop.
+- **Amended before any run:** RS0, RS1e and RS1v start from the POST-run store (BK-W's run, saved). The pre-run store
+  holds exactly the backup's values, so a wrongful restore there would rewrite identical values, and the store-identity
+  check could not fail. From the post-run store, a restore that ran would change the store.
+- **The plants, exactly:**
+  - RS0's whole `if (args.dryRun || ... || args.noSeal) {` becomes `if (false) {`;
+  - RS1's `if (!b || b.v !== 1 || ... || b.keys === null) {` becomes `if (!b) {`, so an unparsable file still refuses
+    and only the version, environment and shape checks are removed.
