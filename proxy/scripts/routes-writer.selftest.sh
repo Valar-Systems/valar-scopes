@@ -142,6 +142,17 @@ if ovr --allow-removed "5x"; then ok OV5; else bad OV5 "--allow-removed 5x was n
 # OV6 (D8, section 2j): --allow-removed takes shard NAMES; the old count form is refused loudly, never read as a name
 if ovr --allow-removed "5"; then ok OV6; else bad OV6 "--allow-removed 5 (the old count form) was not refused"; fi
 
+# ---- PFX1d (D2, section 2k): a DRY run counts PFX1 too, so it can predict the refusal a real run would meet ---------
+fresh; h0=$(sha "$T/s.json"); rc=$(run "$T/pfx1d.out" "${KL[@]}" --file "$F/pfx.tar.gz" --dry-run)
+if [ "$rc" = 1 ] && has "$T/pfx1d.out" "(PFX1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok PFX1d; else bad PFX1d "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+
+# ---- FS1, FS2 (D5, section 2k): --force-shard is refused on every key-level path, never silently ignored ----------
+fresh; h0=$(sha "$T/s.json"); rc=$(run "$T/fs1.out" "${KL[@]}" --file "$F/new.tar.gz" --dry-run --force-shard S01)
+if [ "$rc" = 2 ] && has "$T/fs1.out" "(FS1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok FS1; else bad FS1 "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+fresh; receipt "$T/fs2.json"; h0=$(sha "$T/s.json")
+rc=$(run "$T/fs2.out" "${SO[@]}" --receipt "$T/fs2.json" --force-shard S01)
+if [ "$rc" = 2 ] && has "$T/fs2.out" "(FS1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok FS2; else bad FS2 "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+
 # =================================== W3: the verify, the receipt, and the replay ===================================
 vrun() { # vrun <outfile> <args...>: the verify through the fake; echoes the exit status
   local o="$1"; shift

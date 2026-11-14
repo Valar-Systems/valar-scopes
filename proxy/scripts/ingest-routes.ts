@@ -620,6 +620,9 @@ async function keyLevelMain(args: Args) {
   // B1 (the review): a seal has no dry run. --seal-only went straight to its meta write, ignoring --dry-run, so the
   // combination is REFUSED before any KV call rather than half-honoured.
   if (args.sealOnly && args.dryRun) refuse(2, "REFUSING (SOD): --seal-only cannot be a --dry-run: a seal writes meta:routes and nothing else. Nothing done.");
+  // D5 (docs/route-weekly-code.md 2k): --force-shard is a full-mode repair. Every key-level path would ignore it, so it is
+  // refused here, before the seal-only and replay dispatch. The key-level repair is the verify's.
+  if (args.forceShards.length > 0) refuse(2, "REFUSING (FS1): --force-shard is a full-mode repair, and the key-level mode would ignore it. The key-level repair is the verify's. Nothing done.");
   if (args.sealOnly) return sealOnlyMain(args);
   if (args.replay) return replayMain(args);
   if (!args.file || !args.prev) refuse(2, "REFUSING: the key-level mode needs --file <the new source> and --prev <the snapshot meta:routes was built from>");
@@ -699,7 +702,13 @@ async function keyLevelMain(args: Args) {
     if (!v.ok && v.names) console.log(`       shard(s): ${v.names.join(", ")}`);
   }
   const deletesAllowed = verdicts.every((v) => v.ok);
-  console.log(`plan: write ${added + changed}; ${deletesAllowed ? `delete ${deletes.length}` : `delete NONE (refused), so the run would NOT seal`}; seal: never in-run (--seal-only after a verify PASS)`);
+  // D2 (docs/route-weekly-code.md 2k): PFX1 is counted BEFORE the dry-run return, over exactly the keys stage 2 would
+  // touch, so a dry run predicts the refusal a real run would meet. The live check before the first write stays: it
+  // also covers the sentinel, which does not exist yet.
+  const plannedKeys = [...[...newVal].filter(([k, v]) => prevVal.get(k) !== v).map(([k]) => k), ...(deletesAllowed ? deletes : [])];
+  const pfxPlanned = plannedKeys.filter((k) => !pfxOk(k)).length;
+  console.log(`plan: write ${added + changed}; ${deletesAllowed ? `delete ${deletes.length}` : `delete NONE (refused), so the run would NOT seal`}; seal: never in-run (--seal-only after a verify PASS); PFX1: ${pfxPlanned} outside`);
+  if (pfxPlanned > 0) refuse(1, `REFUSING (PFX1): ${pfxPlanned} planned key(s) outside the route prefix. Nothing written or deleted.`);
   if (args.dryRun) {
     console.log("--dry-run: stopping before any write");
     return;
