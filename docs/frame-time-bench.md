@@ -1811,6 +1811,35 @@ doc exactly as the hook does and counts the distinct `a[i][0]`.
   elsewhere: stop and decide.
 - **The same two lines** sit on `bench/frame-bench-levels` (`40f02c0fa812`), the base for p4's profile trees. The same
   fix there is proposed for a ruling, and its sha goes to p4.
+- **READ, all as predicted:** the fix `a599fcaaffc6` (2 lines; 13 rows, 0 failed at both shas; v2 `--fixed` 40 / 1;
+  lines-diff 0). Images from tree `3916897f20c9`: c1-A `d0b040058235`, c1-B `13001c132f44`. I-3 is
+  byte-identical to `bfcb47e01c3d`'s c1-I3 (`de75e3606ba7`). `c1_artifacts.py` reads all as predicted. The manifest
+  is `ce0ac88aba14`, acknowledged; p4 re-signed at `81b160e48613`. The levels fix `a9894185b2a8` was read as
+  predicted too.
+
+### C1's retake, 2026-11-14 21:31:51-22:06:31Z: C1's SECOND OFF reading (to the owner)
+
+The fixed images, the acknowledged manifest, the PC kept quiet. The restore PASSED (HTTP 200 at 22:06:21Z).
+- **The fix holds:** drawn == 40 on every measured frame in every arm (A1 1504; B S0-S3 1700, 1699, 1699, 1700; A2
+  1504). Rig check PASS on all three; PIX-WX above 0 in each, from nine distinct grabs.
+- **The read:** `fb_read_c1.py` (`f210ea1cf2ef`) exit 1, "8 rows, 7 off, 0 MISS" (output `09061761cd4d`).
+  - **C1, M3's cut:** A1 p95 81.99, A2 81.95, B 73.00 ms; N 0.04, E 1.54; cut +8.97 ms, [+7.43, +10.51]. It
+    STRADDLES failed and partial, which the rule sends to the orchestrator.
+  - **I-5 RED:** record cost 5713 / 6827 / 5712 ns per frame, against the 5,000 limit. The first window's A1 read
+    5712 too.
+  - **B plain push - sync RED:** 23.69 ms, against 25.8 +/- 1.0; sync 0.46 ms.
+  - **THE PLANTS NEVER RAN:** D=10 push rise +0.00 ms (want +9 to +10); D=60 push +0.01 (want +59 to +60); D=60 p2p
+    73.00 (want at least 83); loop +10 p2p -0.01 (want +10 +/- 1.5). The record's delayed flag (bit 2) is 0 on every
+    frame of S3, and also on every frame of every scene in the FIRST window's B trace. So it predates the hex fix.
+    Without a plant that moves, the bench has not shown it can see a known change of its own size, so the cut is not
+    graded on its band.
+- **What the code shows, nothing concluded:** both plants are applied in `main.cpp` under `#ifdef FRAME_BENCH` (the
+  push delay at :241, the loop delay at :1355). Both gate on `S().scene >= 0 && !done`, which the driver sets in
+  `AircraftManager.cpp:2176-2205`. Three alternatives are named, each checkable from the c1fix-B ELF and on the host:
+  (i) the call sites are not in the image; (ii) the state they read is not the driver's; (iii) an ordering effect,
+  which cannot explain D=60's unmoved p2p.
+- **Stopped,** to the owner. No fix and no re-run before the ruling. A third C1 window would first need the plant
+  wiring found and fixed, with a check that reads red on today's images.
 
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
