@@ -748,8 +748,8 @@ Read off the two boards' own config pages before choosing:
 
 | board | `tz-offset` field | longitude | stored "0"? |
 |---|---|---|---|
-| COM16 (`E7:94`, .62) | `value='0'` | -121.2858 | **yes** |
-| COM4 (.63) | `value='0'` | -121.2858 | **yes** |
+| COM16 (`E7:94`, .62) | `value='0'` | -121.29 | **yes** |
+| COM4 (.63) | `value='0'` | -121.29 | **yes** |
 
 Both qualify, because on the OLD firmware an ABSENT key renders the
 longitude-derived `-8`; a rendered `0` can therefore only be a stored one. Three
@@ -818,7 +818,7 @@ stored `"0"`, and flashed with the same image:
 | | COM4 | COM16 |
 |---|---|---|
 | stored `tz-offset` | `"0"` | `"0"` |
-| longitude | -121.2858 — derived **-28800** | -0.1 — derived **0** |
+| longitude | -121.29 — derived **-28800** | -0.1 — derived **0** |
 | result | **migrated** | **declined**, `tz-offset=0` retained |
 
 Same firmware, same stored value, one variable changed, outcome flips. The boot

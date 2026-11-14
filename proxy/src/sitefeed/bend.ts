@@ -23,7 +23,7 @@ import { normalizeReadsbAc, upstreamDistNm } from "../schema";
 import type { Env } from "../types";
 
 /** Downtown Bend, Oregon (Daniel, 2026-10-21). The snapshot's centre, always -- never a device's tile. */
-export const BEND = { lat: 44.058, lon: -121.315 } as const;
+export const BEND = { lat: 44.06, lon: -121.31 } as const;
 /** 30 mi (Daniel, 2026-10-21): the circle the snapshot keeps. */
 export const RADIUS_KM = 48.28;
 /** At most one stored write per 10 s, enforced on the STORED row's own time. 30 s until 2026-11-04 (Daniel): the

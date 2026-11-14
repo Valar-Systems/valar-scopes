@@ -38,8 +38,8 @@ int main()
     std::printf("wire location (WireLocation.h)\n");
 
     // ---- 1. Center ------------------------------------------------------------------
-    check(std::strcmp(wireloc::Center(44.0582).c_str(), "44.06") == 0, "44.0582 -> 44.06");
-    check(std::strcmp(wireloc::Center(-121.3153).c_str(), "-121.32") == 0, "-121.3153 -> -121.32");
+    check(std::strcmp(wireloc::Center(12.3456).c_str(), "12.35") == 0, "12.3456 -> 12.35");
+    check(std::strcmp(wireloc::Center(-98.7656).c_str(), "-98.77") == 0, "-98.7656 -> -98.77");
     check(std::strcmp(wireloc::Center(-0.0040).c_str(), "0.00") == 0, "-0.0040 -> 0.00, never -0.00");
     check(std::strcmp(wireloc::Center(90.0).c_str(), "90.00") == 0, "90 -> 90.00");
     check(std::strcmp(wireloc::Center(-180.0).c_str(), "-180.00") == 0, "-180 -> -180.00");

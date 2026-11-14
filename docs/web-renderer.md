@@ -113,10 +113,10 @@ not a reason to change the source.
 ## Results (2026-11-04)
 
 **S1, a defect found during the build, before any graded run, and fixed. Recorded because it was nearly invisible.**
-- **How it showed:** the smoke test's R3 query check failed on the s3-21 build. It sent `lat=44.60` for 44.0582, and
+- **How it showed:** the smoke test's R3 query check failed on the s3-21 build. It sent `lat=44.60` for 44.06, and
   `12.50` for 12.05, while s3-128 sent `44.06`. Every fraction whose first digit is 0 had its two digits swapped.
 - **The cause, by elimination:**
-  - **Not the firmware:** the member read 44.058200 in memory.
+  - **Not the firmware:** the member read 44.06 in memory.
   - **Not the formatter:** `wireloc::Center` and `%.2f` are correct on the frame loop, and in a fresh test fiber.
   - **Not the variant:** a rebuild **moved** the fault to the s3-128 build, with no source change.
   - **The cause:** `%.2f` was wrong only on the fetch task's own stack, where it gave "44.60" and "%.9f" gave
@@ -124,7 +124,7 @@ not a reason to change the source.
     8 mod 16. The wasm C ABI requires 16.
   - Whether a task's stack landed 16-aligned depended on heap layout. That is why the fault moved with the binary.
 - **The fix:** the fiber stacks come from `aligned_alloc(16, …)`, asserted at task creation. The same build then gives
-  "44.06 | 44.058200000" inside the fetch task and sends `lat=44.06`.
+  "44.06 | 44.06" inside the fetch task and sends `lat=44.06`.
 - **Two instruments that did not see it:**
   - AddressSanitizer: under it the fiber scheduler never ran a task, so ASan is blind here.
   - `-O0`: the fault survived it, which ruled out the optimiser.

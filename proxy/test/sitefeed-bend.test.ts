@@ -86,9 +86,9 @@ function bendSky() {
     makeAc({ hex: `b${String(i).padStart(5, "0")}`, flight: `BND${i} `, lat: 44.03 + i * 0.003, lon: -121.33 + i * 0.002 }),
   );
   const outside = [
-    makeAc({ hex: "f00001", lat: 45.0, lon: -121.315 }), // ~105 km north: fetched, but not in the circle
-    makeAc({ hex: "f00002", lat: 44.058, lon: -122.3 }), // ~79 km west
-    makeAc({ hex: "f00003", lat: 43.4, lon: -121.315 }), // ~73 km south
+    makeAc({ hex: "f00001", lat: 45.0, lon: -121.31 }), // ~105 km north: fetched, but not in the circle
+    makeAc({ hex: "f00002", lat: 44.06, lon: -122.3 }), // ~79 km west
+    makeAc({ hex: "f00003", lat: 43.4, lon: -121.31 }), // ~73 km south
   ];
   return [...inside, ...outside];
 }

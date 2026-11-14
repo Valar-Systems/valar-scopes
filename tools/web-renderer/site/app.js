@@ -6,7 +6,7 @@ import { makeScene } from "./scene.js";
 const $ = (id) => document.getElementById(id);
 const canvas = $("radar");
 const live = new URLSearchParams(location.search).get("live") === "1";
-const CONFIG = { latitude: "44.0582", longitude: "-121.3153", radius: "40", "radius-unit": "km", "tz-offset": "-8" };
+const CONFIG = { latitude: "44.06", longitude: "-121.32", radius: "40", "radius-unit": "km", "tz-offset": "-8" };
 let manifest = null, render = null, radar = null, sku = "s3-128", textMode = "device", dim = false;
 
 async function select(next) {
