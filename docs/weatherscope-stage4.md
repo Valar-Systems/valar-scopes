@@ -2528,3 +2528,19 @@ reviewer's ruling.** What the ruling has in front of it:
   the refresh ran in W1.
 
 **Sent:** the numbers to uk-data, and the trigger to the reviewer.
+
+**The reviewer's ruling on X10-cpu** (relayed 2026-11-14 after 06:46Z):
+
+> THE RULING: the frozen meaning stands, with no re-grade. X10-cpu, the registered statistic, read 480.5 ms, BELOW its
+> 507-653 band. That's the registered re-price trigger, so it goes to Daniel as a re-price. It's information, not a
+> stop, and I'll write it to him. He sees both figures side by side [...]. The measured sum does NOT replace the frozen
+> statistic in the record. For the next CPU band, freeze the statistic that matches the bill (the sum per invocation).
+
+- **X10-cpu stays OUTSIDE THE BAND** in this record. The re-price goes to the owner from the reviewer. It carries both
+  figures: the frozen 480.5 ms, and the measured 520.2 ms with the right skew as the reason.
+- **Class A** goes to the owner with uk-data's budget update. The account reads 1,050,690 a month in W1, just over the
+  included million: about $0.23 a month under Read P, and $4.50 under Read A (S4.12.2's "OPERA down" case).
+
+**The lesson, for every later CPU band:** freeze the statistic the bill is made of, which is the sum per invocation
+(Workers analytics' `cpuTimeUs` over requests). A median-weighted product of counts and medians is not a mean. On a
+right-skewed cost it reads low, and here that was enough to cross a band edge that the bill itself did not cross.
