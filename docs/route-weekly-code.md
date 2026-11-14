@@ -419,6 +419,37 @@ in one row. With the age test off, the other prefix stayed untouched, but the co
 **Outside the set:** a row that is green against `0439ebf4` (it cannot fail) is not a red-first and is reported, not
 counted. A fix that turns any OTHER row red is a regression: stop and decide.
 
+### 2i. (b) and (c) after W8's instrument failure #3 (the reviewer's ruling, 2026-11-14 07:28Z; registered before the code)
+
+W8 itself waits for the owner's answer: no driver run of any kind. These are prepared, and graded by their own
+selftests only.
+
+| what | the change | rows, red-first |
+|---|---|---|
+| **(b) BL1, BL2** | `routes-writer.selftest.sh` and `routes-run.selftest.sh` call FK1's own check first (`routes-fk1.ts --check staging`, the rule's one home). Where it refuses, they exit 2 with `SELFTEST BLIND`, FK1's condition named (never a value), before any temp dir or row | in the guards selftest: each child selftest is started with `BLIPSCOPE_TOKEN_FILE` naming an EMPTY file in a private temp (never the real file), and `ROUTES_KV_TOKEN` and `CLOUDFLARE_API_TOKEN` removed. A row passes only on exit 2, 0 `PASS`/`FAIL` lines, the condition named, and the path NOT in the output. Written as literal `row("BL1"` and `row("BL2"`, so W8's declared-set regex sees them |
+| **(c) S-TMP-G** | a W8 plant: S-TMP's exact anchor and replacement, graded by the guards selftest | registered only; it runs with W8, after the owner's answer |
+
+**Red-first predictions (before the pre-check code exists):**
+- **BL1 red:** the writer child prints all 32 rows, **22 of them red**, and exits 1. That is the same split as W8's run 2. So it also reproduces that run's cause outside the driver, through node's own `bash`, which bears on the shell alternative left open there.
+- **BL2 red:** the run child prints its 7 rows and exits 1. Its red count is not predicted; only that rows are printed.
+- **The rest:** the guards selftest's other 59 rows green.
+
+**Green predictions (after the code):**
+- **BL1, BL2:** each child exits 2, prints `SELFTEST BLIND` naming the `BLIPSCOPE_TOKEN_FILE` condition, prints 0 rows, and never prints the path.
+- **Guards:** **61 of 61**.
+- **The selftests themselves, with nothing set:** writer 32 of 32, run 7 of 7.
+
+**Outside the set:** any other split, or any other row red. Stop and decide.
+
+**The W8 re-run's predictions, RE-FROZEN here before any run.** This supersedes section 7's 07:27Z paragraph, which said
+"the same under (b)" while assuming (b) added no guards rows. BL1 and BL2 are guards rows, so:
+- **BASELINE:** guards **61**, writer 32, freeze 4, run 7, routes-health 11, reconcile 1; 0 red.
+- **S-FK1 moves.** The plant drops both of FK1's credential conditions, so the child selftests no longer refuse. The guards red set becomes **{FK1d, FK1e, FK1f, FK1h, BL1, BL2}**; the writer's stays {FKW}.
+- **S-TMP-G, the 15th plant:** red exactly **{SG1, SG2}**. BL1 and BL2 stay green under it, because the children exit before any `tmpDir`.
+- **The other 13:** as at 06:19Z.
+- **After:** each restore sha-equal, porcelain unchanged, 0 temp leftovers.
+- **Outside the set:** stop and decide.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
@@ -727,6 +758,7 @@ is engineering and a guarded write path, not money. That decision is the owner's
   go red under it too. But S-TMP is graded by the writer only, and the writer has no SG rows. S-TMP-G is the same plant
   graded by the guards selftest: **red exactly {SG1, SG2}**.
 
+**SUPERSEDED before any run by section 2i's re-frozen set**, because (b)'s BL1 and BL2 are guards rows, which this paragraph did not foresee.
 **The re-run's predictions (frozen 2026-11-14 07:27Z, read from `date -u`; the same under (b), since the variable is unset):**
 - **BASELINE:** guards 59, writer 32, freeze 4, run 7, routes-health 11, reconcile 1; 0 red.
 - **Plants:** 14 of 14 as registered, with the same sets as at 06:19Z. None of the 2h rows sits in a plant's path:
