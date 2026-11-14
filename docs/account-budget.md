@@ -518,9 +518,55 @@ reader's 30-day figure beside it. "Each line marked steady or one-off beside the
 - **Totals (Read A):** today $0.12; OPERA running $5.26; OPERA running + shsr **$5.71**.
 - **Outside these:** stop.
 
-**9.6 Asked, not assumed.** The scenario named "today" still has shsr `absent`, but shsr has been live since
-2026-11-13. Re-labelling the scenarios to match today is a separate question for the reviewer; this PR does not change
-them.
+**9.6 Asked, then RULED (the reviewer, 2026-11-14 ~09:26Z): relabel, in this PR.** A scenario called "today" that
+leaves out a line live since 2026-11-13 is a false label. **"today" becomes opera-ten silent + shsr `built` (as
+measured).** The old one is kept, renamed **"before shsr"**, because 9.5's comparison needs it.
+- **Predicted, "today" as relabelled:** the old "today" plus X10's rows, by arithmetic.
+  - Class A 0.854 M + 120,780 = **0.975 M (97%, FLAG, under 1 M by about 25k: $0)**, which is about twice shsr's ±13k
+    from the line;
+  - CPU 35.917 M + 22.393 M = **58.310 M, $0.57**;
+  - Class B 4.118 M + 0.432 M (shsr projected) = 4.550 M;
+  - **total $0.57 at Read A.**
+- **"before shsr":** today's old figures, $0.12.
+
+**9.8 THE STRUCTURAL RULE (the reviewer, 2026-11-14 ~09:28Z) and its scenarios. Registered before code; the design
+choices below are PROPOSED for the reviewer's acceptance.** Three wrong cost figures reached the owner in one day:
+- the 30-day run rate sent as "the month";
+- #720 5a's CPU (stage 3's "a product" read as the ten's total, 10x low);
+- 5a's Class B, never priced, which crosses 10 M with OPERA back.
+
+5a was a hand-built table outside this checker, a second path round the guard. **Rule: every cost figure that goes to
+the owner comes from this file's rendered output.** So the calendar-month table the owner is deciding on becomes
+checked scenarios here, and #720's 5a points at them.
+- **(i) `month` moves onto the scenario** (`"2026-11"`, `"2026-12"`; absent = the 30-day figures, as today). A steady
+  row in a month scenario renders as its 30-day value x (days in effect / 30).
+- **(ii) A product's state in a scenario may start mid-month:** `{"state": s, "from": "<ISO UTC>", "before": s0}`. The
+  steady rows of `s` count from `from` to the month's end, and `s0`'s for the rest.
+  - **shsr** is `built` from 2026-11-13T06:16:00Z, at X10's measured rate. (The corrected 5a used shsr's actual first
+    day, about 2x its X10 rate. This renders about 3.7k Class A lower in November; predicted and named here.)
+  - **The fallback** is opera-ten `running` from 2026-11-17T00:00:00Z.
+- **(iii) One-off rows count `events` per month:** `events: {"2026-11": n, "2026-12": m}`, and `value` = `per_event x
+  events[month]`. 9.1's single `events` becomes this map.
+- **(iv) The levers are product states**, with their own rows and basis `projected`:
+  - weather: shsr `built-no-list`, its Class A less one ListObjects per invocation (43,050 a month);
+  - Missileer: missileer-live `cut`, its Class A less 250,000 a month, as sent to the owner.
+  - Each `from` 2026-11-17 in November.
+- **(v) The base read for every scenario becomes the 2026-11-14 MTD read** (`budget_read.py`, 2026-11-01T00:00Z to
+  11-14T06:00Z, 318 h, `read MTD-1114`): the corrected 5a's base, newer and longer than the 11-12 reads.
+  - The 11-12 reads' rows move to `excluded`, so each still anchors on its own totals (5.1).
+  - The ten's `running` rows stay the measured r-run rows. shsr is X10. KV writes go by event (9.4).
+  - **This changes the three existing scenarios' figures too; predicted below.**
+  - A known small double count, named: opuk ran in production 11-06 to 11-11, inside the MTD window. So "fallback"
+    adds about 0.2 x one-tenth of the ten on top of it (under 4k Class A).
+- **The 12 calendar scenarios:** {no fallback, fallback from Nov 17} x {no lever, weather from Nov 17, Missileer from
+  Nov 17} x {2026-11, 2026-12}, rendered beside the three 30-day ones.
+- **Their predictions are the corrected 5a's,** as accepted (2026-11-14 ~09:28Z), within the two named differences
+  above:
+  - November: $4.95 / $9.77 / $5.27 for none / fallback / fallback + Missileer;
+  - December: $5.11 / $6.14 / $1.64;
+  - **every rendered total within $0.05 of these, and every Read A step (Class A or B crossing a whole million) the
+    same.** A step that differs is outside the set: stop.
+- **5a in #720** then carries no table: a pointer to these rows, its v1 kept and marked superseded with the cause.
 
 **9.7 CI for this registration (docs only):** predicted **33 = 31 success + 2 skipped + 0 other.** The anchor is
 #714's and #718's docs-only heads (both 33 = 31/2/0), with no workflow change on main since. **Outside the set:** stop.
