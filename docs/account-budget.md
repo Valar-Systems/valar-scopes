@@ -593,6 +593,8 @@ checked scenarios here, and #720's 5a points at them.
     130,536 a month. The rest is shsr's day, in `excluded`. Arithmetic, frozen now: the bucket's 147,926 a month is
     65,334 raw over 318 h; the anchor x 318 h is 57,653; shsr's day is 7,681 raw, 17,390 scaled. **December
     none/none's Class A then renders 1,009,156**, against the corrected 5a's 1,009,181: a rounding difference.
+    **ACCEPTED (the reviewer, 2026-11-14 by 09:56Z), with a stated tolerance: ±100 Class A.** A rendering of that line
+    outside 1,009,056-1,009,256 is a STOP.
   - **Class B:** the blipscope-wx-reads row holds the proxy's /wx serving and the ingests' reads. shsr's day there is
     estimated from its design projection: 432,000 a month x 23.7/720 h, about 14,200 raw. Basis `derived`, in
     `excluded`, and the rest stays.
