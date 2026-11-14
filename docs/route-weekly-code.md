@@ -490,6 +490,18 @@ before the run.
   These are the dry runs' own G4 `shard(s):` line, identical in both environments.
 - **New stop branch:** G4 refusing under the five names, whether a removed shard is unnamed or a name is not removed. Before any write.
 
+### 2k. D2 and D5 (ruled before S-ON, 2026-11-14 by 07:40Z; registered 07:50Z, before the code)
+
+| finding | the change | rows (writer selftest), red against today's code because |
+|---|---|---|
+| **D2:** PFX1 runs only after the dry-run return | PFX1's count over the planned writes and deletes moves ABOVE the dry-run return. It is printed in the plan line (`PFX1: <n> outside`), and a non-zero count refuses (exit 1, `(PFX1)`) in a dry run too. The live check before the first write stays, as the second layer that also covers the sentinel | **PFX1d:** the existing `pfx` fixture (the PFX1 row's out-of-shape source) with `--dry-run`: exit 1, `(PFX1)` printed, store byte-identical. Today the dry run returns exit 0 before PFX1 is ever counted |
+| **D5:** `--force-shard` is ignored in key-level mode | `keyLevelMain` refuses `--force-shard` first, before the seal-only and replay dispatch, so all three key-level paths refuse it: exit 2, `(FS1)`. It is a full-mode repair; the key-level repair is the verify's | **FS1:** `--key-level --dry-run --force-shard <a shard>`: exit 2, `(FS1)`, store byte-identical. Today it runs, exit 0. **FS2:** `--seal-only` with a VALID receipt plus `--force-shard`: exit 2, `(FS1)`, meta byte-identical. Today it SEALS |
+
+**Red-first, predicted:** writer red exactly **{PFX1d, FS1, FS2}**, the other 33 green. **After:** writer **36 of 36**,
+`typecheck:scripts` exit 0. **W8:** the writer's declared set becomes 36. The S-GR9 plant's anchor (`if (why.length > 0)
+refuse(1, \`REFUSING (GR9)`) is not in these lines, and FS2 refuses before GR9's receipt check, so S-GR9's set
+{GR9b, GR9c, GR9e, GR9f, GR9g} stands. Re-checked with the anchor tool before any W8 run. **Outside the set:** stop.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
