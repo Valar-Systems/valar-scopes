@@ -255,3 +255,28 @@ whole month.
 - **The proxy Worker** carries `/healthz`'s `source`. That waits for a proxy deploy, which is not Monday's slot.
 - **Until both are deployed,** a frame's source is readable from `latest` itself (`opera_latest.py`).
 - **Each deploy has its own predicted rows,** registered before it, on the owner's word and under the deploy claim.
+
+## 7. Results, local (2026-11-14)
+
+| row | read | verdict |
+|---|---|---|
+| red-first | the test file committed alone (`9d08c288`), run against main's code (`6f6dae93`) at 08:59Z: 9 failed {FB1, FB2, FB3, FB4, FB6, FB7, FB7 (lagging), HZ1, UA2}, 5 passed {FB4b, FB4c, FB5, UA1, UA3}. Each red is an assertion, for its registered reason: no `source`; the backup never listed; the primary's listing error uncaught; OPERA_UA without the address | **as predicted** |
+| green | the code (`a9f06a2b`): `operaListing` as amended, one host per check, `source` in the frame metadata, `latest`, `IngestResult` and `/healthz`. `tsc --noEmit` exit 0. 13 of 14, with UA2 waiting for its own commit | **as predicted** |
+| UA3's red | the UA commit's constant alone: UA3 red ("the copy found; equal false"), so it catches a UA change that misses the copy | **as registered** |
+| UA2 + UA3 green | `eaba7a92`: the constant and `tools/wx/opera_fixture.py:31` together. **14 of 14** | **as predicted** |
+| every wx file | all 12 `test/wx-*.test.ts` in one run: **179 passed** (the 165 existing plus the 14 new). Every existing wx test unchanged | **as predicted** |
+| sabotages, run 1: **instrument failure #1, no verdict** | the first, scratch driver read **0 of 14** tests under all three plants and printed OFF.<br>**Cause:** a no-plant diagnostic was blind the same way. vitest was given the 8.3 SHORT path (`DANIEL~1`) as its cwd, and workerd could not resolve its own modules (`No such module "@fs/C:/Users/..."`).<br>**Alternative (the plants broke vitest):** excluded by the same no-plant diagnostic.<br>**Second defect:** "could not see" printed as OFF. Each plant applied and each restore was proven: `ingest.ts` equal to HEAD's blob, porcelain clean | **recorded** (the reviewer, 09:06Z) |
+| sabotages, run 2 | `scripts/sabotage-wx-opera-fallback.py` (`30d11e29`, committed before the run, as ruled): the long path as cwd, a BASELINE first, and BLIND (never OFF) under 14.<br>**Read at 09:07Z:** BASELINE 14 of 14, 0 red. **S-MIX** red exactly {FB1, FB2, FB3, FB5, FB7}. **S-FALLREAD** red exactly {FB5}. **S-SRC** red exactly {FB1, FB2, FB3, FB6, FB7, FB7 (lagging)}. Each restored from a byte copy, sha256 equal; `ingest.ts` equal to HEAD's blob after | **as registered** |
+
+## 8. CI
+
+- **CI-F1**, the registration push (docs only), at `3bf4d660`: 33 = 31 success + 2 skipped. Read twice, 08:42:08Z and
+  08:43:38Z. Tested commit `a7c5759` (the merge into `6f6dae93`). **As predicted.**
+- **CI-F2**, the docs push (5a and the amended 2a), at `b43126d6`: predicted 33 = 31 + 2 (docs only, the same anchor).
+- **CI-F3, the code push: predicted (2026-11-14 ~09:09Z, before the push) 36 = 34 success + 2 skipped + 0 other.**
+  - The diff now touches `proxy/**`, which `workers.yml` is filtered to: the three runs a docs-only PR lacks.
+  - The anchor is #695 (proxy, docs and scripts; 36 at its head), with no workflow change on main since.
+  - `tools/wx/` triggers nothing extra: only `account-budget.yml` (`tools/budget/**`) and `web-renderer.yml`
+    (`tools/web-renderer/**`) filter on `tools/`.
+  - `workers.yml`'s proxy job runs the whole proxy suite, the new file included, on Linux.
+  - **Outside the set:** stop and decide.
