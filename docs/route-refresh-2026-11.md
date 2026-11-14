@@ -347,3 +347,9 @@ Staging's counts in the sub-windows are reported and not graded: they cannot bea
 **(A) is closed.** Production holds the 24ce5424 corpus, verified complete (P3) and value-checked (P6). It was sealed at
 01:52:29.338Z and is fresh on `/healthz` (P4). The run counts as **NOT CLEAN** on P5 alone, an instrument OFF, with no
 data defect.
+
+**CI.** This PR is docs only, so one green read is enough. The first read, at `7cca8662`, was 33 check-runs:
+31 success and 2 skipped (promote, version), finished at 02:38:11Z and identical at 02:39:42Z. But it tested
+`Merge 7cca8662... into 0c01c4aa` (#710), one commit behind main. #711, the coordinate gate this text is exactly the
+kind of thing it checks, merged at 02:23:13Z, after that push. So, on the reviewer's ruling, this commit is pushed to
+make CI run the gate against current main. A close-and-reopen could run on the stale test merge.
