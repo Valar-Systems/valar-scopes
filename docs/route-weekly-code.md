@@ -1001,6 +1001,8 @@ is engineering and a guarded write path, not money. That decision is the owner's
 | D1, green (the core) | the journal read at the start of every key-level run (stale ignored, with its line); writes and deletes take in a current journal's keys; the write-ahead put before the first data write; the seal's clear; the replay's JN1 (exit 6); the run script turning JN1 into the key-level write for the same source. Writer **45 of 45**, run **8 of 8**, `typecheck:scripts` exit 0 | **as predicted** |
 | J7, red-first | against D1's core: writer red exactly {J7}. The old receipt SEALED over run B's values (exit 0, meta changed). 45 green | **as predicted** |
 | J7, green | the journal names its writer (`source`, `runId`); the run files and the receipt carry `journalSha256`; `--seal-only` refuses a mismatch, `(J7)`. Writer **46 of 46**, run **8 of 8**, `typecheck:scripts` exit 0. Every own-receipt seal (RCP2, J3, J5, UN1, RR1, RR2, RR6) still passes | **as predicted** |
+| D3's count, red-first | section 2o's rows, before the code (09:12-09:14Z): writer red exactly {SN1, SN1-ctl} (no count line), 46 green | **as predicted** |
+| D3's count, green | the verify prints `sentinels: <n> leftover rt:ZZ sentinel key(s)` beside `extra`. A count only, never a key, never a failure. Writer **48 of 48** (SN1 reads 1 with the planted leftover, SN1-ctl reads 0); run 8 of 8; `typecheck:scripts` exit 0 | **as predicted** |
 
 **Proposed after run 2 (awaiting the reviewer's ruling; nothing re-run):**
 

@@ -205,6 +205,14 @@ from_written; plantkv deleted '{"o":"AAA","d":"BBB"}'; rm -f "$T/r.json"
 rc=$(vrun "$T/gr11.out" "${V[@]}" --receipt "$T/r.json")
 if [ "$rc" = 1 ] && $CMP "$T/gr11.out" "absence: checked 25, absent 24, PRESENT 1" && [ ! -f "$T/r.json" ]; then ok GR11; else bad GR11 "exit $rc"; fi
 
+# ---- SN1, SN1-ctl (D3's waiver condition, section 2o): each verify counts leftover sentinels, as a count only --------
+from_written; node -e 'const fs=require("fs"),S=process.argv[1]; const s=JSON.parse(fs.readFileSync(S,"utf8"));
+s.staging["rt:ZZ0A1B2S"]=JSON.stringify({o:"0A1",d:"B2Z"}); fs.writeFileSync(S, JSON.stringify(s));' "$T/s.json"
+rc=$(vrun "$T/sn1.out" "${V[@]}")
+if [ "$rc" = 0 ] && $CMP "$T/sn1.out" "sentinels: 1 leftover rt:ZZ sentinel key(s)"; then ok SN1; else bad SN1 "exit $rc; the count line $(grep -c '^sentinels:' "$T/sn1.out") time(s)"; fi
+from_written; rc=$(vrun "$T/sn0.out" "${V[@]}")
+if [ "$rc" = 0 ] && $CMP "$T/sn0.out" "sentinels: 0 leftover rt:ZZ sentinel key(s)"; then ok SN1-ctl; else bad SN1-ctl "exit $rc; the count line $(grep -c '^sentinels:' "$T/sn0.out") time(s)"; fi
+
 # ---- M1c: the comparator GR10 and GR11 use rejects a near miss (MISMATCH 10 where it wants MISMATCH 1) --------------
 printf 'values: checked 70, match 60, MISMATCH 10, ABSENT 0\n' > "$T/m1c.out"
 if ! $CMP "$T/m1c.out" "values: checked 70, match 69, MISMATCH 1, ABSENT 0" && ! $CMP "$T/m1c.out" "MISMATCH 1"; then ok M1c; else bad M1c "the comparator accepted MISMATCH 10 as MISMATCH 1"; fi

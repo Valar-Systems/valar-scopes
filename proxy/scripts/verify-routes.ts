@@ -310,6 +310,11 @@ async function main() {
   let extra = 0;
   for (const k of actual) if (!expectedAll.has(k)) extra++;
   console.log(`extra keys under rt: not in the corpus: ${extra} (adsbdb-era TTL entries, anchors)`);
+  // D3's waiver condition (docs/route-weekly-code.md 2o): leftover sentinels are inert, but counted on every verify, so
+  // an accumulation is a reading rather than a silence. A count only, never a key, and never a failure.
+  let sentinels = 0;
+  for (const k of actual) if (/^rt:ZZ[0-9A-F]{5}S$/.test(k)) sentinels++;
+  console.log(`sentinels: ${sentinels} leftover rt:ZZ sentinel key(s)`);
 
   // ---- W3: the values the run wrote, and the absence of what it deleted ---------------------------------------
   let valuesBad = 0, presentBad = 0;
