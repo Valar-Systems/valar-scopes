@@ -450,6 +450,42 @@ selftests only.
 - **After:** each restore sha-equal, porcelain unchanged, 0 temp leftovers.
 - **Outside the set:** stop and decide.
 
+### 2j. D8, `--allow-removed` by name (ruled before the FIRST run, 2026-11-14 by 07:40Z; registered before the code)
+
+**The change:**
+- `--allow-removed <shard file>` is repeatable, like `--allow-shard`, and replaces the count.
+- `g4Removed(prev, new, allow: Set<string>)` is ok when no more than 3 shards holding no more than 200 keys are removed, OR when EVERY removed shard is named.
+- It REFUSES when a named shard is not among the removed ones: a stale or mistyped override is refused, never ignored. That is the same rule as `--force-shard`'s "matched nothing".
+- The parser refuses (`OVR`, exit 2) any value outside the shard-name shape `^routes/schema-\d{2}/[A-Z0-9]/[A-Z0-9]+-[A-Za-z0-9]+\.csv$`. That shape fits **1,591 of 1,591** names in `24ce5424` (read 07:41Z: 1,526 `-all`, 65 with a one-character suffix), and rejects `5` and `5x`. So the old count form is refused loudly rather than read as a name.
+- The scheduled-override refusal and the full mode's "key-level flag" refusal read `allowRemoved.length > 0`.
+
+| row | the test | red against today's numeric G4 because |
+|---|---|---|
+| **G4n** (guards) | 4 removed (S01-S04), 3 named: refuses, and the reason says `1 removed shard(s) not named` | today refuses with "not a non-negative integer" (a Set is not an integer): the WRONG rule, so the reason check fails |
+| **G4n-ok** (guards) | 4 removed, all 4 named: ok | today refuses (the same wrong rule) |
+| **G4n-stale** (guards) | 4 removed, all named plus one shard that was NOT removed: refuses, and the reason says `named but not removed` | today's reason differs |
+| **GR5a, GR5b, GR5c** | unchanged verdicts with an empty Set (4 removed refuses; 201 keys refuses; 3 holding 75 passes) | green before and after: the bound itself is unchanged |
+| **OV5** (writer, re-registered) | `--allow-removed 5x` refused, exit 2, `(OVR)`, store byte-identical: now because it is not a shard name | green today, for the count reason: kept as a regression row, not counted red-first |
+| **OV6** (writer) | `--allow-removed 5` (the OLD count form) refused the same way | today accepts it as a count |
+| **GN2** | **RETIRED**: its hazard, NaN coerced into a numeric bound, cannot reach a set of names | |
+
+**Counts after:** guards 61 - 1 (GN2) + 3 = **63**; writer 32 + 1 (OV6) = **33**. `typecheck:scripts` exit 0. **W8:** the
+guards and writer declared sets change accordingly, before any W8 run. GN2 sat in no plant's red set, and no plant's
+anchor is in the lines this touches, so the 15 plants' sets stand. That is re-checked against the driver's anchors
+before the run.
+
+**4a, re-registered for D8 (the predictions themselves unchanged):**
+- **Step 0, new (D10):** `sha256sum -c` against the two pinned manifests. A mismatch is a STOP.
+- **The overrides** become `--max-deletes 1000 --allow-shard routes/schema-01/R/RSC-all.csv` plus five `--allow-removed`, one per name:
+  - `routes/schema-01/B/BES-all.csv`
+  - `routes/schema-01/C/CLH-all.csv`
+  - `routes/schema-01/K/KES-all.csv`
+  - `routes/schema-01/R/RLA-all.csv`
+  - `routes/schema-01/T/TEZ-all.csv`
+
+  These are the dry runs' own G4 `shard(s):` line, identical in both environments.
+- **New stop branch:** G4 refusing under the five names, whether a removed shard is unnamed or a name is not removed. Before any write.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
