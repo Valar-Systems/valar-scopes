@@ -4156,12 +4156,19 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
     static_assert(OVERLAP_RECT_CAP >= 3 * (int)MAX_AIRCRAFT + 3,
                   "OVERLAP_RECT_CAP can saturate: raise it, or the counter "
                   "under-reports exactly when the sky is busiest");
+    // The airport label's own obstacle list (v20): per contact at most a symbol and four texts (the emergency
+    // descriptor, LOOK UP, the watchlist and pinned callsigns). An overflowed list makes every label yield, so a
+    // short cap would drop labels in exactly the busy sky; this fails the build instead.
+    static_assert(AIRPORT_OBSTACLE_CAP >= 5 * (int)MAX_AIRCRAFT + 4,
+                  "AIRPORT_OBSTACLE_CAP can overflow: raise it, or every airport label yields in a busy sky");
 
     // One frame's worth of drawn rectangles. Reset on the first pass only: with
     // BANDED_RENDER false there is exactly one pass, but resetting per band
     // would undercount on any future SKU that brings banding back.
     if (firstPass) {
         overlapFrame.Reset();
+        airportObstacles.Reset();
+        airportMarks.clear();   // capacity is kept: one allocation, reused every frame
         perf.labelFrames++;
     }
     DrawRadarCircles(backbuffer);
@@ -4174,9 +4181,10 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
     const bool noData = CurrentStaleStage() == StaleStage::NoData;
 
     // fixed geography under the moving traffic: airports ground the picture
-    // ("that blip is landing at OUR airport")
+    // ("that blip is landing at OUR airport"). The MARKS only: each code is placed after the traffic pass, below, so
+    // it can yield to what the traffic drew (docs/v20-label-collision.md).
     if (displayAirports)
-        DrawAirports(backbuffer);
+        DrawAirports(backbuffer, firstPass ? &airportMarks : nullptr);
 
     // Follow Mode: the flight track, drawn BENEATH the traffic and above the
     // fixed geography. §4.5 -- "draw the track beneath everything else, in one
@@ -4281,7 +4289,7 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         }
 
         if (isEmergencySquawk(tracked.state.squawk)) {
-            DrawEmergencyAlert(backbuffer, x, y, tracked);
+            DrawEmergencyAlert(backbuffer, x, y, tracked, firstPass ? &airportObstacles : nullptr);
         } else {
             // base marker fades as its radar return ages between sweep passes
             // (full bright when the sweep is off). The annotation overlays below
@@ -4323,8 +4331,15 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 #ifdef WX_LOOK_AB
             if (outline) outlineFrameUs += micros() - outlineT0;
 #endif
-            if (displayTriangles) DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
+            // The symbol's box, as drawn, for the airport label (v20, Z-a): the dot's, or the glyph's own extent,
+            // which DrawAircraftTriangle returns; with the outline on, 1 px wider on every side, the reach of its
+            // eight offset copies. The dot's draw line is kept verbatim: sabotage_wx_outline.py plants it.
+            overlapcount::Rect symbol = airportlabel::Box(x - 3, y - 3, 7, 7);
+            if (displayTriangles) symbol = DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
             else backbuffer.fillCircle(x, y, 3, markerColor);
+            if (outline) symbol = overlapcount::Rect{ (int16_t)(symbol.x0 - 1), (int16_t)(symbol.y0 - 1),
+                                                      (int16_t)(symbol.x1 + 1), (int16_t)(symbol.y1 + 1) };
+            if (firstPass) airportObstacles.Add(symbol);
         }
 
         // special contact (military / special callsign / helicopter): a coloured
@@ -4356,7 +4371,7 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 
         // overhead: pulsing "look up!" ring when a contact is passing near-overhead
         if (showOverhead && IsOverhead(tracked))
-            DrawOverheadAlert(backbuffer, x, y);
+            DrawOverheadAlert(backbuffer, x, y, firstPass ? &airportObstacles : nullptr);
 
         // ring the standout contacts; tags stack up-left to avoid the info text
         if (displayHighlight) {
@@ -4384,7 +4399,10 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             if (cs.isEmpty()) { cs = icao; cs.toUpperCase(); }
             backbuffer.setTextSize(1);
             backbuffer.setTextColor(AMBER);
-            backbuffer.drawString(cs, x - (int)backbuffer.textWidth(cs) / 2, y - 16);
+            const int cw = (int)backbuffer.textWidth(cs);
+            backbuffer.drawString(cs, x - cw / 2, y - 16);
+            if (firstPass)   // traffic text the counter does not hold: an airport-label obstacle (v20)
+                airportObstacles.Add(airportlabel::Box(x - cw / 2, y - 16, cw, (int)backbuffer.fontHeight()));
         }
 
         // FOLLOWED contact: a distinct ring on the radar, so it is findable
@@ -4425,9 +4443,18 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             if (cs.isEmpty()) { cs = icao; cs.toUpperCase(); }
             backbuffer.setTextSize(1);
             backbuffer.setTextColor(PIN);
-            backbuffer.drawString(cs, x - (int)backbuffer.textWidth(cs) / 2, y + 13);
+            const int cw = (int)backbuffer.textWidth(cs);
+            backbuffer.drawString(cs, x - cw / 2, y + 13);
+            if (firstPass)   // traffic text the counter does not hold: an airport-label obstacle (v20)
+                airportObstacles.Add(airportlabel::Box(x - cw / 2, y + 13, cw, (int)backbuffer.fontHeight()));
         }
     }
+
+    // The airport CODES, now that every piece of traffic text and every symbol is on the glass and recorded: each
+    // yields right, then left, else is dropped; the mark stays (docs/v20-label-collision.md). They draw ABOVE trails
+    // and the Follow track where they used to sit beneath them: the one visible change, named for the go/no-go.
+    if (displayAirports)
+        DrawAirportLabels(backbuffer, firstPass);
 
     // THE FRAME IS FINISHED BEING WRITTEN ON -- harvest it. Per frame rather
     // than incrementally, because a MAX needs a frame to be a unit: summing as
@@ -5388,15 +5415,14 @@ void AircraftManager::DrawRadarCircles(BandCanvas& backbuffer) const
     }
 }
 
-void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
+void AircraftManager::DrawAirports(BandCanvas& backbuffer, std::vector<AirportMark>* marks) const
 {
     // Dim, neutral ink: geography is context, not signal, so it must never
     // compete with a blip. Cull on the scan box first -- the whole table is a
     // few hundred float compares, cheap even per band on the C3.
+    // THE MARKS ONLY (v20): the code is placed after the traffic pass by DrawAirportLabels, which `marks` feeds, so it
+    // can yield to traffic text and symbols. The mark itself is unchanged and always drawn.
     const uint32_t MARK  = lgfx::color888(130, 130, 130);
-    const uint32_t LABEL = lgfx::color888(100, 100, 100);
-    backbuffer.setTextSize(1);
-    backbuffer.setTextColor(LABEL);
 
     // Cull + draw one entry; shared between the two sources below.
     const auto draw = [&](float apLat, float apLon, const char* code) {
@@ -5405,7 +5431,9 @@ void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
             return;
         auto [x, y] = ProjectCoordinateToScreen(apLat, apLon);
         backbuffer.drawRect(x - 2, y - 2, 5, 5, MARK);
-        backbuffer.drawString(code, x + 5, y - 3);
+        if (marks)
+            marks->push_back(AirportMark{ (int16_t)x, (int16_t)y, code,
+                                          airportlabel::Placement{ airportlabel::Side::Dropped, 0, 0 } });
     };
 
 #ifdef FEATURE_CLOUD_FEED
@@ -5433,6 +5461,25 @@ void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
     for (size_t i = 0; i < AIRPORT_COUNT; ++i) {
         const Airport& ap = AIRPORTS[i];
         draw(ap.lat, ap.lon, ap.code);
+    }
+}
+
+void AircraftManager::DrawAirportLabels(BandCanvas& backbuffer, bool firstPass)
+{
+    // The ink DrawAirports used for codes, unchanged: dim, neutral, geography.
+    backbuffer.setTextSize(1);
+    backbuffer.setTextColor(lgfx::color888(100, 100, 100));
+    const int h = (int)backbuffer.fontHeight();
+    for (AirportMark& m : airportMarks) {
+        // DECIDED ONCE, on the first band, against everything the traffic pass recorded: overlapFrame's label and
+        // badge boxes (the calls that drew them), and airportObstacles' symbols and other traffic text. Every band
+        // then draws that same decision, so a banded render cannot place a label differently per band.
+        if (firstPass)
+            m.at = airportlabel::Place(m.x, m.y, (int)backbuffer.textWidth(m.code), h,
+                                       [&](const overlapcount::Rect& b) { return overlapFrame.Hits(b); },
+                                       [&](const overlapcount::Rect& b) { return airportObstacles.Hits(b); });
+        if (m.at.side != airportlabel::Side::Dropped)
+            backbuffer.drawString(m.code, m.at.x, m.at.y);
     }
 }
 
@@ -5724,8 +5771,12 @@ bool AircraftManager::AircraftLabelBox(const TrackedAircraft& tracked, int x, in
     return true;
 }
 
-void AircraftManager::DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const
+overlapcount::Rect AircraftManager::DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y,
+                                                         const TrackedAircraft& tracked, uint32_t color) const
 {
+    // RETURNS THE BOX IT DREW (v20, docs/v20-label-collision.md Z-a), so an airport code can treat the symbol as an
+    // obstacle. Computed from the very vertices handed to the raster, converted to int exactly as the calls below
+    // convert them, never re-derived elsewhere.
     // Type-aware marker, keyed off the ADS-B emitter category (normalised to
     // OpenSky's numbering for both the cloud and local feeds). Heading-less types
     // (rotorcraft, balloons) get a fixed glyph; everything else is a heading dart
@@ -5739,13 +5790,13 @@ void AircraftManager::DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y,
         backbuffer.drawLine(x - 5, y - 5, x + 5, y + 5, color);
         backbuffer.drawLine(x - 5, y + 5, x + 5, y - 5, color);
         backbuffer.fillCircle(x, y, 2, color);
-        return;
+        return airportlabel::Box(x - 5, y - 5, 11, 11);
     }
 
     // lighter-than-air (balloon / airship): a simple ring, also non-directional.
     if (cat == 10) {
         backbuffer.drawCircle(x, y, 4, color);
-        return;
+        return airportlabel::Box(x - 4, y - 4, 9, 9);
     }
 
     // heading unit vector (forward) and its perpendicular (right "wing").
@@ -5757,18 +5808,33 @@ void AircraftManager::DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y,
     const float px = -dy;
     const float py = dx;
 
+    // The extent of every vertex handed to the raster, as the raster receives it (int).
+    int bx0 = x, by0 = y, bx1 = x, by1 = y;
+    const auto grow = [&](int gx, int gy) {
+        if (gx < bx0) bx0 = gx;
+        if (gx > bx1) bx1 = gx;
+        if (gy < by0) by0 = gy;
+        if (gy > by1) by1 = gy;
+    };
+    const auto extent = [&]() {
+        return overlapcount::Rect{ (int16_t)bx0, (int16_t)by0, (int16_t)(bx1 + 1), (int16_t)(by1 + 1) };
+    };
+
     // a dart pointing along the heading: tip ahead of the point, base behind it
     auto dart = [&](float tip, float base, float halfWidth) {
         const float tipX  = x + dx * tip,                 tipY  = y + dy * tip;
         const float leftX = x - dx * base + px * halfWidth, leftY = y - dy * base + py * halfWidth;
         const float rightX= x - dx * base - px * halfWidth, rightY= y - dy * base - py * halfWidth;
         backbuffer.fillTriangle(tipX, tipY, leftX, leftY, rightX, rightY, color);
+        grow((int)tipX, (int)tipY);
+        grow((int)leftX, (int)leftY);
+        grow((int)rightX, (int)rightY);
     };
 
     // glider: a long, slender dart.
     if (cat == 9) {
         dart(9.0f, 2.0f, 1.0f);
-        return;
+        return extent();
     }
 
     // heavy / large jets (Large, High-vortex large, Heavy): a bigger dart with a
@@ -5777,14 +5843,18 @@ void AircraftManager::DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y,
     if (heavy) {
         dart(8.0f, 4.0f, 2.5f);
         backbuffer.drawLine(x + px * 4.0f, y + py * 4.0f, x - px * 4.0f, y - py * 4.0f, color);
-        return;
+        grow((int)(x + px * 4.0f), (int)(y + py * 4.0f));
+        grow((int)(x - px * 4.0f), (int)(y - py * 4.0f));
+        return extent();
     }
 
     // everything else (light, small, high-performance, unknown): the standard dart
     dart(6.0f, 3.0f, 1.5f);
+    return extent();
 }
 
-void AircraftManager::DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const
+void AircraftManager::DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked,
+                                         AirportObstacleList* rec) const
 {
     // expanding, fading "ping" ring to draw the eye to the emergency
     const float phase = (millis() % 900) / 900.0f;   // 0..1, ~0.9s period
@@ -5802,10 +5872,16 @@ void AircraftManager::DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, c
 
     backbuffer.setTextSize(1);
     backbuffer.setTextColor(lgfx::color888(255, 0, 0));
-    backbuffer.drawString(tracked.state.squawk + " " + descriptor, x + 6, y - 10);
+    const String text = tracked.state.squawk + " " + descriptor;
+    backbuffer.drawString(text, x + 6, y - 10);
+    // The marker dot and the descriptor are airport-label obstacles (v20): the most important text on the scope.
+    if (rec) {
+        rec->Add(airportlabel::Box(x - 3, y - 3, 7, 7));
+        rec->Add(airportlabel::Box(x + 6, y - 10, (int)backbuffer.textWidth(text), (int)backbuffer.fontHeight()));
+    }
 }
 
-void AircraftManager::DrawOverheadAlert(BandCanvas& backbuffer, int x, int y) const
+void AircraftManager::DrawOverheadAlert(BandCanvas& backbuffer, int x, int y, AirportObstacleList* rec) const
 {
     // expanding, fading cyan "ping" plus a steady "LOOK UP" label, to pull your
     // eye to the sky as the contact passes near-overhead
@@ -5817,7 +5893,10 @@ void AircraftManager::DrawOverheadAlert(BandCanvas& backbuffer, int x, int y) co
     backbuffer.setTextSize(1);
     backbuffer.setTextColor(lgfx::color888(0, 255, 255));
     const char* label = "LOOK UP";
-    backbuffer.drawString(label, x - (int)backbuffer.textWidth(label) / 2, y - 18);
+    const int lw = (int)backbuffer.textWidth(label);
+    backbuffer.drawString(label, x - lw / 2, y - 18);
+    if (rec)   // traffic text the counter does not hold: an airport-label obstacle (v20)
+        rec->Add(airportlabel::Box(x - lw / 2, y - 18, lw, (int)backbuffer.fontHeight()));
 }
 
 // Visual-alert flash burst timing: three ~160 ms pulses on a 500 ms period

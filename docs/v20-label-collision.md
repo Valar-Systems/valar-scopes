@@ -4,6 +4,23 @@
 **Ruled 2026-11-14 (orchestrator):** Decision 1 = **Z-a**; Decision 2 = airport labels stay **out** of the counter.
 Registered by Nov 16, PR by Nov 19, go/no-go Nov 21 (else v21). Content freeze is Nov 23-26.
 
+> **RE-FREEZE, 2026-11-14, before the graded run (accepted by the orchestrator).** It was found while deriving the host
+> test, before the test existed.
+> - **The row replaced:** "AFTER, dropped: > 0 only in the two-box population" was wrong, and was frozen without
+>   being derived. A single 42 px label whose contact sits just left of the mark intersects BOTH candidate boxes, so
+>   one-contact scenes drop too. A contact right on the mark also drops the label, because its symbol (+-6 px)
+>   touches both candidates.
+> - **The row that replaces it:** an IDENTITY, derived in the test independently of the code, for every scene. RIGHT
+>   iff the right box is clear; LEFT iff right is blocked and left is clear; DROPPED iff both are blocked.
+> - **A loose sentence corrected:** at an EXACT zero offset the airport and aircraft text boxes only share an edge
+>   (strict, so no collision). Picture B's overlap comes from a small vertical offset; the "> 0" row holds through
+>   the other offsets.
+> - **Scope addendum (ruled in):** the traffic text the counter does not hold is also an obstacle, in Z-a's separate
+>   list, recorded at its own drawString: the emergency descriptor (with its marker dot), LOOK UP, and the watchlist
+>   and pinned callsigns. Rings and trails stay non-obstacles.
+> - **Two rows added:** AL16, "B on the left blocks the left candidate in every scene, so left is 0 there by
+>   construction", and AL17, "with B on the right, LEFT is used". The LEFT branch is exercised with two contacts.
+
 ## The defect
 
 The owner, 2026-11-13: the aircraft-type label sitting on the Bend airport label is "fine to show as 'not new in
@@ -105,6 +122,36 @@ scene (the NEAR B739 at the BDN mark):
 - A host timing of `Place()` over the sweep is the fallback, only if no window fits.
 - The bound per frame: visible airports x 2 candidates x up to 192 recorded rectangles, plus the symbol list.
 - Predicted: no change outside the A/B/A noise band on the device; under 1 microsecond per airport on the host.
+
+## Readings (the code PR)
+
+**Row (a), read 2026-11-14 against the re-frozen rows above.** `test/host/test_airport_label.cpp`, AL1-AL17, all green.
+Faces 240 and 960 read the same counts (AL15), so one line per population:
+
+| population | scenes | right | left | dropped | AFTER over-text | AFTER over-symbol | BEFORE over-text |
+|---|---|---|---|---|---|---|---|
+| one contact | 6,468 | 4,228 | 1,072 | 1,168 | **0** | **0** | 1,890 |
+| two contacts, B on the left | 1,617 | 1,155 | 0 | 462 | **0** | **0** | 348 |
+| two contacts, B on the right | 1,617 | 0 | 1,275 | 342 | **0** | **0** | 1,617 |
+
+The identity row (AL11) reads 0 misses in every population. **Red first:** against the old rule, exactly AL9, AL10,
+AL11, AL13 and AL14 read BAD. **"Left 0" with B on the left** is by construction, not a gap: B's boxes cover the left
+candidate in every one of those scenes (AL16, asserted per scene). The B-on-the-right population is where the LEFT branch
+is used with two contacts (AL17).
+
+**Sabotages,** `test/host/sabotage_airport_label.py`: each plant reads exactly its frozen red set, and the real files are
+byte-identical before and after. It has the `--anchors` and `--control` modes `test/host/run.sh` requires of every driver.
+
+| plant | red |
+|---|---|
+| S-AL-BLIND | AL9, AL10, AL11, AL13, AL14, AL17 |
+| S-AL-LEFT | AL11, AL13, AL17 |
+| S-AL-SYM | AL10, AL11 |
+| S-AL-FRAME (`Frame::Hits` ignores a dropped rectangle) | AL5 |
+| S-AL-OVF (an overflowed obstacle list is ignored) | AL6 |
+
+**Rows (b) and (d)** are read after this PR's code is fixed, not before: (b) from the web renderer's build of this
+branch, (d) in a bench window on Nov 17-18.
 
 ## Outside the set
 
