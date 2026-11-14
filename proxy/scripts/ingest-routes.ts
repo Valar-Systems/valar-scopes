@@ -44,7 +44,7 @@
  *      source commit: docs/route-sources.md s.6 pinned it by those hashes), written only after every data key has
  *      landed AND the canaries have passed. A build that dies partway leaves the PREVIOUS meta in place, so
  *      /healthz's `routes` (src/routeshealth.ts; no health surface read it before 2026-11) reports the previous
- *      build's age, stale past 14 days, rather than a fresh build that does not exist.
+ *      build's age, stale past 10 days, rather than a fresh build that does not exist.
  *
  *   2. THE COUNT IS OF WHAT WE WROTE, NOT WHAT WE READ. The row count comes
  *      from the write loop's own tally. The source file's header is a statement

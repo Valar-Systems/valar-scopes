@@ -6,7 +6,11 @@ BINARY_EXT -- images, firmware heads, packages, fonts, archives. Their bytes are
   - every printable ASCII run, and every UTF-16LE run, of 6 bytes or more, under check_wifi.py's OWN patterns (a network
     name in an association or ssid context, a BSSID, a private LAN address), plus a user-directory path (C:/Users/<x>,
     /Users/<x>, /home/<x>; GitHub's runner prefix /home/runner/ names no one and is allowed);
-  - for jpg, jpeg, png and webp: EXIF GPS (a GPS IFD holding a latitude or longitude tag) and XMP location tags;
+  - for every IMAGE: EXIF GPS (a GPS IFD holding a latitude or longitude tag) and XMP location tags. An image is known
+    by its MAGIC, whatever its name says (jpeg, png, webp, tiff -- the whole file is the TIFF -- and heif/avif, whose
+    'Exif' item is followed through meta/iinf and meta/iloc), and also, as before, by a jpg/jpeg/png/webp extension:
+    the extension path is kept whole and the magic path only adds to it. A HEIF whose meta cannot be parsed, or whose
+    Exif item cannot be followed to a TIFF header, fails as `exif-unread` until it is reviewed;
   - `wifi-store`: ESP-IDF's Wi-Fi NVS namespace or the firmware's own Wi-Fi namespaces, in a file that is NOT an ESP app
     image -- the tell of a committed settings or flash dump, whose network name has no context and whose BSSID is 6 raw
     bytes. Every app image carries those names in its code, so an app image (E9, and esp_app_desc_t's magic at 0x20) is
@@ -23,7 +27,7 @@ is exactly what this reads.
 
     python3 scripts/check_binary_strings.py [--root DIR] [--allow FILE]   exit 0 clean; 1 a finding, a stale or idle
                                                                            allowance; 2 rig or BLIND
-    python3 scripts/check_binary_strings.py --selftest [--root DIR]       25 rows, each plant in a copy of a real tracked
+    python3 scripts/check_binary_strings.py --selftest [--root DIR]       32 rows, each plant in a copy of a real tracked
                                                                            file; each must see exactly its file and kind
     python3 scripts/check_binary_strings.py --sabotage                    each sabotage, planted into a copy of this
                                                                            script, must turn exactly its rows red
@@ -69,7 +73,9 @@ PDF_EXT = {"pdf"}
 CONTAINER_EXT = {"zip", "3mf", "gz", "tgz", "tar", "xz", "7z"}
 PHOTO = {"jpg", "jpeg", "png", "webp"}
 CAP = 64 * 1024 * 1024                          # inflated bytes per container (Q82 c1)
-KINDS = ("name", "bssid", "lan", "path", "exif-gps", "xmp-location", "wifi-store", "font", "pdf", "container")
+KINDS = ("name", "bssid", "lan", "path", "exif-gps", "exif-unread", "xmp-location", "wifi-store", "font", "pdf",
+         "container")
+HEIF_BRANDS = {b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"mif1", b"msf1", b"avif", b"avis"}
 HASH_SETTLED = {"font": FONT_EXT, "pdf": PDF_EXT}
 
 
@@ -128,6 +134,110 @@ def exif_blocks(data, ext):
     except struct.error:
         pass
     return out
+
+
+def image_kind(raw):
+    """An image kind by MAGIC, whatever the name says: jpeg, png, webp, tiff or heif (heif and avif brands); else None."""
+    if raw[:3] == b"\xff\xd8\xff":
+        return "jpeg"
+    if raw[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png"
+    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return "webp"
+    if raw[:4] in (b"II*\x00", b"MM\x00*"):
+        return "tiff"
+    if raw[4:8] == b"ftyp" and len(raw) >= 16:
+        n = struct.unpack(">I", raw[:4])[0]
+        brands = {raw[8:12]} | {raw[i:i + 4] for i in range(16, min(n, len(raw)) - 3, 4)}
+        if brands & HEIF_BRANDS:
+            return "heif"
+    return None
+
+
+def _boxes(d, start, end):
+    """(type, payload start, box end) for each ISO-BMFF box in d[start:end]; ValueError on a size that does not fit."""
+    i = start
+    while i + 8 <= end:
+        n, t, h = struct.unpack(">I", d[i:i + 4])[0], d[i + 4:i + 8], 8
+        if n == 1:
+            n, h = struct.unpack(">Q", d[i + 8:i + 16])[0], 16
+        elif n == 0:
+            n = end - i
+        if n < h or i + n > end:
+            raise ValueError("box size")
+        yield t, i + h, i + n
+        i += n
+
+
+def heif_exif(d):
+    """([TIFF block], unread) of a HEIF: each item of type 'Exif' (meta/iinf), followed through meta/iloc (construction
+    method 0, every extent inside the file) to its TIFF header, at 4 + the item's leading big-endian offset. unread is
+    True when the meta cannot be parsed or an Exif item cannot be followed: blind is never reported as absent."""
+    try:
+        meta = next(((p, e) for t, p, e in _boxes(d, 0, len(d)) if t == b"meta"), None)
+        if meta is None:
+            return [], False
+        kids = {t: (p, e) for t, p, e in _boxes(d, meta[0] + 4, meta[1])}       # meta is a full box
+        ids = set()
+        if b"iinf" in kids:
+            p, e = kids[b"iinf"]
+            for t, ip, _ in _boxes(d, p + 4 + (2 if d[p] == 0 else 4), e):
+                if t != b"infe" or d[ip] < 2:
+                    continue
+                w = 2 if d[ip] == 2 else 4
+                if d[ip + 4 + w + 2:ip + 4 + w + 6] == b"Exif":
+                    ids.add(int.from_bytes(d[ip + 4:ip + 4 + w], "big"))
+        if not ids:
+            return [], False
+        locs = {}
+        if b"iloc" in kids:
+            p, _ = kids[b"iloc"]
+            v, q = d[p], p + 4
+            osz, lsz, bsz, isz = d[q] >> 4, d[q] & 15, d[q + 1] >> 4, (d[q + 1] & 15 if v in (1, 2) else 0)
+            q += 2
+
+            def rd(width):
+                nonlocal q
+                x = int.from_bytes(d[q:q + width], "big")
+                q += width
+                return x
+            for _ in range(rd(4 if v == 2 else 2)):
+                iid = rd(4 if v == 2 else 2)
+                cm = rd(2) & 15 if v in (1, 2) else 0
+                rd(2)                                                            # data_reference_index
+                base, ext = rd(bsz), []
+                for _ in range(rd(2)):
+                    if isz:
+                        rd(isz)
+                    off = rd(osz)
+                    ext.append((base + off, rd(lsz)))
+                locs[iid] = (cm, ext)
+        blocks, unread = [], False
+        for iid in sorted(ids):
+            cm, ext = locs.get(iid, (None, []))
+            if cm != 0 or not ext or any(n <= 0 or o + n > len(d) for o, n in ext):
+                unread = True
+                continue
+            item = b"".join(d[o:o + n] for o, n in ext)
+            tiff = item[4 + struct.unpack(">I", item[:4])[0]:] if len(item) >= 4 else b""
+            if tiff[:4] in (b"II*\x00", b"MM\x00*"):
+                blocks.append(tiff)
+            else:
+                unread = True
+        return blocks, unread
+    except (ValueError, struct.error, IndexError):
+        return [], True
+
+
+def exif_magic(raw, kind):
+    """(EXIF blocks, unread) by the MAGIC kind; ([], False) for a file that is not an image."""
+    if kind in ("jpeg", "png", "webp"):
+        return exif_blocks(raw, {"jpeg": "jpg", "png": "png", "webp": "webp"}[kind]), False
+    if kind == "tiff":
+        return [raw], False
+    if kind == "heif":
+        return heif_exif(raw)
+    return [], False
 
 
 # ------------------------------------------------------------------------------------------------- containers
@@ -217,11 +327,17 @@ def kinds_of_bytes(ext, raw):
         found.update(cw.line_findings(r)[0])
         if USERPATH.search(r):
             found.add("path")
+    # An image by its MAGIC as well as by its name: the extension path is kept whole and the magic path adds to it.
+    kind = image_kind(raw)
+    blocks, unread = exif_magic(raw, kind)
     if ext in PHOTO:
-        if any(tiff_gps(b) for b in exif_blocks(raw, ext)):
-            found.add("exif-gps")
-        if b"x:xmpmeta" in raw and any(t in raw for t in XMP_LOC):
-            found.add("xmp-location")
+        blocks = exif_blocks(raw, ext) + blocks
+    if any(tiff_gps(b) for b in blocks):
+        found.add("exif-gps")
+    if unread:
+        found.add("exif-unread")
+    if (ext in PHOTO or kind) and b"x:xmpmeta" in raw and any(t in raw for t in XMP_LOC):
+        found.add("xmp-location")
     if not is_app_image(raw) and any(n in raw for n in WIFI_STORE):
         found.add("wifi-store")
     return found
@@ -339,6 +455,31 @@ def _tiff_gps():
     return bytes(t)
 
 
+def _tiff_plain():
+    """A minimal little-endian TIFF with NO GPS IFD: IFD0 holds one Orientation entry."""
+    return (b"II*\x00" + struct.pack("<I", 8) + struct.pack("<H", 1) + struct.pack("<HHIHH", 0x0112, 3, 1, 1, 0)
+            + struct.pack("<I", 0))
+
+
+def _box(t, payload):
+    return struct.pack(">I", 8 + len(payload)) + t + payload
+
+
+def _heif(tiff, with_iloc=True):
+    """A minimal HEIF: ftyp heic; meta holding iinf (one 'Exif' infe) and, unless with_iloc is False, iloc pointing into
+    mdat; mdat holding the Exif item (a 4-byte offset of 6, "Exif" and two NULs, then the TIFF)."""
+    item = struct.pack(">I", 6) + b"Exif\x00\x00" + tiff
+    ftyp = _box(b"ftyp", b"heic" + struct.pack(">I", 0) + b"mif1heic")
+    infe = _box(b"infe", bytes([2, 0, 0, 0]) + struct.pack(">HH", 1, 0) + b"Exif" + b"\x00")
+    iinf = _box(b"iinf", bytes([0, 0, 0, 0]) + struct.pack(">H", 1) + infe)
+
+    def meta(off):
+        iloc = _box(b"iloc", bytes([0, 0, 0, 0, 0x44, 0x00]) + struct.pack(">HHHHII", 1, 1, 0, 1, off, len(item)))
+        return _box(b"meta", bytes([0, 0, 0, 0]) + iinf + (iloc if with_iloc else b""))
+    off = len(ftyp) + len(meta(0)) + 8
+    return ftyp + meta(off) + _box(b"mdat", item)
+
+
 def _exif_gps_segment():
     body = b"Exif\x00\x00" + _tiff_gps()
     return b"\xff\xe1" + struct.pack(">H", len(body) + 2) + body
@@ -428,6 +569,25 @@ def selftest(root):
         (24, "(d) control: the names in an app image", {app: appr + nvs}, [], base_allow, CAP, []),
         (25, "(d2) the names after E9 with no app descriptor", {app: no_desc + nvs}, [], base_allow, CAP,
          [(app, "wifi-store")]),
+        # (m) an image known by its MAGIC: a wrong extension, a TIFF, a HEIF (2026-11-14, the owner's image-GPS check)
+        (26, "(m) an EXIF GPS jpg named .bin", {"plant/photo.bin": jpgr[:2] + _exif_gps_segment() + jpgr[2:]},
+         ["plant/photo.bin"], base_allow, CAP, [("plant/photo.bin", "exif-gps")]),
+        (27, "(m) an eXIf GPS png named .jpg", {"plant/thumb.jpg": _png_with_gps(pngr)}, ["plant/thumb.jpg"],
+         base_allow, CAP, [("plant/thumb.jpg", "exif-gps")]),
+        (28, "(m) a GPS .tif member of a .3mf",
+         {tmf: _zip_with(tmfr, "plant/scan.tif", _tiff_gps(), zipfile.ZIP_DEFLATED)}, [], base_allow, CAP,
+         [(tmf + "!plant/scan.tif", "exif-gps")]),
+        (29, "(m) a GPS .heic member of a .3mf",
+         {tmf: _zip_with(tmfr, "plant/photo.heic", _heif(_tiff_gps()), zipfile.ZIP_DEFLATED)}, [], base_allow, CAP,
+         [(tmf + "!plant/photo.heic", "exif-gps")]),
+        (30, "(m) a .heic member whose Exif has no iloc",
+         {tmf: _zip_with(tmfr, "plant/broken.heic", _heif(_tiff_gps(), False), zipfile.ZIP_DEFLATED)}, [],
+         base_allow, CAP, [(tmf + "!plant/broken.heic", "exif-unread")]),
+        (31, "(m) control: a .heic member with no GPS",
+         {tmf: _zip_with(tmfr, "plant/clean.heic", _heif(_tiff_plain()), zipfile.ZIP_DEFLATED)}, [], base_allow, CAP,
+         []),
+        (32, "(m) control: a .tif member with no GPS",
+         {tmf: _zip_with(tmfr, "plant/clean.tif", _tiff_plain(), zipfile.ZIP_DEFLATED)}, [], base_allow, CAP, []),
     ]
 
     ok = True
@@ -468,10 +628,17 @@ SABOTAGES = {
                "            cw.decode(raw)\n            continue\n        except UnicodeDecodeError:\n            pass\n"
                "        if not cw.is_binary_ext(rel):\n            continue\n", {15}),
     "S-Q82c": ("    if ext in PDF_" + "EXT:\n        return [(\"\", \"pdf\")], 0\n    if ext in CONTAINER_" + "EXT:\n",
-               "    if False:  # SABOTAGE S-Q82c: no PDF hash rule, no container reading\n", {17, 18, 19, 20, 21, 22}),
+               "    if False:  # SABOTAGE S-Q82c: no PDF hash rule, no container reading\n",
+               {17, 18, 19, 20, 21, 22, 28, 29, 30}),
     "S-Q82d": ("WIFI_STORE = (b\"nvs.\" + b\"net80211\"", "WIFI_STORE = () and (b\"nvs.\" + b\"net80211\"", {23, 25}),
     "S-Q82e": ("    return raw[:1] == b\"\\xe9\" and raw[0x20:0x24] == APP_" + "MAGIC\n",
                "    return raw[:1] == b\"\\xe9\"  # SABOTAGE S-Q82e: E9 alone exempts\n", {25}),
+    "S-MAGIC": ("    kind = image_" + "kind(raw)\n", "    kind = None  # SABOTAGE S-MAGIC: by extension only\n",
+                {26, 27, 28, 29, 30}),
+    "S-TIFF": ("    if kind == \"ti" + "ff\":\n        return [raw], False\n",
+               "    if kind == \"tiff\":  # SABOTAGE S-TIFF: a TIFF is not read\n        return [], False\n", {28}),
+    "S-HEIF": ("    if kind == \"he" + "if\":\n        return heif_exif(raw)\n",
+               "    if kind == \"heif\":  # SABOTAGE S-HEIF: a HEIF is not read\n        return [], False\n", {29, 30}),
 }
 ROW = re.compile(r"^\s*(ok|FAIL)\s+(\d+)\s")
 
@@ -492,7 +659,7 @@ def sabotage(root):
     src = open(os.path.abspath(__file__), encoding="utf-8").read().replace("\r\n", "\n")
     ok = True
     rc, red, rows = _selftest_of(src, root)
-    good = rc == 0 and not red and len(rows) == 25
+    good = rc == 0 and not red and len(rows) == 32
     print("  %s control: the unplanted copy's selftest: exit %d, %d rows, red %s" % ("ok  " if good else "FAIL", rc,
                                                                                   len(rows), sorted(red) or "-"))
     ok &= good
@@ -505,7 +672,7 @@ def sabotage(root):
         planted = src.replace(anchor, repl)
         assert planted != src
         rc, red, rows = _selftest_of(planted, root)
-        good = rc == 1 and red == want and len(rows) == 25
+        good = rc == 1 and red == want and len(rows) == 32
         ok &= good
         print("  %s %s: exit %d, red %s (want %s)" % ("ok  " if good else "FAIL", name, rc, sorted(red), sorted(want)))
     print("SABOTAGE " + ("PASSED" if ok else "FAILED"))

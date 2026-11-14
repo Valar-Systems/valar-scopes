@@ -22,6 +22,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Two commits, so the coordinate gate's --diff HEAD^1 has its base: on a pull_request run HEAD is the merge
+          # commit and HEAD^1 the base branch tip; on a push, HEAD^1 is the previous main. Every other step reads HEAD.
+          # A push of SEVERAL commits is diffed against its last parent only, so --diff alone would miss a coordinate
+          # added in an earlier commit of that push. The whole-tree ratchet (a count above the baseline fails) is what
+          # catches it: keep that refusal, it is not redundant with --diff.
+          fetch-depth: 2
       # No committed file names the bench network: a network name in an association or ssid context, a
       # BSSID, a private LAN address (docs/wifi-scrub.md; it absorbed check_bssid.py). And the recorders'
       # two redaction implementations agree. pwsh is on the ubuntu image.
@@ -46,6 +53,13 @@ jobs:
       # would be permanently red, and a control that can never pass is a control
       # somebody disables. See scripts/check_device_ids.py.
       - run: python3 scripts/check_device_ids.py
+      # No new coordinate near Bend past 2 dp, and the tree's count of them only falls (scripts/check_precise_coords.py,
+      # the owner's rule of 2026-11-13; clock times and .step/.stp are the ruled exemptions, 2026-11-14). The selftest's
+      # rows use values generated at run time, each sabotage must turn exactly its rows red, then the tree against its
+      # baseline and every line added since HEAD^1. Findings print as path:line only.
+      - run: python3 scripts/check_precise_coords.py --selftest
+      - run: python3 scripts/check_precise_coords.py --sabotage
+      - run: python3 scripts/check_precise_coords.py --diff HEAD^1
       # No committed file names a board's MAC, whole or by its device name (scripts/check_macs.py; it needs no registry).
       # The selftest plants one twin of each form, and each sabotage must turn exactly its rows red.
       - run: python3 scripts/check_macs.py

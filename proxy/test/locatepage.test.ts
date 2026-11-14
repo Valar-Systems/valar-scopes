@@ -94,9 +94,9 @@ describe("origin rule", () => {
 
 describe("formatter", () => {
   it("4 decimals, never -0.0000", () => {
-    expect(formatCoord(44.05824)).toBe("44.0582");
+    expect(formatCoord(12.34561)).toBe("12.3456");
     expect(formatCoord(-0.00004)).toBe("0.0000");
-    expect(formatCoord(-121.31534)).toBe("-121.3153");
+    expect(formatCoord(-98.76541)).toBe("-98.7654");
     expect(formatCoord(90)).toBe("90.0000");
   });
 });

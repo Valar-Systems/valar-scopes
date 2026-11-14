@@ -17,7 +17,7 @@ const require = createRequire(import.meta.url);
 const loader = fs.readdirSync(dir).find((f) => /^blipscope-web-.*\.js$/.test(f));
 if (!loader) { console.log(`INSTRUMENT: no blipscope-web-*.js in ${dir}`); process.exit(2); }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const BEND = { latitude: "44.0582", longitude: "-121.3153", radius: "40", "radius-unit": "km", airports: "true" };
+const BEND = { latitude: "44.06", longitude: "-121.32", radius: "40", "radius-unit": "km", airports: "true" };
 const FIELD = JSON.stringify({ v: 1, a: [[44.1, -121.2, "XFLD", "S"]] });   // EXAMPLE: not a real airport code
 let failures = 0;
 const check = (id, ok, what) => { if (!ok) failures++; console.log(`  ${ok ? "ok  " : "FAIL"} ${id} ${what}`); };

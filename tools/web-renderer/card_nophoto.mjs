@@ -30,7 +30,7 @@ const require = createRequire(import.meta.url);
 const loader = fs.readdirSync(dir).find((f) => /^blipscope-web-.*\.js$/.test(f));
 if (!loader) { console.log(`INSTRUMENT: no blipscope-web-*.js in ${dir}`); process.exit(2); }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const BEND = { latitude: "44.0582", longitude: "-121.3153", radius: "40", "radius-unit": "km" };
+const BEND = { latitude: "44.06", longitude: "-121.32", radius: "40", "radius-unit": "km" };
 const CS = "SKW3307", HEX = "a7d9f5";
 const ROWS = [["CN1", "SLC -> SEA"], ["CN2", "Type: CRJ9"], ["CN3", "SkyWest Airlines"]];
 const CAPTIONS = ["Loading photo...", "No photo available"];

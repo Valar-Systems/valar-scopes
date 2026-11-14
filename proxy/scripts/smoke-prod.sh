@@ -332,12 +332,14 @@ printf '\n===== /healthz wx, every product =====\n'
 wx_products_section "$HEALTH_BODY"
 
 # The rt: route mirror's age (docs/route-mirror-age.md), from the /healthz body fetched above (no new request). The
-# limit is the body's own maxAgeDays. ROUTES_AGE_MODE is "warn" until an approved refresh has landed and been verified:
-# in warn mode the line is information only and touches neither pass nor fail, so it never changes this script's exit
-# code (the wx-lines precedent). In "fail" mode a PASS counts as a pass and anything else as a FAIL. The verdict and
-# its cases live in routes-age-verdict.sh, graded by routes-age-verdict.selftest.sh in CI.
+# limit is the body's own maxAgeDays: 10 days (the owner, 2026-11-13; docs/route-age-alert.md). FAIL mode since the
+# approved refresh of 2026-11-13 landed and was verified: a PASS counts as a pass and anything else -- stale, no age, no
+# field, an unreadable body -- as a FAIL. A deploy registration grades this line as its OWN row and never rolls back an
+# unrelated deploy over it: a rollback cannot change the data's age (ruled 2026-11-13). Warn mode (information only)
+# stays in routes-age-verdict.sh for the selftest. The verdict and its cases are graded by routes-age-verdict.selftest.sh
+# in CI, which also checks (SV7, SV8) that this script sets fail mode once and counts it.
 printf '\n===== /healthz routes mirror age =====\n'
-ROUTES_AGE_MODE="warn"
+ROUTES_AGE_MODE="fail"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/routes-age-verdict.sh"
 RA_TMP="$(mktemp)"
 printf '%s' "$HEALTH_BODY" > "$RA_TMP"
