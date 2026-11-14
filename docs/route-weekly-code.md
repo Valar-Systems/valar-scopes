@@ -174,6 +174,19 @@ decide.
 The new selftest (`routes-guards.selftest.mts`) is NOT yet a CI step. W7 wires it into `workers.yml` in a later
 commit, with its own prediction.
 
+**CI-C3, the stage-2 push (predicted 2026-11-14 ~04:05Z, before the push).**
+- **The push carries:** the upper-bound ruling, section 2c, and W2 stage 2 (`ingest-routes.ts`, plus the new
+  `routes-fixture.mts` and `routes-writer.selftest.sh`, neither yet a CI step).
+- **The baseline:** main is `ce726004` (#713), read with `git ls-remote` at ~04:00Z. The last workflow change is #711
+  (`26f486ab`): three steps added to device-ids' one job, and no new job. #703's head ran 36 = 34 + 2 against it.
+- **Locally, before the push:** `typecheck:scripts` exit 0. `git merge-tree` against main is clean; main's
+  `ingest-routes.ts` change (#703's comment) merges without conflict. #711's coordinate gate on a local merge into
+  `ce726004` is in section 7.
+- **Predicted: 36 check-runs = 34 success + 2 skipped (promote, version) + 0 other,** across the four
+  `pull_request` workflows, all success: device-ids (now also running #711's gate over this PR's added lines),
+  firmware, no-traffic-captures and workers.
+- **Outside the set:** any other total or split. Stop and decide.
+
 ## 4. The staging rehearsal and the first runs
 
 1. **A dry run of each environment**, attended. It prints counts only: `sourceCommit`, rows, writes, deletes by kind
