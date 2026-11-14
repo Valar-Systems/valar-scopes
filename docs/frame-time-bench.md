@@ -521,18 +521,21 @@ from the same table.
   - **PIX is not part of this row.** Neither FT registration grades a frame buffer, and PIX-MAP's thresholds have no
     measured basis at FT's homes. So FT-WX's weather-ON claim rests on bit 1 alone. Whether FT-HR adds PIX-WX is
     before the orchestrator (map-server, 18:08:18Z); this row changes if it is ruled in.
-  - **Red first, in the reader's selftest, before the sibling's reader is used. Nine cases:**
-    - **FT-MAP's control:** bit 2 set, bits 1 and 3 clear on every measured frame. **Predicted:** graded.
-    - **FT-MAP's three plants, one bit each:** bit 2 clear on one measured frame; bit 1 set on one; bit 3 set on one.
-      **Predicted:** each reads that scene as the INSTRUMENT and names the bit.
-    - **FT-WX's control:** bits 1 and 2 set, bit 3 clear on every measured frame. **Predicted:** graded.
-    - **FT-WX's plant:** bit 1 clear on one measured frame. **Predicted:** INSTRUMENT on bit 1. (Its bit 2 and bit 3
-      plants are H4's FIXED-(a) cases, which the same function grades.)
-    - **The two reds that justify the kinds:** FT-MAP's control relabelled FIXED-(a), and FT-WX's control relabelled
+  - **Red first, in the reader's selftest, before the sibling's reader is used. Eleven cases, on the orchestrator's
+    ruling (2026-11-14, after 18:08Z):**
+    - **C1, FT-MAP's control:** bit 2 set, bits 1 and 3 clear on every measured frame. **Predicted:** graded.
+    - **C2-C4, FT-MAP's one-bit plants,** each on one measured frame: C2 bit 2 clear, C3 bit 1 set, C4 bit 3 set.
+      **Predicted:** INSTRUMENT on bit 2, bit 1 and bit 3 respectively.
+    - **C5, FT-WX's control:** bits 1 and 2 set, bit 3 clear on every measured frame. **Predicted:** graded.
+    - **C6-C8, FT-WX's one-bit plants,** each on one measured frame: C6 bit 1 clear, C7 bit 2 clear, C8 bit 3 set.
+      **Predicted:** INSTRUMENT on bit 1, bit 2 and bit 3 respectively.
+    - **C9-C10, the cross-plants:** C9 is FT-MAP's control relabelled FT-WX; C10 is FT-WX's control relabelled
       FT-MAP. **Predicted:** each reads INSTRUMENT on bit 1.
-    - **An unknown kind.** **Predicted:** STOP.
-    - Any other reading of the nine is outside the set: stop and decide. The reader is not used until all nine read
-      as predicted.
+    - **C11, an unknown kind.** **Predicted:** STOP.
+    - **The full red set, predicted:** INSTRUMENT on exactly C2-C4 and C6-C10 (eight cases, each naming the bit above),
+      STOP on exactly C11, graded on exactly C1 and C5.
+    - Any other reading of the eleven is outside the set: stop and decide. The reader is not used until all eleven
+      read as predicted.
 
 **H5, FIXED-(a) against LIVE (XA), with a frozen tolerance.**
 - **The line:** at each home, FIXED-(a)'s 30 s p95(`p2p`) windows at 25 mi, levels 20, 40 and 60, fitted p95 against
