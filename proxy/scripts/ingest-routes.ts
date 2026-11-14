@@ -151,6 +151,9 @@ interface Args {
   maxDeletes?: number;
   allowShards: string[];
   allowRemoved: number;
+  outWritten?: string;
+  outDeleted?: string;
+  sourceDate?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -171,6 +174,9 @@ function parseArgs(argv: string[]): Args {
     else if (argv[i] === "--max-deletes") a.maxDeletes = Number(argv[++i]);
     else if (argv[i] === "--allow-shard") a.allowShards.push(argv[++i] as string);
     else if (argv[i] === "--allow-removed") a.allowRemoved = Number(argv[++i]);
+    else if (argv[i] === "--out-written") a.outWritten = argv[++i];
+    else if (argv[i] === "--out-deleted") a.outDeleted = argv[++i];
+    else if (argv[i] === "--source-date") a.sourceDate = argv[++i];
   }
   return a;
 }
@@ -357,7 +363,7 @@ type Meta = Record<string, unknown> & { shards: Record<string, string> };
  * returned as absent, and anything else -- auth, network, config, an unparsable value -- refuses here, printing why.
  * Shared by the full mode and the key-level mode (moved unchanged out of main(), 2026-11-13).
  */
-function readMeta(env: string): { kind: "absent" } | { kind: "ok"; meta: Meta } {
+function readMeta(env: string): { kind: "absent" } | { kind: "ok"; meta: Meta; raw: string } {
   const cmd = ["node", KV_CLI, "kv", "key", "get", q(META_KEY),
     "--binding=ENRICH_KV", `--env=${env}`, "--remote"].join(" ");
   let raw: string;
@@ -386,7 +392,7 @@ function readMeta(env: string): { kind: "absent" } | { kind: "ok"; meta: Meta } 
     if (!parsed || typeof parsed !== "object" || !parsed.shards) {
       throw new Error("no `shards` field in the meta value");
     }
-    return { kind: "ok", meta: parsed };
+    return { kind: "ok", meta: parsed, raw };
   } catch (e) {
     console.error(`REFUSING: ${META_KEY} read back but did not parse as a manifest.`);
     console.error(`reason: ${(e as Error).message}`);
@@ -398,6 +404,134 @@ function readMeta(env: string): { kind: "absent" } | { kind: "ok"; meta: Meta } 
 function refuse(code: number, ...lines: string[]): never {
   for (const l of lines) console.error(l);
   process.exit(code);
+}
+
+type Enrich = (cs: string) => { o?: string; d?: string } | null;
+/**
+ * The live read path, as the TEST identity: the base URL and a GET /v1/enrich probe. Shared by the full mode and the
+ * key-level mode (moved unchanged out of main(), 2026-11-14), so there is one implementation of it, not two.
+ */
+function liveReader(env: string): { base: string; enrich: Enrich } {
+  const base = env === "production"
+    ? "https://scopes.valarsystems.com"
+    : "https://scopes-staging.valarsystems.com";
+  // The TEST identity (docs/test-identity.md, Q-T3), never a board's pair: resolveTestIdentity refuses BLIP_KEY/
+  // BLIP_DEVICE and records-device. Never printed, and never on a command line (the read-back below sends it on stdin).
+  let key = "", device = "", why = "";
+  try {
+    ({ key, device } = resolveTestIdentity(env === "production" ? "production" : "staging"));
+  } catch (e) {
+    if (!(e instanceof TokenFileError)) throw e;
+    why = e.message;
+  }
+  if (!key || !device) {
+    console.error("REFUSING: no test identity, so nothing can be read back through");
+    if (why) console.error("  (the token file: " + why + ")");
+    console.error("the live path. An unverified build must not publish a fresh row count.");
+    process.exit(1);
+  }
+  // curl reads both headers from STDIN (-K -): the key is never a process argument (docs/test-identity.md, item 7)
+  const authConfig = `header = "X-Blip-Key: ${key}"\nheader = "X-Blip-Device: ${device}"\n`;
+
+  /** GET /v1/enrich for one callsign. Returns null when the request itself failed. */
+  const enrich: Enrich = (cs) => {
+    const url = `${base}/v1/enrich/000000?cs=${cs}`;
+    try {
+      const body = execFileSync("curl", ["-s", "--max-time", "25", "-K", "-", url], { encoding: "utf8", input: authConfig });
+      return JSON.parse(body) as { o?: string; d?: string };
+    } catch (e) {
+      // DO NOT PRINT THE ERROR MESSAGE. execSync puts the whole failed command in
+      // e.message, and the command carries `-H "X-Blip-Key: <secret>"` about forty
+      // characters in -- so any slice long enough to be useful also leaks the
+      // device key into the log, and CI logs outlive the run. Report the status
+      // only; the key is never the interesting part of the failure anyway.
+      const status = (e as { status?: number }).status;
+      console.log(`  ! ${cs} request failed (curl exit ${status ?? "?"})`);
+      return null;
+    }
+  };
+  return { base, enrich };
+}
+
+/** PFX1 (the owner, 2026-11-13): the only keys a route run may write or delete. Checked for EVERY key, before any write. */
+const SENTINEL_KEY = /^rt:ZZ[0-9A-F]{5}S$/;
+const pfxOk = (k: string) => G.MIRROR_KEY.test(k) || SENTINEL_KEY.test(k) || k === META_KEY;
+const ISO_SECONDS = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
+const sha256File = (p: string) => createHash("sha256").update(readFileSync(p)).digest("hex");
+const sha256Text = (s: string) => createHash("sha256").update(s).digest("hex");
+
+/** Bulk put or bulk delete through the helper in chunks, retried with backoff; exits on a chunk that fails every retry. */
+function kvChunks(kind: "put" | "delete", items: unknown[], env: string, tmp: string): number {
+  let retries = 0;
+  for (let i = 0; i < items.length; i += BULK_CHUNK) {
+    const chunk = items.slice(i, i + BULK_CHUNK);
+    const path = join(tmp, `${kind}-${i / BULK_CHUNK}.json`);
+    writeFileSync(path, JSON.stringify(chunk));
+    console.log(`bulk ${kind} ${chunk.length} (${i + chunk.length}/${items.length}) ...`);
+    const cmd = ["node", KV_CLI, "kv", "bulk", kind, q(sh(path)), "--binding=ENRICH_KV", `--env=${env}`, "--remote",
+      ...(kind === "delete" ? ["--force"] : [])].join(" ");
+    const r = putWithBackoff((c) => { execSync(c, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" }); },
+      cmd, [5, 15, 45, 120], sleepSync);
+    retries += r.retries;
+    if (!r.ok) {
+      console.error(`REFUSING: the ${kind} chunk at offset ${i} failed every retry. Nothing further is changed, and`);
+      console.error("meta:routes is untouched, so this run reads as the failure it is.");
+      console.error(`--- last wrangler output ---\n${r.lastErr}\n----------------------------`);
+      process.exit(1);
+    }
+  }
+  return retries;
+}
+
+/**
+ * --seal-only: write meta:routes and nothing else, and only on a verify receipt for THIS source, THIS environment and
+ * the meta the run was built against (GR9). The manifest comes from the source, so the next run can prove it.
+ */
+function sealOnlyMain(args: Args) {
+  const env = args.env as string;
+  if (!args.file) refuse(2, "REFUSING (GR9): --seal-only needs --file <the source the verified run wrote>.");
+  if (!args.receipt) refuse(2, "REFUSING (GR9): --seal-only needs --receipt <the verify's receipt>. Nothing is sealed without one.");
+  if (args.sourceDate !== undefined && !ISO_SECONDS.test(args.sourceDate)) {
+    refuse(2, "REFUSING (SD1): --source-date must be an ISO UTC time such as 2026-11-12T10:00:00Z. Nothing sealed.");
+  }
+  let r: Record<string, unknown>;
+  try { r = JSON.parse(readFileSync(args.receipt as string, "utf8")) as Record<string, unknown>; }
+  catch { refuse(2, "REFUSING (GR9): the receipt does not parse. Nothing sealed."); }
+  const sourceSha256 = sha256File(args.file as string);
+  const nw = parseSource(args.file as string, mkdtempSync(join(tmpdir(), "routes-seal-")), "new: ");
+  const m = readMeta(env);
+  if (m.kind === "absent") refuse(1, "REFUSING (GR9): no meta:routes to seal over; the key-level mode needs the meta its run was proven against.");
+  const metaSha = sha256Text((m as { raw: string }).raw);
+  const why: string[] = [];
+  if (r.v !== 1) why.push("receipt version");
+  if (r.result !== "PASS") why.push("the verify did not PASS");
+  if (r.env !== env) why.push("a receipt for another environment");
+  if (r.sourceCommit !== nw.commit) why.push("a receipt for another source commit");
+  if (r.sourceSha256 !== sourceSha256) why.push("a receipt for another source tarball");
+  if (r.deletesRefused !== false) why.push("the run's deletes were refused, and a run that cannot delete must not seal");
+  if (r.prevMetaSha256 !== metaSha) why.push("meta:routes changed since the run the receipt verified");
+  if (why.length > 0) refuse(1, `REFUSING (GR9): the receipt does not match this seal: ${why.join("; ")}. Nothing sealed.`);
+  const meta = {
+    v: 1,
+    ruleRev: RULE_REV,
+    rows: nw.totalRows,
+    written: r.written,
+    deleted: r.deleted,
+    pendingDeletes: 0, // a run whose deletes were refused never seals, so a sealed meta never carries any
+    builtAt: new Date().toISOString(),
+    source: "vradarserver/standing-data (CC0 1.0)",
+    mode: "key-level",
+    sourceCommit: nw.commit,
+    sourceSha256,
+    prevSourceCommit: r.prevSourceCommit,
+    readback: r.readback,
+    ...(typeof r.sentinel === "string" ? { sentinel: r.sentinel } : {}),
+    ...(args.sourceDate !== undefined ? { sourceCommittedAt: args.sourceDate } : {}),
+    shards: Object.fromEntries([...nw.shards.entries()].map(([n, s]) => [n, `${s.hash}:${s.pairs.length}`])),
+  };
+  if (!pfxOk(META_KEY)) refuse(1, "REFUSING (PFX1): the meta key is outside the route prefix.");
+  kvChunks("put", [{ key: META_KEY, value: JSON.stringify(meta) }], env, mkdtempSync(join(tmpdir(), "routes-meta-")));
+  console.log(`meta sealed: rows=${nw.totalRows} written=${String(r.written)} deleted=${String(r.deleted)} mode=key-level source ${nw.commit.slice(0, 12)} readback=${String(r.readback)}`);
 }
 
 /**
@@ -414,12 +548,15 @@ function refuse(code: number, ...lines: string[]): never {
  */
 async function keyLevelMain(args: Args) {
   if (!args.env) refuse(2, "REFUSING: the key-level mode needs --env <staging|production>");
+  if (args.sealOnly) return sealOnlyMain(args);
   if (!args.file || !args.prev) refuse(2, "REFUSING: the key-level mode needs --file <the new source> and --prev <the snapshot meta:routes was built from>");
   const scheduled = process.env.GITHUB_EVENT_NAME === "schedule";
   const overrides = args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved > 0;
   if (scheduled && overrides) refuse(5, "REFUSING: an override was passed to a scheduled run. A scheduled run can never override a guard (G5).");
-  if (args.sealOnly) refuse(2, "REFUSING: --seal-only is not built yet (stage 1 is the dry run).");
-  if (!args.dryRun) refuse(2, "REFUSING: only --dry-run is built in stage 1; the write, delete and seal steps follow, each red-first.");
+  // KL1, seal last by construction: a key-level run that writes never seals, so it must say so.
+  if (!args.dryRun && !args.noSeal) {
+    refuse(2, "REFUSING (KL1): a key-level run that writes must be given --no-seal. meta:routes is written only by --seal-only, with a verify receipt.");
+  }
 
   const nw = parseSource(args.file, mkdtempSync(join(tmpdir(), "routes-new-")), "new: ");
   const pv = parseSource(args.prev, mkdtempSync(join(tmpdir(), "routes-prev-")), "prev: ");
@@ -490,7 +627,92 @@ async function keyLevelMain(args: Args) {
   }
   const deletesAllowed = verdicts.every((v) => v.ok);
   console.log(`plan: write ${added + changed}; ${deletesAllowed ? `delete ${deletes.length}` : `delete NONE (refused), so the run would NOT seal`}; seal: never in-run (--seal-only after a verify PASS)`);
-  console.log("--dry-run: stopping before any write");
+  if (args.dryRun) {
+    console.log("--dry-run: stopping before any write");
+    return;
+  }
+
+  // ---- stage 2: write, delete, read back; NEVER seal (W2) --------------------------------------------------------
+  const env = args.env as string;
+  const tmp = mkdtempSync(join(tmpdir(), "routes-kl-"));
+  const writes = [...newVal].filter(([k, v]) => prevVal.get(k) !== v);
+  const dels = deletesAllowed ? deletes : [];
+  const live = args.readback === "off" ? null : liveReader(env);
+  const runId = randomBytes(4).toString("hex").toUpperCase().slice(0, 5);
+  const sentinelCs = `ZZ${runId}S`, anchorCs = `ZZ${runId}A`;
+  const sentinelVal = JSON.stringify({ o: runId.slice(0, 3), d: `${runId.slice(3, 5)}Z` });
+  const toWrite: [string, string][] = live ? [[`rt:${sentinelCs}`, sentinelVal], ...writes] : writes;
+
+  // PFX1: every key of every put and delete, BEFORE the first write. One key outside the prefix refuses the whole run.
+  const outside = [...toWrite.map(([k]) => k), ...dels].filter((k) => !pfxOk(k)).length;
+  if (outside > 0) refuse(1, `REFUSING (PFX1): ${outside} key(s) outside the route prefix. Nothing written or deleted.`);
+
+  if (!live) console.log("readback: NOT RUN (the routes-refresh test identity is not set)");
+  else {
+    // The anchor before any write: a ZZ callsign must resolve to nothing (the full mode's rule 3, part 1).
+    const pre = live.enrich(anchorCs);
+    if (pre === null) refuse(1, `REFUSING: the live path is unreachable at ${live.base}. Nothing written.`);
+    if (pre && (pre.o || pre.d)) refuse(1, `REFUSING: anchor ${anchorCs} resolves before any write; this probe cannot be trusted. Nothing written.`);
+    console.log(`anchor: ${anchorCs} is absent through the live path (as required)`);
+  }
+
+  const retries = kvChunks("put", toWrite.map(([key, value]) => ({ key, value })), env, tmp)
+    + kvChunks("delete", dels, env, tmp);
+  if (retries > 0) console.log(`(${retries} chunk retries were needed)`);
+  console.log(`wrote ${writes.length} route keys${live ? " (+1 sentinel)" : ""}; deleted ${dels.length}`);
+
+  if (live) {
+    const want = JSON.parse(sentinelVal) as { o: string; d: string };
+    const t0 = Date.now();
+    let seen = false;
+    for (let attempt = 1; attempt <= 8 && !seen; attempt++) {
+      const got = live.enrich(sentinelCs);
+      if (got && got.o === want.o && got.d === want.d) {
+        seen = true;
+        console.log(`sentinel: ${sentinelCs} on attempt ${attempt} after ${Math.round((Date.now() - t0) / 1000)}s (PROVENANCE PROVED)`);
+      } else if (attempt < 8) sleepSync(15_000);
+    }
+    if (!seen) refuse(1, `REFUSING: sentinel ${sentinelCs} never came back through ${live.base}. The keys are written; meta is not, and no receipt can follow.`);
+    let canaryOk = 0;
+    for (const cs of CANARIES) { const j = live.enrich(cs); if (j && j.o && j.d) canaryOk++; }
+    console.log(`canaries: ${canaryOk}/${CANARIES.length}`);
+    if (canaryOk < 3) refuse(1, `REFUSING: only ${canaryOk}/${CANARIES.length} canaries resolved; the read path is broken.`);
+    // Not kvChunks: that exits on failure, and a leftover sentinel is harmless (one key under rt:ZZ, swept next run).
+    try {
+      const p = join(tmp, "sentinel-delete.json");
+      writeFileSync(p, JSON.stringify([`rt:${sentinelCs}`]));
+      execSync(["node", KV_CLI, "kv", "bulk", "delete", q(sh(p)), "--binding=ENRICH_KV", `--env=${env}`, "--remote", "--force"].join(" "),
+        { stdio: ["ignore", "pipe", "pipe"] });
+      console.log(`cleanup: rt:${sentinelCs} deleted`);
+    } catch { console.log(`WARN: could not delete rt:${sentinelCs}; harmless, one key under rt:ZZ`); }
+  }
+
+  // The KV-level sample: written keys read straight from the namespace, byte for byte (the verify reads them all).
+  const SAMPLE = 12, stride = Math.max(1, Math.floor(writes.length / SAMPLE));
+  let sampleOk = 0, sampleChecked = 0;
+  for (let i = 0; i < writes.length && sampleChecked < SAMPLE; i += stride) {
+    const [k, v] = writes[i] as [string, string];
+    sampleChecked++;
+    try {
+      const got = execSync(["node", KV_CLI, "kv", "key", "get", q(k), "--binding=ENRICH_KV", `--env=${env}`, "--remote"].join(" "),
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+      if (got === v) sampleOk++;
+    } catch { /* counted as a miss below */ }
+  }
+  if (sampleOk !== sampleChecked) refuse(1, `REFUSING: ${sampleOk}/${sampleChecked} sampled written keys read back byte-identical.`);
+  console.log(`sample: ${sampleOk}/${sampleChecked} written keys read back byte-identical`);
+
+  // The verifier's inputs: local files, never printed (W3 reads them, and writes the receipt --seal-only needs).
+  const run = {
+    v: 1, env, sourceCommit: nw.commit, sourceSha256: sha256File(args.file as string), prevSourceCommit: pv.commit,
+    prevMetaSha256: sha256Text((m as { raw: string }).raw), deletesRefused: !deletesAllowed,
+    readback: live ? "on" : "not run", ...(live ? { sentinel: sentinelCs } : {}),
+  };
+  if (args.outWritten) writeFileSync(args.outWritten, JSON.stringify({ ...run, written: Object.fromEntries(writes) }));
+  if (args.outDeleted) writeFileSync(args.outDeleted, JSON.stringify({ ...run, deleted: dels }));
+  console.log(deletesAllowed
+    ? "not sealed: meta:routes is untouched. Seal with --seal-only --receipt <the verify's receipt>."
+    : "not sealed, and must not be: a guard refused the deletes, so no receipt may follow (a wrong route is worse than none).");
 }
 
 async function main() {
@@ -503,8 +725,9 @@ async function main() {
   }
   if (args.keyLevel || args.sealOnly) return keyLevelMain(args);
   const keyLevelOnly = args.noSeal || args.prev || args.prevAlso || args.prevManifest || args.receipt || args.readback === "off"
-    || args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved > 0;
-  if (keyLevelOnly) refuse(2, "REFUSING: --no-seal, --prev, --prev-also, --prev-manifest, --receipt, --readback and the overrides belong to --key-level.");
+    || args.maxDeletes !== undefined || args.allowShards.length > 0 || args.allowRemoved > 0
+    || args.outWritten || args.outDeleted || args.sourceDate !== undefined;
+  if (keyLevelOnly) refuse(2, "REFUSING: --no-seal, --prev, --prev-also, --prev-manifest, --receipt, --readback, --out-written, --out-deleted, --source-date and the overrides belong to --key-level.");
   if (!args.dryRun && !args.env) {
     console.error("refusing to run: pass --env <staging|production> or --dry-run");
     process.exit(2);
@@ -677,44 +900,7 @@ async function main() {
   const sentinelCs = `ZZ${runId}S`;                      // written, never probed first
   const sentinelVal = JSON.stringify({ o: runId.slice(0, 3), d: `${runId.slice(3, 5)}Z` });
 
-  const base = args.env === "production"
-    ? "https://scopes.valarsystems.com"
-    : "https://scopes-staging.valarsystems.com";
-  // The TEST identity (docs/test-identity.md, Q-T3), never a board's pair: resolveTestIdentity refuses BLIP_KEY/
-  // BLIP_DEVICE and records-device. Never printed, and never on a command line (the read-back below sends it on stdin).
-  let key = "", device = "", why = "";
-  try {
-    ({ key, device } = resolveTestIdentity(args.env === "production" ? "production" : "staging"));
-  } catch (e) {
-    if (!(e instanceof TokenFileError)) throw e;
-    why = e.message;
-  }
-  if (!key || !device) {
-    console.error("REFUSING: no test identity, so nothing can be read back through");
-    if (why) console.error("  (the token file: " + why + ")");
-    console.error("the live path. An unverified build must not publish a fresh row count.");
-    process.exit(1);
-  }
-  // curl reads both headers from STDIN (-K -): the key is never a process argument (docs/test-identity.md, item 7)
-  const authConfig = `header = "X-Blip-Key: ${key}"\nheader = "X-Blip-Device: ${device}"\n`;
-
-  /** GET /v1/enrich for one callsign. Returns null when the request itself failed. */
-  const enrich = (cs: string): { o?: string; d?: string } | null => {
-    const url = `${base}/v1/enrich/000000?cs=${cs}`;
-    try {
-      const body = execFileSync("curl", ["-s", "--max-time", "25", "-K", "-", url], { encoding: "utf8", input: authConfig });
-      return JSON.parse(body) as { o?: string; d?: string };
-    } catch (e) {
-      // DO NOT PRINT THE ERROR MESSAGE. execSync puts the whole failed command in
-      // e.message, and the command carries `-H "X-Blip-Key: <secret>"` about forty
-      // characters in -- so any slice long enough to be useful also leaks the
-      // device key into the log, and CI logs outlive the run. Report the status
-      // only; the key is never the interesting part of the failure anyway.
-      const status = (e as { status?: number }).status;
-      console.log(`  ! ${cs} request failed (curl exit ${status ?? "?"})`);
-      return null;
-    }
-  };
+  const { base, enrich } = liveReader(args.env as string);
 
   // SWEEP STALE SENTINELS FIRST. A run that dies between the bulk put and the
   // cleanup at the end leaves one junk key behind, and that is precisely the
