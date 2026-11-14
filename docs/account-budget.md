@@ -571,6 +571,9 @@ checked scenarios here, and #720's 5a points at them.
   - December: $5.11 / $6.14 / $1.64;
   - **every rendered total within $0.05 of these, and every Read A step (Class A or B crossing a whole million) the
     same.** A step that differs is outside the set: stop.
+  - **ACCEPTED (the reviewer, 2026-11-14 by 09:31Z), with this escape hatch.** A total off by more than $0.05 that the
+    two named differences do not account for, or anything else outside the set, means STOP: "the instrument and the
+    hand table disagree; decide". 9.6's 11-12-base figures are marked SUPERSEDED once (v) lands.
 - **5a in #720** then carries no table: a pointer to these rows, its v1 kept and marked superseded with the cause.
 
 **9.7 CI for this registration (docs only):** predicted **33 = 31 success + 2 skipped + 0 other.** The anchor is
