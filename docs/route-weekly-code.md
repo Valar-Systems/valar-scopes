@@ -406,6 +406,19 @@ in one row. With the age test off, the other prefix stayed untouched, but the co
 | S-FZC, S-RR3, S-RH9s, S-RC6 | graded by freeze, run, health and reconcile, none of which has SW rows | unchanged |
 | **S-SW** | the age test off: the fresh dir is removed too, so SW2 goes red and the counts become removed 2, kept 0, so SW5 goes red. SW1, SW3 and SW4 stay green | **{SW2, SW5}** |
 
+### 2h. The review's fixes: B1, B2, M1-M3 (the reviewer's CHANGES REQUESTED at `0439ebf4`; registered before the code)
+
+| finding | the fix | rows, each red against `0439ebf4` first |
+|---|---|---|
+| **B1:** `--seal-only --dry-run` WRITES `meta:routes`. `keyLevelMain` returns into `sealOnlyMain` before any dry-run handling, and `sealOnlyMain` never reads `args.dryRun` | REFUSE the combination (exit 2, `(SOD)`), before any KV call. A dry run of a seal has nothing to print that the receipt does not already say | **SOD** (writer selftest): exit 2, `(SOD)` printed, fake store byte-identical |
+| **B2:** a non-numeric override silently DISABLES its guard. `Number("1,000")` is NaN; G5's `deletes > NaN` is false; G4's `Math.max(3, NaN)` is NaN; the schedule refusal's `allowRemoved > 0` is false for NaN | parse `--max-deletes` and `--allow-removed` as `/^\d+$/` integers only, exit 2 otherwise (`(OVR)`). And G4 and G5 themselves refuse a non-finite or negative bound when called directly | **OV1-OV4** (writer selftest): `--max-deletes` given `1,000`, `5x`, `` (empty) and `-1` each refused, exit 2, `(OVR)`, store byte-identical. **OV5:** `--allow-removed 5x` refused the same way. **GN1, GN2** (guards selftest): `g5Cap(827, {maxDeletes: NaN})` and `g4Removed(…, NaN)` each refuse |
+| **M1:** GR10 and GR11 grade on substrings, so `MISMATCH 1` also matches `MISMATCH 10` | compare the WHOLE line: `values: checked 70, match 69, MISMATCH 1, ABSENT 0` and `absence: checked 25, absent 24, PRESENT 1` | **M1c** (writer selftest): the line comparison GR10 and GR11 now use rejects `MISMATCH 10` where it wants `MISMATCH 1`. Against `0439ebf4` the substring test accepts it, so M1c is red there |
+| **M2:** `actions/checkout` keeps `persist-credentials` at its default, so `npm ci`'s lifecycle scripts can read the job's token from `.git/config` | `persist-credentials: false` on both checkouts; and W10 gains **PIN2**: every `actions/checkout` step in `routes-refresh.yml` sets it | **PIN2** (W10 selftest): a planted checkout without it reads red; the real file green |
+| **M3:** SIGINT and SIGTERM (a GitHub cancel or timeout) skip the temp `exit` handler | handlers in `routes-tmp.ts` that clean up, then exit 130 (SIGINT) or 143 (SIGTERM) | **SG1, SG2** (guards selftest): a child process makes a `tmpDir`, then receives the signal (`process.emit`, so the handler is exercised on Windows too, where an OS SIGTERM terminates without handlers); the dir is gone and the exit code is 130 / 143 |
+
+**Outside the set:** a row that is green against `0439ebf4` (it cannot fail) is not a red-first and is reported, not
+counted. A fix that turns any OTHER row red is a regression: stop and decide.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
