@@ -516,6 +516,81 @@ before the push).**
 must exist by about **11-22**, leaving margin before the 11-24 alert. Without them the first attended run cannot
 happen, and the alert firing is correct.
 
+### 4a. The attended LOCAL first run: predictions, frozen 2026-11-14 ~06:45Z from read-only dry runs through the real KV
+
+**The dry runs** (the reviewer asked for them, 06:4xZ). `--key-level --dry-run` on each environment, through the
+helper.
+- `--file` and `--prev` are both `24ce5424`. Upstream main is still `24ce54242aca9291432ec67b7bab4d39f038913c`, committed
+  2026-11-12T04:49:37Z, read with `gh api` at 06:40:50Z.
+- `--prev-also` is `dff309eb`, with that environment's saved pre-(A) manifest.
+- Each was run twice: without the overrides, and with `--max-deletes 1000 --allow-removed 5 --allow-shard
+  routes/schema-01/R/RSC-all.csv`.
+
+| reading | staging | production |
+|---|---|---|
+| prev proof | 1591/1591 shard hashes equal meta:routes | 1591/1591 |
+| prev-also proof | 1575/1575 (pre-rule plain hash) | 1575/1575 (rule-hashed) |
+| writes | **0** (added 0, value changed 0) | **0** |
+| deletes | **827**: 715 from surviving shards, 112 from 5 removed shards | **827**: 715, 112 |
+| unchanged | 628,956 (every key in the new source) | 628,956 |
+| guards, no overrides | G1, G2, G6 ok; G3 (1 shard, RSC), G4 (5 removed), G5 (827 over 250) FAIL, so the deletes are refused | the same |
+| guards, with the overrides | all six ok; "plan: write 0; delete 827" | the same |
+| receipts | none: a dry run writes no out-file and no receipt | none |
+| stderr | wrangler's config warnings only | the same |
+
+**What the dry runs cost:** 4 KV READ operations, one `kv key get meta:routes` per dry run. That is from the code path;
+analytics cannot isolate 4 reads among production's ~200k a day. Nothing was written, deleted or listed.
+
+**The run, on each environment, staging first:**
+1. **Re-read upstream main.** If it is not `24ce5424`, these predictions are void: STOP, and re-register from a fresh
+   dry run.
+2. **The dry run with the overrides,** which must print exactly the table above. Anything else: STOP.
+3. **`--key-level --no-seal`** with the same overrides and `--readback on` (the test identity), with `--out-written` and
+   `--out-deleted`. Predicted:
+   - PFX1 passes, and the anchor reads absent;
+   - bulk puts: 1 key, the sentinel, in 1 chunk;
+   - bulk deletes: **827** in 1 chunk, then the sentinel's cleanup;
+   - the sentinel's provenance is proved; canaries 3 or more of 5;
+   - `sample: 0/0`, since there are no written keys;
+   - `wrote 0 route keys (+1 sentinel); deleted 827`;
+   - the out-files hold written 0 and deleted 827.
+4. **The verify,** with `--check-values`, `--expect-absent` and `--receipt`. Predicted:
+   - coverage PASS, 1591/1591 and 628956/628956;
+   - **extra keys 0** (before (A)'s first run there were 827; any runtime negative rows since then are counted and
+     reported, never a stop);
+   - **GR10m does not print:** with 0 written keys there is no value to compare, so only the absent control GR10a runs,
+     and it must read null;
+   - `values: checked 0`; `absence: checked 827, absent 827, PRESENT 0`;
+   - `receipt: written`.
+5. **The seal:** `--seal-only --receipt <r> --source-date 2026-11-12T04:49:37Z`. Predicted: `meta sealed: rows=628956
+   written=0 deleted=827 mode=key-level source 24ce54242aca readback=on`, with meta's `sourceCommit` and
+   `prevSourceCommit` both `24ce5424...`, and `sourceCommittedAt` 2026-11-12T04:49:37Z.
+6. **`/healthz`, twice, at least 11 minutes after the seal:**
+   - `builtAt` is the seal time, rows 628956, ageDays 0, stale false;
+   - `sourceCommittedAt` appears only if a deploy carrying W13 has happened by then (the 11-16 deploy carries main as it
+     stands, which does not yet include #708).
+
+**Predicted KV cost per environment:**
+- writes 2 (the sentinel, meta);
+- deletes 828 (827 and the sentinel);
+- lists about 630 (the verify's enumeration);
+- reads about 850 (meta, plus 9 bulk-get calls over the 827 deleted, plus the one control key).
+- All of it inside the included amounts: about $0.
+
+**Outside the set: STOP BEFORE ANY WRITE** (the reviewer's branch):
+- a delete count above 827;
+- any delete outside the route prefix (PFX1 or G6);
+- any write count other than 0;
+- a proof other than 1591/1591 and 1575/1575;
+- any guard other than the six ok under the overrides;
+- upstream no longer at `24ce5424`.
+Each of these refuses at steps 1-3 before the first write, and the writer's PFX1 and G6 refuse again inside step 3 on
+their own.
+
+**A known limit, stated now:** the next weekly run on an unchanged source replays the LAST change, `24ce5424 ->
+24ce5424`, which is empty. So the 827 deletes are verified once, at step 4, and never again by a replay. A later source
+change re-derives deletes from its own snapshots.
+
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 
 **The alternative.** The workflow holds no KV token. It POSTs batches of `[key, value]` and `delete` lists to a
