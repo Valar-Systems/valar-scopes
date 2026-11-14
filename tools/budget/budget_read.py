@@ -56,7 +56,12 @@ def gql(q, a, b):
 def script_product(s, opera_state):
     if s.startswith("blipscope-wx-ingest-op"):
         return "opera-ten", opera_state
+    if s in SCRIPT_STATE:
+        return SCRIPT_STATE[s]
     return SCRIPT.get(s, "unattributed"), "now"
+
+
+SCRIPT_STATE = {"blipscope-wx-ingest-shsr": ("shsr", "built")}   # 9.4: its product's live state, so a read attributes it
 
 
 def main():

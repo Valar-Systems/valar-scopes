@@ -603,3 +603,47 @@ checked scenarios here, and #720's 5a points at them.
 
 **9.7 CI for this registration (docs only):** predicted **33 = 31 success + 2 skipped + 0 other.** The anchor is
 #714's and #718's docs-only heads (both 33 = 31/2/0), with no workflow change on main since. **Outside the set:** stop.
+
+**9.10 RE-REGISTERED (2026-11-14 10:07:36Z, before any build or read; the reviewer's ruling of the same morning).**
+A re-derivation by plain arithmetic, independent of the checker (the saved MTD-1114 read plus this file's r-run rows),
+found that the accepted predictions in 9.8 and 9.9(b) contradict 9.8(i):
+- **The December predictions were 30-day figures.** The corrected 5a's December, and 9.9(b)'s 1,009,156, used the
+  30-day steady values (no x 31/30). 9.8(i) renders a month scenario's steady row x days/30, and 9.4 already writes the
+  KV background as "median day x 31". **RULED: 9.8(i) as written.** A "whole month" that is a 30-day figure is the 5a
+  error again, so the design wins over the prediction.
+- **A third named difference.** The ten's own scripts in the MTD window (opuk 11-06 to 11-11, plus the three hours
+  all ten ran: 2,410,422 CPU ms a month) are filed as opera-ten `silent`. So under a segment they stop counting while
+  the ten run, and 9.8(v)'s double count goes away for CPU. Effect: about -$0.022 in November with the fallback,
+  -$0.048 in December (at 30 days).
+
+Each December convention fails one of the old checks: at x 31/30, Class A renders 1,042,796 (outside 9.9(b)'s ±100);
+at x 30/30, the December fallback is -$0.052 against the corrected 5a. So the predictions are re-registered:
+- **December none/none, Class A: 1,042,796 ±100.** A rendering outside 1,042,696-1,042,896 is a STOP.
+- **Totals (Read A), with KV at the corrected 5a's inputs** until the kv-days read replaces them, within its bands
+  (9.4). Every total must land within $0.05 of these:
+
+  | | none | fallback from Nov 17 | fallback + Missileer from Nov 17 |
+  |---|---|---|---|
+  | November, no lever | $4.95 | $9.74 | $5.24 |
+  | November, weather lever | $4.95 | $9.74 | |
+  | December, no lever | $5.15 | $6.15 | $1.65 |
+  | December, weather lever | $0.65 | $6.15 | |
+
+  The Missileer lever without the fallback renders $4.95 in November and $0.65 in December.
+- **Every Read A step is the same as the corrected 5a's.** Class A is over 1 M in: November with the fallback (no lever
+  and weather); December none (no lever); December with the fallback (no lever and weather). Class B is over 10 M in
+  December with the fallback (all three). No other step.
+- **The 30-day scenarios** (one-offs at 2026-12): before shsr $0.16; today $5.11; OPERA running $5.64 (Class B 10.120 M,
+  over by 0.12 M); OPERA running + shsr $6.09.
+- **Every allowance the corrected 5a never priced stays under, in every scenario:** R2 storage at most 3.5 GB of 10,
+  KV reads at most 7.25 M, requests at most 2.76 M, Logs events at most 8.75 M, Durable Object requests at most 0.32 M.
+- **Outside the set: STOP,** with "the instrument and the arithmetic disagree; decide".
+- **Named for the owner's question** (a prediction; his figures come from the rendered file): at 31 days, the weather
+  lever leaves December's Class A at about 998,300, under 1 M by about 1.7k, against X10's ±13k for shsr. So December
+  none with the weather lever is a coin flip between about $0.65 and $5.15. The corrected 5a's 30 days had about 34k of
+  margin. The Missileer lever (about 784k) is not marginal.
+- **A small difference, absorbed:** the MTD read's shsr script CPU is 1,678,769 against the 1,667,164 the corrected 5a
+  subtracted (11.6k ms, $0.0002).
+- **When the kv-days read can run.** 9.4's window ends 2026-11-15T00:00:00Z, so the read waits for that day to end.
+  `kv_by_day.py` refuses a window that has not ended, and one that is not whole days, because a partial day reads
+  exactly like a quiet one. The build waits on it.
