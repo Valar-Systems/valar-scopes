@@ -144,7 +144,58 @@ inside 7, which covers the owner's "remind me 7 days before it ends". TK1's red-
 - **Control:** the same with `--no-seal` writes the route keys and leaves `meta:routes` byte-identical (GR8's
   stage-2 half).
 
-**Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1 and UN1-UN3 run in a new
+### 2d. W3, the verify, and the writer's replay (registered 2026-11-14 ~04:20Z, before their code)
+
+**The verify (`verify-routes.ts`) gains:**
+- **The fake-KV hook and FK1.** It reads `ROUTES_KV_CLI` like the writer, and refuses it under `GITHUB_ACTIONS` or
+  `--env production` (exit 2, before any KV call).
+- **`--check-values <the writer's --out-written file>`.**
+  - Every written key is read back with `kv bulk get` through the helper, 100 keys a call, and compared byte for byte.
+  - Two controls run first, from #700's D2:
+    - GR10m: the first written key, compared against a deliberately wrong value, gives exactly 1 mismatch;
+    - GR10a: the made-up `rt:ZZQQQQQX` reads null.
+  - Counts are printed: checked, match, mismatched, absent. The keys go to a local file only.
+- **`--expect-absent <the writer's --out-deleted file>`.** Every deleted key must read null. A present one is a
+  failure, counted.
+- **The two files' run facts must agree** with each other, with `--env`, and with `--file`'s own source commit. A
+  mismatch refuses (exit 2).
+- **`--receipt <path>`.** The path is removed at the START of the run, so a stale receipt never survives a later
+  failure. The receipt is written only if ALL of these hold:
+  - coverage PASS;
+  - 0 manufactured self-loops;
+  - both controls behaved;
+  - 0 mismatched, 0 absent written keys and 0 present deleted keys;
+  - the run's `deletesRefused` false;
+  - and both `--check-values` and `--expect-absent` were given.
+- **The receipt's shape** is the one `--seal-only` reads:
+  `{v, result:"PASS", env, sourceCommit, sourceSha256, prevSourceCommit, prevMetaSha256, written, deleted, deletesRefused, readback, sentinel?, checkedAt}`.
+
+**The writer's `--replay`, for an unchanged source (UN1-UN3).**
+- `--key-level --replay --prev <the last change's prev> --file <the sealed source>` writes and deletes NOTHING.
+- It proves three things:
+  - `--file`'s shard hashes equal meta's;
+  - meta's `sourceCommit` is `--file`'s commit;
+  - meta's `prevSourceCommit` is `--prev`'s commit.
+- Then it emits the last change's sets as `--out-written` and `--out-deleted`, so the verify checks them again, and a
+  receipt lets `--seal-only` re-seal.
+- The value construction stays in the writer.
+
+**Rows:**
+
+| row | the case | red before | green after |
+|---|---|---|---|
+| GR10 | one written key's value planted wrong in the store | presence-only verify passes | `--check-values` FAILs, 1 mismatched; no receipt |
+| GR10m | the mismatch control | | exactly 1, shown before any result |
+| GR10a | the absent control | | null, never an empty match |
+| GR11 | one deleted key planted back | no absence check | `--expect-absent` FAILs, 1 present; no receipt |
+| RCP1 | any failure, with a stale receipt already at `--receipt`'s path | the stale file survives | the path is gone after the run |
+| RCP2 | the control: a clean run | | the receipt exists, and `--seal-only` with it seals (the end-to-end GR8 with W3) |
+| FKV | `ROUTES_KV_CLI` with `--env production` on the verify | proceeds through the fake | exit 2, nothing read |
+| UN1 | replay of an unchanged, correct source | `--replay` unknown | the verify PASSes, `--seal-only` re-seals, `builtAt` moves |
+| UN2 | the same, one value planted wrong | | no receipt, meta byte-identical |
+| UN3 | the same, one deleted key planted back | | no receipt, meta byte-identical |
+
+**Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
 
