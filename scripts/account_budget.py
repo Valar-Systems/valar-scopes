@@ -391,11 +391,14 @@ def selftest():
     check(all(v == [] for v in flags(p2).values()), "P2: every row at a third raises no FLAG anywhere")
     # P3: an unknown allowance is refused
     p3 = copy.deepcopy(base)
-    p3["rows"].append({"product": "proxy", "state": "now", "allowance": "r2_class_z", "value": 1, "read": "r1", "basis": "measured", "how": "P3"})
+    # The row carries a cadence, and the refusal must name the allowance: without both, P3 passed on the cadence check
+    # (added in 9.2) and S3 could no longer turn it red -- found 2026-11-14 before the driver's first run of 9.2.
+    p3["rows"].append({"product": "proxy", "state": "now", "allowance": "r2_class_z", "value": 1, "read": "r1", "basis": "measured",
+                       "how": "P3", "cadence": "steady"})
     try:
         validate(p3); ok = False
-    except Malformed:
-        ok = True
+    except Malformed as e:
+        ok = "unknown allowance" in str(e)
     check(ok, "P3: a row naming an unknown allowance is refused")
     # P4: the stream's rows removed fails the anchor (on Class A and Class B)
     p4 = copy.deepcopy(base)

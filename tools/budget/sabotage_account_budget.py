@@ -22,8 +22,15 @@ PLANTS = [  # (name, needle, replacement, the set of controls predicted to FAIL)
     ("S3 unknown allowance accepted", 'if r["allowance"] not in al:', "if False:", {"P3"}),
     ("S4 anchor tolerance unbounded", "FLAG_AT, ANCHOR_TOL = 0.80, 0.01", "FLAG_AT, ANCHOR_TOL = 0.80, 1e9", {"P4"}),
     ("S5 render always current", "    return have == render(b)", "    return True", {"P5"}),
-    ("S6 excluded rows summed", 'r["state"] != EXCLUDED and state[r["product"]] == r["state"])',
-     '(r["state"] == EXCLUDED or state[r["product"]] == r["state"]))', {"P6"}),
+    ("S6 excluded rows summed", 'for st, wt in w[r["product"]] if st == r["state"])',
+     'for st, wt in w[r["product"]] if st == r["state"] or r["state"] == EXCLUDED)', {"P6"}),
+    # 9.3's registered sabotage. With the value-equals-product check off, P-ONE's x 30 row reads clean, so P-ONE fails:
+    # exactly {P-ONE} ("turns P-ONE's row green" in 9.3's words).
+    ("S-ONE value == per_event x events unchecked", 'if abs(r["value"] - want) > 1e-9 * max(abs(want), 1.0):', "if False:", {"P-ONE"}),
+    # Added with the month code, predicted here before the first run (2026-11-14):
+    ("S-MONTH a whole-month state weighs 1, not days/30", "else [(st, days / 30)])", "else [(st, 1.0)])", {"M1"}),
+    ("S-SEG a segment weighs 1, not its hours / 720", '[(x, h / STEADY_H) for x, h in segments(s, p, st, m, v["states"])]',
+     '[(x, 1.0) for x, h in segments(s, p, st, m, v["states"])]', {"M2"}),
 ]
 
 
@@ -32,7 +39,7 @@ def failed_controls(out):
     for line in out.splitlines():
         if not line.startswith("FAIL "):
             continue
-        m = re.match(r"FAIL (P\d):", line)
+        m = re.match(r"FAIL ((?:P|M|R)[\w-]*):", line)   # P1..P6, P-ONE(-ctl|-steady|-none), M1..M3, R1, R2
         if m:
             got.add(m.group(1))
         elif line.startswith("FAIL CONTROL: the clean budget's flags"):
