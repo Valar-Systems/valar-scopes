@@ -2386,3 +2386,50 @@ Not re-running B0 to get 38/0/0 was right: that would have been choosing the dat
 4. D-P3's titles carried live tokens. Stopped without a rollback; ruled at 17:08:43Z as check identity.
 
 (The S3 row's time above was first written "17:04:04Z+"; it is 17:05:04Z, from the probe's own stamp.)
+
+#### S4.28, 2026-11-14 06:05Z: X10's method, frozen before the read
+
+**Why an amendment.** S4.12.4 says X10 reads Class A from "the budget's read", and that read cannot separate `shsr`:
+- both ingests write the bucket `blipscope-wx`;
+- R2's analytics have no script dimension;
+- `budget_read.py` books the bucket's whole Class A to `cref` (with the ten silent).
+
+So `shsr`'s Class A is read as a difference against the day before it, anchored on cref's measured rate. This is
+written before either window is read. The read runs on the X10 wake, at 06:43Z.
+
+**Windows.**
+- **W1**, the first full day: 2026-11-13T06:16:00Z to 2026-11-14T06:16:00Z. O1 has been at 100 since 06:15:16Z.
+- **W0**, the day before: 2026-11-12T06:16:00Z to 2026-11-13T06:16:00Z. `shsr` was inert then, and with `WX_INGEST`
+  off it makes no R2 call.
+
+**Reads.** All are read-only, with tokens from the token file and counts only. The tools are at main `0c3341d30a4f`,
+unchanged since `aa40aa43`.
+
+| read | command |
+|---|---|
+| C1 | `python -X utf8 -I tools/wx/r3p.py cpu blipscope-wx-ingest-shsr shsr <W1>` |
+| C2 | `python -X utf8 -I tools/budget/budget_read.py x10-w1 <W1> silent all <out>` |
+| C3 | the same over W0, with id `x10-w0` |
+
+**Rows.** They are printed, not graded. The trigger is S4.12.4's: a figure outside its band means the price is re-done
+and goes to the owner, through the reviewer.
+
+| row | predicted |
+|---|---|
+| X10-n | C1: records 1,400-1,440 (one a minute); `exceededCpu` 0; ABR 1 |
+| X10-b | C1: `single_build` n about 720 (SeamlessHSR every 2 minutes). Printed |
+| X10-cpu | C1's per-invocation CPU, median-weighted: (n × median for single builds, plus n × median for the rest, plus the `beside` sum) / records. **Band 507-653 ms**, which is 21.9-28.2 M ms a month at 43,200 invocations. Printed beside cref's 645 |
+| X10-cpu-sum | C2's `UNATTRIBUTED`. If it lists exactly one `cpu_ms` script, `blipscope-wx-ingest-shsr`, the `unattributed` `cpu_ms` row is `shsr`'s measured CPU sum for a month, and it is printed beside X10-cpu. With any other list it is not read |
+| X10-anchor | C3's `cref` `r2_class_a` row, a month, within ±10% of cref's measured 182 an hour: **117,936-144,144** |
+| X10-A | `shsr`'s Class A a month = C2's `cref` `r2_class_a` minus C3's. **Band 43 k-140 k.** It has the same code and cadence as cref, so it is predicted near cref's 131 k |
+| X10-A-design | Printed beside, from C1: records (one ListObjects each) + 2 × the `single_build` n (frame and `latest`) + the `beside` builds, × 30. The design figure is 86,400 |
+
+**Outside the set, fixed now:**
+- **r3p refuses a sampled read (exit 2):** one re-read with `R3P_CHUNK_S=1800`. A second refusal stops X10, and it is
+  reported.
+- **X10-anchor outside its band, or X10-A negative:** the bucket instrument is not steady enough to separate `shsr` at
+  this scale. Stop, and report C2, C3 and X10-A-design. No Class A figure goes out as measured.
+- **Any other exit, or X10-n outside its band:** stop and report.
+- **A figure outside S4.12.4's bands is not a stop.** It is the registered trigger.
+
+**After the read:** the numbers go to uk-data, stamped, and the reviewer is told; then they are recorded here.
