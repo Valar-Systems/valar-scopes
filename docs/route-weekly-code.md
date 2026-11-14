@@ -1115,3 +1115,16 @@ reading or re-grade it.
 - **Proposed** (with the owner; nothing runs before his word): F1, the 13-row set frozen first, then one `--only S-VAL`
   run after the full baseline, capturing SN1's and SN1-ctl's FAIL text (predicted `exit 2; the count line 1 time(s)`).
   F2, splitting the two rows, would re-run all of W8.
+
+**W8, F1's one run (section 2p; 2026-11-14 16:26:54-16:32:54Z, driver at `3629409d`): AS REGISTERED.**
+- **BASELINE:** guards 63, writer 48, freeze 4, runs 8, health 11, reconcile 1, every declared set read in full, 0 red.
+- **S-VAL:** red exactly the 13 registered in 2p.
+- **The printed lines, each read as a whole-line compare, exactly once:**
+  - `FAIL SN1: exit 2; the count line 1 time(s)`;
+  - `FAIL SN1-ctl: exit 2; the count line 1 time(s)`;
+  - the control, `FAIL GR10m: no control line`.
+  So the cause given above is now SEEN, not only derived: the count line printed, and the exit was 2.
+- `SABOTAGE PASSED (1 plant(s), after a full baseline)`, exit 0, with empty stderr.
+- **After:** restored, sha equal; porcelain 0; the tree equal to HEAD; 0 routes-/verify- temp leftovers.
+- **With the 15:55Z run's other 17 plants as registered,** every one of the 18 plants has now read its registered set
+  once. The 15:55Z S-VAL reading stays a MISS, as above.
