@@ -1898,6 +1898,41 @@ prove the fix fires both at their true size before the next C1 run."
     outside the set: stop and decide.
 - **Then:** the next C1 window (A1, B, A2), with images from the fix commit, placed under the standing rule. The levels
   sha goes to p4.
+- **READ, as registered:**
+  - the fix: `68cae820a44e` on c1 and `d813ea42be08` on levels, 1 line each;
+  - the check: RED today on both c1b trees, SAME after on all four envs;
+  - FB-TU: c1 14 rows and levels 15 rows, 0 failed; red on `a599fcaaffc6` and `a9894185b2a8` themselves; the selftest
+    PASSED. Pushed at c1 `bcc4414ca870` and levels `a0583e88b142`;
+  - the images from tree `4365655892ef`: c1-B `57f2422516ce`, c1-A `a653e50905a9`. I-3 is byte-identical to
+    `de75e3606ba7`;
+  - `fb_read_plants.py` `141c4feb7e69`, selftest PASSED (`27eb9d23d50f`); the REAL retake trace read red on all four
+    rows;
+  - the manifest `0274359ccc4c`, acknowledged.
+
+### THE PLANTS' PROOF WINDOW, 2026-11-14 23:10:09-23:32:01Z: OUTSIDE THE SET (stopped; to the owner)
+
+B only, the PC kept quiet. The restore PASSED (HTTP 200 at 23:31:51Z). Rig check PASS.
+- **The read:** `fb_read_plants.py` exit 2, `INSTRUMENT / STOP: B S2 C1+push60: M3-2: 30 of 1428 frames with a present
+  count other than 1 (> 1 %)`. That is `fb_read_c1`'s own `read_trace` refusal, so no row was graded.
+- **The structure, from the reader's own parse, recorded and NOT graded:**
+
+  | scene | frames | drawn | delayed (bit 2) | present counts | p2p p95 (ms) | push n / avg (ms) |
+  |---|---|---|---|---|---|---|
+  | S0 C1 | 1689 | 40 | 0 | all 1 | 73.00 | 1690 / 24.16 |
+  | S1 push10 | 1688 | 40 | 0 | all 1 | 73.00 | 1688 / 34.12 |
+  | S2 push60 | 1428 | 40 | 0 | 0: 15, 1: 1398, 2: 15 | 84.00 | 1428 / 83.95 |
+  | S3 loop10 | 1655 | 40 | 1655 / 1655 | all 1 | 74.99 | 1655 / 24.15 |
+
+  - **The push plants fire at their true size:** push_avg rises by +9.95 ms (band +9 to +10) and +59.79 ms (band
+    +59 to +60). D=10's p2p is unmoved, as C1 predicts.
+  - **The loop plant fires:** its flag is on every S3 frame and on no other frame, so the include-order fix works for
+    both plants. But it moves p2p p95 by only +1.99 ms, against +10.0 ± 1.5. Graded, that row is RED.
+  - **S2's M3-2:** with the push at about 84 ms, 2.1 % of frames recorded 0 or 2 presents, against the 1 % rule.
+- **Named, nothing concluded:**
+  - (a) In image B, the loop's +10 ms may land where the loop has slack (p2p 73 against push 24), so most of it is
+    absorbed. Then "+10 ± 1.5 in a draw-bound scene" is a premise B does not meet, not a plant that is broken.
+  - (b) M3-2's 1 % rule may not hold under D=60 by construction.
+- **Stopped,** to the orchestrator and the owner. No fix and no re-run before the ruling.
 
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
