@@ -233,6 +233,76 @@ un UN1 none
 un UN2 changed
 un UN3 deleted
 
+# =================================== D1 (section 2n): the write-ahead journal ======================================
+pending() { # pending <store>: the journal as JSON, or "absent"
+  node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).staging; process.stdout.write(s["meta:routes-pending"] ?? "absent")' "$1"
+}
+setpending() { # setpending <store> <since> <keys as JSON>
+  node -e 'const fs=require("fs"),[S,since,keys]=process.argv.slice(1); const s=JSON.parse(fs.readFileSync(S,"utf8"));
+s.staging["meta:routes-pending"]=JSON.stringify({v:1, since, keys:JSON.parse(keys)}); fs.writeFileSync(S, JSON.stringify(s));' "$1" "$2" "$3"
+}
+# run A: the new source written and NOT sealed (as after a refused delete, a failed verify or a cancel)
+fresh; run "$T/ja.out" "${KL[@]}" --file "$F/new.tar.gz" --no-seal --readback off --out-written "$T/jaw.json" --out-deleted "$T/jad.json" > /dev/null
+cp "$T/s.json" "$T/after-a.json"
+
+# ---- J4: run A left a current journal: since = sha256(meta), the 95 keys it touched, sorted ---------------------------
+j4=$(node -e '
+const fs=require("fs"),c=require("crypto"),[S,W,D]=process.argv.slice(1);
+const s=JSON.parse(fs.readFileSync(S,"utf8")).staging; const raw=s["meta:routes-pending"]; if(!raw){process.stdout.write("no journal");process.exit(0);}
+const j=JSON.parse(raw), want=[...Object.keys(JSON.parse(fs.readFileSync(W,"utf8")).written), ...JSON.parse(fs.readFileSync(D,"utf8")).deleted].sort();
+const bad=[]; if(j.v!==1) bad.push("v"); if(j.since!==c.createHash("sha256").update(s["meta:routes"]).digest("hex")) bad.push("since");
+if(JSON.stringify(j.keys)!==JSON.stringify(want)) bad.push(`keys ${j.keys?.length} (want ${want.length}, sorted)`);
+process.stdout.write(bad.length?bad.join("; "):"ok");' "$T/after-a.json" "$T/jaw.json" "$T/jad.json")
+if [ "$j4" = ok ]; then ok J4; else bad J4 "$j4"; fi
+
+# ---- J5: sealing run A's own verified write removes the journal (it existed before the seal, and is gone after) -------
+cp "$T/after-a.json" "$T/s.json"; b5=$(pending "$T/s.json" | cut -c1-6)
+js5=$(node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).staging; const j=s["meta:routes-pending"]; process.stdout.write(j ? require("crypto").createHash("sha256").update(j).digest("hex") : "")' "$T/s.json")
+receipt "$T/j5r.json" "journalSha256=$js5"   # J7's field (2n): the journal this receipt verified
+rc=$(run "$T/j5.out" "${SO[@]}" --receipt "$T/j5r.json")
+if [ "$b5" != absent ] && [ "$rc" = 0 ] && [ "$(pending "$T/s.json")" = absent ]; then ok J5; else bad J5 "journal before the seal: $([ "$b5" != absent ] && echo yes || echo no); seal exit $rc; after: $(pending "$T/s.json" | cut -c1-6)"; fi
+
+# ---- J1-J3: after A is left unsealed, run B with --file prev (the source reverts) restores prev exactly ---------------
+cp "$T/after-a.json" "$T/s.json"
+rb=$(run "$T/jb.out" "${KL[@]}" --file "$F/prev.tar.gz" --no-seal --readback off --out-written "$T/jbw.json" --out-deleted "$T/jbd.json")
+jsub() { # jsub <changedKeys|addedKeys|deletedKeys>: how many of those keys do NOT match prev's mirror
+  node -e 'const fs=require("fs"),[S,P,E,which]=process.argv.slice(1);
+const s=JSON.parse(fs.readFileSync(S,"utf8")).staging, p=JSON.parse(fs.readFileSync(P,"utf8")).staging, e=JSON.parse(fs.readFileSync(E,"utf8"));
+process.stdout.write(String(e[which].filter((k)=>s[k]!==p[k]).length));' "$T/s.json" "$F/store-prev.json" "$F/expect.json" "$1"
+}
+n1=$(jsub changedKeys); n2=$(jsub addedKeys); n3=$(jsub deletedKeys)
+if [ "$rb" = 0 ] && [ "$n1" = 0 ]; then ok J1; else bad J1 "run B exit $rb; $n1 of 30 changed keys not back at prev's value"; fi
+if [ "$rb" = 0 ] && [ "$n2" = 0 ]; then ok J2; else bad J2 "run B exit $rb; $n2 of 40 added keys not deleted"; fi
+# J3: the deleted keys written back, then B verified and sealed: every rt: key equals prev's mirror, nothing extra, no journal
+VB=(--env staging --file "$F/prev.tar.gz" --check-values "$T/jbw.json" --expect-absent "$T/jbd.json")
+rm -f "$T/jbr.json"; rv=$(vrun "$T/jbv.out" "${VB[@]}" --receipt "$T/jbr.json")
+rs=$( [ -f "$T/jbr.json" ] && run "$T/jbs.out" --seal-only --env staging --file "$F/prev.tar.gz" --receipt "$T/jbr.json" || echo none )
+same=$(node -e 'const fs=require("fs"),[S,P]=process.argv.slice(1);
+const s=JSON.parse(fs.readFileSync(S,"utf8")).staging, p=JSON.parse(fs.readFileSync(P,"utf8")).staging;
+const rt=(o)=>Object.keys(o).filter((k)=>k.startsWith("rt:")).sort(); const a=rt(s), b=rt(p);
+process.stdout.write(a.length===b.length && a.every((k,i)=>k===b[i] && s[k]===p[k]) ? "equal" : `differs (${a.length} vs ${b.length} keys)`);' "$T/s.json" "$F/store-prev.json")
+if [ "$n3" = 0 ] && [ "$rv" = 0 ] && [ "$rs" = 0 ] && [ "$same" = equal ] && [ "$(pending "$T/s.json")" = absent ]; then ok J3; else bad J3 "$n3 of 25 deleted keys not restored; verify $rv, seal $rs; the rt: set $same; journal $(pending "$T/s.json" | cut -c1-6)"; fi
+
+# ---- J6: a STALE journal (since all zeros) is ignored, with the line, and the counts of the no-journal case -----------
+fresh; setpending "$T/s.json" "$(printf '0%.0s' $(seq 64))" '["rt:BA00000"]'
+rc=$(run "$T/j6.out" "${KL[@]}" --file "$F/new.tar.gz" --dry-run)
+if [ "$rc" = 0 ] && has "$T/j6.out" "pending: stale, ignored" && has "$T/j6.out" "plan: write 70; delete 25"; then ok J6; else bad J6 "exit $rc; the stale line $(has "$T/j6.out" "pending: stale, ignored" && echo printed || echo absent)"; fi
+
+# ---- J7 (2n): an OLD receipt is refused after a newer unsealed run (meta unchanged, so GR9 cannot see it) ---------------
+fresh; run "$T/j7a.out" "${KL[@]}" --file "$F/new.tar.gz" --no-seal --readback off --out-written "$T/j7w.json" --out-deleted "$T/j7d.json" > /dev/null
+rm -f "$T/j7r.json"; v7=$(vrun "$T/j7v.out" --env staging --file "$F/new.tar.gz" --check-values "$T/j7w.json" --expect-absent "$T/j7d.json" --receipt "$T/j7r.json")
+run "$T/j7b.out" "${KL[@]}" --file "$F/prev.tar.gz" --no-seal --readback off > /dev/null
+m7=$(metasha "$T/s.json"); rc=$( [ -f "$T/j7r.json" ] && run "$T/j7s.out" "${SO[@]}" --receipt "$T/j7r.json" || echo none )
+if [ "$v7" = 0 ] && [ "$rc" = 1 ] && has "$T/j7s.out" "(J7)" && [ "$(metasha "$T/s.json")" = "$m7" ]; then ok J7
+else bad J7 "verify A $v7; the old receipt's seal exit $rc; (J7) $(has "$T/j7s.out" "(J7)" && echo printed || echo absent); meta unchanged: $([ "$(metasha "$T/s.json")" = "$m7" ] && echo yes || echo no)"; fi
+
+# ---- JR1: --replay with a CURRENT journal refuses (exit 6, JN1): a replay writes nothing and cannot clear it ----------
+if [ -f "$T/sealed.json" ]; then
+  cp "$T/sealed.json" "$T/s.json"; setpending "$T/s.json" "$(metasha "$T/s.json")" '["rt:BA00000"]'; h0=$(sha "$T/s.json")
+  rc=$(run "$T/jr1.out" "${RP[@]}")
+  if [ "$rc" = 6 ] && has "$T/jr1.out" "(JN1)" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok JR1; else bad JR1 "exit $rc, store changed: $([ "$(sha "$T/s.json")" = "$h0" ] && echo no || echo yes)"; fi
+else bad JR1 "no sealed store (RCP2 failed)"; fi
+
 # ---- TMP1: the tools leave no temp dir behind; TMP1-ctl: the children really used the private temp -----------------
 seen=$(node -e 'process.stdout.write(require("os").tmpdir())')
 case "$(echo "$seen" | tr '\\' '/' | tr 'A-Z' 'a-z')" in *"$(basename "$T" | tr 'A-Z' 'a-z')/tmp"*) ok TMP1-ctl ;; *) bad TMP1-ctl "a child's temp is not the private one" ;; esac

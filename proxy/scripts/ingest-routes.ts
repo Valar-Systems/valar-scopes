@@ -486,7 +486,34 @@ function liveReader(env: string): { base: string; enrich: Enrich } {
 
 /** PFX1 (the owner, 2026-11-13): the only keys a route run may write or delete. Checked for EVERY key, before any write. */
 const SENTINEL_KEY = /^rt:ZZ[0-9A-F]{5}S$/;
-const pfxOk = (k: string) => G.MIRROR_KEY.test(k) || SENTINEL_KEY.test(k) || k === META_KEY;
+/** D1 (docs/route-weekly-code.md 2n): the write-ahead journal of keys written or deleted by runs that did not seal. */
+const META_PENDING_KEY = "meta:routes-pending";
+const pfxOk = (k: string) => G.MIRROR_KEY.test(k) || SENTINEL_KEY.test(k) || k === META_KEY || k === META_PENDING_KEY;
+
+type Pending = { kind: "absent" } | { kind: "stale"; raw: string } | { kind: "current"; keys: string[]; raw: string };
+/** J7 (2n): the sha256 of the journal as stored, or null with none. The receipt carries it; the seal compares it. */
+const journalSha = (p: Pending): string | null => (p.kind === "absent" ? null : sha256Text(p.raw));
+/** D1: the journal, judged against the meta just read. A journal whose `since` is not this meta's sha256 was written
+ *  against an earlier meta (a seal happened after it, and its clear failed): it is STALE and ignored. A read that is
+ *  neither a clean not-found nor a parseable journal is a refusal, never "absent" -- an unreadable journal assumed empty
+ *  would re-open exactly the hole it closes. */
+function readPending(env: string, metaRaw: string): Pending {
+  const cmd = ["node", KV_CLI, "kv", "key", "get", q(META_PENDING_KEY), "--binding=ENRICH_KV", `--env=${env}`, "--remote"].join(" ");
+  let raw: string;
+  try {
+    raw = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (e) {
+    const err = e as { status?: number; stdout?: string; stderr?: string };
+    if (/not found|does not exist|key .* not/i.test(`${err.stdout ?? ""}\n${err.stderr ?? ""}`)) return { kind: "absent" };
+    refuse(1, `REFUSING (JN2): could not read ${META_PENDING_KEY} (exit ${err.status ?? "?"}), and this is not a clean not-found. Nothing written.`);
+  }
+  let j: { v?: number; since?: string; keys?: unknown };
+  try { j = JSON.parse(raw) as typeof j; } catch { refuse(1, `REFUSING (JN2): ${META_PENDING_KEY} does not parse. Nothing written.`); }
+  if (j.v !== 1 || typeof j.since !== "string" || !Array.isArray(j.keys) || !j.keys.every((k) => typeof k === "string")) {
+    refuse(1, `REFUSING (JN2): ${META_PENDING_KEY} is not a v1 journal. Nothing written.`);
+  }
+  return j.since === sha256Text(metaRaw) ? { kind: "current", keys: j.keys as string[], raw } : { kind: "stale", raw };
+}
 const ISO_SECONDS = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
 const sha256File = (p: string) => createHash("sha256").update(readFileSync(p)).digest("hex");
 const sha256Text = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -528,6 +555,12 @@ function replayMain(args: Args) {
   const m = readMeta(env);
   if (m.kind === "absent") refuse(1, "REFUSING (UN): no meta:routes, so nothing is sealed to replay.");
   const { meta, raw } = m as { kind: "ok"; meta: Meta; raw: string };
+  // D1 (2n): a replay writes nothing, so it cannot clear unsealed writes. With a CURRENT journal it refuses (exit 6),
+  // and the run script takes the key-level write for the same source instead.
+  const pend = readPending(env, raw);
+  if (pend.kind === "current") {
+    refuse(6, `REFUSING (JN1): ${META_PENDING_KEY} holds ${pend.keys.length} key(s) from unsealed runs; a replay writes nothing and cannot clear them. Run the key-level write for this source. Nothing emitted.`);
+  }
   const names = new Set([...Object.keys(meta.shards), ...nw.shards.keys()]);
   let eq = 0;
   for (const n of names) if ((meta.shards[n] ?? "").split(":")[0] === nw.shards.get(n)?.hash) eq++;
@@ -545,7 +578,7 @@ function replayMain(args: Args) {
   if (outside > 0) refuse(1, `REFUSING (PFX1): ${outside} key(s) outside the route prefix in the replayed change.`);
   const run = {
     v: 1, env, mode: "replay", sourceCommit: nw.commit, sourceSha256: sha256File(args.file as string), prevSourceCommit: pv.commit,
-    prevMetaSha256: sha256Text(raw), deletesRefused: false, readback: "not run",
+    prevMetaSha256: sha256Text(raw), deletesRefused: false, readback: "not run", journalSha256: journalSha(pend),
   };
   if (args.outWritten) writeFileSync(args.outWritten, JSON.stringify({ ...run, written: Object.fromEntries(writes) }));
   if (args.outDeleted) writeFileSync(args.outDeleted, JSON.stringify({ ...run, deleted: dels }));
@@ -580,6 +613,12 @@ function sealOnlyMain(args: Args) {
   if (r.deletesRefused !== false) why.push("the run's deletes were refused, and a run that cannot delete must not seal");
   if (r.prevMetaSha256 !== metaSha) why.push("meta:routes changed since the run the receipt verified");
   if (why.length > 0) refuse(1, `REFUSING (GR9): the receipt does not match this seal: ${why.join("; ")}. Nothing sealed.`);
+  // J7 (2n): the receipt must name the journal now stored. A newer unsealed run rewrote it, so an older receipt describes
+  // writes that are no longer the last ones -- and meta has not changed, so GR9 cannot see it. Absent and null are both
+  // "no journal".
+  const nowJournal = journalSha(readPending(env, (m as { raw: string }).raw));
+  const saw = typeof r.journalSha256 === "string" && r.journalSha256 !== "" ? r.journalSha256 : null;
+  if (saw !== nowJournal) refuse(1, "REFUSING (J7): the journal changed since the verified run, so this receipt no longer describes the last writes. Nothing sealed.");
   const meta = {
     v: 1,
     ruleRev: RULE_REV,
@@ -599,8 +638,18 @@ function sealOnlyMain(args: Args) {
     shards: Object.fromEntries([...nw.shards.entries()].map(([n, s]) => [n, `${s.hash}:${s.pairs.length}`])),
   };
   if (!pfxOk(META_KEY)) refuse(1, "REFUSING (PFX1): the meta key is outside the route prefix.");
-  kvChunks("put", [{ key: META_KEY, value: JSON.stringify(meta) }], env, tmpDir("routes-meta-"));
+  const mt = tmpDir("routes-meta-");
+  kvChunks("put", [{ key: META_KEY, value: JSON.stringify(meta) }], env, mt);
   console.log(`meta sealed: rows=${nw.totalRows} written=${String(r.written)} deleted=${String(r.deleted)} mode=key-level source ${nw.commit.slice(0, 12)} readback=${String(r.readback)}`);
+  // D1 (2n): the seal clears the journal. A failed clear is a WARN, never a refusal: the journal is stale by
+  // construction now (its `since` is the old meta's), so the next run ignores it.
+  try {
+    const p = join(mt, "journal-delete.json");
+    writeFileSync(p, JSON.stringify([META_PENDING_KEY]));
+    execSync(["node", KV_CLI, "kv", "bulk", "delete", q(sh(p)), "--binding=ENRICH_KV", `--env=${env}`, "--remote", "--force"].join(" "),
+      { stdio: ["ignore", "pipe", "pipe"] });
+    console.log(`journal: ${META_PENDING_KEY} cleared`);
+  } catch { console.log(`WARN: could not clear ${META_PENDING_KEY}; it is stale now (its since is the old meta), so the next run ignores it`); }
 }
 
 /**
@@ -670,7 +719,12 @@ async function keyLevelMain(args: Args) {
   const newVal = valuesOf(nw), prevVal = valuesOf(pv);
   const newKeys = new Set(newVal.keys()), prevKeys = new Set(prevVal.keys());
   const alsoKeys = also ? new Set(valuesOf(also).keys()) : new Set<string>();
-  const ours = new Set([...prevKeys, ...alsoKeys]); // every key the mirror is proven to have written
+  // D1 (2n): the journal of unsealed runs. Its keys are the mirror's own (written by us since the last seal), so they
+  // join `ours` for G6's provenance; each is rewritten to the new source's value, or deleted if the source lacks it.
+  const metaRaw = (m as { kind: "ok"; raw: string }).raw;
+  const pend = readPending(args.env as string, metaRaw);
+  const pendingKeys = new Set(pend.kind === "current" ? pend.keys : []);
+  const ours = new Set([...prevKeys, ...alsoKeys, ...pendingKeys]); // every key the mirror is proven to have written
   const newByShard = byShard(nw);
   const unionByShard = new Map<string, Set<string>>();
   for (const src of [also ? byShard(also) : new Map<string, Set<string>>(), byShard(pv)]) {
@@ -679,11 +733,17 @@ async function keyLevelMain(args: Args) {
   let added = 0, changed = 0;
   for (const [k, v] of newVal) { if (!prevVal.has(k)) added++; else if (prevVal.get(k) !== v) changed++; }
   const deletes = [...ours].filter((k) => !newKeys.has(k));
+  const writes = [...newVal].filter(([k, v]) => prevVal.get(k) !== v || pendingKeys.has(k));
   const removedShards = new Set([...unionByShard.keys()].filter((n) => !newByShard.has(n)));
   let fromRemoved = 0;
   for (const n of removedShards) for (const k of unionByShard.get(n) ?? []) if (!newKeys.has(k)) fromRemoved++;
   console.log(`sources: new ${nw.commit.slice(0, 12)}, prev ${pv.commit.slice(0, 12)}${also ? `, prev-also ${also.commit.slice(0, 12)}` : ""}`);
-  console.log(`key-level writes: ${added + changed} (added ${added}, value changed ${changed}); deletes: ${deletes.length} (${deletes.length - fromRemoved} from surviving shards, ${fromRemoved} from ${removedShards.size} removed shard(s))`);
+  const rewrite = [...pendingKeys].filter((k) => newKeys.has(k)).length;
+  console.log(pend.kind === "current"
+    ? `pending: ${pendingKeys.size} key(s) from unsealed runs (rewrite ${rewrite}, delete ${pendingKeys.size - rewrite})`
+    : pend.kind === "stale" ? "pending: stale, ignored" : "pending: none");
+  const onlyPending = writes.length - added - changed;
+  console.log(`key-level writes: ${writes.length} (added ${added}, value changed ${changed}${onlyPending > 0 ? `, pending rewrite ${onlyPending}` : ""}); deletes: ${deletes.length} (${deletes.length - fromRemoved} from surviving shards, ${fromRemoved} from ${removedShards.size} removed shard(s))`);
 
   // ---- the guards ---------------------------------------------------------------------------------------------
   const g1 = G.g1Completeness(pv.totalRows, nw.totalRows);
@@ -705,9 +765,9 @@ async function keyLevelMain(args: Args) {
   // D2 (docs/route-weekly-code.md 2k): PFX1 is counted BEFORE the dry-run return, over exactly the keys stage 2 would
   // touch, so a dry run predicts the refusal a real run would meet. The live check before the first write stays: it
   // also covers the sentinel, which does not exist yet.
-  const plannedKeys = [...[...newVal].filter(([k, v]) => prevVal.get(k) !== v).map(([k]) => k), ...(deletesAllowed ? deletes : [])];
+  const plannedKeys = [...writes.map(([k]) => k), ...(deletesAllowed ? deletes : [])];
   const pfxPlanned = plannedKeys.filter((k) => !pfxOk(k)).length;
-  console.log(`plan: write ${added + changed}; ${deletesAllowed ? `delete ${deletes.length}` : `delete NONE (refused), so the run would NOT seal`}; seal: never in-run (--seal-only after a verify PASS); PFX1: ${pfxPlanned} outside`);
+  console.log(`plan: write ${writes.length}; ${deletesAllowed ? `delete ${deletes.length}` : `delete NONE (refused), so the run would NOT seal`}; seal: never in-run (--seal-only after a verify PASS); PFX1: ${pfxPlanned} outside`);
   if (pfxPlanned > 0) refuse(1, `REFUSING (PFX1): ${pfxPlanned} planned key(s) outside the route prefix. Nothing written or deleted.`);
   if (args.dryRun) {
     console.log("--dry-run: stopping before any write");
@@ -717,7 +777,6 @@ async function keyLevelMain(args: Args) {
   // ---- stage 2: write, delete, read back; NEVER seal (W2) --------------------------------------------------------
   const env = args.env as string;
   const tmp = tmpDir("routes-kl-");
-  const writes = [...newVal].filter(([k, v]) => prevVal.get(k) !== v);
   const dels = deletesAllowed ? deletes : [];
   const live = args.readback === "off" ? null : liveReader(env);
   const runId = randomBytes(4).toString("hex").toUpperCase().slice(0, 5);
@@ -736,6 +795,18 @@ async function keyLevelMain(args: Args) {
     if (pre === null) refuse(1, `REFUSING: the live path is unreachable at ${live.base}. Nothing written.`);
     if (pre && (pre.o || pre.d)) refuse(1, `REFUSING: anchor ${anchorCs} resolves before any write; this probe cannot be trusted. Nothing written.`);
     console.log(`anchor: ${anchorCs} is absent through the live path (as required)`);
+  }
+
+  // D1 (2n), WRITE-AHEAD: before the first data write, the journal names every key this run may touch, plus a current
+  // journal's keys. If the run then dies or never seals, the next run still knows them. A stale journal is overwritten.
+  const journalKeys = [...new Set([...pendingKeys, ...writes.map(([k]) => k), ...dels])].sort();
+  let journalRaw: string | null = pend.kind === "absent" ? null : pend.raw;   // what is stored after this step
+  if (journalKeys.length > 0) {
+    // J7 (2n): the journal names its writer (source and runId), so a later run over the same meta and the same key set
+    // still changes it -- and an older receipt can never match it again.
+    journalRaw = JSON.stringify({ v: 1, since: sha256Text(metaRaw), source: nw.commit, runId, keys: journalKeys });
+    kvChunks("put", [{ key: META_PENDING_KEY, value: journalRaw }], env, tmp);
+    console.log(`journal: ${journalKeys.length} key(s) recorded in ${META_PENDING_KEY} before the first write`);
   }
 
   const retries = kvChunks("put", toWrite.map(([key, value]) => ({ key, value })), env, tmp)
@@ -788,6 +859,7 @@ async function keyLevelMain(args: Args) {
   const run = {
     v: 1, env, sourceCommit: nw.commit, sourceSha256: sha256File(args.file as string), prevSourceCommit: pv.commit,
     prevMetaSha256: sha256Text((m as { raw: string }).raw), deletesRefused: !deletesAllowed,
+    journalSha256: journalRaw === null ? null : sha256Text(journalRaw),   // J7 (2n)
     readback: live ? "on" : "not run", ...(live ? { sentinel: sentinelCs } : {}),
   };
   if (args.outWritten) writeFileSync(args.outWritten, JSON.stringify({ ...run, written: Object.fromEntries(writes) }));

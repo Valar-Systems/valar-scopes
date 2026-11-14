@@ -82,9 +82,9 @@ fi
 if [ "$NEW" = "$SEALED" ]; then
   [ "$PREVSRC" = "-" ] && finish meta-not-key-level
   fetch "$PREVSRC" || finish source-unreachable
-  echo "source unchanged since the last seal: replaying the last change (${PREVSRC:0:12} -> ${NEW:0:12})"
+  echo "source unchanged since the last seal (${PREVSRC:0:12} -> ${NEW:0:12})"
   W=(--key-level --replay --env "$ENV" --prev "$T/$PREVSRC.tar.gz" --file "$T/$NEW.tar.gz")
-  REPAIRABLE=""
+  REPAIRABLE=""; REPLAY=1
 else
   fetch "$SEALED" || finish source-unreachable
   W=(--key-level --no-seal --env "$ENV" --prev "$T/$SEALED.tar.gz" --file "$T/$NEW.tar.gz" --readback "$READBACK")
@@ -94,6 +94,16 @@ W+=(--out-written "$T/w.json" --out-deleted "$T/d.json")
 write() {
   "${TSX[@]}" scripts/ingest-routes.ts "${W[@]}" > "$T/w.out" 2>&1; local rc=$?
   cat "$T/w.out"
+  # D1 (docs/route-weekly-code.md 2n): a replay refused for a CURRENT journal (exit 6, JN1) becomes the key-level write
+  # for the same source: --prev is the sealed snapshot (this source), so the writes and deletes are the journal's keys.
+  if [ -n "${REPLAY:-}" ] && [ "$rc" = 6 ] && grep -q "(JN1)" "$T/w.out"; then
+    echo "a journal of unsealed writes: the key-level write for the same source, not a replay"
+    W=(--key-level --no-seal --env "$ENV" --prev "$T/$NEW.tar.gz" --file "$T/$NEW.tar.gz" --readback "$READBACK"
+       --out-written "$T/w.json" --out-deleted "$T/d.json")
+    REPAIRABLE=1; REPLAY=""
+    write; return $?
+  fi
+  [ -n "${REPLAY:-}" ] && [ "$rc" = 0 ] && echo "replaying the last change (${PREVSRC:0:12} -> ${NEW:0:12})"
   local n; n=$(grep -oE 'key-level writes: [0-9]+' "$T/w.out" | grep -oE '[0-9]+$' | head -1); [ -n "$n" ] && COUNTS=(--count "written=$n")
   if [ "$rc" != 0 ]; then grep -q "REFUSING EVERYTHING (G1)" "$T/w.out" && finish refused-g1; finish run-failed; fi
   if grep -q "not sealed, and must not be" "$T/w.out"; then

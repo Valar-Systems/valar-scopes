@@ -610,6 +610,39 @@ and GR9 cannot see it, because meta has not changed.
   exactly {J7}, every other row green. Then J7's code: writer **46 of 46**, run 8 of 8.
 - **W8 plant S-J7:** the seal's journal comparison disabled. Red exactly {J7} under the writer grader.
 
+**S-JN, RE-REGISTERED before any W8 run (2026-11-14 09:09Z).** The set above ("red exactly {J1-J6, JR1}" for "the
+journal read as always empty") was wrong for any single plant. J4 is graded by the write-ahead put, J5 by the seal's
+clear, J6 by the stale line, and JR1 by the replay's own read. None of those depends on the diff reading the journal. And a
+reader forced to "absent" would also turn J7's own comparison against every journaled seal (RCP2, J3, J5, and the UN
+rows behind RCP2's sealed store).
+- **The plant, stated exactly:** in `keyLevelMain`, the diff ignores the journal (`pendingKeys` forced empty). This is
+  the one property the journal exists for.
+- **S-JN-W** (the writer grader): red exactly **{J1, J2, J3, J7}**. J7 goes red too, which a first draft of this line
+  missed (corrected before any run). In J7's row, run B's own diff is empty, because its source is prev. With the
+  journal ignored, B writes no journal, so A's journal survives, and the old receipt matches it and seals.
+- **S-JN-R** (the run grader): red exactly **{RR6}**. The replay still refuses (JN1), but the key-level write then
+  changes nothing, and the orphan survives the seal.
+
+**Two earlier plants' sets grow with D1's and J7's rows, re-registered here before any W8 run (2026-11-14 09:10Z):**
+- **S-GR8** (`--no-seal` writes meta anyway, as the string `planted`): every later read of that meta fails to parse.
+  So the rows that run after a write and then read meta go red too:
+  - J1, J2 and J3 (run B refuses);
+  - J4 (the journal's `since` is the original meta's, not "planted"'s);
+  - J5 (the seal refuses);
+  - J7 (the seal refuses, but without `(J7)`);
+  - JR1 (RCP2's sealed store is never made).
+  - **Red exactly {GR8, RCP2, UN1, UN2, UN3, J1, J2, J3, J4, J5, J7, JR1}.** J6 is a dry run on a fresh store, so it
+    stays green.
+- **S-VAL** (`same()` always true): every verify's GR10m control refuses to judge. So the rows that need a verify PASS
+  go red too: J3, J7, and JR1 (no sealed store). **Red exactly {GR10m, GR10a, RCP2, GR10, GR11, UN1, UN2, UN3, J3, J7,
+  JR1}.** J5 seals a synthetic receipt, so it stays green.
+- **Unchanged, checked row by row:**
+  - S-GR9 (GR9's checks off): J7's own check still refuses its row;
+  - S-TMP (the seal's clear also uses a `tmpDir`, so TMP1 alone);
+  - S-RR3 (RR6's verify passes either way);
+  - the guards, freeze, health and reconcile plants.
+- **The W8 re-run's BASELINE becomes:** guards 63, writer **46**, freeze 4, run **8**, routes-health 11, reconcile 1.
+
 **Cost:** per run, +1 KV read (the journal); per writing run, +1 KV write (the journal put); per seal, +1 KV delete. On
 the first attended run (4a): `pending: none` in both environments' dry runs, which joins 4a's predicted lines. Anything
 else is a STOP before any write.
@@ -948,6 +981,11 @@ is engineering and a guarded write path, not money. That decision is the owner's
 
 | D6, red-first | section 2m's plants, before the code (08:25Z): red exactly the 7 new plants {SC1q, SC1z, SC5b, SC5j, NPM1c, SC3b, SC3n}, each reading clean; S1, S3 and S5 OFF (every new plant "turned green" by every sabotage); CTL and the 11 earlier plants green | **as predicted** |
 | D6, green | the quoted `on` key read; an empty trigger set fails closed; `secrets['X']` and `toJSON(secrets)` flagged; each command in a line judged alone; `bash -x`/`sh -x`/`set -o xtrace` and a bare `env` flagged. `SELFTEST PASSED`, 22 rows. S1 turns exactly {SC1q, SC1t, SC1z}; S3 exactly {SC3b, SC3e, SC3n, SC3p, SC3x}; S5 exactly {SC5, SC5b, SC5j}. The real workflow: `routes workflow: OK` | **as predicted** |
+
+| D1, red-first | section 2n's rows, before the code (08:38-08:41Z): writer red exactly {J1, J2, J3, J4, J5, J6, JR1}, 38 green; run red exactly {RR6}, 7 green. J3's verify already FAILED today, on the 25 missing deleted keys (coverage). But the 30 wrong values and 40 orphans are invisible to it, which is the defect | **as predicted** |
+| D1, green (the core) | the journal read at the start of every key-level run (stale ignored, with its line); writes and deletes take in a current journal's keys; the write-ahead put before the first data write; the seal's clear; the replay's JN1 (exit 6); the run script turning JN1 into the key-level write for the same source. Writer **45 of 45**, run **8 of 8**, `typecheck:scripts` exit 0 | **as predicted** |
+| J7, red-first | against D1's core: writer red exactly {J7}. The old receipt SEALED over run B's values (exit 0, meta changed). 45 green | **as predicted** |
+| J7, green | the journal names its writer (`source`, `runId`); the run files and the receipt carry `journalSha256`; `--seal-only` refuses a mismatch, `(J7)`. Writer **46 of 46**, run **8 of 8**, `typecheck:scripts` exit 0. Every own-receipt seal (RCP2, J3, J5, UN1, RR1, RR2, RR6) still passes | **as predicted** |
 
 **Proposed after run 2 (awaiting the reviewer's ruling; nothing re-run):**
 

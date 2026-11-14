@@ -84,9 +84,9 @@ if (BLIND_SAB) { console.log("--sabotage-blind: the baseline did NOT stop on a m
 
 const PLANTS = [
   { id: "S-GR9", file: "scripts/ingest-routes.ts", a: "  if (why.length > 0) refuse(1, `REFUSING (GR9)", b: "  if (false && why.length > 0) refuse(1, `REFUSING (GR9)", grade: "writer", want: ["GR9b", "GR9c", "GR9e", "GR9f", "GR9g"] },
-  { id: "S-GR8", file: "scripts/ingest-routes.ts", a: '  console.log(`wrote ${writes.length} route keys${live ? " (+1 sentinel)" : ""}; deleted ${dels.length}`);', b: '  kvChunks("put", [{ key: META_KEY, value: "planted" }], env, tmp);\n  console.log(`wrote ${writes.length} route keys${live ? " (+1 sentinel)" : ""}; deleted ${dels.length}`);', grade: "writer", want: ["GR8", "RCP2", "UN1", "UN2", "UN3"] },
+  { id: "S-GR8", file: "scripts/ingest-routes.ts", a: '  console.log(`wrote ${writes.length} route keys${live ? " (+1 sentinel)" : ""}; deleted ${dels.length}`);', b: '  kvChunks("put", [{ key: META_KEY, value: "planted" }], env, tmp);\n  console.log(`wrote ${writes.length} route keys${live ? " (+1 sentinel)" : ""}; deleted ${dels.length}`);', grade: "writer", want: ["GR8", "RCP2", "UN1", "UN2", "UN3", "J1", "J2", "J3", "J4", "J5", "J7", "JR1"] },
   { id: "S-FK1", file: "scripts/routes-fk1.ts", a: "  for (const v of CREDENTIAL_VARS) if (env[v]) return `a real credential variable is set (${v})`;\n  const tf = env.BLIPSCOPE_TOKEN_FILE;\n  if (tf && exists(tf)) return", b: "  const tf = env.BLIPSCOPE_TOKEN_FILE;\n  if (false && tf && exists(tf)) return", grade: "guards", want: ["FK1d", "FK1e", "FK1f", "FK1h", "BL1", "BL2"] },
-  { id: "S-VAL", file: "scripts/verify-routes.ts", a: "const same = (expected: string, got: string | null | undefined) => got === expected;", b: "const same = (expected: string, got: string | null | undefined) => true || got === expected;", grade: "writer", want: ["GR10m", "GR10a", "RCP2", "GR10", "GR11", "UN1", "UN2", "UN3"] },
+  { id: "S-VAL", file: "scripts/verify-routes.ts", a: "const same = (expected: string, got: string | null | undefined) => got === expected;", b: "const same = (expected: string, got: string | null | undefined) => true || got === expected;", grade: "writer", want: ["GR10m", "GR10a", "RCP2", "GR10", "GR11", "UN1", "UN2", "UN3", "J3", "J7", "JR1"] },
   { id: "S-RH9s", file: "src/routeshealth.ts", a: 'typeof sc === "string" && SOURCE_DATE.test(sc) && Number.isFinite(Date.parse(sc))', b: 'typeof sc === "string"', grade: "health", want: ["RH9s"] },
   { id: "S-TK1", file: "scripts/routes-token-check.ts", a: "if (days <= WARN_DAYS) return", b: "if (days < 0) return", grade: "guards", want: ["TK1a"] },
   { id: "S-FZ", file: "scripts/routes-guards.ts", a: "  return Date.parse(nowIso) < Date.parse(freezeUntil)", b: "  return false && Date.parse(nowIso) < Date.parse(freezeUntil)", grade: "guards", want: ["FZ1"] },
@@ -99,6 +99,11 @@ const PLANTS = [
   { id: "S-TMP-G", file: "scripts/routes-tmp.ts", a: "  for (const d of made) { try { rmSync(", b: "  for (const d of [] as string[]) { try { rmSync(", grade: "guards", want: ["SG1", "SG2"] },
   { id: "S-SW", file: "scripts/routes-tmp.ts", a: "    if (nowMs - st.mtimeMs < STALE_MS) { out.kept++; continue; }", b: "    if (false && nowMs - st.mtimeMs < STALE_MS) { out.kept++; continue; }", grade: "guards", want: ["SW2", "SW5"] },
   { id: "S-RC6", file: "../scripts/reconcile-fleet.py", a: 'key.strip() in ("test-device", "ci-test-device")', b: 'key.strip() in ("test-device",)', grade: "reconcile", want: ["RC6"] },
+  // D1 and J7 (docs/route-weekly-code.md 2n, re-registered 09:09Z before any run): the diff ignores the journal, under
+  // both graders; and the seal's journal comparison disabled
+  { id: "S-JN-W", file: "scripts/ingest-routes.ts", a: '  const pendingKeys = new Set(pend.kind === "current" ? pend.keys : []);', b: "  const pendingKeys = new Set<string>();", grade: "writer", want: ["J1", "J2", "J3", "J7"] },
+  { id: "S-JN-R", file: "scripts/ingest-routes.ts", a: '  const pendingKeys = new Set(pend.kind === "current" ? pend.keys : []);', b: "  const pendingKeys = new Set<string>();", grade: "runs", want: ["RR6"] },
+  { id: "S-J7", file: "scripts/ingest-routes.ts", a: '  if (saw !== nowJournal) refuse(1, "REFUSING (J7)', b: '  if (false && saw !== nowJournal) refuse(1, "REFUSING (J7)', grade: "writer", want: ["J7"] },
 ];
 
 // --only <id>: one plant, still after the full baseline (the reviewer's order: S-SW alone, then the whole driver).

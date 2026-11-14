@@ -16,7 +16,7 @@ import { join } from "node:path";
 
 export const STALE_MS = 6 * 3_600_000;
 /** What these tools leave in a temp dir: an extracted snapshot, or their own JSON files. Anything else is foreign. */
-const OURS = /^(standing-data-.+|bulk-\d+\.json|put-\d+\.json|delete-\d+\.json|bulk-get-\d+\.json|meta\.json|stale\.json|sentinel-delete\.json|verify-bad-keys\.json|sd\.tar\.gz)$/;
+const OURS = /^(standing-data-.+|bulk-\d+\.json|put-\d+\.json|delete-\d+\.json|bulk-get-\d+\.json|meta\.json|stale\.json|sentinel-delete\.json|journal-delete\.json|verify-bad-keys\.json|sd\.tar\.gz)$/;
 
 const made: string[] = [];
 /** A temp dir under the system temp, removed when this process exits (process.exit() included). */

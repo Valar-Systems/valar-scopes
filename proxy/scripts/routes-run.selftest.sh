@@ -66,6 +66,22 @@ cp "$F/store-prev.json" "$T/s.json"; h0=$(sha "$T/s.json")
 rc=$(run "$T/rr4.out")
 if [ "$rc" = 1 ] && has "$T/rr4.out" "class meta-not-key-level" && [ "$(sha "$T/s.json")" = "$h0" ]; then ok RR4; else bad RR4 "exit $rc"; fi
 
+# ---- RR6 (D1, section 2n): an unchanged source with a CURRENT journal does not replay -------------------------------
+# The journal names an orphan an unsealed run left behind: rt:QZ00001, in neither source, so the last change's verify
+# cannot see it. Today the script replays, the verify passes, and the orphan survives the re-seal. With the journal, the
+# script runs the key-level write for the same source, which deletes the orphan, then verifies and seals.
+if [ -f "$T/sealed.json" ]; then
+  cp "$T/sealed.json" "$T/s.json"
+  node -e 'const fs=require("fs"),c=require("crypto"),S=process.argv[1]; const s=JSON.parse(fs.readFileSync(S,"utf8"));
+s.staging["rt:QZ00001"]=JSON.stringify({o:"QQQ",d:"ZZZ"});
+s.staging["meta:routes-pending"]=JSON.stringify({v:1, since:c.createHash("sha256").update(s.staging["meta:routes"]).digest("hex"), keys:["rt:QZ00001"]});
+fs.writeFileSync(S, JSON.stringify(s));' "$T/s.json"
+  rc=$(run "$T/rr6.out")
+  left=$(node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).staging; process.stdout.write(`${"rt:QZ00001" in s ? "orphan" : "gone"} ${"meta:routes-pending" in s ? "journal" : "no-journal"}`)' "$T/s.json")
+  if [ "$rc" = 0 ] && ! has "$T/rr6.out" "replaying the last change" && [ "$left" = "gone no-journal" ] && [ "$(meta sourceCommit)" = "$P2" ]; then ok RR6
+  else bad RR6 "exit $rc; replayed: $(has "$T/rr6.out" "replaying the last change" && echo yes || echo no); after: $left"; fi
+else bad RR6 "no sealed store (RR1 failed)"; fi
+
 # ---- RR5: a future freeze ends green with the stated line, and reads no KV at all -----------------------------------
 cp "$T/store-kl.json" "$T/s.json"
 rc=$(run "$T/rr5.out" ROUTES_FREEZE_UNTIL=2099-01-01T00:00:00Z ROUTES_KV_CLI=scripts/no-such-kv-cli.mjs)

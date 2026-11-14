@@ -370,6 +370,8 @@ async function main() {
         prevSourceCommit: wf.prevSourceCommit, prevMetaSha256: wf.prevMetaSha256,
         written: Object.keys((wf.written ?? {}) as object).length, deleted: ((df.deleted ?? []) as string[]).length,
         deletesRefused: false, readback: wf.readback, ...(typeof wf.sentinel === "string" ? { sentinel: wf.sentinel } : {}),
+        // J7 (docs/route-weekly-code.md 2n): the journal the verified run left; --seal-only refuses if it has changed
+        journalSha256: typeof wf.journalSha256 === "string" ? wf.journalSha256 : null,
         checkedAt: new Date().toISOString(),
       }));
       console.log("receipt: written");
