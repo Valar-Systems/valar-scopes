@@ -394,6 +394,9 @@ commit, with its own prediction.
   workflows all succeed, and each new step passes on Linux, the first time any of them runs there.
 - **Outside the set:** any other total or split, or a new step red. Stop and decide; a Linux-only failure is a finding,
   never a re-baseline.
+- **Added before the push (2026-11-14 ~05:50Z):** the push also carries W6/W6b (`reconcile-fleet.py` and its selftest,
+  which already runs in CI), the temp-dir fix with TMP1 and TMP1-ctl, and W8's driver (not a CI step). None changes a
+  workflow, so the predicted total is unchanged. The writer and run selftests are now 25 and 7 rows.
 
 ## 4. The staging rehearsal and the first runs
 
