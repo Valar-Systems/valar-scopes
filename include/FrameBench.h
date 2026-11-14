@@ -348,8 +348,8 @@ inline void OnCloudPoll(JsonDocument& doc, Rows& rows, long& dataEpoch, Parse pa
     for (int i = 0; i < n; ++i) {
         const fbtable::Row r = fbtable::At(lat0, lon0, i, (double)now);
         JsonArray e = a.add<JsonArray>();
-        e.add(r.hex);
-        e.add(r.flight);
+        e.add(static_cast<const char*>(r.hex));
+        e.add(static_cast<const char*>(r.flight));
         e.add(fbtable::Q4(r.lat));
         e.add(fbtable::Q4(r.lon));
         e.add(r.altFt);
