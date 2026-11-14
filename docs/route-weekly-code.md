@@ -812,6 +812,25 @@ diff still touches `proxy/**` and `docs/`, so the same four workflows run. Outsi
 07:14:12Z, and the run was identical at 15:44:21Z and 15:45:23Z. It tested `Merge 0439ebf4... into 6f6dae93...` (the
 `test (proxy)` checkout log). Recorded late (read 2026-11-14 15:44Z), before the next push.
 
+**CI-C8, the push of 2h-2p and W8's results (predicted 2026-11-14 16:34:10Z, before the push).**
+- **The push carries** everything since `0439ebf4`:
+  - the review's fixes, 2h (B1, B2, M1-M3);
+  - (b) and (c), 2i;
+  - D8, D2 and D5, D4, D6, and D1 with J7 (2j-2n);
+  - D3's count, 2o;
+  - F1, 2p, and W8's driver changes;
+  - the records of CI-C7 and of W8 (the 15:55Z MISS and F1's pass).
+- **The workflows:** only `routes-refresh.yml` changes since CI-C7 (M2's `persist-credentials: false`), and it has no
+  `pull_request` trigger, so it adds no check-run. `workers.yml` and `device-ids.yml` are as CI-C5 to CI-C7 ran them.
+- **The baseline:** main is `1a29bead` (`git ls-remote` at 16:34:10Z). It has had no workflow commit since CI-C7's base
+  `6f6dae93`. `git merge-tree` with main is clean.
+- **Predicted: 36 check-runs = 34 success + 2 skipped (promote, version) + 0 other,** across the four `pull_request`
+  workflows (device-ids, firmware, no-traffic-captures and workers), all success.
+- **Each step new since CI-C7 passes on Linux,** the first time it runs there: the guards selftest at 63 (SG1 and SG2
+  through `process.emit`), the writer at 48, the run at 8, and W10's D6 plants in device-ids.
+- **Outside the set:** any other total or split, or a step red, is a stop. A Linux-only failure is a finding, never a
+  re-baseline.
+
 ## 4. The staging rehearsal and the first runs
 
 1. **A dry run of each environment**, attended. It prints counts only: `sourceCommit`, rows, writes, deletes by kind
