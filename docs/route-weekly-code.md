@@ -665,6 +665,21 @@ WAIVED by a ruling recorded here. Each was checked against the code before it wa
 a guard that answers a narrower question than it claims. The recommendation is to fix those six before S-ON, and D10 is
 satisfied by the pin plus the step-1 check.
 
+**RULED (the reviewer, 2026-11-14, received by 07:40Z), held locally until the owner answers on W8:**
+- **FIX BEFORE S-ON:**
+  - D1: the write-ahead journal under `meta:routes-pending`, which PFX1 gains;
+  - D2;
+  - D4, as corrected: no PFX1 in the full mode, and the chain break. The full mode is refused for `--env production`;
+  - D5;
+  - D6: all four gaps, each planted in its selftest;
+  - D8.
+- **D8 BEFORE THE FIRST RUN**, not only before S-ON. The first run is the one that lifts `--allow-removed`, so it names the five shards, and 4a is re-registered with the names.
+- **WAIVED**, each with its reason:
+  - **D3:** a leftover `rt:ZZ…S` sentinel is inert: it is a callsign no aircraft carries. But each verify LISTS any it finds, as a count, so an accumulation is visible rather than silent.
+  - **D7:** `/healthz` reads meta, and alerting is the owner's, as this doc's line on `sourceCommittedAt` (section 2c, ~136) already says.
+  - **D9:** the self-loop lines are public route data. They are masked anyway the next time that block is touched.
+- **D10: PINNED**, read three times. The first run's step 1 runs `sha256sum -c`.
+
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 
 **The alternative.** The workflow holds no KV token. It POSTs batches of `[key, value]` and `delete` lists to a
