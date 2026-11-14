@@ -496,6 +496,33 @@ from the same table.
       a crop shows.
 - **The inverse guard for the local block (H6):** STATE bits 1 and 2 clear on every frame. PIX shows no map colour
   and no outline.
+- **THE FT GUARD ROW (2026-11-14T18:04:19Z, on the orchestrator's ruling; registered before the sibling's code).**
+  The frame-time rows that run on this sibling (map-server's FT-SEA and FT-HR) are FIXED-(a) scenes with a map package
+  swapped in through `Initialise` and the weather layer pinned OFF (FT-SEA's amendment). H4's FIXED-(a) rule needs
+  bit 1 SET, so as written it would read every FT frame as the INSTRUMENT. FT gets its own row:
+  - **STATE, every measured frame of an FT scene:** bit 2 SET (the map drawn), bit 1 CLEAR (no weather crop), and
+    bit 3 CLEAR (no night poll, no night clock). Any measured frame otherwise makes that scene the INSTRUMENT.
+  - **The kind comes from the record, never from a scene number.** The sibling's scene table marks FT scenes, its
+    `drawing` line prints the kind, and the reader picks the guard from that kind. A scene whose kind is none of FT,
+    FIXED-(a) and FIXED-L is outside the set: STOP. The instrument is unreliable.
+  - **What sets bit 3 at FT, from the code.** Night follows the scene's home, because the bench answers the
+    `latitude`/`longitude` keys with it (`FrameBench.h:213-225` at `b417d80cd4c5`) and `isNightNow` reads them, for
+    the cadence (`AircraftManager.cpp:1787`, same commit) and for `nightNow` (:5187). The cadence is not pinned (H7). The night
+    clock cannot fire with any airborne aircraft tracked (`NightClockActive()`, :5155-5163 at `3bc7ec26fe28`), and
+    FT's 40 drawn are airborne. So bit 3 at FT is the night poll. An FT window is placed in all its homes' daylight
+    with at least 10 min clear of each edge. The sun times are placement data and are never committed.
+  - **PIX is not part of this row.** FT's registration grades no frame buffer, and PIX-MAP's thresholds have no
+    measured basis at FT's homes. Whether FT adds PIX is a question for FT's registration.
+  - **Red first, in the reader's selftest, before the sibling's reader is used:**
+    - **The control:** an FT record with bit 2 set and bits 1 and 3 clear on every measured frame. **Predicted:** the
+      scene is graded.
+    - **Three plants, one bit each:** bit 2 clear on one measured frame; bit 1 set on one; bit 3 set on one.
+      **Predicted:** each reads that scene as the INSTRUMENT and names the bit.
+    - **The red that justifies the row:** the control with its kind relabelled FIXED-(a). **Predicted:** INSTRUMENT
+      on bit 1.
+    - **A fifth case:** a record whose kind is unknown. **Predicted:** STOP.
+    - Any other reading of the five is outside the set: stop and decide. The reader is not used until all five read
+      as predicted.
 
 **H5, FIXED-(a) against LIVE (XA), with a frozen tolerance.**
 - **The line:** at each home, FIXED-(a)'s 30 s p95(`p2p`) windows at 25 mi, levels 20, 40 and 60, fitted p95 against
