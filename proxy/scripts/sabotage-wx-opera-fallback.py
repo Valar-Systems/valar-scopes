@@ -11,11 +11,12 @@ could not resolve its own modules ("No such module @fs/..."), so every run read 
 the long path (Path.resolve(strict=True)), and the baseline would have stopped that draft before its first plant.
 
 Each plant asserts its anchor appears EXACTLY once and that the file changed, then runs the grader, and restores the file
-from a byte copy checked by sha256. Per-test sets, frozen 2026-11-14 ~09:04Z (FB7 is two tests; the registered sets
-name the row):
-  S-MIX      red {FB1, FB2, FB3, FB5, FB7}; FB7 (lagging) green (its check makes no read)
-  S-FALLREAD red {FB5}
-  S-SRC      red {FB1, FB2, FB3, FB6, FB7, FB7 (lagging)} (the lagging case asserts latest's source too)
+from a byte copy checked by sha256. Per-test sets, as registered in section 9 (every set names its tests, never a row;
+16 tests since the review's fixes):
+  S-MIX        red {FB1, FB2, FB3, FB5, FB7, ERR1}; FB7 (lagging) green (its check makes no read)
+  S-FALLREAD   red {FB5, ERR1}
+  S-SRC        red {FB1, FB2, FB3, FB6, FB7, FB7 (lagging)}
+  S-EMPTYFAIL  red {FB4d}  (B1: the "primary empty, backup fails" throw replaced with a no-frame return)
 """
 import hashlib
 import pathlib
@@ -25,18 +26,20 @@ import sys
 
 P = pathlib.Path(__file__).resolve(strict=True).parent.parent   # proxy/, as a LONG path
 SRC = P / "src" / "wx" / "ingest.ts"
-TESTS = 14
-READ = 'const b = await buildOperaFrame(p, key, epoch, doFetch, opts, attempts, x, bucket, OPERA_HOST[source ?? "primary"]);'
+TESTS = 16
+READ = "const b = await buildOperaFrame(p, key, epoch, doFetch, opts, attempts, x, bucket, OPERA_HOST[source]);"
+EMPTYFAIL = "    throw err;                                                   // the primary answered empty: the backup's failure is the error"
 PLANTS = [
-    ("S-MIX", READ, READ.replace('OPERA_HOST[source ?? "primary"]', 'OPERA_HOST[source === "primary" ? "backup" : "primary"]'),
-     {"FB1", "FB2", "FB3", "FB5", "FB7"}),
+    ("S-MIX", READ, READ.replace("OPERA_HOST[source]", 'OPERA_HOST[source === "primary" ? "backup" : "primary"]'),
+     {"FB1", "FB2", "FB3", "FB5", "FB7", "ERR1"}),
     ("S-FALLREAD", READ,
      READ[:-1] + ".catch(() => buildOperaFrame(p, key, epoch, doFetch, opts, attempts, x, bucket, OPERA_BACKUP_BUCKET));",
-     {"FB5"}),
+     {"FB5", "ERR1"}),
     ("S-SRC", "customMetadata = { coveredShare: String(b.covered), ...(source ? { source } : {}) };",
      "customMetadata = { coveredShare: String(b.covered) };", {"FB1", "FB2", "FB3", "FB6", "FB7", "FB7 (lagging)"}),
+    ("S-EMPTYFAIL", EMPTYFAIL, "    return { keys: [], attempts: 0, source: null };   // S-EMPTYFAIL", {"FB4d"}),
 ]
-ROW = re.compile(r"> (FB\d[a-z]?|HZ1|UA\d)\b")
+ROW = re.compile(r"> (FB\d[a-z]?|HZ1|UA\d|ERR1)\b")
 
 
 def grade():
