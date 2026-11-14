@@ -247,20 +247,45 @@ def observed(b):
 OBS_LABEL = "24 h rate (observation, not graded)"
 
 
-def render(b):
-    ev, ob = evaluate(b), observed(b)
-    heads = list(ev) + ([OBS_LABEL] if ob else [])
+def table(b, ev, names, ob):
+    heads = names + ([OBS_LABEL] if ob else [])
     L = ["| allowance | included | " + " | ".join(heads) + " |", "|---|---|" + "---|" * len(heads)]
     for i, (a, al) in enumerate(b["allowances"].items()):
         cells = []
-        for s in ev:
+        for s in names:
             _, amt, share, mark, c = ev[s]["lines"][i]
             cells.append(f"{fmt_amount(a, al, amt)} ({share:.0%})" + (f" **{mark}**" if mark else "") + (f", ${c:.2f}" if c else ""))
         if ob:
             cells.append(f"{fmt_amount(a, al, ob[a])} ({ob[a] / al['included']:.0%})" if a in ob else "not read")
         L.append(f"| {al['label']} | {fmt_amount(a, al, al['included'])} | " + " | ".join(cells) + " |")
-    L.append("| **overage a month (Read A)** | | " + " | ".join(f"**${ev[s]['overage']:.2f}**" for s in ev) + (" | |" if ob else " |"))
-    return "\n".join(L) + "\n"
+    L.append("| **overage a month (Read A)** | | " + " | ".join(f"**${ev[s]['overage']:.2f}**" for s in names) + (" | |" if ob else " |"))
+    return "\n".join(L)
+
+
+def render(b):
+    """The 30-day table (with the observation column), then one table per calendar month (9.8 i), then one line per
+    one-off row (9.2): per_event x events[the file's month] = value, its events by month, the reader's 30-day figure."""
+    ev, ob = evaluate(b), observed(b)
+    thirty = [s for s, p in b["scenarios"].items() if "month" not in p]
+    months = sorted({p["month"] for p in b["scenarios"].values() if "month" in p})
+    parts = [f"**30-day figures** (a steady row as read; a one-off at {b['month']}'s events)", table(b, ev, thirty, ob)]
+    for m in months:
+        st, en = month_bounds(m)
+        parts += [f"**{m}, calendar month ({(en - st).days} days)**",
+                  table(b, ev, [s for s, p in b["scenarios"].items() if p.get("month") == m], {})]
+    ones = [r for r in b["rows"] if r.get("cadence") == "one-off" and r["state"] != EXCLUDED]
+    if ones:
+        L = [f"| product | state | allowance | per_event x events[{b['month']}] = value | events by month | reader's 30-day figure |",
+             "|---|---|---|---|---|---|"]
+        for r in ones:
+            a, al = r["allowance"], b["allowances"][r["allowance"]]
+            n = r["events"].get(b["month"], 0)
+            evs = ", ".join(f"{k}: {v}" for k, v in sorted(r["events"].items()))
+            rd = fmt_amount(a, al, r["reader_30d"]) if "reader_30d" in r else "not read"
+            L.append(f"| {r['product']} | {r['state']} | {al['label']} | {fmt_amount(a, al, r['per_event'])} x {n} = "
+                     f"{fmt_amount(a, al, r['value'])} | {evs} | {rd} |")
+        parts += ["**One-off rows**", "\n".join(L)]
+    return "\n\n".join(parts) + "\n"
 
 
 def flags(b):
@@ -448,6 +473,14 @@ def selftest():
     po2["rows"].append({**one, "product": "ingest", "state": "silent", "allowance": "kv_write"})
     po2["scenarios"]["x"] = {"month": "2026-11", "ingest": [{"state": "silent"}, {"state": "running", "from": "2026-11-16T00:00:00Z"}]}
     check("one-off" in why(po2) and "segment" in why(po2), "M3: a one-off row's product changing state inside a month is refused")
+    # ---- 9.2 / 9.8: the render. One line per one-off row; month scenarios under their own month's table -------------
+    rt = render(pm) if ok else ""
+    check("| proxy | now | KV writes | 0.100 M x 4 = 0.400 M | 2026-11: 5, 2026-12: 4 | not read |" in rt,
+          "R1: a one-off row renders as per_event x events[the file's month] = value, its events by month beside it")
+    head30, _, rest = rt.partition("**2026-12, calendar month (31 days)**")
+    tbl = next((c for c in rest.split("\n\n") if c.startswith("| allowance")), "")
+    check("| dec |" in tbl.split("\n")[0] and " dec " not in head30 and " today " in head30,
+          "R2: a month scenario renders in its month's table, never in the 30-day one")
     print("SELFTEST " + ("PASSED" if not fails else f"FAILED: {len(fails)}"))
     return 0 if not fails else 1
 
