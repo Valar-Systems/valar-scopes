@@ -1,0 +1,29 @@
+The census MIRROR retry on a schedule: the orchestrator's ruling (a), after 07:22:11Z 2026-11-14. Registered before it runs.
+
+State held throughout: step 1's applied state, consistent and reversible.
+- plan.json 1cadb9712e03; plan.original.f12d3eb56040.json and retry.before.89475784fe22.json kept in mirror/;
+  retry-fetched.json 89475784fe22 (round 6's 2 records); 0 files under files/ftp2.census.gov.
+- Nothing else reads the cache meanwhile. The dry-clone at 44349515 is held, unused. #696's head is re-read before step 8,
+  as ruled.
+
+The schedule (mirror/sched_n6.sh, with mirror/sched_n6_counts.py):
+- one round at each of +60, +180, +360, +720 and +1440 min from the script's start;
+- each round is the ingest's own `retry --schedule-min 0 --urls <the 6 ftp2 urls>` from sab-ingest/proxy (c3acc338, clean),
+  one file a minute, with its UA, through runlog.sh (tag census-mirror-p<min>);
+- each round is its OWN process. The ingest's in-process schedule would go on to the next point after a partial round, and
+  stopping it there would need a kill.
+- Before each round: 0 ingest-basemap processes, and plan.json still 1cadb9712e03.
+
+Each round's verdict, from m = the ftp2 records in retry-fetched.json, the round's attempt lines, its exit and its stderr:
+| reading | verdict | then |
+|---|---|---|
+| m 6; 6 "fetched" lines, 0 other; exit 0; stderr 0 B | ALL | the schedule ends (exit 0); resume at step 3 (check, M-1) as registered in switch_n6.pred |
+| m 1 to 5 | PARTIAL | STOP after that round (exit 4); bring n = 6 - m to the orchestrator |
+| m 0; 6 "not fetched" lines, 0 fetched, 0 other; exit 1; stderr 0 B | REFUSED | the next point |
+| REFUSED at +1440 | ALL REFUSED | STOP (exit 5); (c) goes to the owner then, not before |
+| a guard fails before a round (a process running, or plan.json moved) | OUTSIDE | STOP (exit 3) without running the round |
+| anything else (another exit, a crash, stderr not empty, a line that is neither, m disagreeing with the lines) | OUTSIDE | STOP (exit 3) and decide |
+- CONTROL, before arming: sched_n6_counts.py on step 2's own logs (switch-n6-fetch-20261114T071526Z.out/.err) reads
+  "0 0 6 0 0", which is REFUSED's shape. The script's bash parses (bash -n).
+- Each round adds 6 lines to retry-attempts.jsonl (60 -> 66 after the first round, and so on).
+- A refusal writes no record and no file (as at 07:15-07:20Z).
