@@ -1084,6 +1084,51 @@ evening (ET 19:00-20:30, CT 18:00-19:30, MT 17:00-18:30, PT 16:00-17:30). Tonigh
 checks and images, and p4 holds the build slot until about 00:25Z. **So the survey window is requested for 00:00Z on
 2026-11-14,** and KSFO's capture can share it if the code is ready.
 
+**AMENDMENT to Q-RC6 and RP2, before the re-run (2026-11-14T02:53:14Z, on the orchestrator's ruling, unstamped).** It is
+registered before any survey reading exists, and the re-run is graded against this text, never against the
+paragraph above.
+- **Why it moves:**
+  - The 00:00Z window was missed, because no turn reached the session.
+  - The rebooked window (01:45-03:15Z) died at 02:09:56Z, 23.5 min into the survey trace, when every session
+    crashed. E2:08 was restored to v19, boot read PASS.
+  - The partial survey is not read.
+  - The owner (02:48Z): "S1 21:30Z. If the board is free earlier, start earlier so one retry still fits before S2 at
+    Nov 15 00:00Z." S2 stays where it is.
+- **The change:**
+  - The survey and both captures run at **20:00Z on 2026-11-14**, the US **afternoon** banks: ET 15:00, CT 14:00,
+    MT 13:00, PT 12:00. Not the evening banks.
+  - No start inside the booking (to 23:45Z) can reach ET 19:00, which is 00:00Z.
+  - **The choice rule is unchanged:** the highest share of polls at 40 rows, then the higher median in25, then the
+    lower index. Fewer than 6 of the 8 candidates with 10 home-ok polls is STOP. So are the query (`r=161&limit=40`),
+    the candidates (Q-RC3), the images and the readers.
+- **The predictions, frozen now:**
+  - **PA-1:** at least 6 of the 8 candidates have 10 home-ok polls. This is the rule's own floor. Below it is STOP,
+    and the survey is the instrument.
+  - **PA-2:** at least 4 of the candidates with 10 polls are at 40 rows on all 10. So the choice is made by the in25
+    tie-break, not by the share. The basis: at 161 km, a top-8 hub's area in daytime holds more than the 40 nearest.
+  - **PA-3, a named guess:** the winner is **A6 JFK**. The basis: the NY terminal area (JFK, LGA and EWR inside 25 mi)
+    is the densest of the eight at ET 15:00. The second guess is A1 ATL.
+  - **Not graded: "the same winner as the evening banks".** No evening survey exists, so that comparison has no
+    reference. By the basis of PA-3 (a terminal area's density persists across banks) I expect the same winner, and it
+    is a label only.
+- **What each outcome means:**
+  - **Any winner is a valid choice.** An airport other than the one the evening would have picked is a different scene
+    set (the second recording's home), not a failure. RP5's numbers are computed from the pinned recordings by its
+    frozen rule, so they follow the choice.
+  - **PA-2 off** (fewer than 4 saturated): afternoon traffic is thinner than the plan assumed. The choice still stands
+    by the share. The replay's "thin" label (median drawn n under 35) reports it.
+  - **PA-3 off:** a wrong guess, reported. It changes nothing.
+  - **A survey STOP (PA-1 off), or a crash, a killed run, or a port that will not open,** is an INSTRUMENT failure. It
+    gets the booking's one retry if both runs and their restores still end by 23:45Z. A second failure stops and
+    reports.
+  - **None of the above** (survey_read.py exits with neither a choice nor a STOP, or the ledger cannot be read): the
+    instrument is unreliable. Stop and decide. No retry is taken on it.
+- **KSFO** is recorded at PT 12:00 instead of 16:00. Its drawn n is reported by the replay's existing "thin" rule, and
+  nothing new is graded on it.
+- **The launch:** DETACHED (WMI `Win32_Process.Create`), with its own deadline guard, and E2:08 reserved by its serial
+  first. A tool or session crash then cannot kill a trace mid-run. Killing a trace is what puts an S3 into download
+  mode.
+
 ## RP5's registration: the v19 run on the recordings, frozen before its window (2026-11-13)
 
 Everything below is ruled and frozen before the run's image exists. The numbers that depend on the recordings (n̂, the
