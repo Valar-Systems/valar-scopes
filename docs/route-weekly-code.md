@@ -324,6 +324,59 @@ tarballs by sha) and `ROUTES_RUN_GH` (canned API answers). FK1 refuses both unde
 - W10 and W7 add STEPS to the one-job `device-ids` and `workers` workflows;
 - so the predicted total is unchanged at 36.
 
+### 2g. W8's re-run, the driver's baseline, and the stale-temp sweep (the reviewer's rulings, 2026-11-14 ~05:50Z)
+
+**The first full driver run is RECORDED: 7 of 14 OFF.** It was the driver's instrument failure #1:
+`execFileSync("npx")` cannot start without a shell on Windows (ENOENT), so six graders never ran, and their errors read
+as red `[]`. S-GR8 is recorded OFF too, because its registration predated W3. An off reading is not re-graded.
+
+**The driver, as ruled:**
+- Graders run as `node node_modules/<pkg>/<bin>`, with no npx and no shell, on both OSes.
+- **The BASELINE comes first:** every grader on the clean tree must read its full count before any plant: guards 50,
+  writer 25, freeze 4, run 7, routes-health 11, and reconcile's RC5-RC6 group present with red none.
+- A grader that reads no rows, or the wrong count, is **BLIND and STOPS the driver** (exit 2). It never yields `[]`.
+- **The baseline's own sabotage:** `--sabotage-blind` points the guards grader at a binary that does not exist. The
+  driver must stop at the baseline with `BLIND`, exit 2, with no plant applied.
+
+**Every set re-derived against the W3 and TMP rows, row by row, before the re-run:**
+
+| plant | its grader | what the plant reaches | the set |
+|---|---|---|---|
+| S-GR9 | writer | GR9b, c, e, f, g lose their refusal; RCP2 and UN1-UN3 hold VALID receipts, so they are unaffected | unchanged |
+| **S-GR8** | writer | the plant writes meta "planted" on EVERY `--no-seal` run: GR8's own, and the W3 section's write. So RCP2's `--seal-only` meets an unparsable meta and refuses (RCP2 red), and UN1-UN3 have no sealed store to replay (red). KL1 and PFX1 refuse before any write; FKW is a dry run; RB1's line still prints | **{GR8, RCP2, UN1, UN2, UN3}** |
+| S-FK1 | guards | FK1d, e, f and h. (FKW in the writer selftest would also go red, but the driver grades this plant with guards only) | unchanged |
+| S-VAL | writer | as recorded: the control stops every value-checking verify | unchanged |
+| S-RH9s | routes-health | RH9s only; RH9 and RH9c hold well-formed values | unchanged |
+| S-TK1 | guards | TK1a only | unchanged |
+| S-FZ | guards | FZ1 only. (FZC1 and RR5 would also go red in their own selftests, which do not grade this plant) | unchanged |
+| S-FZC | freeze | FZC1 only. (RR5 would also go red in the run selftest, which does not grade this plant) | unchanged |
+| S-SC4 | guards | SC4 only | unchanged |
+| S-SC2 | guards | SC2b and SC2c | unchanged |
+| S-RR3 | run | RR3 only | unchanged |
+| S-TMP-W, S-TMP-V | writer | TMP1 only; the plants change no result, only what is left behind | unchanged |
+| S-RC6 | reconcile | RC6 only | unchanged |
+
+Only S-GR8 predated W3.
+
+**The stale-temp sweep (accepted for #708).**
+- **One home:** `proxy/scripts/routes-tmp.ts` exports `tmpDir()`, the exit cleanup, and `sweepStale(dir, prefixes,
+  now)`. Both tools import it, replacing their two copies.
+- At start, each tool removes ITS OWN prefix dirs older than 6 hours:
+  - matched by prefix AND by content, as the 11-14 deletion was;
+  - a count is printed, never a name;
+  - another prefix and `Temp\claude` are never touched.
+- **The 6-hour floor is what keeps a concurrent run's live dirs safe.** The code says so.
+- **Rows, in the guards selftest, on a private dir:**
+
+| row | planted | predicted |
+|---|---|---|
+| SW1 | a stale dir (mtime 7 h ago) holding a `standing-data-*` tree | removed |
+| SW2 | a fresh dir (1 h ago), the same content | kept |
+| SW3 | a stale dir holding a foreign file | kept, and counted as foreign |
+| SW4 | a stale dir of ANOTHER prefix | untouched, and not counted |
+
+- **Sabotage S-SW:** the age test off. Red exactly {SW2}.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
