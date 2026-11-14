@@ -528,6 +528,11 @@ measured).** The old one is kept, renamed **"before shsr"**, because 9.5's compa
   - Class B 4.118 M + 0.432 M (shsr projected) = 4.550 M;
   - **total $0.57 at Read A.**
 - **"before shsr":** today's old figures, $0.12.
+- **CONDITIONAL on 9.8(v), noted 2026-11-14 09:30Z before any acceptance or run.** The figures above use the 11-12 base.
+  If 9.8(v) moves the base to the MTD read, they are superseded. "today" on that base is the 30-day MTD figures with
+  shsr from X10: Class A 1.009 M (OVER by about 9k: $4.50 at Read A), CPU 60.4 M ($0.61), KV by event ($0), total
+  about $5.11. That is the line the owner was already shown at 06:48Z, and it is a coin flip within shsr's ±13k. A
+  scenario without `month` takes its one-offs at the file's default month, 2026-12.
 
 **9.8 THE STRUCTURAL RULE (the reviewer, 2026-11-14 ~09:28Z) and its scenarios. Registered before code; the design
 choices below are PROPOSED for the reviewer's acceptance.** Three wrong cost figures reached the owner in one day:
