@@ -94,12 +94,16 @@ const PLANTS = [
   { id: "S-SC2", file: "scripts/routes-env-check.ts", a: "    mainOnly = !!p && p.protected_branches === false", b: "    mainOnly = !!p || p.protected_branches === false", grade: "guards", want: ["SC2b", "SC2c"] },
   { id: "S-RR3", file: "scripts/routes-refresh-run.sh", a: "  verify || finish verify-fail\n", b: "  verify || true\n", grade: "runs", want: ["RR3"] },
   { id: "S-TMP", file: "scripts/routes-tmp.ts", a: "  for (const d of made) { try { rmSync(", b: "  for (const d of [] as string[]) { try { rmSync(", grade: "writer", want: ["TMP1"] },
-  { id: "S-SW", file: "scripts/routes-tmp.ts", a: "    if (nowMs - st.mtimeMs < STALE_MS) { out.kept++; continue; }", b: "    if (false && nowMs - st.mtimeMs < STALE_MS) { out.kept++; continue; }", grade: "guards", want: ["SW2"] },
+  { id: "S-SW", file: "scripts/routes-tmp.ts", a: "    if (nowMs - st.mtimeMs < STALE_MS) { out.kept++; continue; }", b: "    if (false && nowMs - st.mtimeMs < STALE_MS) { out.kept++; continue; }", grade: "guards", want: ["SW2", "SW5"] },
   { id: "S-RC6", file: "../scripts/reconcile-fleet.py", a: 'key.strip() in ("test-device", "ci-test-device")', b: 'key.strip() in ("test-device",)', grade: "reconcile", want: ["RC6"] },
 ];
 
+// --only <id>: one plant, still after the full baseline (the reviewer's order: S-SW alone, then the whole driver).
+const onlyAt = process.argv.indexOf("--only"), ONLY = onlyAt >= 0 ? process.argv[onlyAt + 1] : null;
+const RUN = ONLY ? PLANTS.filter((p) => p.id === ONLY) : PLANTS;
+if (ONLY && RUN.length !== 1) { console.log(`--only ${ONLY}: no such plant`); process.exit(2); }
 let off = 0;
-for (const p of PLANTS) {
+for (const p of RUN) {
   const clean = readFileSync(p.file);
   const s = clean.toString("utf8");
   const n = s.split(p.a).length - 1;
@@ -115,5 +119,5 @@ for (const p of PLANTS) {
   off += ok ? 0 : 1;
   console.log(`${p.id}: ${ok ? "as registered" : "OFF"} -- red ${JSON.stringify(got)} (want ${JSON.stringify(want)}); restored, sha equal`);
 }
-console.log(off ? `SABOTAGE: ${off} off` : `SABOTAGE PASSED (${PLANTS.length} plants, after a full baseline)`);
+console.log(off ? `SABOTAGE: ${off} off` : `SABOTAGE PASSED (${RUN.length} plant(s), after a full baseline)`);
 process.exit(off ? 1 : 0);
