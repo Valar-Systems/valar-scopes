@@ -672,6 +672,53 @@ only, never a key, and not a failure: a leftover sentinel is inert. The verify's
 **Red-first, predicted:** writer red exactly **{SN1, SN1-ctl}**, the other 46 green. **After:** writer **48 of 48**.
 **W8:** the writer's declared set becomes 48. No plant anchor is in these lines.
 
+### 2p. F1: S-VAL's corrected set, and the FAIL text it prints (the owner's ruling, 2026-11-14; registered 16:25:44Z, before any run)
+
+**The owner's words** (relayed): *"W8: F1. Write the corrected expectation (13) down before the re-run, and keep the
+original miss on the record as a miss."* The miss is recorded in section 7. The run below is ONE run, and any failure,
+instrument or verdict, stops and goes to the owner, with no re-run.
+
+**S-VAL's corrected set, 13 rows:** {GR10, GR10a, GR10m, GR11, J3, J7, JR1, RCP2, **SN1, SN1-ctl**, UN1, UN2, UN3}.
+- **The rule (2n's own):** S-VAL (`same()` always true) makes every verify that checks values refuse to judge at GR10m
+  (exit 2). So every row that needs such a verify to PASS, or to exit 0, goes red.
+- **Every value-checking verify call in `routes-writer.selftest.sh`, row by row:**
+  - RCP2, GR10m and GR10a (~190), GR10 (~199) and GR11 (~205): in the set.
+  - **SN1 (~211) and SN1-ctl (~213):** each asserts `rc = 0` and the count line. The line prints at
+    `verify-routes.ts` ~317, before the control at ~330-332, so the exit half is what goes red. These are the two that
+    were missed.
+  - UN1-UN3 (~231), J3 (~286) and J7 (~301): in the set. JR1 (RCP2's sealed store is never made): in the set.
+  - FKV (~186) is a production verify that FK1 refuses before any value check, so it is not in the set.
+- `same()` is called only at ~330 (the control) and ~344 (the values), both after the count line.
+- **This derivation was made after the 15:55Z reading**, so that reading grades nothing (section 7). This run grades
+  the set frozen here.
+- **The driver carries it:** S-VAL's `want` in `sabotage-routes-weekly.mjs` becomes these 13. That is the same commit as
+  `--show-fail`, and no other plant's `want`, anchor or replacement changes.
+
+**`--show-fail <id,...>`, print-only, added to the driver before the run.**
+- For the planted run, it prints the whole `FAIL <id>: ...` line of each named row, as the grader's selftest printed it.
+- It changes no grader, row, plant, set or exit code.
+- **Its control:** GR10m's FAIL text is fixed by the selftest (`bad GR10m "no control line"`), so it must print exactly
+  `FAIL GR10m: no control line`. A `--show-fail` that cannot print a line whose text is known is not believed.
+- `node --check` must parse the changed driver, and the anchor check must read 18 plants, each anchor exactly once,
+  against it, before the run.
+
+**The run:** `env -u BLIPSCOPE_TOKEN_FILE -u ROUTES_KV_TOKEN -u CLOUDFLARE_API_TOKEN node
+scripts/sabotage-routes-weekly.mjs --only S-VAL --show-fail SN1,SN1-ctl,GR10m`, after the driver's full baseline.
+
+**Predicted:**
+- **BASELINE:** guards 63, writer 48, freeze 4, runs 8, health 11, reconcile 1; 0 red.
+- **S-VAL: as registered**, red exactly the 13 above.
+- **The printed lines, each a whole-line prediction:**
+  - `FAIL SN1: exit 2; the count line 1 time(s)`;
+  - `FAIL SN1-ctl: exit 2; the count line 1 time(s)`;
+  - `FAIL GR10m: no control line` (the control).
+- `SABOTAGE PASSED (1 plant(s), after a full baseline)`, exit 0.
+- **After:** restored, sha equal; porcelain 0; 0 temp leftovers.
+
+**The refutation branch, pre-registered:** any other text on SN1 or SN1-ctl, for example `the count line 0 time(s)` or an
+exit other than 2, refutes the cause given in section 7. Any other red set, a BLIND, GR10m's line absent or different,
+or any other outcome is a STOP that goes to the owner, with no re-run.
+
 **Where the writer rows are graded:** GR8, GR9, PFX1, RB1, KL1, and W3's GR10, GR10m, GR10a, GR11, RCP1, RCP2, FKV and UN1-UN3, run in a new
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
@@ -1038,6 +1085,11 @@ is engineering and a guarded write path, not money. That decision is the owner's
 
 **W8, the owner's one re-run (2026-11-14 15:29:07-15:55:07Z, driver at `6f7ccb89`): OFF, 17 of 18 as registered.
 Stopped; nothing re-run; with the owner.**
+
+**A MISS, AND IT STAYS ONE** (the owner, 2026-11-14: *"keep the original miss on the record as a miss"*). The
+registered S-VAL set was 11 rows. The set read was 13. The 2 extra rows are SN1 and SN1-ctl, and none was missing. The
+cause is the registration's, given below. F1's run (section 2p) grades its own frozen set. It does not overwrite this
+reading or re-grade it.
 - **Before the run:** every anchor exactly once (18 plants). Each plant was read in its final-code context. The declared
   sets computed from source were guards 63, writer 48, freeze 4, runs 8, health 11 and reconcile 1, with every plant id
   declared. `BLIPSCOPE_TOKEN_FILE`, `ROUTES_KV_TOKEN` and `CLOUDFLARE_API_TOKEN` were all absent.
