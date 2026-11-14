@@ -75,7 +75,7 @@ int main()
     {
         // What the 2026-09-08 boot print reported, and what it must report now.
         const long before = 0;                       // the defect
-        const long after  = Resolve("", -121.2858);  // the fix
+        const long after  = Resolve("", -122.3456);  // the fix
         check(before == 0, "the old path gave UTC...");
         check(after == -8 * 3600, "...and the fixed one gives -8, which is Bend");
         // 22:47 UTC is 14:47 local at -8. The print said "local hour now 22";

@@ -31,7 +31,7 @@ import math
 import random
 import time
 
-BEND_LAT, BEND_LON = 44.1034, -121.2858
+BEND_LAT, BEND_LON = 44.10, -121.29
 
 # (icao_type, altitude band, groundspeed band) -- all REAL ICAO type codes.
 ORDINARY = [

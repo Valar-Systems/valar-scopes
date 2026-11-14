@@ -1,0 +1,6 @@
+# The tree's count of precise coordinates near Bend (scripts/check_precise_coords.py). It may only fall: the gate
+# refuses a count above it, a count below it (lower this number in the same change), and any rise against BASE's
+# copy. Set by the change that added the gate (Step R): 68 in firmware (src/ConfigurationWebServer.cpp,
+# include/CoordParse.h; they wait for v21) and 10 public data values whose fate the owner decides by line.
+# It becomes a whole-tree gate at 0 when v21 brings the count there.
+78

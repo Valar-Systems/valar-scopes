@@ -126,7 +126,7 @@ page from this HTTP page and gets a value back (`window.open` → `/blipscope/en
    written into both boxes as a `"lat, lon"` string through the **existing** paste-splitter path, so
    one parser handles typed, pasted and located input.
 6. ~~**Nothing is saved.**~~ *Superseded 2026-10-06: saved on arrival, see the amendment above.*
-   The page said *"Filled from this browser: 44.0582, -121.3153. Press Save
+   The page said *"Filled from this browser: 44.06, -121.3153. Press Save
    to keep it."* If `acc` is over 1,000 m (a desktop with no GPS locating by IP), it adds *"This is
    only accurate to about N km. Check it on a map before saving."*
 

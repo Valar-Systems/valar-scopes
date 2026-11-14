@@ -57,7 +57,7 @@ void web_config_commit()
 }
 
 extern "C" {
-// Before web_start(): one setting, as the config page would store it ("latitude" "44.0582", "radius-unit" "km", ...).
+// Before web_start(): one setting, as the config page would store it ("latitude" "44.06", "radius-unit" "km", ...).
 EMSCRIPTEN_KEEPALIVE void web_config_set(const char* key, const char* value)
 {
     if (key) settings()[key] = value ? value : "";
