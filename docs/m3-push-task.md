@@ -260,6 +260,77 @@ map-client's windows on `bench/frame-bench-c1`; their records are in docs/frame-
 24.18, `sync_avg` 0.46), against 25.8 ± 1.0. "About 24.2" above was `push_avg`. The owner's ruling CONFIRMS the "too
 small" plan on C1's evidence and leaves it open to the v20 bench's reading. It does not fix it.
 
+**M3-2, THE GLASS LOOK, run (2026-11-15).** These are records of what ran, not predictions.
+- **First window, 18:51-18:59Z:** it does not count, because the owner was not watching. He read "p4" as the P4
+  board; that was the orchestrator's naming.
+- **The re-run, 20:43-20:51Z, on E2:08:** `win_m32.ps1` (`388f1d7f7aa9`) exited 0. All three app-only writes are "rc 0,
+  verified" with "reset: ok": base at 20:43:46Z, (i) at 20:45:40Z, v19 at 20:47:33Z.
+- **The restore read PASSED:** `[WiFi] CONNECTED` 1, `fast join OK` 1, portal-START lines 0, `[build]
+  env=blipscope-s3-128`. HTTP 200 with v19 at 21:43:04Z and 21:44:06Z. E2:08 was released at 21:44:17Z.
+- **The owner's eye**, his three answers to the frozen questions:
+  - Q1, a lagging band: base no, second no;
+  - Q2, tearing: "the same";
+  - Q3, in his words: "Breaks only at tear lines (where the number changes), in both runs. Never at a band edge where
+    both bands show the same number; no staircase."
+  - **By eye that is CLEAN under section 4, so section 4's rule reads design (i).**
+- **An instrument miss, on record:** the ledger's Note lines after W0 were lost in both windows. p4's `tail -F` of
+  `window.log` from the first window survived its TaskStop as an orphan and held the file. The writes and the trace
+  are unaffected, since they gate on files the ledger does not hold.
+
+**M3-2 VIDEO GRADE, registered before either video is opened (2026-11-15, after 21:45Z).** The two slow-motion videos
+are in `_handoffs/p4/m3/glass/`. They are local only; only counts leave that folder. The videos decide counts, and the
+owner's eye decides what they cannot show (section 4).
+
+**Which video is which.** The base was filmed first. The order comes from each file's recording time, in its name or
+its container metadata, never from its file time, since the files were moved. If the two cannot be ordered, every
+count is reported per video, unlabelled, and C2 below is graded symmetrically: neither video's rate is more than half
+again the other's.
+
+**What the camera can fake, named before the count.**
+- **A camera tear.** The phone's rolling shutter reads the screen row by row. A display update during that readout
+  shows a counter change partway down one captured frame, exactly like a real tear. The panel has no tear-sync, so
+  real tears happen too. Both runs are filmed the same way, so a camera tear inflates both rates and is not a reason to
+  read a difference between them.
+- **What neither kind of tear can produce:**
+  - more than one counter boundary in a captured frame;
+  - a difference of more than 1 state across that boundary;
+  - a band that is older than the bands on both sides of it.
+  - That is why the stale band (C1) and the break between equal bands (C3) are the decisive counts, and the tear rate
+    (C2) is compared only between the two runs.
+
+**THE COUNTS, per video, over every captured frame from the first that shows the pattern to the last:**
+- **C1, a STALE BAND:** captured frames in which one band shows a counter 2 or more states older than the bands on both
+  sides of it. **Decisive.**
+- **C2, the TEAR RATE:** captured frames whose bands show two different counters, per second of video. Graded as the
+  ratio (i) / base, which must be **at most 1.5**.
+- **C3, SHEAR:** captured frames where the moving bar's position differs by **more than 2 panel pixels** across a band
+  boundary whose two bands show the SAME counter. One state moves the bar 4 px.
+- **REPORTED:** the number of distinct counter states per second, i.e. the display rate the camera saw, for each run.
+- **PREDICTED, from the owner's eye:** C1 = 0 in both; C2's ratio between 0.67 and 1.5; C3 = 0 in both.
+
+**THE CONTROLS, run before any count is believed.**
+- **K1, the anchor:** each video's counter must be read as advancing at 5 to 40 states per second, the range of every
+  bench frame rate on record. Outside that range the instrument cannot read the counter: STOP.
+- **K2, a planted stale band:** in a copy of one base still, a middle band is replaced by the same band from a still 3
+  states earlier. C1 must count exactly that frame.
+- **K3, planted shear:** in a still whose 8 bands agree, one band's bar region is shifted by 8 px. C3 must count it.
+- **K4, a planted tear:** a still built from the top 4 bands of state n and the bottom 4 of state n + 1. C2 must count
+  it, and C1 must NOT, because a 1-state, monotonic boundary is a tear, not a stale band.
+- **K5, coverage:** at least 90% of captured frames have all 8 bands read. Below that, every count is reported as
+  unreliable and the eye stands.
+- The plants are synthetic copies of the stills, never edits to the videos.
+
+**THE OUTCOMES:**
+- **CLEAN, agreeing with the eye:** C1 = 0 in both, C2's ratio at most 1.5, and C3 in (i) no higher than in the base.
+  Section 4 reads design (i).
+- **A stale band:** C1 > 0 in (i) and 0 in the base. Section 4 reads (ii). This contradicts the eye, so it goes to the
+  orchestrator and the owner before anything is chosen.
+- **More tearing or new shear:** C2's ratio above 1.5, or C3 in (i) above the base. Stop, and report before either
+  design is chosen (section 4).
+- **C1 > 0 in the base:** section 4 says the base cannot show a stale band, so this is an instrument fault. Stop.
+- **OUTSIDE THE SET:** a control fails, the videos cannot be read, or anything else. The video instrument is then
+  unreliable at this scale, and the owner's eye stands as the read. Stop and decide.
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
