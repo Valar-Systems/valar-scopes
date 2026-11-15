@@ -3107,6 +3107,78 @@ ZOOM-T, at least 3 s), and a populated list refreshes every 24 h.
 | Q-S2b-T3 | the record's part outside FT | `settle` / `measure` from `measuring` |
 | Q-S2b-T4 | when the code lands | on the sibling, before S2b's image is built (Monday), never in FT-HR's image |
 
+**ACCEPTED at `372bf9028345`** (the orchestrator, 2026-11-15), with T1-T4 at their defaults.
+
+### THE POST-v20 QUEUE: the ~200 ms full redraw (the owner's answer, 2026-11-15; queued, nothing before v20)
+
+- **The owner, verbatim:** "Sea: a. Queue the faster water fill for after v20, and with it, look at the ~200 ms full
+  redraw itself: that's a visible pause on every zoom, sea or not."
+- **The entry:** after v20, look at the full map redraw as a visible pause on every zoom step, sea or not. FT-SEA's median
+  forced rebuild was 185-262 ms (`ft_abs.py` output `16a911d0d279`). The faster water fill is queued with it. No analysis
+  and no code before v20.
+- **It starts from a measured breakdown, not a new run.** FT-SEA's trace (`f5df38b36bc5`, cap11) holds **682** rebuild
+  records, each complete: 62 settle, 600 forced and 20 forced planted (a count-only read, 2026-11-15T16:03Z). Every record
+  carries:
+  - the four µs laps: Load, Build, swap + names, and Compose;
+  - BuildInfo's six pass times (`bi=` usS1, usWater, usRivers, usRoads, usColour and usTotal);
+  - the layer counts, the CPU MHz and the millis line.
+- Its labels: measured on step C at 3e9d6ec9f449, not on main; weather OFF (FT-MAP); level 40.
+
+### DRAW-PIN: the re-read rule's "differs in the draw path" as a check (registered before its code, 2026-11-15T16:10Z)
+
+**Why (the orchestrator's ruling).** The re-read rule above was registered as "a textual pin, as FB-REC is", and no
+script was ever behind it. So "differs in the draw path" was answered by reading. This makes it a check's output.
+
+**The script:** `scripts/draw_pin.py` on this branch, frozen by sha once its selftest passes. It reads files from a
+revision (`git show <rev>:<path>`) or from a directory.
+
+**The pinned parts**, each normalised CRLF → LF with every `// THE FRAME BENCH BEGIN` … `// THE FRAME BENCH END`
+region removed:
+1. the four headers, whole: `include/MapCompose.h`, `include/MapPlaces.h`, `include/MapLayer.h`, `include/MapSweep.h`;
+2. in `src/AircraftManager.cpp`, the bodies, by signature, from the signature line to its matching brace (string, char
+   and comment text skipped while counting): `DrawWeatherUnder(`, `DrawMapBase(`, `MapAirportBoxes(`, `DrawSweepOverMap(`;
+3. the gate line: the one line holding `if (mapFrameDrawn) return DrawSweepOverMap(`.
+
+**The pin** is the sha256 over the parts' names and sha256s, in that order. The script prints every part's sha (12) and
+the pin (64), and compares the pin with the registered value, which is computed at `3e9d6ec9f449`.
+
+**Out of scope, named:**
+- `include/MapAirportsKey.h`. It decides whether a rebuild happens, not its cost or its pixels, and S2b's tag row
+  measures that.
+- Everything else in AircraftManager.cpp: `ConsumeFetchResult`, `Initialise` and the scene driver.
+
+**It is textual and conservative:** a comment-only edit inside a pinned part reads CHANGED. That is a false alarm, never
+a miss.
+
+**Exits:** 0 UNCHANGED; 1 CHANGED, naming the parts; 2 the rig; 3 no registered value yet. The rig is a signature found
+other than once, a gate line found other than once, a FRAME BENCH region unbalanced or nested, or an unreadable file.
+
+**Predicted:**
+
+| what is read | predicted |
+|---|---|
+| `3e9d6ec9f449` | the pin is computed and stated, and becomes the registered value |
+| `c96bd0b04182` (step C with the airports addition) | **UNCHANGED** |
+| the sibling `6f0cdd1381eb` | **UNCHANGED**. Its FT code sits in FRAME BENCH regions, and M3 (the push task) is outside these parts. Off: STOP. It would mean FT's label "on step C at 3e9d6ec9f449" does not describe the draw path FT ran |
+
+**The selftest's plants.** Each is graded against ITS OWN unplanted tree, so a plant's effect is isolated from the tree's:
+
+| plant | tree | the edit | predicted |
+|---|---|---|---|
+| P-IN | `c96bd0b04182` | one line inside DrawMapBase's body, outside any region (`k.airportsGen = mapAirportsGen;` → `... + 0;`) | CHANGED, exactly {DrawMapBase} |
+| P-BENCH | `6f0cdd1381eb` | one line inside DrawMapBase's FRAME BENCH region (`rr.cpuMhz = getCpuFrequencyMhz();` → `rr.cpuMhz = 0;`) | UNCHANGED |
+| P-OUT | `c96bd0b04182` | one line in ConsumeFetchResult (the `[cloud] airports:` print's text) | UNCHANGED |
+| P-HDR | `c96bd0b04182` | one line in `include/MapSweep.h` | CHANGED, exactly {MapSweep.h} |
+| P-GATE | `c96bd0b04182` | the gate line's comment | CHANGED, exactly {gate} |
+| P-RIG-SIG | `c96bd0b04182` | DrawMapBase's signature renamed | exit 2 |
+| P-RIG-REGION | `6f0cdd1381eb` | one FRAME BENCH END in DrawMapBase removed | exit 2 |
+
+The controls the ruling asked for are P-IN, P-BENCH and P-OUT. P-HDR, P-GATE and the two rigs cover the other parts and
+the script's own refusals.
+
+**Then:** the re-read rule points at `scripts/draw_pin.py` and its sha, and "differs in the draw path" means its exit 1.
+**The escape hatch:** any other reading, on any row: STOP, report, and no fix until a ruling.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
