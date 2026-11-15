@@ -2149,6 +2149,49 @@ with no MSYS variables.
 - The window waits only on p4's re-sign of C1's changed sentence and the M3-2 rule, at these shas. It grades p4's
   +10.0 ± 1.5. The window does not depend on I-3, which guards the shipping image.
 
+### THE PACKAGE's proof window, 2026-11-15 02:13:38-02:39:21Z: IN, every graded row as registered
+
+p4 re-signed on the exact shas, and the orchestrator then opened the window. E2:08 was reserved by its serial and the
+PC was quiet (CPU 2 %, no build or test process). The window was launched detached, with a waiter whose deadline it
+never reached.
+
+- **The image:** c1-P `00a1b5c23475` was written to ota_0 alone (1,965,616 B, verified; the checks line exact). Its
+  trace was a single 21-min open, exit 0.
+- **The restore:** v19's `f6d73e391631` was written and verified, and its 3-min boot trace exited 0.
+  - **The restore read PASSES:** `[WiFi] CONNECTED` 1; the join, "fast join OK"; 0 portal-START lines (all six
+    negatives 0); `[build] env=blipscope-s3-128 fw=v19`; OTA latest = 19.
+  - read-mac ok. HTTP 200 on the second attempt; the first threw while the board was still coming up.
+- **The rig check PASSES on both traces:** the log and the console carry the same line sets, with 0 IOException
+  records (the proof trace 827 of 827 stamped lines, the restore 49 of 49).
+- E2:08 was released at 02:40:09Z.
+
+**The grade, `fb_read_plants.py` v2 (`bb1315423a29`), exit 0: 6 graded rows, 0 off.**
+
+| row | registered | read |
+|---|---|---|
+| DELAYED-FLAG | bit 2 on every measured frame of S3, on no other scene | 1492 of 1492; the other scenes 0 |
+| D=10 push | +9.0 to +10.0 ms | **+9.93** |
+| D=60 push | +59 to +60 ms | **+59.76** |
+| loop +10, the moved plant | p2p p95 +10.0 ± 1.5 ms; push within ± 1.0 | **+10.00**; push −0.02 |
+| M3-2 exact, S0-S3 | presented == handed | 1702/1702, 1700/1700, 1428/1428, 1492/1492 |
+| DROP-CAUGHT, S4 | presented == handed − 1, dropped 1 | **handed 1429, presented 1428, dropped 1** |
+
+- **Reported only, all in band:**
+  - D=10 p2p +0.01 ms, within E = U = 1.54.
+  - D=60 p2p 84.00, against p95(push) 84.00, and at least B plain + 10 (82.99).
+  - S4 against S2, the same push60 load: p2p p95 84.00 against 84.00; push average 83.94 against 83.94.
+- **Two observations, outside every registered row, named so they are not found later as surprises:**
+  - "present count != 1" is 18 in S2 and 15 in S4, and 0 elsewhere. Both are the push60 scenes, the per-frame rule's
+    excluded scope, and M3-2's exact count passes in both.
+  - S4 recorded no `[m3]` push windows ("(a) windows 0", against 1-2 elsewhere). S4's push read comes from the push
+    average (b) alone, so the (a)-against-(b) cross-check had nothing to compare in S4.
+- **So the package is proven at true size.** The moved loop plant carries its full +10 ms, where it read about +1.5
+  before the move. The push plants read at true size, and the exact count holds in every clean scene. The 60 ms rule
+  catches one deliberately dropped screen update among about 1,400 frames. The rule is not too loose.
+- **Next: C1,** on c1-B `669f87ec5839` and c1-A `3cf72c29f08f`, with its slot proposed under the standing rule. Its
+  caveats name the layout residual: 5c's control read NOT LAYOUT (a 1,740 B shift moved the frame +0.51 ms, inside
+  M), but an effect of one specific alignment is not excluded. C1 goes before 5c's label window, which must not push it.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
