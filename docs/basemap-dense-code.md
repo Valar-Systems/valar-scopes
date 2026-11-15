@@ -4944,3 +4944,22 @@ the authority for both rows.
   gate, run on this head before the push, must count 0.
 - **A new red from `ship-alert`** reads INSTRUMENT. **P1 BLIND a third time** goes to the project's owner, as registered. Anything
   else outside 34 / 2 / 0: STOP, and read which job before anything else.
+
+### c9ff04a7's and 6a11b5a2's CI, read, and why this head moves #696 (2026-11-15)
+
+- **Read at c9ff04a75a9b:** 36 = 34 / 2 / 0 as predicted. `promote` and `version` were skipped, and `test (proxy)` succeeded, so
+  P1's fix held. Tested on "Merge c9ff04a75a9b... into b282699ac091...", per a job's own checkout log. All 36 were completed when
+  re-read at 23:45:40Z on 11-15.
+- **Read at 6a11b5a21d0a** (BUILD-25, the code commit): 36 = 34 / 2 / 0 as its registration predicted ("the same workflows as
+  c9ff04a7's run"). `test (proxy)` succeeded. Tested on "Merge 6a11b5a21d0a... into b282699ac091...".
+- **Why this head moves #696 off 6a11b5a21d0a, which step 8 had pinned.** The owner ruled on 2026-11-15 (relayed at 23:31Z) that
+  this doc commit goes BEFORE step 8's re-registration, and the re-registration pins the new head. #696 still HOLDS FROM MERGE until
+  it ships with its store.
+
+**CI for this push, predicted.** This doc only. Main is still b282699ac091 by ls-remote at 23:45:40Z, so the workflows are those of
+6a11b5a2's run.
+- **Predicted: 36 check runs, 34 success, 2 skipped (`promote`, `version`), 0 failed,** tested on the merge into main as it then
+  stands, read from the run's own checkout log.
+- Main's coordinate gate, run on this head before the push, must count 0.
+- **A new red from `ship-alert`** reads INSTRUMENT. **P1 BLIND a third time** goes to the project's owner, as registered. Anything
+  else outside 34 / 2 / 0: STOP, and read which job before anything else.
