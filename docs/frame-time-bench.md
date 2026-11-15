@@ -2819,6 +2819,29 @@ never graded."
     SEA 19 present, 12 absent, 6 packages, 0 off; HR 29, 7, 11, 0 off.
 - **map-server's cited lines** read unchanged at the commit: `:988-989`, `:2364`, `:1066-1067`. The table-sum call is
   `:2365`.
+- **The orchestrator ACCEPTED both run images.**
+
+**THE READER IS FROZEN: `fb_read_ft.py` at `8a10f116fe029ad6199b41eda38740832be6c040fd083ba2244b6d7454137835`**
+(2026-11-15T08:55:39Z; a byte copy is kept under its sha). It reads one trace of one FT window; its rows are in its
+docstring and THE REBUILD ROW above.
+- **Its two inputs, pinned inside it.** It refuses any other bytes, as the INSTRUMENT:
+  - **HOST:** map-server's `ft_host_counts.json`, sha256 `f5bb125c6c21e5a3089cdccb1d038c7bbe0901da4c185d2f5176898c07594095`.
+    It has 42 keys `<sha12>:<rung>` and eight integers each, in the order the device's `counts=` prints them: rings,
+    rivers, primary, secondary, primaryInView, secondaryInView, secondaryDrawn, level. All eight come from
+    `maplayer::Build`'s own BuildInfo on both sides. map-server read the headers as byte-identical at `6f0cdd1381eb`.
+    Its port is `fb_counts.cpp` `ba9ee2290eeb`, with `to_json.py` `48cc412f90c5` and `run.sh` `134b357c16ba` in
+    PROVENANCE.txt beside it. Read here: 14 shas × rungs 10/25/50, and the four feature counts equal across the rungs of
+    each package.
+  - **TBL:** `ft_tbl_sums.json`, sha256 `b35f21b4bcdc...` (above).
+- **Three fixes before the freeze,** each with its plant (accepted at `1f747b9d78d4`):
+  - the sums file's shape, with n and t checked;
+  - a package with no host sum is the INSTRUMENT (it had compared None == None and passed);
+  - three TBL plants.
+  - **At the freeze:** the input pins, with a plant (one byte changed under the same pin is refused).
+- **Selftest: 16 of 16, PASSED.**
+- **Two controls on the real files:**
+  - an empty trace stops at BOOT, never at INPUT, so both pins match the files on disk;
+  - the counts file passed as `--tbl` stops at INPUT.
 
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
