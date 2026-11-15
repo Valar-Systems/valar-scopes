@@ -52,6 +52,10 @@ that must read exactly that row red (--selftest).
         symbols named for each embed file
   FT-SCENES each row's window as registered: KORD's A/A pair 1 at 10/25/50 mi, the plant (KORD at 25), every point's
         baseline then option at 10/25/50, pair 2 as pair 1 (FT-SEA 31 scenes, FT-HR 49)
+  FT-TBL TBL-DEV per FT scene: FrameBench.h defines PrintHomeTable once, printing the one registered line from
+        fbtable::Sum at the scene's STORED home (st.ftLat, st.ftLon: the doubles OnCloudPoll serves around), kLevel and
+        kTblT, with no float conversion in its body (a CRC, never a coordinate); AircraftManager.cpp calls it once, in a
+        region, on the line right after SetHome inside the branch where the scene's package validated
     python -I check_frame_bench.py <tree>             exit 0 every row ok; 1 a row off
     python -I check_frame_bench.py --selftest <tree>  the clean tree green; each plant reads exactly its row red"""
 import os
@@ -230,6 +234,7 @@ def rows(f):
     res["FT-LAPS"], res["FT-PLANT"], res["FT-DREW"] = ft_laps(f), ft_plant(f), ft_drew(f)
     res["FT-SWAP"], res["FT-ENV"] = ft_swap(f), ft_env(f)
     res["FT-TAB"], res["FT-SCENES"] = ft_tab(f), ft_scenes(f)
+    res["FT-TBL"] = ft_tbl(f)
     return res
 
 
@@ -441,6 +446,29 @@ def ft_drew(f):
     return (ok, f"the bit set {len(s)} time(s), in Record's stateFlags {len(e)} time(s), both in regions {ok}")
 
 
+FLOAT_FMT = re.compile(r"%[-+ #0-9.*]*[fFeEgGaA]")
+
+
+def ft_tbl(f):
+    """FT-TBL: TBL-DEV per FT scene, the one registered line, from the stored home, printed only where SetHome ran."""
+    h = f[HEADER]
+    s, e = func_span(h, "inline void PrintHomeTable(int scene)")
+    body = h[s:e] if s >= 0 else []
+    defs = len(lines_with(h, "inline void PrintHomeTable("))
+    fmt = [l for l in body if 'Serial.printf("[frame-bench] ft S%d table sum %08lx\\n", scene,' in l]
+    sm = [l for l in body if "fbtable::Sum(st.ftLat, st.ftLon, kLevel, (double)kTblT)" in l]
+    floats = [l for l in body if FLOAT_FMT.search(l)]
+    a, ar = f[AMC], regions(f[AMC])
+    calls = lines_with(a, "framebench::PrintHomeTable(")
+    home = lines_with(a, "framebench::SetHome(hp.lat0Micro / 1e6, hp.lon0Micro / 1e6);")
+    beside = len(calls) == 1 and len(home) == 1 and calls[0] == home[0] + 1 and inside(ar, calls[0]) and \
+        a[calls[0]].strip().startswith("framebench::PrintHomeTable(k);") and \
+        a[home[0] - 1].rstrip().endswith("== bmpk::Status::kOk) {")
+    ok = defs == 1 and len(fmt) == 1 and len(sm) == 1 and not floats and beside
+    return (ok, f"defined {defs} (want 1); the registered line {len(fmt)}, the sum at the stored home {len(sm)}, float "
+                f"formats {len(floats)} (want 0); called {len(calls)} time(s), beside SetHome in its branch {beside}")
+
+
 # FB-REC: the record I-5's band was derived from (0d6308cb's FrameBench.h), by its spans' trimmed text.
 REC_HEADS = ["struct Rec {", "inline State& S()", "inline portMUX_TYPE& Mux()", "inline uint16_t Ten(uint32_t us)",
              "inline void Record(uint32_t frameUs, size_t tracked, uint8_t stateFlags)", "inline void SelfTime()"]
@@ -607,6 +635,18 @@ def selftest(tree):
                                                         "{FT_K, kFtAA, 25, PAIR2}, {FT_K, kFtAA, 50, PAIR2},"), {"FT-SCENES"})
     rc |= plant("FB-REC, a changed line in its callee Ten()",
                 sub(HEADER, "return t >= 0xFFFF ? 0xFFFF : (uint16_t)t;", "return t > 0xFFFF ? 0xFFFF : (uint16_t)t;"), {"FB-REC"})
+    tbl_call = "                    framebench::PrintHomeTable(k);   // TBL-DEV at this scene's home: a CRC, never a coordinate\n"
+    rc |= plant("FT-TBL, the per-scene call removed", sub(AMC, tbl_call, ""), {"FT-TBL"})
+    rc |= plant("FT-TBL, the sum around Bend's strings, not the scene's stored home",
+                sub(HEADER, "fbtable::Sum(st.ftLat, st.ftLon, kLevel, (double)kTblT)",
+                    "fbtable::Sum(atof(kHomeLat), atof(kHomeLon), kLevel, (double)kTblT)"), {"FT-TBL"})
+    rc |= plant("FT-TBL, the call outside the validated branch (a stale home's sum)",
+                sub(AMC, "hp.lon0Micro / 1e6);\n" + tbl_call + "                }\n",
+                    "hp.lon0Micro / 1e6);\n                }\n                framebench::PrintHomeTable(k);\n"), {"FT-TBL"})
+    rc |= plant("FT-TBL, a coordinate printed beside the sum",
+                sub(HEADER, "    const State& st = S();\n    Serial.printf(\"[frame-bench] ft S%d table sum",
+                    "    const State& st = S();\n    Serial.printf(\"[frame-bench] ft home %.2f\\n\", st.ftLat);\n"
+                    "    Serial.printf(\"[frame-bench] ft S%d table sum"), {"FT-TBL"})
     print("selftest PASSED" if rc == 0 else "selftest FAILED")
     return rc
 

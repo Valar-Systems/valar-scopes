@@ -428,6 +428,17 @@ inline void PrintTable()
                   (unsigned long)fbtable::Sum(atof(kHomeLat), atof(kHomeLon), kLevel, (double)kTblT));
 }
 
+// TBL-DEV per FT scene (the orchestrator's yes, 2026-11-15): the table's sum at the scene's own home -- the doubles
+// SetHome stored, which OnCloudPoll builds the served table around -- at kTblT, once as each scene is applied. A CRC
+// only, never a coordinate. Called only where SetHome ran from the scene's package, so a scene without this line has
+// no device reading (a gap the reader grades as such), never a previous scene's sum.
+inline void PrintHomeTable(int scene)
+{
+    const State& st = S();
+    Serial.printf("[frame-bench] ft S%d table sum %08lx\n", scene,
+                  (unsigned long)fbtable::Sum(st.ftLat, st.ftLon, kLevel, (double)kTblT));
+}
+
 // THE (a) HOOK (the cloud /blips region, on the fetch task, after the REAL GET's ParseBlips): the parsed content is
 // replaced by the table at the device's UTC second, parsed by the same ParseBlips, swapped in only if it parses.
 template <typename Rows, typename Parse>

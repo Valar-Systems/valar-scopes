@@ -2360,8 +2360,10 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
             {
                 bmpk::Package hp;
                 const uint8_t* hs = framebench::FtPkgStart(sc.pkg);
-                if (hs != nullptr && bmpk::Validate(hs, framebench::FtPkgLen(sc.pkg), &hp) == bmpk::Status::kOk)
+                if (hs != nullptr && bmpk::Validate(hs, framebench::FtPkgLen(sc.pkg), &hp) == bmpk::Status::kOk) {
                     framebench::SetHome(hp.lat0Micro / 1e6, hp.lon0Micro / 1e6);
+                    framebench::PrintHomeTable(k);   // TBL-DEV at this scene's home: a CRC, never a coordinate
+                }
             }
             fb.ftPart = 0;
             fb.ftForced = 0;
