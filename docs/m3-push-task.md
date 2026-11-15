@@ -238,6 +238,24 @@ These replace the parts of the M3-3 row that named A0a's profile, which has neve
   - the loop's +10: Δp2p p95 = +10.0 ± 1.5, and push unchanged within ± 1.0;
   - outside the set: p2p p95 of B plain within 2 ms of the push average means B is push-bound. Stop.
 
+**M3-3 (C1), CLOSED by the owner (2026-11-15): the cut is about 9.5 ms [+7.92, +11.00], "too small".** These are
+map-client's windows on `bench/frame-bench-c1`; their records are in docs/frame-time-bench.md, "C1's bench".
+- **First window:** INSTRUMENT. tracked = drawn = 1, because the (a) hook stored the rows by pointer.
+- **Second window:** a cut of +8.97 [+7.43, +10.51], straddling. The push plants had not fired, because of an
+  include-order fault.
+- **The proof window, after both fixes:** IN, 6 of 6. The loop +10 moved to before `HandOver` read +10.00 ms (push
+  −0.02), against p4's +10.0 ± 1.5. The push plants read at true size: +9.93 and +59.76.
+- **The last window:** about 9.5 ms [+7.92, +11.00].
+- **The owner's ruling:** "C1: a. ~9.5 ms is the answer; v20 stays on the "too small" plan (Dec 3-10 or later); no
+  more C1 runs." The band therefore stays "failed" (under 10) by the owner's call, even though the error bar reaches
+  11.00. The real v20 number comes from the v20 bench.
+- **p4's miss, on record:** "push_avg − sync_avg = 25.8 ± 1.0 ms" read about 24.2. That was v19's in-loop push used as
+  M3's, and the task pushes faster.
+- **What the windows showed about the overlap:** a 10 ms delay inside the push's window (the old site, right after
+  `HandOver`) read about +1.5 ms; the same delay outside it read +10.00. So work that overlaps the push is repaid,
+  either by (P), the push task's preemption, or by (M), PSRAM contention. docs/frame-profile.md (f2) is the read that
+  separates the two. It is also the plain reason the cut is about 9.5 and not 25.8.
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 

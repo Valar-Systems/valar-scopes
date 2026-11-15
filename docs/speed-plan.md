@@ -406,6 +406,28 @@ plan v20 provisionally on the "too small" band (~9 ms). The re-run can only move
 comes after map-client has diagnosed and fixed the plants and proved both fire at their true size. Until then, R3
 is the plan.
 
+## 2e. C1 CLOSED by the owner (2026-11-15, relayed by the orchestrator, after 05:00Z). Section 2d is no longer provisional
+
+**The owner, verbatim:** "C1: a. ~9.5 ms is the answer; v20 stays on the "too small" plan (Dec 3-10 or later); no
+more C1 runs. The two side checks get corrected limits for future runs only, and this run's two misses stay on record
+as misses. The real v20 number comes from the v20 bench."
+
+- **M3's cut, as closed:** about **9.5 ms, with the error bar [+7.92, +11.00]**. It was read on the pin
+  `3bc7ec26fe28`, without step C, in C1's last window, after the plants were proven to fire at their true size.
+- **The plan is section 2d's, now FIXED rather than provisional:** R3, **v20 promoted about Dec 3-10, or later**.
+  - F is about Nov 28 - Dec 5.
+  - The big screens, staffing 2, are about Dec 20-27.
+  - L2 is the next lever. L3 and L4 are the owner's look rulings, made only if the v20 bench confirms the gap.
+  - **No further C1 run moves it.** The real v20 number comes from the v20 bench, Thu 11-19 or Fri 11-20.
+- **M3 stays in v20 as a partial gain**, subject to the glass look (M3-2) and M3-8/M3-9.
+- **On the bar's basis, section 2c's rule with the closed cut:** v20 with M3 = X + 6.7 + 0.1625 × n − 9.5 + M, which
+  at n = 40 is **X + 3.7 + M**. X is v19's worst of six on the recordings.
+- **The two misses stay on record as misses, and one of them is p4's.** The push − sync band, "[m3] push_avg_us −
+  sync_avg_us = 25.8 ± 1.0 ms", was p4's registered prediction for B plain (docs/m3-push-task.md, M3-3 for C1). The
+  board read about 24.2 ms, under the band. The 25.8 floor was v19's in-loop push, and M3's task pushes faster. The
+  other miss, the I-5 record cost, is map-client's. Corrected limits apply to future runs only, and p4 re-signs any
+  that touch its text.
+
 ## 3. The methods, and what each is expected to gain
 
 **M1. Static layers drawn once and reused** (the owner's first method; the Weatherscope's).
