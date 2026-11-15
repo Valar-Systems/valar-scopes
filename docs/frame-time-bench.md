@@ -2714,6 +2714,91 @@ never graded."
   `lat = pk.lat0Micro / 1e6; lon = pk.lon0Micro / 1e6;`, in double precision, in MAP_BENCH's Initialise region. FT reuses
   it unchanged. radLat and radLon are at `:1031-1032`.
 
+### THE COMPILE CHECK, and TBL-DEV per FT scene (the orchestrator's rulings, 2026-11-15; written 2026-11-15T08:41:47Z)
+
+**The compile check is ACCEPTED,** at `bb28b362c287`. Both images are compile checks only, never run images.
+- ft1-sea is 3,252,864 B (`66d9b7b79387`) and ft1-hr is 4,310,304 B (`17d2993a6139`). Each was built under the disk
+  guard, and C: ended at 31.43 GiB.
+- **Warnings:** 40 unique, the same in both builds apart from the libdeps path. None comes from FT code. The three in
+  `AircraftManager.cpp` are blamed to main's own commits.
+- **ft_elf.py** (`509172001d8f`) was written before any image was read, with its anchor present.
+  - SEA: 18 present, 12 absent, 0 off. HR: 28, 7, 0 off.
+  - Every pinned package's exact bytes are in `firmware.bin`, hashing to its pin: 6 of 6 and 11 of 11.
+  - One needle was changed from a source reading before any image was read. That is disclosed and accepted. The run
+    images get a fresh read, with the script at its final sha.
+
+**Two misses, recorded as misses:**
+1. **The size prediction** ("under 4 KB" over its base) took C1's tree as the base, so it is false. The FT images are
+   3,252,864 B and 4,310,304 B, both under ota_0, the registered bound.
+2. **TBL-DEV was not printed per FT home.** Only the boot line around Bend existed, so every FT scene's TBL row would
+   have read INSTRUMENT. It was caught before any run.
+
+**THE FIX, at `6f0cdd1381eb`** (the orchestrator's yes):
+- **The line:** `[frame-bench] ft S<k> table sum <crc>`, printed once per scene as it is applied. It comes from
+  `fbtable::Sum` at the home SetHome stored (the doubles OnCloudPoll serves the table around), with kLevel = 40 and
+  kTblT = 1794441386. It carries a CRC only, never a coordinate.
+- **Printed only in the validated branch:** the line is printed only inside the branch where the scene's package
+  validated. A scene without it has no device reading. The reader grades that as INSTRUMENT (a gap), never as the
+  previous scene's sum.
+- **FT-TBL holds it:** `check_frame_bench`, 25 rows, 0 failed; selftest 36 of 36. Its four plants each read exactly
+  {FT-TBL}:
+  - the call removed;
+  - the sum taken around Bend's strings;
+  - the call moved outside the branch;
+  - a coordinate printed beside the sum.
+- **The cited lines did not move:** the conversion at `:988-989`, SetHome at `:2364`, radLat and radLon at `:1066-1067`.
+
+**The static checks, re-run at the fix** (predictions frozen before the edit):
+- **check_frame_bench:** 25 rows, 0 failed; selftest 36 of 36. The frozen prediction said 35. The fourth FT-TBL plant
+  (the float-format clause) was added before any run, and the prediction amended then.
+- **check_map_draw:** 12 of 12.
+- **The three sabotage drivers' anchors:** 6 of 6, 16 for 14 plants, and 19 of 19.
+- **marker_xcheck: A MISS IN MY PREDICTION, NOT IN THE CODE.** I predicted "equal, exit 0". That is the exact-equal
+  form, already ruled a false premise on main. The registered form, the parents' union, holds:
+  - the tree's difference is identical to its parent `bb28b362`'s (279 source files, MARKERS 12, 11 bench-shaped tags);
+  - both of its plants read 1.
+- **The push wrapper:** every guard passed.
+
+**THE HOST'S PER-PIN SUMS, registered here before the run images are rebuilt:**
+- **The tool:** `tbl_host_ft.py` (`78faa95c1992`), a one-off in my scratch like marker_xcheck. It has two sides, as
+  `tbl_host.py` does:
+  - **C++:** `FrameBenchTable.h`'s Sum (`e18297ebbe75`), compiled by WSL's g++, at int32 lat0Micro / 1e6, which is the
+    device's conversion. The centres reach it on stdin; none is written to disk or printed.
+  - **Python:** `fixed_traffic.py`'s `aircraft()` (`b530faf4`), with the pin's centre injected into its HOMES.
+- **Every prediction held** (frozen in its docstring before the first run):
+  - **ANCHOR:** Bend injected equals Bend by name, `b1ace60e`.
+  - **SENSITIVITY:** a 0.01° move changes both sides.
+  - **ROWS:** 15 (Bend and the 14 distinct pins), with C++ equal to Python on every one.
+  - **PLANT:** one phase constant changed in a copy of the header. 15 of 15 rows read off, exit 1.
+- **The sums** (`ft_tbl_sums.json`, sha256 `b35f21b4bcdc`), at n = 40 and t = 1794441386:
+
+  | package | sha12 | sum |
+  |---|---|---|
+  | KJFK-nosea | `ee8c834bc81a` | `db63b2ec` |
+  | KJFK-sea | `52ac9dc39de0` | `db63b2ec` |
+  | KBOS-nosea | `ed5393b4fc0f` | `f1389592` |
+  | KBOS-sea | `f21d705d8b8a` | `f1389592` |
+  | KORD-nosea | `4238243a57a6` | `cba4d741` |
+  | KORD-sea | `cb59bb06a506` | `cba4d741` |
+  | KEWR-A0 | `dff28487eaf4` | `7229302f` |
+  | MIDTOWN-A0 | `20a22bed5510` | `19f1eb3f` |
+  | KLGA-A0 | `feb6ef3bdf04` | `fe512af0` |
+  | KEWR-2L194 | `c619f4a89f14` | `7229302f` |
+  | MIDTOWN-2L194 | `aaede1785364` | `19f1eb3f` |
+  | KJFK-2L194 | `e042d61aa8f1` | `db63b2ec` |
+  | KLGA-2L194 | `6ab44cd8fbea` | `fe512af0` |
+  | KBOS-2L194 | `696c6d00122d` | `f1389592` |
+
+- **Their limits, named:**
+  - **Point, not variant.** The sum is built from the point's centre, so every variant of a point shares it (6 distinct
+    sums over 14 pins). The variant is told by the scene line's sha12, by FT-TAB and by ft_elf.
+  - **Q4 resolution only.** It sees only a move that changes a Q4 line (about 1e-4°). It checks the served table, not
+    the centre's last digits.
+- **The reader's rule for each FT scene's TBL row:**
+  - the scene's printed sum equals its package's sum above: ok;
+  - the two differ: the row reads off (the device's libm against the host's, the row's purpose);
+  - the line is absent: INSTRUMENT.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
