@@ -324,6 +324,14 @@ that the two stop rows match?
   - So a runaway count reads 255 ≠ N, which is red.
   - `s.drawn` itself is a `uint16_t` that is zeroed every frame (lines 109 and 304). A wrap back onto N would take
     65,536 draws in one frame.
+- **p4's answer (2026-11-15 21:4xZ): S1 matches a row of A0a's, registered but not yet run.**
+  - A0a's reader is not written yet, so nothing has run it.
+  - Its registered row is `docs/frame-profile.md:32-33` on `p4/big-screens-plan`, added in the RE-PIN `1e34762aee25`
+    and unchanged at `882918177ae6`: "When the reader is written, it grades drawn == the scene's level on every
+    measured frame, as a STOP row with its plant." It grades drawn, not tracked.
+  - I checked the line read-only at 21:45:12Z (date -u).
+  - The addendum cites it as "registered, not yet run" until p4 sends the reader's sha and its plant reading red.
+    Those come from p4 when the reader lands.
 
 **Section 0's three constraints, re-read:**
 1. **The kind tables: unchanged; only their line numbers moved.**
