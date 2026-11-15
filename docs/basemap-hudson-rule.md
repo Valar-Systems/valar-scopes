@@ -820,7 +820,8 @@ The 11-16 window is VOID (section 5a's bench note), so the reading takes the win
 
 **These rows replace FT-HR's above where they differ, and FT-SEA's (docs/basemap-dense-code.md, #696) alike. Nothing has run.**
 FT-SEA's text is recorded here because #696's head stays at 44349515 until the census switch's step 8 re-reads it. #696's next push
-carries it word for word.
+carries it word for word (ACCEPTED): the copy is byte-identical, with both section texts' sha256 cited. Until then this section is
+the authority for both rows.
 
 1. **The steady row stays, reworded.** It is p95(`p2p`), package minus package, <= M = 3.08 ms, with KORD's A/A, all as above.
    - **Predicted now: within noise at every point and rung, for any package.**
@@ -837,6 +838,10 @@ carries it word for word.
        (`usS1` to `usTotal`, filled under MAP_BENCH, which the FT envs compile) are printed beside. `usTotal` covers Build only, so it
        is not the graded figure.
      - **REPORTED, "the package-update hitch":** Load alone, and the total. Neither is graded.
+     - **The definition, agreed word for word with map-client's registration (2026-11-15):** "The graded figure is a forced
+       rebuild's microsecond total, measured around the one Frame() call that rebuilds, minus its mapplaces::Load lap: Build's
+       passes, the byte swap and the names, plus Compose when that frame shows the weather (FT-HR); Load and the total are reported,
+       never graded."
    - **The statistic:** per scene, the median of its N forced rebuilds, with the p95 and N printed beside. N is map-client's, stated
      before the run. A scene with N under 10 is INSTRUMENT.
    - **Each margin is DERIVED, not chosen,** from KORD's A/A (the same bytes twice) by M's construction, and frozen before any graded
@@ -844,14 +849,38 @@ carries it word for word.
      - `U_part` is the larger of the two KORD scenes' distribution-free 95% half-width of the median: half the gap between the order
        statistics at 1-based ranks floor(N/2 - 0.98 sqrt N) and ceil(N/2 + 1 + 0.98 sqrt N).
      - There is one margin each for the graded part, Load and the total. There is no fixed floor, since a floor would be chosen.
-   - **The order in the window (proposed; the orchestrator rules):**
-     - KORD's A/A pair runs first. Its margins are printed and hashed before any graded pair.
-     - A second KORD A/A pair runs LAST, graded against them as that window's live noise reading. The first pair defines the margin,
-       so it cannot test it.
-     - Over a margin on the second pair: INSTRUMENT, and nothing in the window is graded.
-   - **The timer must see a known change first.** Before any delta is graded, the split timer reads a known delay inside its timed
-     region at its own size, within `U_part`. The delay is map-client's, with its size stated before the run. A delay that does not
-     move the reading at its size is INSTRUMENT: the C1 retake's failure of 2026-11-14, named.
+     - **PER RUNG (the orchestrator's ruling, agreed by map-server, 2026-11-15).** KORD pair 1 runs at 10, 25 and 50 mi, giving
+       9 margins: the graded part, Load and the total at each rung. Pair 2 runs the same three rungs against them. Rebuild noise
+       may differ by rung, and one margin across rungs would assume away what the A/A measures. This costs ~26 min more per row:
+       FT-SEA ~134 min, FT-HR ~212 min. FT-HR runs as ONE window in its six homes' shared daylight.
+   - **The order in the window (ACCEPTED by the orchestrator, 2026-11-15):**
+     1. KORD's A/A pair 1. Its margins are printed and hashed before anything else is read.
+     2. The plant check (below).
+     3. The graded pairs.
+     4. KORD's A/A pair 2, graded against pair 1's frozen margins as that window's live noise reading. A margin that defines itself
+        cannot test itself.
+     - Over a margin on pair 2: INSTRUMENT, and nothing in the window is graded.
+   - **The timer must see a known change first (ACCEPTED: the C1 retake's failure of 2026-11-14, applied).** Map-client implements it:
+     - **The plant:** a bench-only delay of D µs, with D stated by map-client before the run. It sits AFTER Load, inside the
+       Build-swap-names span of the timed rebuild (map-client: inside the swap-and-names lap), on KORD's package for N forced
+       rebuilds.
+       - **D = 20,000 µs**, registered by map-client before any code (docs/frame-time-bench at 57ca03b92f4e). It was 5,000 µs.
+         Separability needs D > 2 x M_zoom, and no rebuild noise has been measured yet: 5,000 covered M_zoom only up to 2.5 ms,
+         while 20,000 covers it up to 10 ms.
+       - **N = 20** forced rebuilds per scene, 2 s apart, after the 120 s steady window. U_part's ranks at N = 20 are 5 and 16. It is read against pair 1's plant-off
+       scene (the same bytes) in the same window.
+     - **Its own flag:** each rebuild's record carries a plant bit, SET on every planted rebuild and CLEAR on every other one.
+     - **Predicted, from medians:**
+       - the graded part's delta is D +- M_zoom;
+       - the total's delta is D +- M_total;
+       - Load's delta is within +- M_load. The plant sits outside Load, so a correct split does not move it.
+     - **Separable:** only if D > 2 x M_zoom, checked once pair 1 freezes the margins. A smaller D cannot tell "ran" from "did not
+       run" at that window's noise: INSTRUMENT.
+     - **Each of these is INSTRUMENT, with nothing graded:**
+       - a delta near 0, meaning the plant did not run (C1's shape);
+       - Load moving, meaning the split misattributes time;
+       - the flag disagreeing with the plan.
+     - Anything else: stop and decide.
    - **A comparison row, not a product bar.** At each point and rung the graded delta is the option minus the baseline (FT-HR: 2-L at
      19.4 minus run 10's; FT-SEA: sea minus no-sea), set against M_zoom.
      - Every delta over its margin goes to the orchestrator with the numbers. The orchestrator decides whether it raises a user-facing
@@ -906,8 +935,58 @@ carries it word for word.
   - The device's counts differ from the host's at a cell: that scene's anchor reads INSTRUMENT. The printed view separates the two
     named alternatives: a view that differs from the port (a port defect, not a draw failure), or a BORDERLINE cell.
   - Anything else: stop and decide.
-- **Not yet run.** C: read 27.18 GiB free at 06:39:45Z, under the 30 GiB floor, and the harness is a host build. It is built when
-  the floor allows, or on the orchestrator's ruling.
+- **The build was allowed under the disk floor.** The orchestrator allows an MB-scale host build there (the floor is for the
+  ~0.3 GiB firmware builds), on three conditions: its expected write size is stated first, C: is read before and after, and the
+  build stays under ~100 MB.
+- **The view's inputs, pinned by map-client** on the sibling `bench/frame-bench-v20` at 08e68191f7b7:
+  - `test/fixtures/frame-bench/ft_sea.pins` (6) and `ft_hr.pins` (11). Each full sha256 was read from the staged files' bytes, and
+    its prefix matches this doc.
+  - Each home is its package's own centre: `lat = pk.lat0Micro / 1e6` (AircraftManager.cpp:953-954 at the pin).
+  - radLat/radLon at :1031-1032 there, the same code as step C's :1005-1006.
+- **Registered, then run** (the extra one-ulp test was sent to the orchestrator at 06:51:58Z, before the build):
+  - **The build:** WSL g++ 11.4, against the sibling's own headers. `MapLayer.h`, `BasemapPackage.h` and `WxLayer.h` are
+    byte-identical across the sibling, step C and main. Two binaries: `-ffp-contract=off`, and `-mfma -ffp-contract=fast`.
+  - **The extra test, against libm:** every cell is re-built with rLat and rLon each moved one ulp up and down. The ESP32's newlib
+    `cos` may differ from the host's in the last ulp.
+  - **The disk:** C: read 27.174 GiB free before and 27.172 after. The scratch tree came to 1.6 MB.
+  - **The driver:** `fb_counts.cpp` ba9ee2290eeb, run through `runlog.sh` (stdout 1b7760eb29f3 from both binaries).
+- **ALL AS PREDICTED (06:53:29Z):**
+  - (i) Bend reads CM4's five rows exactly: 5/0/67, 10/0/74, 25/4/173, 50/4/308, 60/4/324. Secondary is drawn (350) exactly where
+    primaryInView is 0.
+  - **The run printed 45 cells: the registered 42, plus 3 more from KORD-A0's own file** (`frame-row-packages-hudson\KORD-A0.bmpk`,
+    cb59bb06a506, the same bytes as KORD-sea), run as a 15th file at 10, 25 and 50 mi so that (v)'s "same bytes, identical counts"
+    is read, not assumed. Those 3 are not new cells; they repeat KORD-sea's 3. Bend's five rows are (i)'s anchor lines, not cells.
+  - (ii) The water plant reads OK at all 45.
+  - (iii) All 45 read SAME when built twice.
+  - Every cell is ok and draws.
+  - (iv) The two binaries print identical lines, and all 45 cells are STABLE under the one-ulp moves: **0 BORDERLINE**, so every
+    anchor below is one value.
+  - (v) KORD: no-sea and sea read equal in everything but secondaryInView (12/38/80 against 10/36/75, a difference of at most 5, with
+    no-sea above). secondaryDrawn is 0 for both. KORD-A0 reads identical to KORD-sea.
+- **The counts:** `secondary` is 0 and `secondaryDrawn` false at every cell, and `level` is 0, 0, 1 at 10, 25 and 50 mi for every
+  package. `rings`, `rivers` and `primary` are the same at all three rungs, since Build counts every feature it walks. The in-view
+  counts are the ones that follow the view.
+
+  | package | rings | rivers | primary | primaryInView 10/25/50 | secondaryInView 10/25/50 |
+  |---|---|---|---|---|---|
+  | KJFK no-sea ee8c834bc81a | 119 | 755 | 1,289 | 81 / 625 / 845 | 0 / 0 / 0 |
+  | KJFK sea = FT-HR's run 10, 52ac9dc39de0 | 93 | 755 | 1,289 | 81 / 625 / 845 | 0 / 0 / 0 |
+  | KBOS no-sea ed5393b4fc0f | 222 | 575 | 721 | 86 / 156 / 394 | 0 / 1 / 1 |
+  | KBOS sea = FT-HR's run 10, f21d705d8b8a | 197 | 575 | 721 | 86 / 156 / 394 | 0 / 0 / 0 |
+  | KORD no-sea 4238243a57a6 | 112 | 84 | 691 | 69 / 208 / 322 | 12 / 38 / 80 |
+  | KORD sea = KORD-A0, cb59bb06a506 | 112 | 84 | 691 | 69 / 208 / 322 | 10 / 36 / 75 |
+  | KEWR run 10 dff28487eaf4 | 25 | 759 | 1,467 | 289 / 683 / 883 | 0 / 0 / 0 |
+  | MIDTOWN run 10 20a22bed5510 | 53 | 762 | 1,397 | 448 / 690 / 862 | 0 / 0 / 0 |
+  | KLGA run 10 feb6ef3bdf04 | 58 | 763 | 1,356 | 396 / 684 / 875 | 0 / 0 / 0 |
+  | KBOS 2-L at 19.4 696c6d00122d | 242 | 575 | 721 | 86 / 156 / 394 | 3 / 21 / 82 |
+  | KJFK 2-L at 19.4 e042d61aa8f1 | 179 | 755 | 1,289 | 81 / 625 / 845 | 0 / 0 / 3 |
+  | MIDTOWN 2-L at 19.4 aaede1785364 | 142 | 762 | 1,397 | 448 / 690 / 862 | 0 / 0 / 0 |
+  | KEWR 2-L at 19.4 c619f4a89f14 | 120 | 759 | 1,467 | 289 / 683 / 883 | 0 / 0 / 0 |
+  | KLGA 2-L at 19.4 6ab44cd8fbea | 151 | 763 | 1,356 | 396 / 684 / 875 | 0 / 0 / 0 |
+
+- **Observed, not predicted:** the five 2-L rings counts (242, 179, 142, 120, 151) equal section 5j's prototype table, and KEWR's
+  run-10 count of 25 equals FT-HR's "25 water rings". Those are two implementations agreeing: the prototype's TypeScript and the
+  device's Build.
 
 ## 6. This PR's CI, predicted
 
@@ -968,6 +1047,12 @@ GitHub-side re-run rule applies. Anything else: stop and report.
   - Main's coordinate gate (e31e8305b3a6, unchanged) counts 0 numbers in this doc; a planted in-band 3-dp line counts 1.
   - A new red from `ship-alert` reads INSTRUMENT. Any further workflow change before the run is read first; anything else: stop and
     report.
+- **Read at 22728e98ddde:** 33 = 31 / 2 / 0 as predicted (stable at 06:59:36Z on 11-15), tested on "Merge 22728e98ddde... into
+  b282699ac091...".
+- **Predicted for this head** (section 5k's rulings, the plant band, D, the per-rung margins and the host counts; this doc only):
+  main is still b282699ac091, so the reasoning above stands unchanged. **33 = 31 / 2 / 0**, tested on the merge into main as it then
+  stands, read from the run's own checkout log. The coordinate gate is re-read on this head's text before the push. A new red from
+  `ship-alert` reads INSTRUMENT; anything else: stop and report.
 
 ## 7. Where the measurements are (scratch, sha256 first 12)
 
