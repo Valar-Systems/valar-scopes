@@ -331,6 +331,29 @@ again the other's.
 - **OUTSIDE THE SET:** a control fails, the videos cannot be read, or anything else. The video instrument is then
   unreliable at this scale, and the owner's eye stands as the read. Stop and decide.
 
+**M3-2 VIDEO GRADE, AMENDED before any frame is read (2026-11-15, 21:49Z).** Two facts come from the files'
+container metadata. No frame has been decoded.
+1. **THE ORDER.** Both files are from an iPhone 13 Pro, and their `com.apple.quicktime.creationdate` fixes them:
+   - `run_1.mov` was recorded at 20:44:02Z. The base was written at 20:43:46Z, so **run_1 is the base**;
+   - `run_2.mov` was recorded at 20:45:57Z. (i) was written at 20:45:40Z, so **run_2 is (i)**;
+   - the owner's file names agree.
+2. **THE TIME BASE.** Both containers play back at 30 fps (`stts` 14337 × 80 and 13265 × 80 at timescale 2400, with
+   `full-frame-rate-playback-intent` set). They are slow-motion captures, so **"per second" in C2 and K1 means per REAL
+   second**: frames / capture rate.
+   - The capture rate is fixed by the window's own timestamps, not assumed: run_1 must end before run_2 starts, at
+     20:45:57Z.
+   - At 30 fps run_1 would last 477.9 s, and at 120 fps 119.5 s, ending at 20:46:01Z. Both overlap run_2, so both are
+     excluded.
+   - **At 240 fps** run_1 lasts 59.7 s and ends at 20:45:02Z, while the base was still on screen ((i)'s write finished
+     at 20:45:40Z). So **the capture rate is 240 fps**, and run_2 lasts 55.3 s.
+   - So one display frame (about 70 ms at about 14 fps) spans about 17 captured frames. C2 counts captured frames;
+     its graded ratio is unaffected.
+3. **The originals' sha256, taken at 21:48:50Z:** run_1 `ca8dd0dad587`, run_2 `92378f4c064e`.
+   - Both files had already been opened READ-ONLY at about 21:48Z, for the metadata above: a cv2 property read with no
+     frame decoded, and an atom reader.
+   - A read-only open cannot change a byte. The sha256 read after the grade must equal these.
+   - Every plant (K2-K4) is made on synthetic copies of extracted stills, never on the originals.
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
