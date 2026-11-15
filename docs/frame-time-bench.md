@@ -2028,6 +2028,23 @@ update that the new 60 ms rule must catch. If it doesn't, the rule is too loose 
 - **The proof window:** the proof image only, S0-S4 (90 s, 5 × 220 s and the dump), about 28 min on E2:08 with the
   PC quiet. It ends by 17:20Z, or starts after 20:50Z.
 
+**5a. THE ORCHESTRATOR'S ADDITIONS (accepted with the design):**
+- **The same instrument in both images.** The drop is proven on c1b-proof while C1 runs c1-B. `pp_diff.py`
+  preprocesses `src/main.cpp`, `src/AircraftManager.cpp` and `src/ConfigurationWebServer.cpp` under each env's own
+  compile command, with line markers and blank lines dropped, and compares the two outputs line by line.
+  - **Predicted:** the only differing line is the scene table, the proof's five-scene `kScenes` line against B's
+    four. The tag, `handed`, `presented`, `DropThis`, the presents line and everything else are identical.
+  - **Its plant, red first:** a copy of `FrameBench.h` with ONE extra `presented` increment compiled only under
+    `FRAME_BENCH_PROOF_DROP`, put first on the include path for both envs. **Predicted: RED.**
+  - C1's own run re-grades the push and loop plants on c1-B anyway.
+- **S4's other numbers, reported only:** S4's p2p p95 and push average against S2's (the same push60 load).
+  Expected within E of S2's p2p p95, and within ± 1 ms of its push average. One dropped update in about 1,400 frames
+  should not move either. Not graded.
+- **The layout caveat, settled before C1, not now.** The tag and the counts go into B only, because A has no push
+  task. If 5c's layout control reads LAYOUT (a ~1.7 KB shift alone moving the frame ~4 ms), then any build-only
+  difference between A and B, this instrumentation included, carries a layout-noise floor of that size against C1's
+  ~9 ms cut, and C1's design must answer for it before C1 runs.
+
 **6. THE OUTCOMES, registered:**
 - **IN:** the moved loop plant reads +10.0 ± 1.5; the push plants read at true size (+9 to +10, +59 to +60);
   M3-2 exact P == H in S0-S3; S4 CAUGHT.
