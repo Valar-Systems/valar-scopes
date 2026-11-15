@@ -169,14 +169,26 @@ def validate(b):
 
 
 def anchor(b):
-    """Every read's rows, per allowance in its totals, sum to the read's account total within ANCHOR_TOL."""
+    """Every read's rows, per allowance in its totals, sum to the read's account total within ANCHOR_TOL -- or, for a
+    read scaled by k != 1, within the rounding of its terms (9.12, ruled 2026-11-15). tools/budget/budget_read.py rounds
+    each row once and each total once, to the unit, so a scaled read's rows and total can differ by up to 0.5 x (rows
+    + 1) from rounding alone. A read with k = 1 is not scaled: its counts round exactly, and the 1% rule keeps a missing
+    count of 1 visible at a small total. A read with totals and no k is refused: its bound would be unknown."""
     bad = []
     for rid, rd in b["reads"].items():
         if rd.get("observation"):
             continue
+        k = rd.get("k")
+        if rd["totals"] and (isinstance(k, bool) or not isinstance(k, (int, float)) or not k > 0):
+            bad.append(f"read {rid}: no k (its 30-day scale), so its rounding allowance is unknown")
+            continue
         for a, total in rd["totals"].items():
-            got = sum(r["value"] for r in b["rows"] if r["read"] == rid and r["allowance"] == a)
-            if abs(got - total) > ANCHOR_TOL * max(total, 1):
+            vals = [r["value"] for r in b["rows"] if r["read"] == rid and r["allowance"] == a]
+            got = sum(vals)
+            tol = ANCHOR_TOL * max(total, 1)
+            if k != 1:
+                tol = max(tol, 0.5 * (len(vals) + 1))
+            if abs(got - total) > tol:
                 bad.append(f"read {rid}, {a}: rows sum to {got:,.0f}, the account read {total:,.0f}")
     return bad
 
@@ -353,7 +365,7 @@ def synthetic():
                         "cpu_ms": A("Workers CPU ms", 30e6, 0.02, 1e6, False), "requests": A("Workers requests", 10e6, 0.30, 1e6, False)},
          "products": {"stream": {"states": ["now"]}, "proxy": {"states": ["now"]}, "ingest": {"states": ["silent", "running"]}},
          "scenarios": {"today": {"ingest": "silent"}, "running": {"ingest": "running"}},
-         "reads": {"r1": {"tool": "synthetic", "window": ["t0", "t1"],
+         "reads": {"r1": {"tool": "synthetic", "window": ["t0", "t1"], "k": 1,
                           "totals": {"r2_class_a": 0.90e6, "r2_class_b": 3.0e6, "kv_read": 7.2e6, "cpu_ms": 20e6}},
                    "r2": {"tool": "synthetic", "window": ["t2", "t3"], "totals": {}}},
          "rows": []}
@@ -405,6 +417,27 @@ def selftest():
     p4["rows"] = [r for r in p4["rows"] if r["product"] != "stream"]
     bad = anchor(p4)
     check(any("r2_class_a" in x for x in bad) and any("r2_class_b" in x for x in bad), f"P4: dropping the stream fails the anchor on Class A and B ({len(bad)} lines)")
+    # ---- 9.12: the anchor's rounding allowance, only where a read is scaled (k != 1); a read with totals needs k ------
+    def small(k, vals, total, with_k=True):
+        t = copy.deepcopy(base)
+        t["reads"]["rk"] = {"tool": "synthetic", "window": ["t6", "t7"], "totals": {"kv_write": total}}
+        if with_k:
+            t["reads"]["rk"]["k"] = k
+        for p, v in zip(("stream", "proxy"), vals):
+            t["rows"].append({"product": p, "state": "now", "allowance": "kv_write", "value": v, "read": "rk",
+                              "basis": "measured", "how": "synthetic", "cadence": "steady"})
+        return anchor(t)
+    got = small(2.2642, (2, 2), 5)
+    check(got == [], f"P7: CONTROL: a scaled read (k 2.2642) whose 2 rows round to 4 against a total of 5 anchors (got {got})")
+    got = small(2.2642, (2, 1), 5)
+    check(got == ["read rk, kv_write: rows sum to 3, the account read 5"],
+          f"P7g: at k 2.2642 a gap of 2 over 2 rows, past the rounding bound of 1.5, fails the anchor (got {got})")
+    got = small(1, (2, 2), 5)
+    check(got == ["read rk, kv_write: rows sum to 4, the account read 5"],
+          f"P7k: at k = 1 a gap of 1 at a small total fails the anchor: no rounding allowance (got {got})")
+    got = small(2.2642, (2, 2), 5, with_k=False)
+    check(got == ["read rk: no k (its 30-day scale), so its rounding allowance is unknown"],
+          f"P7n: a read with totals and no k is refused (got {got})")
     # P5: a stale render is refused
     with tempfile.TemporaryDirectory() as d:
         doc = os.path.join(d, "doc.md")

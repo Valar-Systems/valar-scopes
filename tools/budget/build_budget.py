@@ -389,7 +389,7 @@ def main():
                      "how": f"blipscope-wx in {RUN[0]}..{RUN[1]} (x 240) minus r-silent's: {round(v):,}"})
     # ---- shsr: X10 as measured, the rest projected ----
     reads["x10"] = {"tool": "weatherscope S4.28b (9d8ed07d): shsr as measured, 520.2 ms x 43,050 invocations", "window": [],
-                    "totals": dict(X10)}
+                    "k": 1, "totals": dict(X10)}   # k 1: its rows are its totals, unscaled and unrounded (9.12)
     for al, v in X10.items():
         rows.append({"product": "shsr", "state": "built", "allowance": al, "value": v, "read": "x10", "basis": "measured",
                      "cadence": "steady", "how": "X10 (weatherscope S4.28b)" + (" ± 13k" if al == "r2_class_a" else "")})

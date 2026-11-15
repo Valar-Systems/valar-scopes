@@ -22,7 +22,8 @@ PLANTS = [  # (name, needle, replacement, the set of controls predicted to FAIL)
     ("S1 FLAG_AT raised to 0.90", "FLAG_AT, ANCHOR_TOL = 0.80, 0.01", "FLAG_AT, ANCHOR_TOL = 0.90, 0.01", {"P1"}),
     ("S2 every allowance flagged", 'else "FLAG" if share >= FLAG_AT else ""', 'else "FLAG" if share >= FLAG_AT else "FLAG"', {"C-flags", "P2"}),
     ("S3 unknown allowance accepted", 'if r["allowance"] not in al:', "if False:", {"P3"}),
-    ("S4 anchor tolerance unbounded", "FLAG_AT, ANCHOR_TOL = 0.80, 0.01", "FLAG_AT, ANCHOR_TOL = 0.80, 1e9", {"P4"}),
+    # 9.12 (2026-11-15): an unbounded tolerance also passes P7g's and P7k's gaps, so their rows join P4's.
+    ("S4 anchor tolerance unbounded", "FLAG_AT, ANCHOR_TOL = 0.80, 0.01", "FLAG_AT, ANCHOR_TOL = 0.80, 1e9", {"P4", "P7g", "P7k"}),
     ("S5 render always current", "    return have == render(b)", "    return True", {"P5"}),
     # Instrument failure #1 (2026-11-14): anchored on the inner clause alone, this plant was semantically the clean
     # code -- the outer clause still dropped every excluded row -- and P6 rightly stayed green. It now takes both lines.
@@ -36,6 +37,12 @@ PLANTS = [  # (name, needle, replacement, the set of controls predicted to FAIL)
     ("S-MONTH a whole-month state weighs 1, not days/30", "else [(st, days / 30)])", "else [(st, 1.0)])", {"M1"}),
     ("S-SEG a segment weighs 1, not its hours / 720", '[(x, h / STEADY_H) for x, h in segments(s, p, st, m, v["states"])]',
      '[(x, 1.0) for x, h in segments(s, p, st, m, v["states"])]', {"M2"}),
+    # 9.12, the anchor's rounding allowance (ruled 2026-11-15), predicted here before the first run:
+    ("S7a the rounding allowance at k = 1 too", "if k != 1:", "if True:", {"P7k"}),
+    ("S7b no rounding allowance", "tol = max(tol, 0.5 * (len(vals) + 1))", "tol = tol", {"P7"}),
+    ("S7c the rounding bound one unit wider", "0.5 * (len(vals) + 1)", "0.5 * (len(vals) + 3)", {"P7g"}),
+    ("S7d a read with totals and no k accepted",
+     'if rd["totals"] and (isinstance(k, bool) or not isinstance(k, (int, float)) or not k > 0):', "if False:", {"P7n"}),
 ]
 
 # The builder's kv-days refusals and B2's rows (ruled 2026-11-15), each set predicted here before the first run.

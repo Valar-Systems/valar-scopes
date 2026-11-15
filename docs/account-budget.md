@@ -702,3 +702,40 @@ at x 30/30, the December fallback is -$0.052 against the corrected 5a. So the pr
   - **Outside the set** (an UNATTRIBUTED line, an exit but 0, or anything above not as stated): STOP, with "the
     instrument and the arithmetic disagree; decide".
 - **Write size:** one output JSON (under about 100 KB), and five reads in a temporary directory removed on exit.
+
+**9.12 The first build's instrument failure, and the anchor's rounding allowance (registered 2026-11-15 04:24:48Z,
+before the second build).**
+- **The first build (04:18Z) ran as 9.11 predicted:** exit 0; every KV row and read as stated; the (A) total 1,201,159;
+  the MTD-1114 totals equal to the saved read's (8 keys, 0 differing).
+- **The checker refused it (exit 2):** "ANCHOR FAILED ... read MTD-1114, kv_delete: rows sum to 4, the account read 5".
+  It is recorded as an INSTRUMENT failure, the checker's first, not as a red on the budget.
+  - **The cause, in the code:** `budget_read.py` rounds each row on its own, and each total on the raw sum. MTD-1114
+    holds 2 raw deletes at k = 720/318 = 2.2642: two rows of round(2.26) = 2, against a total of round(4.53) = 5. The
+    saved read carries the same 2 + 2 against 5.
+  - **Excluded:** a missed namespace (kv-days reads "other" 0, and S5 and P5 each name one delete); a double count (the
+    rows are below the total). $0 either way.
+- **Ruled R1, tightened (2026-11-15):**
+  - the anchor allows max(1% x total, 0.5 x (rows + 1)), and only for a read with k != 1;
+  - a read with k = 1 keeps the 1% rule, so a missing count of 1 at a small total still fails;
+  - a read with totals and no k is refused.
+  - `budget_read.py` now writes `k` into its read, and the builder writes `k: 1` for X10. The premise is stated at
+    `budget_read.py`'s rounding lines. R2 (unrounded output) was refused.
+- **Two premises, each erring toward a refusal, never a pass:**
+  - `cpu_ms` is fractional (microseconds / 1000) even at k = 1, so "k = 1 rounds exactly" holds for counts, not for CPU.
+    A k = 1 CPU total under about 50 x (rows + 1) ms could fail spuriously; every CPU total here is millions of ms.
+  - The builder merges excluded rows per key (`excluded()`), so one written row can carry more than one rounding. The
+    bound counts written rows, so there it is tighter than the true rounding, not looser.
+- **Controls, red first:**
+  - P7, the control: k 2.2642, rows 2 + 2 against a total of 5, anchors.
+  - P7g: the same read with rows 2 + 1, a gap of 2 past the bound of 1.5, fails.
+  - P7k: k = 1, rows 2 + 2 against 5, fails.
+  - P7n: totals and no k, refused.
+  - The driver plants S7a {P7k}, S7b {P7}, S7c {P7g} and S7d {P7n}. S4 is now {P4, P7g, P7k}: an unbounded tolerance
+    passes those two gaps too.
+- **The second build's predictions:**
+  - Its json, parsed, equals the first build's (`f578fef00a79`), except a `k` in exactly five reads: r-7d 4.2857
+    (720/168), r-silent 30, r-24h 30, MTD-1114 2.2642 (720/318), and x10 1.
+  - The MTD-1114 totals equal the saved read's again.
+  - Validation passes; the MTD-1114 kv_delete anchor reads 4 against 5, inside 1.5.
+  - The render is then graded against 9.10, with 9.11's KV predictions unchanged.
+  - **Outside the set: STOP.**
