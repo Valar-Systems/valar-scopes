@@ -2938,6 +2938,47 @@ The orchestrator opened it on acknowledging the set at `920babdbba66`. E2:08 was
   governs there, and it held. The difference from cap8 is recorded, not graded.
 - **So FB-REC and the push scope hold on the sibling, and both corrected limits read in band.** Nothing is
   re-registered. FT follows on the orchestrator's acceptance.
+- **The orchestrator recorded it IN.**
+
+### FT's WINDOW SETS (2026-11-15T09:40:40Z): FT-SEA today, FT-HR on Tuesday
+
+- **The scripts,** cut by `cut_ft.py` (`4777b1be57d8`) from the proof window's accepted three. Each replacement is
+  asserted once. The diffs are only:
+  - the label and image;
+  - the ledger (cap11 for SEA, cap12 for HR);
+  - the manifest;
+  - the trace length;
+  - the scene comment and the header.
+  The restore section is untouched.
+  - `win_ftsea.ps1` `1c71fbe9dfe5`, `launch_ftsea.ps1` `b4357279064f`;
+  - `win_fthr.ps1` `a603e1e4c4f3`, `launch_fthr.ps1` `f61db8f312ba`;
+  - `make_ft_manifest.py` `ec7ed38bc254`.
+- **The trace lengths, from FrameBench.h's constants.** A scene is about 262 s: settle 100 s, measure 120 s, 20 forced
+  rebuilds 2 s apart, and the dump.
+  - **FT-SEA:** 31 scenes, about 135 min, traced for **145 min**;
+  - **FT-HR:** 49 scenes, about 214 min, traced for **225 min**.
+  - One single-open trace each, with the PC quiet and no /diag/fb grabs. Then the v19 restore, its boot tokens,
+    read-mac and HTTP. FT-SEA is about 153 min end to end.
+- **The manifest** (`ft_manifest.json`, `b3e498423dc9`), against the release's table `28f336fe57a9`. Every write is
+  ota_0 alone: no factory image, no erase, nothing to NVS.
+  - ft2-sea `2b4e0bf1a5e1`, 0x020000..0x33A2EF (49.6 % of ota_0);
+  - ft2-hr `054e60e67bd4`, 0x020000..0x43C59F (65.8 %);
+  - restore-v19 `f6d73e391631`, 0x020000..0x1F7A3F.
+- **The dry run, both halves, for both rows:**
+  - each row's own file stages and matches with no port touched (exit 0);
+  - the wrong file under the row's label STOPs, "nothing written" (exit 20): v20-P's under ft2-sea, ft2-sea's under ft2-hr.
+- **Daylight** (map-server; the reader requires the night bit clear on every measured frame): today 12:51-21:13Z, and
+  Tuesday 12:54-21:11Z, each with 10 min clear, the same for both rows' homes.
+  - **FT-SEA's start window: 12:51Z to 14:47Z**, ending by 17:20Z for the sitting.
+- **The read:** `fb_read_ft.py` `8a10f116fe02` (frozen, its inputs pinned), on the closed trace:
+  `--row SEA --pins test/fixtures/frame-bench/ft_sea.pins --host ft_host_counts.json --tbl ft_tbl_sums.json`.
+  - **Exit 2 is the INSTRUMENT:** nothing is graded, and the read stops.
+    - Named in advance: a Worker outage stops the served table (OnCloudPoll runs only after the real GET), which
+      reads as STEADY drawn != 40.
+  - **Exit 1** is a graded delta over its margin: a finding, to the orchestrator.
+  - **Exit 0:** every instrument row in, and every graded delta within its margin.
+  - **The graded deltas themselves are not predicted.** They are what the window measures, against margins frozen
+    from pair 1 before any graded pair.
 
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
