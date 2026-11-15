@@ -2,6 +2,11 @@
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
 #include <esp_task_wdt.h>
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#include "FrameBench.h"   // the frame-time bench, C1 (docs/frame-time-bench.md)
+#endif
+// THE FRAME BENCH END
 
 #include "LGFX.h"
 #include "Layout.h"
@@ -214,6 +219,16 @@ void Task(void*)
     for (;;) {
         uint8_t i;
         if (xQueueReceive(g_queue, &i, portMAX_DELAY) != pdTRUE) continue;
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        if (framebench::DropThis(i)) {   // THE DROPPED-UPDATE PLANT: not pushed, not presented; the buffer released
+            framebuf::SetPhase(framebuf::kPhasePushed);
+            framebuf::FrameDone();
+            xSemaphoreGive(g_free[i]);
+            continue;
+        }
+#endif
+        // THE FRAME BENCH END
         uint8_t* const p = (uint8_t*)g_buf[i]->getBuffer();
         const uint32_t t0 = micros();
 #if defined(M3_BENCH)
@@ -230,6 +245,12 @@ void Task(void*)
         // Bus_SPI::wait() busy-polls, so wait for the last segment by yielding instead of spinning.
         while (tft.dmaBusy()) vTaskDelay(1);
         tft.endWrite();
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        // M3-3: the planted push delay, by vTaskDelay (the push task outranks the loop on its core)
+        if (const uint32_t d = framebench::PushDelayMs()) vTaskDelay(pdMS_TO_TICKS(d));
+#endif
+        // THE FRAME BENCH END
         const uint32_t t2 = micros();
 #if defined(M3_BENCH)
         if (checkThis) Check(p);   // before the buffer is freed, so nothing redraws it during the re-read
@@ -238,6 +259,13 @@ void Task(void*)
         // "present to present". Left in the loop it would time the loop, not the glass.
         framebuf::SetPhase(framebuf::kPhasePushed);
         framebuf::FrameDone();
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        framebench::Present(micros());   // M3-1: p2p at the push's completion, the glass
+        framebench::PushTimes(t1 - t0, t2 - t0);   // M3-3 (b): the push's own times
+        framebench::TagPresented(i);   // THE PACKAGE's M3-2: a tagged frame, presented
+#endif
+        // THE FRAME BENCH END
         xSemaphoreGive(g_free[i]);
 
         g_pushes++;
@@ -321,6 +349,11 @@ void HandOver()
     const uint8_t i = (uint8_t)g_draw;
     g_complete = i;
     framebuf::Register(g_buf[i]);
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    framebench::TagHandOver(i);   // THE PACKAGE's M3-2: the tag that carries the span's boundary
+#endif
+    // THE FRAME BENCH END
     xQueueSend(g_queue, &i, portMAX_DELAY);
     g_draw ^= 1;
 }
@@ -1304,6 +1337,11 @@ void loop()
 #if defined(BLIPSCOPE_PUSH_TASK)
     // M3: frame N goes to the push task, and the loop moves on to frame N+1. The Pushed phase and
     // FrameDone are set by the push task when the send completes (docs/m3-push-task.md, section 5).
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::DelayOn()) delayMicroseconds(framebench::PLANTED_DELAY_US);   // I-6's +10 ms, BEFORE the hand-over
+#endif
+    // THE FRAME BENCH END
     pushtask::HandOver();
 #else
     backbuffer.pushSprite(0, bandY);
@@ -1322,6 +1360,11 @@ void loop()
   // still being assembled.
 #if !defined(BLIPSCOPE_PUSH_TASK)
   framebuf::FrameDone();
+  // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+  framebench::Present(micros());   // M3-1, image A: the push runs in the loop, so the present is here
+#endif
+  // THE FRAME BENCH END
 #endif
   // M3: FrameDone runs in the push task, at the send's completion. RecordFrameUs below therefore no
   // longer contains the push: `fr` drops by up to the push's 25.8 ms whether or not the glass is faster.

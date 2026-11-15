@@ -27,7 +27,8 @@ from check_map_fetch import strip   # one comment stripper for the map's source 
 
 REGION_COUNTS = {"src/AircraftManager.h": 1, "src/AircraftManager.cpp": 0}
 BEGIN, END = "// THE MAP DRAW BEGIN", "// THE MAP DRAW END"
-REFUSAL_IF = "#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C)"
+# bench/frame-bench-c1: CD4 holds the refusal WITH the C1 bench exemption (never merged; check_no_bench_exemption.py)
+REFUSAL_IF = "#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined(BLIPSCOPE_MAP_STEP_C) && !defined(BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT)"
 REFUSAL_ERROR = ('#error "step B draws the map without step C: the sweep erases it. '
                  'Land step C before WX_LAYER_SHIPS ships."')
 ALLOWED_STEP_C_DEFINERS = set()   # step C adds its header here, in the commit that defines the macro

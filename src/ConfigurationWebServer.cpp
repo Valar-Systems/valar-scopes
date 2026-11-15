@@ -1,5 +1,10 @@
 #include "ConfigVocabulary.h"
 #include "ConfigurationWebServer.h"
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#include "FrameBench.h"   // the frame-time bench, C1 (docs/frame-time-bench.md)
+#endif
+// THE FRAME BENCH END
 #include "NtfyTopic.h" // the generated private topic (spec 14.1)
 #ifdef FEATURE_CLOUD_FEED
 #include "WxLegendHtml.h" // the Weather section's legend (docs/wx-device.md WD8)
@@ -4678,6 +4683,15 @@ bool ConfigurationWebServer::HasStoredKey(const char* key)
 
 const String ConfigurationWebServer::GetStoredString(const char* key)
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    // The scene's keys, held in RAM: read here instead of NVS, never written anywhere; every key noted
+    if (const char* v = framebench::Override(key)) {
+        framebench::NoteKey(key, v, true);
+        return String(v);
+    }
+#endif
+    // THE FRAME BENCH END
     Preferences prefs;
     prefs.begin("config", true);
     // isKey() probes without logging; calling getString() on a missing key would spam
@@ -4685,5 +4699,10 @@ const String ConfigurationWebServer::GetStoredString(const char* key)
     // the user first saves settings. Returns the same "" default as before when absent.
     const String value = prefs.isKey(key) ? prefs.getString(key, "") : String();
     prefs.end();
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    framebench::NoteKey(key, value.c_str(), false);   // the board's own, for the record
+#endif
+    // THE FRAME BENCH END
     return value;
 }
