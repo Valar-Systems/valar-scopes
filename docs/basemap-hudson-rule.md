@@ -803,6 +803,112 @@ re-freeze through the orchestrator. The 19.4 km sheets replace the 17 km ones fo
 **What still gates the merge:** FT-HR's reading inside M on these six (the 11-16 window), and the code PR's condition (a).
 The 11-16 window is VOID (section 5a's bench note), so the reading takes the window placed then.
 
+### 5k. FT on step C: re-registered before any FT code (the orchestrator's rulings, 2026-11-15)
+
+**Why.** Main (b282699ac091) draws no map. The draw exists only in map-client's step C (3e9d6ec9f449,
+`feat/map-client-step-c-blend`), read there by this session and confirmed independently by map-client.
+- `mapcompose::Frame` (include/MapCompose.h:322-341) rebuilds only when `Stale` (:313) finds the key changed. `Same` (:119) compares
+  the home, rLat/rLon, the size, the rotation, radiusMi, pkSeq, airportsGen and the fixed label boxes.
+- Every other frame copies the cached 240 x 240 buffer: 115,200 B, whatever the package holds (src/AircraftManager.cpp:3876).
+- `Compose` (:279) and step C's sweep (include/MapSweep.h) do not depend on density either.
+- **So a steady window's p95 cannot see a package, by construction. Density costs time only on a rebuild frame.**
+
+**Where FT runs (ruled):** on the v20 sibling, re-cut as ONE pinned tree: main + M3 3bc7ec26fe28 + step C 3e9d6ec9f449.
+- Every FT reading is labelled "measured on step C at 3e9d6ec9f449, not on main".
+- If the merged step C differs in the draw path, FT is re-read before its numbers are used.
+- A run-time anchor (map-client's Addition 2) makes every FT scene prove the map drew, so a silent no-draw reads INSTRUMENT.
+
+**These rows replace FT-HR's above where they differ, and FT-SEA's (docs/basemap-dense-code.md, #696) alike. Nothing has run.**
+FT-SEA's text is recorded here because #696's head stays at 44349515 until the census switch's step 8 re-reads it. #696's next push
+carries it word for word.
+
+1. **The steady row stays, reworded.** It is p95(`p2p`), package minus package, <= M = 3.08 ms, with KORD's A/A, all as above.
+   - **Predicted now: within noise at every point and rung, for any package.**
+   - A pass reads "the steady frame does not see the package". It never reads "the density costs nothing" or "no slowdown".
+2. **The named readings move to the rebuild.** "Expected to differ most" (FT-SEA: KJFK at 50 mi; FT-HR: KEWR at 50 mi) now names
+   row 3's zoom hitch. No direction is predicted, as before.
+3. **The rebuild row (ruled).** Rebuilds are forced by re-accepting the same package (`++mapPkgSeq`), the reviewed path; a key
+   poison would be a second path into the key. Map-client designs the forcing and the split timing, in microseconds. The device's
+   `[map] draw: rebuilt in N ms` (AircraftManager.cpp:3872) is printed beside, but is too coarse for a delta.
+   - **The split.** A pkSeq rebuild runs `mapplaces::Load` (MapCompose.h:296-300) before Build, and a zoom change does not. So each
+     forced rebuild is timed in two parts:
+     - **GRADED, "the zoom/redraw hitch at this rung, same package":** the rebuild's total minus Load, i.e. Build's passes plus the
+       swap and the names. FT-HR adds `Compose` (its weather is on), the same per-pixel loop for every package. BuildInfo's pass times
+       (`usS1` to `usTotal`, filled under MAP_BENCH, which the FT envs compile) are printed beside. `usTotal` covers Build only, so it
+       is not the graded figure.
+     - **REPORTED, "the package-update hitch":** Load alone, and the total. Neither is graded.
+   - **The statistic:** per scene, the median of its N forced rebuilds, with the p95 and N printed beside. N is map-client's, stated
+     before the run. A scene with N under 10 is INSTRUMENT.
+   - **Each margin is DERIVED, not chosen,** from KORD's A/A (the same bytes twice) by M's construction, and frozen before any graded
+     reading. It is `M_part = max(2 x |median_A - median_B|, 2 x U_part)`.
+     - `U_part` is the larger of the two KORD scenes' distribution-free 95% half-width of the median: half the gap between the order
+       statistics at 1-based ranks floor(N/2 - 0.98 sqrt N) and ceil(N/2 + 1 + 0.98 sqrt N).
+     - There is one margin each for the graded part, Load and the total. There is no fixed floor, since a floor would be chosen.
+   - **The order in the window (proposed; the orchestrator rules):**
+     - KORD's A/A pair runs first. Its margins are printed and hashed before any graded pair.
+     - A second KORD A/A pair runs LAST, graded against them as that window's live noise reading. The first pair defines the margin,
+       so it cannot test it.
+     - Over a margin on the second pair: INSTRUMENT, and nothing in the window is graded.
+   - **The timer must see a known change first.** Before any delta is graded, the split timer reads a known delay inside its timed
+     region at its own size, within `U_part`. The delay is map-client's, with its size stated before the run. A delay that does not
+     move the reading at its size is INSTRUMENT: the C1 retake's failure of 2026-11-14, named.
+   - **A comparison row, not a product bar.** At each point and rung the graded delta is the option minus the baseline (FT-HR: 2-L at
+     19.4 minus run 10's; FT-SEA: sea minus no-sea), set against M_zoom.
+     - Every delta over its margin goes to the orchestrator with the numbers. The orchestrator decides whether it raises a user-facing
+       question (a visible hitch at a zoom change) for the owner.
+     - The row does not gate this PR's merge. It is read and reported before the merge.
+4. **The rebuild count in the steady window.** Each scene prints the rebuilds inside its 120 s measured window. Expected: 0.
+   - The named exception: an airports-fetch arrival bumping airportsGen (AircraftManager.cpp ~4097, after `Initialise`'s drop at
+     ~1488). It is recorded with that scene's fetch line.
+   - A rebuild with no fetch line is OUTSIDE: stop and decide.
+
+**Outside the set for rows 1-4: stop and report, no reading.**
+- A scene's N under 10.
+- The known delay not moving the timer at its size.
+- The second KORD pair over its margin.
+- A steady-window rebuild with no fetch line.
+- A reading without the step C label.
+- **None of the above:** the instrument is unreliable at this scale. Stop and decide.
+
+**Addition 2's anchor: the host BuildInfo counts (accepted). The method is registered here, before any count is computed.**
+- **What is computed.** For each FT package and rung, the counts `maplayer::BuildInfo` holds after Build: `rings`, `rivers`,
+  `primary`, `secondary`, `primaryInView`, `secondaryInView`, `secondaryDrawn` and `level`. The device's counts must equal them.
+- **The 14 packages, by sha256:**
+  - FT-SEA's six (#696's FT-SEA table).
+  - FT-HR's run-10 KEWR dff28487eaf4, MIDTOWN 20a22bed5510 and KLGA feb6ef3bdf04. Its run-10 KJFK and KBOS are FT-SEA's sea packages,
+    the same bytes.
+  - The five 2-L at 19.4 packages (section 5j).
+  - KORD-A0 cb59bb06a506, which is in both rows.
+- **The cells:** the rungs 10, 25 and 50 mi, so 42 cells.
+- **The tool.** A host harness compiles step C's `include/MapLayer.h` (byte-identical on main b282699ac091). It calls
+  `maplayer::Build` exactly as `mapcompose::Rebuild` does: `kLayersAll`, the dark theme, kSize 240, Scratch sized for the package's
+  maxVertices, no clock. It prints counts only: no coordinate, no place name.
+- **The view comes from the device's side, not chosen:**
+  - the home from the sibling's scene table at its pin, parsed as the device parses it;
+  - radLat/radLon by AircraftManager.cpp:1005-1006 (3e9d6ec9f449), at the zoom ladder's top (f = 1.0, :5887-5890);
+  - north-up (radar-up 0, :1570);
+  - askedMm as `mapReq.rvMm` (include/MapQuery.h:89).
+  - So the counts are computed after the sibling's table is pinned. The sibling printing its view per scene would let a view mismatch
+    be told apart from a draw failure.
+- **The controls, each read before any count is believed:**
+  - (i) ANCHOR: on test_map_layer.cpp's own fixture, the harness reproduces that suite's S1 outcomes (secondary drawn exactly when
+    no primary is in view, its lines ~284-294), with counts above 0.
+  - (ii) PLANT: with the water layer masked off, `rings` reads 0 and every other count is unchanged.
+  - (iii) DETERMINISM: every cell is computed twice, with identical results.
+  - (iv) FLOATING POINT, named in advance: the ESP32-S3's FPU fuses multiply-adds, and GCC contracts a float `a*b+c` by default. So
+    the harness is built twice, with `-ffp-contract=off` and with `=fast`. A cell whose counts differ between the two is BORDERLINE,
+    and its anchor is the pair, not one value.
+  - (v) KORD, from S1: FT-SEA's two KORD packages differ only in 9 secondary roads. So at every rung all counts are equal except
+    `secondaryInView`, and `secondaryDrawn` is false for both. FT-HR's KORD is the same bytes twice, so its counts are identical.
+- **The outcomes:**
+  - All five controls as predicted: the 42 cells are recorded here (counts only), with the harness's sha256 and the sibling's pin.
+  - Any control off: STOP, no counts.
+  - The device's counts differ from the host's at a cell: that scene's anchor reads INSTRUMENT. The printed view separates the two
+    named alternatives: a view that differs from the port (a port defect, not a draw failure), or a BORDERLINE cell.
+  - Anything else: stop and decide.
+- **Not yet run.** C: read 27.18 GiB free at 06:39:45Z, under the 30 GiB floor, and the harness is a host build. It is built when
+  the floor allows, or on the orchestrator's ruling.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
@@ -850,6 +956,16 @@ GitHub-side re-run rule applies. Anything else: stop and report.
   from the run's own checkout log.
   - **The coordinate gate is new to this PR.** `--diff HEAD^1` sees both of this PR's docs as added lines. Main's gate
     (e31e8305b3a6), imported, counts **0** numbers in both files. A planted in-band 3-dp line counted 1, so the scan is not blind.
+  - A new red from `ship-alert` reads INSTRUMENT. Any further workflow change before the run is read first; anything else: stop and
+    report.
+- **Read at f6143e5d7edb:** 33 = 31 / 2 / 0 as predicted (stable at 18:34:06Z and 18:35:07Z on 11-14), tested on "Merge
+  f6143e5d7edb... into 620a215d0e5f...".
+- **Predicted for this head** (section 5k; docs/basemap-hudson-rule.md only):
+  - Main is b282699ac091 at this writing, 4 commits past 620a215d0e5f. Those commits change nothing under `.github/`, nor
+    `scripts/check_precise_coords.py`, `scripts/check_device_ids.py` or `skus.yml`.
+  - So: **33 check runs, 31 success, 2 skipped (`promote`, `version`), 0 failed**, tested on the merge into main as it then stands,
+    read from the run's own checkout log.
+  - Main's coordinate gate (e31e8305b3a6, unchanged) counts 0 numbers in this doc; a planted in-band 3-dp line counts 1.
   - A new red from `ship-alert` reads INSTRUMENT. Any further workflow change before the run is read first; anything else: stop and
     report.
 
