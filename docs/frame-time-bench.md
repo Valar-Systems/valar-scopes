@@ -1612,10 +1612,12 @@ unchanged" is recorded as an ASSUMPTION, not a finding.
 - **M3-2, the hand-off:** `Present()` publishes {p2p, a present count} under a spinlock; `Record()` reads both and
   stores the presents since the last record per frame. **Predicted:** in A exactly 1 on every frame (one task); in B
   a count other than 1 on under 1 % of measured frames. Over 1 %: the INSTRUMENT, and the alternative (the push task's
-  own p2p series) goes to the orchestrator.
+  own p2p series) goes to the orchestrator. **(For push60, and for images that count presents, this is changed by
+  THE PACKAGE below, 2026-11-15.)**
 - **M3-3's plants:** the push delay by `vTaskDelay(pdMS_TO_TICKS(D))` after `tft.endWrite()` and before `t2` (static
   row M3-3P: a spin there reads red, because the push task outranks the loop on its core); the loop's +10 ms by
-  `delayMicroseconds` before `RecordFrameUs` (I-6's).
+  `delayMicroseconds` before `RecordFrameUs` (I-6's). **(The loop plant's site is changed by THE PACKAGE below,
+  2026-11-15: immediately before `pushtask::HandOver()`.)**
 - **M3-3's second instrument, read two ways (p4's written agreement, quoted below):** (a) `[m3] push_avg_us` is a
   since-boot average (at `3bc7ec26fe28`, main.cpp :151 `g_pushes`, :152 `g_pushUsSum`/`g_syncUsSum`, :153
   `g_pushUsMax`; the push task's sums at :243-246 and its report at :247-256, whose only resets are `g_pushUsMax` and
@@ -1933,6 +1935,105 @@ B only, the PC kept quiet. The restore PASSED (HTTP 200 at 23:31:51Z). Rig check
     absorbed. Then "+10 ± 1.5 in a draw-bound scene" is a premise B does not meet, not a plant that is broken.
   - (b) M3-2's 1 % rule may not hold under D=60 by construction.
 - **Stopped,** to the orchestrator and the owner. No fix and no re-run before the ruling.
+
+### THE PACKAGE: the moved loop plant, M3-2's exact count, and a dropped update (registered 2026-11-15T01:13:05Z, before its code)
+
+The owner, verbatim: "Proof: a. The proof run stays on record as off. Before the ~25-min board proof, write down the
+moved loop check (expecting the full +10 ms) and the reworked 60 ms rule. Then include a deliberately dropped screen
+update that the new 60 ms rule must catch. If it doesn't, the rule is too loose and comes back to me. Then C1."
+
+**Why the loop plant moves (code reading and the proof window's own records; no new board read):**
+- The buffer wait did not absorb it. The board's `[m3] loop_wait_avg_us`, windowed inside each measured span, reads
+  S0 5 µs, S1 5 µs, S2 17,232 µs and S3 15 µs a frame.
+- It is not short: `delayMicroseconds` in arduino-esp32 3.3.9 is a wall-clock busy loop on `esp_timer_get_time()`.
+- It is not time-scaled draw work: the period moved only 1.4 %.
+- It overlaps the push. The plant at `main.cpp:1355` sits after `pushtask::HandOver()` (`:1324`), inside the push
+  that HandOver starts. The push task is one priority above the loop, on its core (`:307-311`). The push's CPU bursts,
+  or its PSRAM contention, or both, land inside the busy-wait instead of in the next draw. That repays about 8.5 ms.
+
+**1. THE MOVED LOOP PLANT.**
+- `if (framebench::DelayOn()) delayMicroseconds(framebench::PLANTED_DELAY_US);` moves, in its FRAME BENCH region, from
+  `:1355` to immediately before the `pushtask::HandOver();` call. There the previous push (started one frame earlier,
+  about 24 ms long) has finished, and this frame's push has not begun.
+- **C1's sentence changes** (M3-3's plants, above): "the loop's +10 ms by `delayMicroseconds` immediately before
+  `pushtask::HandOver()`, outside the push's window". p4 re-signs it.
+- **Predicted (B, C1+loop10):** Δp2p p95 = **+10.0 ± 1.5**, with push_avg unchanged within ± 1.0. That is the loop
+  row as frozen, now on a site that meets its premise. Δfr is reported.
+- **Static row M3-L** in `check_frame_bench.py`: the loop plant appears exactly once in `loop()`, in a FRAME BENCH
+  region, immediately before the `pushtask::HandOver();` call, and not after it. **Its plant (the old site) reads
+  exactly {M3-L} red. Today's tree (`bcc4414ca870`) reads M3-L red.**
+
+**2. M3-2, RE-DERIVED: an exact count per scene, with the span boundary carried by a tag.**
+- **Why the per-frame rule fails at push60:**
+  - The push (about 84 ms) outruns the draw (about 71 ms). The loop waits in `TakeForDrawing` (`main.cpp:327`) for
+    the buffer the push releases at `:258`, just after it presents at `:254` (`FrameBench.h:211-218`).
+  - The loop's per-frame record (`AircraftManager.cpp:2164`; `FrameBench.h:258-270`) lands near each present, and
+    jitter turns a 1,1 into a 0,2.
+  - The proof window's S2 fits exactly: sum(pres) 1428 = frames = push n; 15 zeros and 15 twos, all in adjacent
+    pairs; the running sum within [−1, +1].
+  - The rule was derived from that trace, so its reading IN there is a consistency case, not evidence.
+- **Why a sum against push n cannot catch a drop (the orchestrator):** a skipped update lowers push n and sum(pres)
+  together. And a ±1 tolerance lets a single missing present through.
+- **THE COUNT:**
+  - In `pushtask::HandOver()`, in a FRAME BENCH region before `xQueueSend`, the queued frame is tagged with the
+    current scene if that scene is measuring, and the scene's `handed` count goes up.
+  - In `pushtask::Task`, right after `Present()`, a tagged frame raises its scene's `presented` count.
+  - A frame belongs to the span if and only if it was handed over while measuring. Its present counts whenever it
+    happens, after the span included.
+  - After the scene's dump finishes (`dump S<k> done`, seconds after the end, when every in-flight frame has been
+    presented), the bench prints `[frame-bench] presents S<k>: handed <H> presented <P> dropped <D>`.
+- **THE RULE, every B scene: P == H exactly.** Off is the INSTRUMENT.
+  - The per-frame "under 1 %" stays for the scenes that are not push60. For push60, the per-frame count is reported,
+    not graded.
+  - **Why one drop fails with certainty:** each tagged frame is either presented (P + 1) or dropped. One drop gives
+    P = H − 1 exactly. No jitter enters, because no window boundary is involved.
+- **Scope:** only images whose bench line says "presents counted" (the push-task images from this package) carry
+  the presents lines. With the token, a missing presents line is the INSTRUMENT. Without it (every older trace, and
+  every existing selftest case), the old rules apply unchanged. Image A is unchanged.
+
+**3. THE DROPPED-UPDATE PLANT (the owner's addition), in its own scene.**
+- A proof-only scene **S4 `C1+push60drop`**: kind `C1_PUSH60_DROP`, push delay 60 as push60. It is compiled only
+  into a proof env `blipscope-s3-128-framebench-c1b-proof` (c1b plus `-DFRAME_BENCH_PROOF_DROP`, a build flag, so
+  FB-TU holds). C1's image B keeps its four scenes.
+- In `pushtask::Task`, right after `xQueueReceive`, a FRAME BENCH region: if `framebench::DropThis(i)` (true exactly
+  once, for the 100th tagged frame of a `C1_PUSH60_DROP` scene), the frame is **not pushed and not presented**. There
+  is no `pushImageDMA`, no `Present`, no `PushTimes` and no `g_pushes++`. `framebuf::SetPhase/FrameDone` and
+  `xSemaphoreGive(g_free[i])` still run, so the buffer is released. The scene's `dropped` goes up, then `continue`.
+- **Static row M3-D:** `DropThis` appears exactly once, in that region of `pushtask::Task`, before any push work.
+  The region releases the buffer and continues. It appears nowhere else. **Its plant (the region moved after the
+  push) reads exactly {M3-D} red.**
+- **Predicted, S4:** `handed H presented H−1 dropped 1`. M3-2 reads it as **CAUGHT**, the expected-red control, and
+  the read goes on. **S4 reading P == H (not caught) means the rule is too loose: to the owner, stop.** Any other S4
+  count is the INSTRUMENT.
+
+**4. THE READERS, each re-frozen by sha before the window; p4 re-signs M3-2's text and the plant sentence.**
+- **`fb_read_c1.py` v2:** the token, the presents lines, the exact rule and the per-frame rule's scope.
+  - **Every existing selftest case's output is byte-identical** (the existing selftest output is compared by sha).
+  - New cases: CLEAN-P (every scene P == H) is graded. LOSTP (a clean scene at P == H − 1) is the INSTRUMENT. PAIRS
+    (push60 with 0/2 pairs and P == H) passes M3-2. Each case prints its own reason's words.
+- **`fb_read_plants.py` v2, for the proof image's five scenes.** Graded:
+  - DELAYED-FLAG: S3 only, and none in S4;
+  - D=10 push and D=60 push: true size;
+  - loop +10: +10.0 ± 1.5, with push unchanged;
+  - M3-2 exact: P == H in S0-S3;
+  - DROP-CAUGHT: in S4, P == H − 1 and dropped 1.
+  - Its selftest: v1's five cases. The REAL retake trace lacks the token and still reads red on its four rows.
+  - Plus a synthetic single-drop trace, which reads CAUGHT; a synthetic drop NOT caught (S4 at P == H), which reads
+    "too loose", exit 3, to the owner; and a synthetic lost present in S2, which reads the INSTRUMENT.
+
+**5. THE IMAGES AND THE WINDOW.**
+- From the package's commit on `bench/frame-bench-c1`: the proof image (c1b-proof), C1's c1-B and c1-A, and I-3,
+  predicted byte-identical to `de75e3606ba7`.
+- `check_frame_bench.py` gains M3-L and M3-D: 16 rows, 0 failed at the commit.
+- **The proof window:** the proof image only, S0-S4 (90 s, 5 × 220 s and the dump), about 28 min on E2:08 with the
+  PC quiet. It ends by 17:20Z, or starts after 20:50Z.
+
+**6. THE OUTCOMES, registered:**
+- **IN:** the moved loop plant reads +10.0 ± 1.5; the push plants read at true size (+9 to +10, +59 to +60);
+  M3-2 exact P == H in S0-S3; S4 CAUGHT.
+- **S4 not caught:** the rule is too loose. To the owner: stop.
+- **Any other off reading, or anything outside the set:** stop.
+- **Then C1,** its slot proposed under the standing rule.
 
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
