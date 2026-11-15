@@ -288,21 +288,70 @@ registered before 12-01.
 ## 6. The table (rendered by the checker, from the next commit)
 
 <!-- account-budget:begin (rendered by scripts/account_budget.py --render; do not edit) -->
-| allowance | included | today | OPERA running | OPERA running + shsr | 24 h rate (observation, not graded) |
+**30-day figures** (a steady row as read; a one-off at 2026-12's events)
+
+| allowance | included | before shsr | today | OPERA running | OPERA running + shsr | 24 h rate (observation, not graded) |
+|---|---|---|---|---|---|---|
+| R2 Class A (writes) | 1.000 M | 0.888 M (89%) **FLAG** | 1.009 M (101%) **OVER**, $4.50 | 1.061 M (106%) **OVER**, $4.50 | 1.182 M (118%) **OVER**, $4.50 | 0.931 M (93%) |
+| R2 Class B (reads) | 10.000 M | 4.750 M (48%) | 5.182 M (52%) | 10.120 M (101%) **OVER**, $0.36 | 10.552 M (106%) **OVER**, $0.36 | 4.474 M (45%) |
+| R2 storage (GB-month) | 10.00 | 3.46 (35%) | 3.86 (39%) | 3.46 (35%) | 3.86 (39%) | not read |
+| KV reads | 10.000 M | 7.020 M (70%) | 7.020 M (70%) | 7.020 M (70%) | 7.020 M (70%) | 8.295 M (83%) |
+| KV writes | 1.000 M | 0.577 M (58%) | 0.577 M (58%) | 0.577 M (58%) | 0.577 M (58%) | 0.047 M (5%) |
+| KV lists | 1.000 M | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.006 M (1%) |
+| KV deletes | 1.000 M | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | not read |
+| Workers CPU (ms) | 30.000 M | 37.996 M (127%) **OVER**, $0.16 | 60.388 M (201%) **OVER**, $0.61 | 69.030 M (230%) **OVER**, $0.78 | 91.423 M (305%) **OVER**, $1.23 | 32.797 M (109%) |
+| Workers requests | 10.000 M | 2.194 M (22%) | 2.237 M (22%) | 2.519 M (25%) | 2.562 M (26%) | 2.805 M (28%) |
+| Workers Logs events (November prices) | 20.000 M | 6.966 M (35%) | 7.102 M (36%) | 7.997 M (40%) | 8.134 M (41%) | not read |
+| Durable Object requests | 1.000 M | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | not read |
+| Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | not read |
+| **overage a month (Read A)** | | **$0.16** | **$5.11** | **$5.64** | **$6.09** | |
+
+**2026-11, calendar month (30 days)**
+
+| allowance | included | Nov none | Nov none + weather | Nov none + Missileer | Nov fallback | Nov fallback + weather | Nov fallback + Missileer |
+|---|---|---|---|---|---|---|---|
+| R2 Class A (writes) | 1.000 M | 0.960 M (96%) **FLAG** | 0.940 M (94%) **FLAG** | 0.843 M (84%) **FLAG** | 1.040 M (104%) **OVER**, $4.50 | 1.020 M (102%) **OVER**, $4.50 | 0.924 M (92%) **FLAG** |
+| R2 Class B (reads) | 10.000 M | 5.006 M (50%) | 5.006 M (50%) | 5.006 M (50%) | 7.512 M (75%) | 7.512 M (75%) | 7.512 M (75%) |
+| R2 storage (GB-month) | 10.00 | 3.70 (37%) | 3.70 (37%) | 3.70 (37%) | 3.70 (37%) | 3.70 (37%) | 3.70 (37%) |
+| KV reads | 10.000 M | 7.020 M (70%) | 7.020 M (70%) | 7.020 M (70%) | 7.020 M (70%) | 7.020 M (70%) | 7.020 M (70%) |
+| KV writes | 1.000 M | 1.911 M (191%) **OVER**, $4.56 | 1.911 M (191%) **OVER**, $4.56 | 1.911 M (191%) **OVER**, $4.56 | 1.911 M (191%) **OVER**, $4.56 | 1.911 M (191%) **OVER**, $4.56 | 1.911 M (191%) **OVER**, $4.56 |
+| KV lists | 1.000 M | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) |
+| KV deletes | 1.000 M | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) |
+| Workers CPU (ms) | 30.000 M | 51.236 M (171%) **OVER**, $0.42 | 51.236 M (171%) **OVER**, $0.42 | 51.236 M (171%) **OVER**, $0.42 | 65.719 M (219%) **OVER**, $0.71 | 65.719 M (219%) **OVER**, $0.71 | 65.719 M (219%) **OVER**, $0.71 |
+| Workers requests | 10.000 M | 2.219 M (22%) | 2.219 M (22%) | 2.219 M (22%) | 2.371 M (24%) | 2.371 M (24%) | 2.371 M (24%) |
+| Workers Logs events (November prices) | 20.000 M | 7.046 M (35%) | 7.046 M (35%) | 7.046 M (35%) | 7.528 M (38%) | 7.528 M (38%) | 7.528 M (38%) |
+| Durable Object requests | 1.000 M | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) |
+| Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) |
+| **overage a month (Read A)** | | **$4.98** | **$4.98** | **$4.98** | **$9.77** | **$9.77** | **$5.27** |
+
+**2026-12, calendar month (31 days)**
+
+| allowance | included | Dec none | Dec none + weather | Dec none + Missileer | Dec fallback | Dec fallback + weather | Dec fallback + Missileer |
+|---|---|---|---|---|---|---|---|
+| R2 Class A (writes) | 1.000 M | 1.043 M (104%) **OVER**, $4.50 | 0.998 M (100%) **FLAG** | 0.784 M (78%) | 1.221 M (122%) **OVER**, $4.50 | 1.177 M (118%) **OVER**, $4.50 | 0.963 M (96%) **FLAG** |
+| R2 Class B (reads) | 10.000 M | 5.355 M (54%) | 5.355 M (54%) | 5.355 M (54%) | 10.904 M (109%) **OVER**, $0.36 | 10.904 M (109%) **OVER**, $0.36 | 10.904 M (109%) **OVER**, $0.36 |
+| R2 storage (GB-month) | 10.00 | 3.99 (40%) | 3.99 (40%) | 3.99 (40%) | 3.99 (40%) | 3.99 (40%) | 3.99 (40%) |
+| KV reads | 10.000 M | 7.254 M (73%) | 7.254 M (73%) | 7.254 M (73%) | 7.254 M (73%) | 7.254 M (73%) | 7.254 M (73%) |
+| KV writes | 1.000 M | 0.579 M (58%) | 0.579 M (58%) | 0.579 M (58%) | 0.579 M (58%) | 0.579 M (58%) | 0.579 M (58%) |
+| KV lists | 1.000 M | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) |
+| KV deletes | 1.000 M | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) |
+| Workers CPU (ms) | 30.000 M | 62.401 M (208%) **OVER**, $0.65 | 62.401 M (208%) **OVER**, $0.65 | 62.401 M (208%) **OVER**, $0.65 | 94.471 M (315%) **OVER**, $1.29 | 94.471 M (315%) **OVER**, $1.29 | 94.471 M (315%) **OVER**, $1.29 |
+| Workers requests | 10.000 M | 2.311 M (23%) | 2.311 M (23%) | 2.311 M (23%) | 2.647 M (26%) | 2.647 M (26%) | 2.647 M (26%) |
+| Workers Logs events (November prices) | 20.000 M | 7.339 M (37%) | 7.339 M (37%) | 7.339 M (37%) | 8.405 M (42%) | 8.405 M (42%) | 8.405 M (42%) |
+| Durable Object requests | 1.000 M | 0.318 M (32%) | 0.318 M (32%) | 0.318 M (32%) | 0.318 M (32%) | 0.318 M (32%) | 0.318 M (32%) |
+| Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) |
+| **overage a month (Read A)** | | **$5.15** | **$0.65** | **$0.65** | **$6.15** | **$6.15** | **$1.65** |
+
+**One-off rows**
+
+| product | state | allowance | per_event x events[2026-12] = value | events by month | reader's 30-day figure |
 |---|---|---|---|---|---|
-| R2 Class A (writes) | 1.000 M | 0.854 M (85%) **FLAG** | 1.027 M (103%) **OVER**, $4.50 | 1.159 M (116%) **OVER**, $4.50 | 0.931 M (93%) |
-| R2 Class B (reads) | 10.000 M | 4.118 M (41%) | 9.488 M (95%) **FLAG** | 9.920 M (99%) **FLAG** | 4.474 M (45%) |
-| R2 storage (GB-month) | 10.00 | 3.46 (35%) | 3.46 (35%) | 3.86 (39%) | not read |
-| KV reads | 10.000 M | 7.226 M (72%) | 7.226 M (72%) | 7.226 M (72%) | 8.295 M (83%) |
-| KV writes | 1.000 M | 0.608 M (61%) | 0.608 M (61%) | 0.608 M (61%) | 0.047 M (5%) |
-| KV lists | 1.000 M | 0.005 M (1%) | 0.005 M (1%) | 0.005 M (1%) | 0.006 M (1%) |
-| KV deletes | 1.000 M | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | not read |
-| Workers CPU (ms) | 30.000 M | 35.917 M (120%) **OVER**, $0.12 | 68.158 M (227%) **OVER**, $0.76 | 94.564 M (315%) **OVER**, $1.29 | 32.797 M (109%) |
-| Workers requests | 10.000 M | 2.636 M (26%) | 2.633 M (26%) | 2.676 M (27%) | 2.805 M (28%) |
-| Workers Logs events (November prices) | 20.000 M | 8.368 M (42%) | 8.359 M (42%) | 8.496 M (42%) | not read |
-| Durable Object requests | 1.000 M | 0.400 M (40%) | 0.400 M (40%) | 0.400 M (40%) | not read |
-| Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | not read |
-| **overage a month (Read A)** | | **$0.12** | **$5.26** | **$5.79** | |
+| proxy | now | KV writes | 0.067 M x 4 = 0.269 M | 2026-11: 5, 2026-12: 4 | not read |
+| proxy | now | KV writes | 0.002 M x 0 = 0.000 M | 2026-11: 1, 2026-12: 0 | not read |
+| proxy | now | KV writes | 0.571 M x 0 = 0.000 M | 2026-11: 1, 2026-12: 0 | not read |
+| proxy-staging | now | KV writes | 0.066 M x 4 = 0.263 M | 2026-11: 5, 2026-12: 4 | not read |
+| proxy-staging | now | KV writes | 0.629 M x 0 = 0.000 M | 2026-11: 1, 2026-12: 0 | not read |
+| proxy-staging | now | KV writes | 0.000 M x 0 = 0.000 M | 2026-11: 1, 2026-12: 0 | not read |
 <!-- account-budget:end -->
 
 ### 6.1 The graded read (2026-11-12, window ending 21:00:00Z, run 21:05:12-27Z)
@@ -551,6 +600,9 @@ measured).** The old one is kept, renamed **"before shsr"**, because 9.5's compa
   shsr from X10: Class A 1.009 M (OVER by about 9k: $4.50 at Read A), CPU 60.4 M ($0.61), KV by event ($0), total
   about $5.11. That is the line the owner was already shown at 06:48Z, and it is a coin flip within shsr's ±13k. A
   scenario without `month` takes its one-offs at the file's default month, 2026-12.
+- **SUPERSEDED (2026-11-15): 9.6's figures above, on the 11-12 base.** 9.8(v) moved the base to the MTD read, as
+  built (9.12). "today" now renders $5.11 in the table this file carries. 9.6's ruling, the relabel, stands; its
+  figures do not.
 
 **9.8 THE STRUCTURAL RULE (the reviewer, 2026-11-14 ~09:28Z) and its scenarios. Registered before code; the design
 choices below are PROPOSED for the reviewer's acceptance.** Three wrong cost figures reached the owner in one day:
@@ -739,3 +791,20 @@ before the second build).**
   - Validation passes; the MTD-1114 kv_delete anchor reads 4 against 5, inside 1.5.
   - The render is then graded against 9.10, with 9.11's KV predictions unchanged.
   - **Outside the set: STOP.**
+- **The second build (04:25Z), as predicted:**
+  - its json equals the first build's plus `k` in the five reads, and validation exits 0;
+  - all 16 totals are inside ±$0.05: November is 9.10's plus $0.03 (9.11's KV shift), and December and the 30-day
+    scenarios are exactly 9.10's;
+  - KV writes, December none's Class A (1,042,794.5) and the Read A steps read as predicted.
+- **Two MISSes, both registration errors (ruled 2026-11-15: no code change, no re-grade):**
+  - 9.10's "R2 storage at most 3.5 GB" left out shsr's own registered 0.4 GB projection and December's 31/30.
+    "today" renders 3.863 (3.463 + 0.4), and December 3.992.
+  - 9.10's "KV reads at most 7.25 M" missed 9.8(i)'s 31/30. December renders 7,254,298, which is 7,020,288 x 31/30.
+  - Both are $0, under their allowances with room: 3.99 of 10 GB, and 7.25 of 10 M.
+- **Queued, not in this PR:** R2 storage is billed per GB-month, so scaling it by 31/30 overstates December (3.86 to
+  3.99). Immaterial here.
+- **The device-id guard refused the second build's commit, correctly.** MTD-1114's k, 720/318 written in full, has 16
+  digits after the point: the shape of a device id. Rather than pass the guard, `budget_read.py`
+  now writes k to six places, since the anchor only asks whether k is 1. **A third build is predicted** to equal the
+  second exactly, except k: r-7d 4.285714 and MTD-1114 2.264151, with r-silent, r-24h and x10 unchanged. Validation
+  passes, and the rendered table does not change (k is not rendered). Outside that: STOP.

@@ -155,7 +155,9 @@ def main():
         rows.append({"product": p, "state": "excluded" if take == "opera" else "now", "allowance": "r2_storage_gb", "value": gb,
                      "read": rid, "basis": "measured",
                      "how": f"the window's largest stored bytes, {bk} (not anchored: storage has no coarser total)"})
-    read = {"tool": "tools/budget/budget_read.py", "window": [a, b], "k": k, "totals": totals}   # k: the checker's anchor reads it
+    # k: the checker's anchor reads it, and only asks whether it is 1. Six places: a full float repr (720/318 written in
+    # full has 16 digits after the point) can carry 16 digits in a row, which the device-id guard rightly reads as an id.
+    read = {"tool": "tools/budget/budget_read.py", "window": [a, b], "k": round(k, 6), "totals": totals}
     if observation:
         read["observation"] = True
         rows = []   # totals only: printed beside the graded figure, never summed (section 5.1)
