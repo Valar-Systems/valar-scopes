@@ -28,7 +28,8 @@ import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
 import {
-  FIXED_SOURCES, GNIS_LISTING_URL, type SourceFile, TERRITORY_FIPS, TIGER_DIRS, checkBody, gnisFromListing, terrariumUrl, tigerFromListing, tigerListingUrl, vintageOf,
+  FIXED_SOURCES, GNIS_LISTING_URL, type SourceFile, TERRITORY_FIPS, TIGER_DIRS, checkBody, checkTigerVintages, gnisFromListing, terrariumUrl, tigerFromListing, tigerListingUrl, vintageOf,
+  with2025,
 } from "./basemap/sources";
 
 interface FetchRecord { bytes: number; sha256: string; lastModified: string | null; vintage: string }
@@ -76,14 +77,16 @@ async function getText(url: string): Promise<string> {
 }
 
 async function plan(cache: string): Promise<void> {
-  const files: SourceFile[] = [];
+  let files: SourceFile[] = [];
   for (const layer of Object.keys(TIGER_DIRS) as Array<keyof typeof TIGER_DIRS>) {
     const got = tigerFromListing(layer, await getText(tigerListingUrl(layer)));
     if (got.length === 0) throw new Error(`empty listing for ${layer}: refusing a plan with no ${layer}`);
     files.push(...got);
   }
+  files = with2025(files);   // BUILD-25: the six counties' TIGER2025 files, in their 2024 counterparts' places
   files.push(...gnisFromListing(await getText(GNIS_LISTING_URL)));
   files.push(...FIXED_SOURCES);
+  checkTigerVintages(files);
   writeFileSync(join(cache, "plan.json"), JSON.stringify({ files }, null, 1) + "\n");
   const by: Record<string, number> = {};
   for (const f of files) by[f.layer] = (by[f.layer] ?? 0) + 1;
@@ -273,6 +276,7 @@ function seaStage(cache: string, log: FetchLog, files: ManifestFile[], index: Ma
 
 async function dryRun(cache: string): Promise<void> {
   const planned = plannedFiles(cache);
+  checkTigerVintages(planned);   // BUILD-25: TIGER2024 everywhere but exactly the six TIGER2025 files, before any file is read
   const log: FetchLog = loadLog(cache);
   // --partial: a MEASUREMENT with named files missing, never a store. It writes to its own directory, its
   // manifest is named PARTIAL, and its summary says so; without the flag a missing file stops the run.

@@ -52,6 +52,50 @@ export function tigerFromListing(layer: keyof typeof TIGER_DIRS, html: string): 
 }
 
 export const tigerListingUrl = (layer: keyof typeof TIGER_DIRS) => `${TIGER}${TIGER_DIRS[layer].dir}/`;
+
+/** Six counties' TIGER2025 files stand in for their TIGER2024 files, which www2.census.gov and its ftp2 mirror refused
+ *  this machine (the owner's ruling, 2026-11-15; docs/basemap-dense-code.md). EXACTLY these six: the listings above stay
+ *  2024's, and a 2025 file enters a plan only through with2025. The note is the manifest's provenance for each. */
+const TIGER25 = "https://www2.census.gov/geo/tiger/TIGER2025/";
+const CENSUS_TIGER = /^https:\/\/[a-z0-9-]+\.census\.gov\/geo\/tiger\//;   // any census host: an ftp2 TIGER url is refused too
+export const TIGER2025_NOTE =
+  "fetched from www2.census.gov's TIGER2025 folder because www2.census.gov and its ftp2 mirror refused this machine this county's TIGER2024 file; a mixed-vintage store: these six files 2025, every other TIGER file 2024";
+const SIX: ReadonlyArray<readonly ["water" | "rivers", string]> = [
+  ["water", "38021"], ["water", "39167"], ["water", "44007"], ["water", "56029"], ["rivers", "17005"], ["rivers", "19123"],
+];
+const tigerUrl = (base: string, year: string, layer: "water" | "rivers", geoid: string) =>
+  `${base}${TIGER_DIRS[layer].dir}/tl_${year}_${geoid}_${layer === "water" ? "areawater" : "linearwater"}.zip`;
+export const TIGER2025_SIX: readonly SourceFile[] = SIX.map(([layer, g]) => ({ layer, url: tigerUrl(TIGER25, "2025", layer, g), note: TIGER2025_NOTE }));
+export const TIGER2025_URLS: ReadonlySet<string> = new Set(TIGER2025_SIX.map((f) => f.url));
+
+/** The plan with each of the six's TIGER2024 counterpart replaced IN PLACE by its TIGER2025 entry (so the order is kept).
+ *  Refuses a counterpart that is missing or planned more than once: either would leave the six half-applied. */
+export function with2025(files: readonly SourceFile[]): SourceFile[] {
+  const out = [...files];
+  for (const [k, [layer, g]] of SIX.entries()) {
+    const u24 = tigerUrl(TIGER, "2024", layer, g);
+    const at = out.flatMap((f, i) => (f.url === u24 && f.layer === layer ? [i] : []));
+    if (at.length === 0) throw new Error(`with2025: ${u24}: counterpart missing`);
+    if (at.length > 1) throw new Error(`with2025: ${u24}: counterpart appears ${at.length} times`);
+    out[at[0]!] = { ...TIGER2025_SIX[k]! };
+  }
+  return out;
+}
+
+/** Every census TIGER url in a plan is under TIGER2024/, except exactly the six TIGER2025 urls, each planned once. */
+export function checkTigerVintages(files: readonly SourceFile[]): void {
+  const seen = new Map<string, number>();
+  for (const f of files) {
+    if (!CENSUS_TIGER.test(f.url)) continue;
+    if (f.url.startsWith(TIGER)) continue;
+    if (!TIGER2025_URLS.has(f.url)) throw new Error(`checkTigerVintages: ${f.url} is neither TIGER2024 nor one of the six TIGER2025 files`);
+    seen.set(f.url, (seen.get(f.url) ?? 0) + 1);
+  }
+  for (const u of TIGER2025_URLS) {
+    const n = seen.get(u) ?? 0;
+    if (n !== 1) throw new Error(`checkTigerVintages: ${u} planned ${n} times, not once`);
+  }
+}
 export const GNIS_LISTING_URL = `https://prd-tnm.s3.amazonaws.com/?prefix=StagedProducts/GeographicNames/DomesticNames/&max-keys=1000`;
 
 /** GNIS per-state text files from the bucket's ListBucketResult XML, territories dropped, sorted by URL.
@@ -72,6 +116,7 @@ export function gnisFromListing(xml: string): SourceFile[] {
  *  would be a plausible lie in PROVENANCE. */
 export function vintageOf(f: SourceFile, lastModified: string | null): string {
   if (/\/TIGER2024\//.test(f.url)) return "2024";
+  if (/\/TIGER2025\//.test(f.url)) return "2025";   // BUILD-25: the dataset's year, not its Last-Modified
   if (/\/2025_Gazetteer\//.test(f.url)) return "2025";
   if (/sub-est2024\.csv$/.test(f.url)) return "2024";
   const t = lastModified ? Date.parse(lastModified) : NaN;

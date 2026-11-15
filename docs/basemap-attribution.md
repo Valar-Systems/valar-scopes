@@ -4,7 +4,7 @@ This page covers the map packages served at `/api/v1/blipscope/basemap`. Each pa
 
 ## Public domain: works of the United States government
 
-- **TIGER/Line 2024**, U.S. Census Bureau. Water areas (`AREAWATER`), rivers (`LINEARWATER`) and roads (`PRISECROADS`), plus the state and county files used to choose them.
+- **TIGER/Line 2024** (TIGER/Line 2025 for six counties' water or river files), U.S. Census Bureau. Water areas (`AREAWATER`), rivers (`LINEARWATER`) and roads (`PRISECROADS`), plus the state and county files used to choose them.
 - **The 2025 Census Gazetteer**, places. U.S. Census Bureau.
 - **SUB-EST2024**, the Census Bureau's population estimates for places.
 - **USGS GNIS Domestic Names**, summits.

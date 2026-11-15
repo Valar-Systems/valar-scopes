@@ -161,10 +161,10 @@ Every running total must stay within ±32,767.
 These are **data rules**, the same for every client. They are the reviewer's 3.5b rulings (A9.1 D). The marked items are Weatherscope's recommendations, for review (A10's questions).
 
 - **5.1 Water areas.**
-  - **Source:** TIGER/Line 2024 `AREAWATER` (per county).
+  - **Source:** TIGER/Line 2024 `AREAWATER` (per county; TIGER/Line 2025 for six counties' water or river files).
   - **Kept:** features with `AWATER ≥ 1,500,000` m², each **outer** part as a ring. A shapefile writes outer rings clockwise and holes counter-clockwise; **holes are dropped** (RD3, §13). An island's ring filled as water draws the same pixels as no ring, and costs bytes.
 - **5.2 Rivers.**
-  - **Source:** TIGER/Line 2024 `LINEARWATER`, the features whose `FULLNAME` ends in `" Riv"`.
+  - **Source:** TIGER/Line 2024 `LINEARWATER` (TIGER/Line 2025 for six counties' water or river files), the features whose `FULLNAME` ends in `" Riv"`.
   - **Grouped by `FULLNAME`;** each group's length is the length of its parts inside the disc of radius R.
   - **Kept:** the **5 longest groups**, all their parts (ruled, Q24).
 - **5.3 Roads.**
