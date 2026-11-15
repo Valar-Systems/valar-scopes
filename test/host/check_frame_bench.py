@@ -16,8 +16,10 @@ that must read exactly that row red (--selftest).
   C1-E  the enrichment scan skips the table's hexes before the cooldown check, and RequestCloudEnrich counts them
   C1-K  GetStoredString notes the bench's answers and the board's own (the record)
   MRK   "[frame-bench]" is in check-no-bench-hooks.sh's MARKERS
-  C1-X  the step-C exemption: BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT defined exactly once, inside a FRAME_BENCH region of
-        src/AircraftManager.h, and named exactly once more, on the step-C refusal's #if
+  C1-X  the v20 sibling carries step C, so C1's bench exemption is GONE (docs/frame-time-bench.md, the sibling's re-cut,
+        FINDING 2): src/AircraftManager.h includes "MapSweep.h" (step C's one definer of BLIPSCOPE_MAP_STEP_C), and
+        BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT appears in none of the bench's files. Every FRAME_BENCH build defined it, so
+        on this tree it could only mask an FT image that lost step C, which must hit the refusal's #error instead
   M3-L  THE PACKAGE: the loop plant (framebench::DelayOn) appears exactly once in main.cpp, in a FRAME BENCH region
         whose END is followed at once by `pushtask::HandOver();` -- before the hand-over, outside the push's window
   M3-D  THE PACKAGE: framebench::DropThis(i) appears exactly once, in a FRAME BENCH region of pushtask::Task after its
@@ -194,15 +196,11 @@ def rows(f):
     res["C1-K"] = (nk_b == 1 and nk_o == 1, f"notes of the bench's answers {nk_b}, of the board's own {nk_o}")
     mk = any(l.startswith("MARKERS=(") and '"[frame-bench]"' in l for l in f[MARKS])
     res["MRK"] = (mk, f"[frame-bench] in MARKERS {mk}")
-    h, hregs = f[AMH], regions(f[AMH])
-    defs = [i for i, l in enumerate(h) if re.match(r"\s*#\s*define\s+" + EXEMPT + r"\b", l)]
-    uses = [i for i, l in enumerate(h) if EXEMPT in l and i not in defs and not l.strip().startswith("//")]
-    on_if = [i for i in uses if h[i].startswith("#if defined(BLIPSCOPE_MAP_FETCH)") and i + 1 < len(h)
-             and h[i + 1].startswith('#error "step B draws the map without step C')]
-    elsewhere = sum(1 for rel in SOURCES + [HEADER, TABLE] for l in f[rel] if EXEMPT in l)
-    x_ok = len(defs) == 1 and inside(hregs, defs[0]) and len(uses) == 1 and len(on_if) == 1 and elsewhere == 0
-    res["C1-X"] = (x_ok, f"exemption defines {len(defs)} (in a region {len(defs) == 1 and inside(hregs, defs[0])}); "
-                         f"uses {len(uses)} (on the refusal's #if {len(on_if)}); in other files {elsewhere}")
+    h = f[AMH]
+    step_c = sum(1 for l in h if l.strip().startswith('#include "MapSweep.h"'))
+    named = sum(1 for rel in [AMH] + SOURCES + [HEADER, TABLE] for l in f[rel] if EXEMPT in l)
+    res["C1-X"] = (step_c == 1 and named == 0, f"step C's MapSweep.h include {step_c} (want 1); the exemption named "
+                                               f"{named} time(s) in the bench's files (want 0)")
     res["FB-TU"] = fb_tu(f)
     res["M3-L"], res["M3-D"] = m3_l(f), m3_d(f)
     res["FB-REC"] = fb_rec(f)
@@ -314,9 +312,15 @@ def selftest(tree):
     rc |= plant("C1-E, the scan's skip removed", sub("src/AircraftManager.cpp", "if (framebench::IsSceneHex(icao)) continue;", "(void)0;"), {"C1-E"})
     rc |= plant("C1-K, the board's own not noted", sub("src/ConfigurationWebServer.cpp", "framebench::NoteKey(key, value.c_str(), false);", "(void)0;"), {"C1-K"})
     rc |= plant("MRK, the marker dropped", sub(MARKS, ' "[frame-bench]"', ""), {"MRK"})
-    rc |= plant("C1-X, the exemption defined outside its region",
-                sub(AMH, "#endif\n" + END + "\n// THE MAP DRAW BEGIN", "#endif\n" + END +
-                    "\n#define BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT 1\n// THE MAP DRAW BEGIN"), {"C1-X"})
+    rc |= plant("C1-X, the exemption's FRAME_BENCH define reintroduced",
+                sub(AMH, "// THE MAP FETCH END\n// THE MAP DRAW BEGIN",
+                    "// THE MAP FETCH END\n" + BEGIN + "\n#ifdef FRAME_BENCH\n#define BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT 1\n"
+                    "#endif\n" + END + "\n// THE MAP DRAW BEGIN"), {"C1-X"})
+    rc |= plant("C1-X, the exemption's term back on the refusal's #if",
+                sub(AMH, "!defined(BLIPSCOPE_MAP_STEP_C)\n#error",
+                    "!defined(BLIPSCOPE_MAP_STEP_C) && !defined(BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT)\n#error"), {"C1-X"})
+    rc |= plant("C1-X, step C's header include removed",
+                sub(AMH, '#include "MapSweep.h"', '// (step C\'s include, planted away)'), {"C1-X"})
     rc |= plant("FB-TU, the variant include removed (the plants' cause)",
                 sub(HEADER, '#include "variants/Variant.h"', "// (the variant include, planted away)"), {"FB-TU"})
     old_site = ("    // THE FRAME BENCH BEGIN\n#ifdef FRAME_BENCH\n"

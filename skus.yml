@@ -48,6 +48,10 @@ skus:
   # blipscope-s3-128-wxlook: the shipping env + -DWX_LOOK_AB, the weather look A/B bench (docs/wx-device.md, WD4
   # addendum 2). BUILD-ONLY, never a slug: CI builds it so its bench marker's --expect has a real image.
   - { env: blipscope-s3-128-wxlook, status: build-only }
+  # blipscope-s3-128-mapbench: the weather bench + -DMAP_BENCH, the map's bench image (docs/blipscope-map-client-steps.md,
+  # "The mapbench env"). BUILD-ONLY, never a slug: CI builds it so its two bench markers' --expect has a real image, and so
+  # step C's bench keeps compiling (Q-MB11 (a)).
+  - { env: blipscope-s3-128-mapbench, status: build-only }
 
   # ---- BUILD-ONLY ----------------------------------------------------------
   # Compiled so the tree does not rot. No slug, no asset, no fleet, no veto.
