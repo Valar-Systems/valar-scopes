@@ -1004,6 +1004,18 @@ the authority for both rows.
 - **Two things belong to map-client, not to this doc:**
   - the run images are rebuilt with one more print line, and their pin's line numbers are cited here when sent;
   - each FT scene prints a per-scene table-sum CRC line, which the reader checks against host sums.
+- **The run images' pin, sent by map-client: 6f0cdd1381eb** on `bench/frame-bench-v20` ("TBL-DEV per FT scene"). These are the run
+  images rebuilt with that one print line. Map-server read each line in that commit's blob of src/AircraftManager.cpp:
+  - the home at :988-989 and radLat and radLon at :1066-1067: the same lines and expressions as at bb28b362c287;
+  - FT's `framebench::SetHome(hp.lat0Micro / 1e6, hp.lon0Micro / 1e6)` at :2364, unchanged;
+  - the one new line is :2365, `framebench::PrintHomeTable(k);`: the per-scene table-sum line, a CRC, never a coordinate.
+  - **So the host counts still stand.**
+- **The host counts are a pinned FILE, not only a table:**
+  - `ft_host_counts.json` in the hand-off folder `map-server/ft-host-counts/`, sha256 f5bb125c6c21, 2,280 B, with PROVENANCE.txt
+    beside it;
+  - map-client's reader `fb_read_ft.py` (8a10f116fe02) holds its full sha256 as HOST_SHA and refuses any other bytes. Map-server
+    compared all 64 hex digits with the file's own hash: equal.
+  - So the file is never regenerated or overwritten. A change is a new file and a new pin, made through map-client.
 
 ## 6. This PR's CI, predicted
 
@@ -1076,6 +1088,12 @@ GitHub-side re-run rule applies. Anything else: stop and report.
   same reasoning applies. **33 = 31 / 2 / 0**, tested on the merge into main as it then stands, read from the run's own checkout log.
   The coordinate gate is re-read on this head's text before the push. A new red from `ship-alert` reads INSTRUMENT; anything else:
   stop and report.
+- **Read at d28846d54b2f:** 33 = 31 / 2 / 0 as predicted (`version` and `promote` skipped; all 33 completed when re-read at
+  21:32:13Z on 11-15), tested on "Merge d28846d54b2f... into b282699ac091...".
+- **Predicted for this head** (two addendum entries: the run images' pin and the pinned host-counts file; this doc only): main is
+  still b282699ac091 by ls-remote at 21:32:13Z, so the same reasoning applies. **33 = 31 / 2 / 0**, tested on the merge into main as
+  it then stands, read from the run's own checkout log. The coordinate gate is re-read on this head's text before the push. A new red
+  from `ship-alert` reads INSTRUMENT; anything else: stop and report.
 
 ## 7. Where the measurements are (scratch, sha256 first 12)
 
