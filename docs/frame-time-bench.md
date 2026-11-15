@@ -3157,6 +3157,25 @@ Its plants, each reading exactly {TAG-SET}:
   the new commit would carry 64 on a steady-window rebuild frame, which FT's own rule expects 0 of. The frozen FT
   reader's STEADY masks name 4, 8, 16 and 32. It is never run on such an image.
 
+**RESULT, as predicted (run 2026-11-15T19:47-19:51Z, after the orchestrator relayed the window's end at 19:47:05Z).** On
+the sibling at `8fb80fef41d1`, clean before and after:
+- `check_frame_bench.py` read 26 rows, 0 failed. FB-REC read `425040a3999d` against `0d6308cb`'s. TAG-SET read "set 1
+  time(s), in OnRebuild after its return True; take defined 1 time(s), body exact True; Record calls 1, takes 1, the
+  call passes the take True; 64 flag writes 1, only the take's True". Exit 0.
+- `--selftest` read 39 plants, each red on exactly its own row, P-TAG-EVERY, P-TAG-NOCLEAR and P-TAG-NOPASS among
+  them, then "selftest PASSED". Exit 0.
+- `scripts/draw_pin.py --rev 8fb80fef41d1` read pin `21fc376c8a2a`, "UNCHANGED against 3e9d6ec9f449". Exit 0.
+
+The standing rule's runs came next (every sabotage driver that plants in a changed file, plus the `--anchors` pass). Their
+predictions were frozen at 19:49:56Z, and they ran in WSL, g++ 13.3:
+- `--anchors` read 42 drivers, every anchor present exactly once. Its control turned red with a mangled anchor.
+- `sabotage_map_draw.py`: 18 sabotages and 3 controls, AS PREDICTED.
+- `sabotage_map_fetch.py`: 23 sabotages, AS PREDICTED.
+- `sabotage_wx_outline.py`: 2 sabotages, AS PREDICTED.
+
+The sibling was pushed at `8fb80fef41d1` (from `6f0cdd1381eb`), through the pre-push guard chain, every guard ok. The
+device compile is still not claimed; it waits for S2b's image build.
+
 ### THE POST-v20 QUEUE: the ~200 ms full redraw (the owner's answer, 2026-11-15; queued, nothing before v20)
 
 - **The owner, verbatim:** "Sea: a. Queue the faster water fill for after v20, and with it, look at the ~200 ms full
