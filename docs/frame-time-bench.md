@@ -2261,6 +2261,136 @@ THE PACKAGE's images, under the acknowledged set:
 - **I-5 and B plain push − sync stay MISSES on this run.** Their corrected limits apply to future runs only. They are
   derived from the matching runs and registered in the v20 sibling's registration, not in any C1 file.
 
+## THE v20 SIBLING: what it carries from C1, and the two corrected limits (DRAFT, registered before its code, 2026-11-15)
+
+**What this section is.** v20's framebench sibling is already registered:
+- A5, "v20's gate measures a sibling";
+- H1-H9 in "v20's FIXED-(a) scenes: the cloud /blips hook", with the FT guard row;
+- "p2p under M3, for v20's framebench", M3-1 to M3-3, with the anchor rule and P2P-FLOOR.
+
+This section amends those. It carries what C1 found, and registers the two limits that the owner corrected for future
+runs. Nothing here re-grades C1: its two misses stay misses.
+
+### The tree (Q-S1)
+
+- **Default, unless ruled:** main at the commit the sibling is cut from, plus M3, because v20 ships M3.
+  - M3 is still the open draft #687, head `3bc7ec26fe28`; main's head is `b282699ac091` at this writing.
+  - The cut point is stated by sha in the sibling's first commit. The shipping image of that same tree (with
+    `FRAME_BENCH` off) is I-3's subject.
+- **Not a candidate.** The sibling of the real v20 candidate is built from that candidate when it exists (A5). This tree
+  is the one FT and S2b run on.
+
+### What it carries from C1, each with the check that proves it
+
+| from C1 | on the sibling | the check, each with a plant that must read red |
+|---|---|---|
+| the (a) hook's two casts (`a599fcaa`): ArduinoJson 7.4.3 stored a `char[N]` by pointer | carried as is | no host row exists; the proof is the reader's drawn == 40 on every measured frame, which runs in every window (and held in every C1 arm since the casts) |
+| `FrameBench.h` includes `variants/Variant.h` itself (`68cae820`) | carried as is | **FB-TU** (`bcc4414c`) |
+| THE PACKAGE (`0d6308cb`): the loop plant before `HandOver` | carried as is | **M3-L** |
+| THE PACKAGE: M3-2's exact per-scene count (`handed` / `presented` / `dropped`, and the presents line) | carried as is | **M3-D**; the reader's exact rule (P == H in every scene without a planted drop) |
+| THE PACKAGE: the proof env with one planted dropped update | its own proof env | the same-instrument check below |
+
+**The same-instrument check, for the sibling's proof env.** `pp_diff_v2.py`'s rule (the env name normalized, two
+guards, the env-name control), run on the sibling's two compile databases before its proof window.
+- **Predicted:** only the scene table differs. The counter plant reads RED, and the env-name plant reads PASS.
+
+**I-3, in the form the owner's C1 ruling registered for future rows:** "elsewhere 0; the 65 ELF-hash bytes may move
+when a `.cpp`'s line numbers move".
+- When the sha moves, `elf_sections.py` is the discriminator: every SHF_ALLOC section identical, and only `.debug_*`
+  sections differing.
+- An SHF_ALLOC section differing is the escape hatch.
+
+### THE TWO CORRECTED LIMITS (for future runs only)
+
+Every number below was read from the traces and the reader outputs on disk, by command, at this writing.
+
+**I-5, the record cost.**
+
+| population | images | readings (ns per frame) |
+|---|---|---|
+| the pre-C1 bench record (different code) | the baseline and survey images, 11-12 to 11-14 | 337, 339 × 5 |
+| C1 bench, A (push task off, 1 scene) | c1-A, c1fix-A, c1fix3-A; A1 and A2 of three windows | 5712, 5711, 5713, 5712, 5714, 5706 |
+| C1 bench, B (push task on) | c1-B, c1fix-B, c1fix2-B, c1fix3-P, c1fix3-B; five windows | 6822, 6827, 6871, 6824, 6840 |
+
+- **Why the old limit missed:** its "≤ 5,000 ns" was predicted from the old record's content ("two `micros()` reads and
+  four stores"). The pre-C1 record cost 337-339 ns. The C1 bench's record costs about 17 times that. The old limit was a
+  prediction for a different record.
+- **What I-5 is for:** that the record stays negligible, and that it does not change unseen.
+  - Negligible is the purpose bound, which is **unchanged: over 50,000 ns (1 % of a 5 ms frame) is a STOP.**
+  - Unchanged is the class band below.
+- **The corrected band, per class.** From floor-100(min × 0.95) to ceil-100(max × 1.05):
+  - **A (push task off): 5,400 to 6,000 ns** (from 5706 × 0.95 = 5420.7, and 5714 × 1.05 = 5999.7);
+  - **B (push task on): 6,400 to 7,300 ns** (from 6822 × 0.95 = 6480.9, and 6871 × 1.05 = 7214.6).
+- **Why ± 5 %:**
+  - The observed spread is 8 ns (0.14 %) in A and 49 ns (0.72 %) in B, across rebuilds, three image generations and
+    five windows. A 5 % band is about 7 times B's spread.
+  - It still catches a change of the kind already seen, where the record grew 17 times.
+- **Why two-sided:** a record that suddenly costs far less than its class is no longer that class's record. One case is
+  the counting compiled out. A one-sided bound would map that impossible value onto "ok".
+- **Its scope:**
+  - The band holds only while the record's code is `0d6308cb`'s: `framebench::Record()` and what it calls.
+  - **New row FB-REC:** that code is textually identical to `0d6308cb`'s. Its plant is one added statement, which reads
+    red.
+  - A sibling whose record differs re-registers its band from its proof window, with the same formula, before any FT
+    read. Then the proof window's own reading is reported, not graded.
+
+**B plain push − sync** (`[m3] push_avg_us − sync_avg_us`, B's plain scene).
+
+| window | image | push | sync | push − sync |
+|---|---|---|---|---|
+| C1's retake (11-14) | c1fix-B `13001c132f44` | 24.15 | 0.46 | 23.69 |
+| THE PACKAGE's proof (11-15) | c1fix3-P `00a1b5c23475` (its S0) | 24.18 | 0.46 | 23.72 |
+| C1's third run (11-15) | c1fix3-B `669f87ec5839` | 24.18 | 0.46 | 23.72 |
+
+- C1's first window and the first plants window have no reading: both readers stopped on the INSTRUMENT before this
+  row. They are not computed after the fact, because that would run C1's reader on closed runs.
+- **The corrected row: push − sync = 23.7 ± 1.0 ms** (22.7 to 24.7), with sync reported and expected under 1.0 ms
+  (unchanged).
+  - The centre is the three readings' mean, 23.71, rounded to 0.1. Their spread is 0.03 ms.
+  - The width ± 1.0 is p4's own tolerance, kept: only the centre was off.
+- **Named, not discriminated:** p4's 25.8 ms ("by p4's measurement") sits 2.1 ms above every reading here. It was
+  measured on a different build or run, and which difference accounts for it is not known.
+- **Its scope:** the push path as on `3bc7ec26fe28` (`pushtask::Task`'s DMA push and its panel settings). A sibling
+  whose push path differs re-registers the centre from its proof window, before any FT read.
+- **This is p4's text** (`docs/m3-push-task.md`, quoted under "p4's predictions for B's arms"). p4 re-signs it.
+
+**The other use of 25.8 (Q-S2).** P2P-FLOOR, in the anchor rule, also carries "about 25.8 ms, by p4's measurement": a
+p2p under the push's floor is the INSTRUMENT.
+- **Default, unless ruled:** unchanged, because it is p4's rule and outside the owner's two named checks. Named here so
+  that it is not found later as a surprise.
+- Every p2p read so far is at least 70 ms, far above both 23.7 and 25.8, so the default changes no reading.
+
+### The sibling's proof window, before FT (registered now; its numbers frozen with its images)
+
+- **The image:** the sibling's proof env (B class, with the planted drop).
+- **The window:** one trace of S0-S4 on E2:08, with the PC quiet, then the v19 restore. As THE PACKAGE's proof window.
+- **Graded, the same bands as THE PACKAGE's proof:**
+  - DELAYED-FLAG;
+  - D=10 push +9.0 to +10.0, and D=60 push +59 to +60;
+  - loop +10 at +10.0 ± 1.5, with push within ± 1.0;
+  - M3-2 exact in S0-S3;
+  - DROP-CAUGHT in S4.
+- **Also graded on the sibling:** I-5 in the B band (6,400 to 7,300 ns) and push − sync at 23.7 ± 1.0. Each is graded
+  only if FB-REC, and the push-path scope above, hold. Otherwise it is reported and re-registered.
+- **S4 not caught** goes to the owner (his C1 condition carried). **Any other off reading, or anything outside the
+  set,** is a STOP.
+
+### FT and S2b on the sibling
+
+- **FT (map-server's FT-SEA and FT-HR)** runs on the sibling's B image, under the FT guard row as registered (FT-MAP /
+  FT-WX by the record's kind, eleven selftest cases red first).
+- **S2b** is RP5's v20 counterpart, registered separately and frozen before its window. It runs the sibling's image.
+- Neither starts before the sibling's proof window is IN.
+
+### Questions, each with the default I take unless ruled
+
+| Q | the question | the default |
+|---|---|---|
+| Q-S1 | the sibling's tree | main at its cut commit plus #687's head, both by sha in the first commit |
+| Q-S2 | P2P-FLOOR's 25.8 | unchanged (p4's rule), named |
+| Q-S3 | FB-REC as a new row | added, with its plant |
+| Q-S4 | the ± 5 % in I-5's band | as derived; a narrower band is the orchestrator's to set |
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
