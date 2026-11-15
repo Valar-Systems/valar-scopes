@@ -45,17 +45,33 @@ constexpr uint8_t kMapWhyUnread = 0xFF;
 #ifdef MAP_BENCH
 // The map's bench image (docs/blipscope-map-client-steps.md, "The mapbench env"). The two packages are built in
 // (board_build.embed_files); nothing is fetched. Every line it prints is counts: no place name, anchor or coordinate.
+#if !defined(FRAME_BENCH_FT)   // the FT images embed their row's pinned packages instead (FrameBenchFt.h)
 extern const uint8_t kMapBenchBend[] asm("_binary_test_fixtures_wx_basemap_bend_bmpk_start");
 extern const uint8_t kMapBenchBendEnd[] asm("_binary_test_fixtures_wx_basemap_bend_bmpk_end");
 extern const uint8_t kMapBenchKsfo[] asm("_binary_test_fixtures_wx_basemap_ksfo_bmpk_start");
 extern const uint8_t kMapBenchKsfoEnd[] asm("_binary_test_fixtures_wx_basemap_ksfo_bmpk_end");
+#endif
 
 // One built-in package into PSRAM, as step A's landing buffer would hold a fetched one, through the gate
 // (maplayer::Load), and accepted: the package, its length and a new sequence, as ConsumeBasemap's Accepted does.
 void AircraftManager::MapBenchAccept(int which)
 {
+#if !defined(FRAME_BENCH_FT)
     const uint8_t* s = which == 1 ? kMapBenchKsfo : kMapBenchBend;
     const size_t len = (size_t)((which == 1 ? kMapBenchKsfoEnd : kMapBenchBendEnd) - s);
+#endif
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#if defined(FRAME_BENCH_FT)
+    const uint8_t* s = framebench::FtPkgStart(which);   // FT: the scene's pinned package, by index (FrameBenchFt.h)
+    const size_t len = framebench::FtPkgLen(which);
+    if (s == nullptr || len == 0) {
+        Serial.printf("[frame-bench] ft package %d: not in the row's table\n", which);
+        return;
+    }
+#endif
+#endif
+    // THE FRAME BENCH END
     if (mapLanding == nullptr || mapLandingCap < len) {
         if (mapLanding != nullptr) heap_caps_free(mapLanding);
         mapLanding = (uint8_t*)heap_caps_malloc(len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -83,6 +99,13 @@ void AircraftManager::MapBenchAccept(int which)
 // config-change path, on this loop task); then done. Each line says the state the NEXT interval runs in.
 void AircraftManager::MapBenchTick()
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#if defined(FRAME_BENCH_FT)
+    return;   // FT: the frame bench's scenes drive the package and the weather; MAP_BENCH's own phases stay off
+#endif
+#endif
+    // THE FRAME BENCH END
     if (mapBench.phase == 0 || mapBench.phase == 3 || mapBench.phase == 4) {
         const maplayer::BuildInfo& bi = mapDraw.info;   // the last rebuild's passes (CF5): one zoom step per tick
         Serial.printf("[map-bench] passes s1=%lu water=%lu rivers=%lu roads=%lu colour=%lu total=%lu\n",
@@ -943,11 +966,23 @@ void AircraftManager::Initialise()
     // radius is computed from the latitude below; nothing prints it.
     if (mapBench.which < 0) {
         mapBench.which = 0;
+#if !defined(FRAME_BENCH_FT)
         Serial.println("[map-bench] the map's bench image: Bend, then KSFO, built in; nothing fetched");
+#endif
     }
     {
+#if !defined(FRAME_BENCH_FT)
         const uint8_t* s = mapBench.which == 1 ? kMapBenchKsfo : kMapBenchBend;
         const size_t len = (size_t)((mapBench.which == 1 ? kMapBenchKsfoEnd : kMapBenchBendEnd) - s);
+#endif
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#if defined(FRAME_BENCH_FT)
+        const uint8_t* s = framebench::FtPkgStart(mapBench.which);   // FT: the scene's pinned package (FrameBenchFt.h)
+        const size_t len = framebench::FtPkgLen(mapBench.which);
+#endif
+#endif
+        // THE FRAME BENCH END
         bmpk::Package pk;
         if (bmpk::Validate(s, len, &pk) == bmpk::Status::kOk) {
             lat = pk.lat0Micro / 1e6;
@@ -2316,10 +2351,58 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
         framebench::Record(frameUs, trackedAircraft.size(), stateFlags);
         const uint32_t nowMs = millis();
         auto applyScene = [&](int k) {
+#if defined(FRAME_BENCH_FT)
+            // FT: the scene's package and weather, and its home -- the package's own centre, by bmpk's own reading
+            // and the map bench's conversion -- before Initialise reads the bench's answers (Override).
+            const framebench::Scene& sc = framebench::kScenes[k];
+            mapBench.which = sc.pkg;
+            mapBench.wxOff = sc.kind == framebench::FT_MAP;
+            {
+                bmpk::Package hp;
+                const uint8_t* hs = framebench::FtPkgStart(sc.pkg);
+                if (hs != nullptr && bmpk::Validate(hs, framebench::FtPkgLen(sc.pkg), &hp) == bmpk::Status::kOk)
+                    framebench::SetHome(hp.lat0Micro / 1e6, hp.lon0Micro / 1e6);
+            }
+            fb.ftPart = 0;
+            fb.ftForced = 0;
+            fb.ftSteadyRebuilds = 0;
+            fb.ftForcings = 0;
+#endif
             fb.noting = true;
             Initialise();
             fb.noting = false;
             framebench::PrintNoted(k);
+#if defined(FRAME_BENCH_FT)
+            MapBenchAccept(mapBench.which);   // installed whatever the key did: a graded pair shares its home and rung
+#endif
+        };
+        auto printStart = [&](int k) {
+#if defined(FRAME_BENCH_FT)
+            const framebench::Scene& sc = framebench::kScenes[k];
+            Serial.printf("[frame-bench] scene S%d %s pkg=%s-%s %s role=%s level=%d rung=%dmi settle\n", k,
+                          framebench::kKindName[sc.kind], framebench::kFtPkgs[sc.pkg].point,
+                          framebench::kFtPkgs[sc.pkg].variant, framebench::kFtPkgs[sc.pkg].sha12,
+                          framebench::kRoleName[sc.role], framebench::kLevel, framebench::RungMi(k));
+#else
+            Serial.printf("[frame-bench] scene S%d %s home=Bend level=%d rung=%dmi settle\n", k,
+                          framebench::kKindName[framebench::kScenes[k].kind], framebench::kLevel,
+                          framebench::kRungMi);
+#endif
+        };
+        auto advance = [&](uint32_t atMs) {
+            framebench::EndMeasure();
+            const int next = fb.scene + 1;
+            if (next < framebench::kNumScenes) {
+                fb.scene = next;
+                framebench::PrepareScene(next);
+                fb.phaseStartMs = atMs;
+                printStart(next);
+                applyScene(next);
+            } else {
+                fb.done = true;
+                Serial.println("[frame-bench] run done; the board's own settings again");
+                Initialise();
+            }
         };
         if (!fb.done) {
             if (fb.scene < 0) {
@@ -2329,11 +2412,27 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     framebench::PrepareScene(0);
                     fb.measuring = false;
                     fb.phaseStartMs = nowMs;
-                    Serial.printf("[frame-bench] scene S0 %s home=Bend level=%d rung=%dmi settle\n",
-                                  framebench::kKindName[framebench::kScenes[0].kind], framebench::kLevel,
-                                  framebench::kRungMi);
+                    printStart(0);
                     applyScene(0);
                 }
+#if defined(FRAME_BENCH_FT)
+            } else if (fb.ftPart == 2) {
+                // FT's forced part: kFtForced re-accepts of the scene's own package, kFtForceGapMs apart, each making
+                // the next shown frame rebuild it (++mapPkgSeq); the plant scene's are planted. The steady dump waits
+                // for it (EndMeasure), so nothing but the rebuild records prints over a timed rebuild.
+                if (fb.ftForcings < framebench::kFtForced && (int32_t)(nowMs - fb.ftNextForceMs) >= 0) {
+                    if (framebench::kScenes[fb.scene].role == framebench::PLANT) mapDraw.benchPlant = true;
+                    MapBenchAccept(mapBench.which);
+                    fb.ftForcings++;
+                    fb.ftNextForceMs = nowMs + framebench::kFtForceGapMs;
+                } else if (fb.ftForcings >= framebench::kFtForced && (int32_t)(nowMs - fb.ftNextForceMs) >= 0) {
+                    Serial.printf("[frame-bench] ft S%d forced %u of %u recorded; steady rebuilds %u\n", fb.scene,
+                                  (unsigned)fb.ftForced, (unsigned)framebench::kFtForced,
+                                  (unsigned)fb.ftSteadyRebuilds);
+                    fb.ftPart = 0;
+                    advance(nowMs);
+                }
+#endif
             } else if (!fb.measuring) {
                 if (nowMs - fb.phaseStartMs >= framebench::SettleMs(fb.scene) && fb.dumpScene < 0) {
                     fb.measuring = true;
@@ -2341,23 +2440,24 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     fb.n = 0;
                     fb.overflowFrames = 0;
                     Serial.printf("[frame-bench] scene S%d measure\n", fb.scene);
+#if defined(FRAME_BENCH_FT)
+                    fb.ftPart = 1;   // the steady window: its rebuilds are counted (expected 0)
+                    Serial.printf("[frame-bench] ft S%d view home=%.2f,%.2f rLat=%.6f rLon=%.6f askedMm=%lu\n",
+                                  fb.scene, lat, lon, viewRadLat, viewRadLon, (unsigned long)mapReq.rvMm);
+#endif
                 }
             } else if (nowMs - fb.phaseStartMs >= framebench::MeasureMs(fb.scene)) {
-                framebench::EndMeasure();
-                const int next = fb.scene + 1;
-                if (next < framebench::kNumScenes) {
-                    fb.scene = next;
-                    framebench::PrepareScene(next);
-                    fb.phaseStartMs = nowMs;
-                    Serial.printf("[frame-bench] scene S%d %s home=Bend level=%d rung=%dmi settle\n", next,
-                                  framebench::kKindName[framebench::kScenes[next].kind], framebench::kLevel,
-                                  framebench::kRungMi);
-                    applyScene(next);
-                } else {
-                    fb.done = true;
-                    Serial.println("[frame-bench] run done; the board's own settings again");
-                    Initialise();
-                }
+#if defined(FRAME_BENCH_FT)
+                // the steady window ends: recording stops, and the dump waits for the forced part (EndMeasure)
+                fb.measuring = false;
+                fb.ftPart = 2;
+                fb.ftForcings = 0;
+                fb.ftNextForceMs = nowMs;
+                Serial.printf("[frame-bench] ft S%d steady end; rebuilds %u; the forced part\n", fb.scene,
+                              (unsigned)fb.ftSteadyRebuilds);
+#else
+                advance(nowMs);
+#endif
             }
         }
         framebench::PumpDump();

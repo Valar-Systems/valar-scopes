@@ -31,11 +31,19 @@
 
 namespace framebench {
 
-enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, C1_PUSH60_DROP = 4 };
+enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, C1_PUSH60_DROP = 4, FT_MAP = 5, FT_WX = 6 };
+// FT's roles (docs/frame-time-bench.md, "THE REBUILD ROW"): KORD's A/A pair 1 first (its margins frozen), the timer
+// plant, the graded pairs, KORD's A/A pair 2 last (graded against pair 1's margins).
+enum Role : uint8_t { GRADED = 0, PAIR1 = 1, PLANT = 2, PAIR2 = 3 };
 struct Scene {
     Kind kind;
+    uint8_t pkg = 0;      // FT: the index into the row's pinned packages (FrameBenchFt.h); C1: unused
+    uint8_t rungMi = 0;   // FT: the scene's rung; 0 is kRungMi (C1's scenes)
+    uint8_t role = GRADED;
 };
-#if defined(BLIPSCOPE_PUSH_TASK)
+#if defined(FRAME_BENCH_FT)
+#include "FrameBenchFt.h"   // the FT row's pinned packages and its scene table (kScenes)
+#elif defined(BLIPSCOPE_PUSH_TASK)
 #if defined(FRAME_BENCH_PROOF_DROP)
 // THE PACKAGE's proof image only (env c1b-proof): image B's four scenes, then S4, push60 with ONE dropped update
 static const Scene kScenes[] = {{C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}, {C1_PUSH60_DROP}};
@@ -46,11 +54,13 @@ static const Scene kScenes[] = {{C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}};   
 static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
-static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "C1+push60drop"};
-constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 60};
-// THE PACKAGE's M3-2 (docs/frame-time-bench.md): an exact count per scene, the span boundary carried by a tag
-constexpr int kMaxScenes = 5;
-static_assert(kNumScenes <= kMaxScenes, "the per-scene counts hold five scenes");
+static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "C1+push60drop", "FT-MAP", "FT-WX"};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 60, 0, 0};
+static const char* const kRoleName[] = {"graded", "pair1", "plant", "pair2"};
+// THE PACKAGE's M3-2 (docs/frame-time-bench.md): an exact count per scene, the span boundary carried by a tag.
+// FT-HR's window is the longest scene list: 6 + 1 + 36 + 6 = 49.
+constexpr int kMaxScenes = 49;
+static_assert(kNumScenes <= kMaxScenes, "the per-scene counts hold the longest scene list");
 constexpr uint32_t kDropAt = 100;   // the dropped update: the 100th tagged frame of a C1_PUSH60_DROP scene
 
 // Bend, at 2 dp: only ever returned to Initialise() and to the table; nothing prints it.
@@ -69,6 +79,10 @@ constexpr uint8_t kCellCode = 2;
 constexpr uint32_t START_AFTER_MS = 90000;
 constexpr uint32_t SETTLE_MS = 100000;
 constexpr uint32_t MEASURE_MS = 120000;
+// FT's forced part, after the steady window (docs/frame-time-bench.md, "THE REBUILD ROW"): N = 20 forced rebuilds,
+// 2 s apart, each by re-accepting the scene's own package (++mapPkgSeq); fewer than 10 recorded reads INSTRUMENT.
+constexpr uint16_t kFtForced = 20;
+constexpr uint32_t kFtForceGapMs = 2000;
 constexpr uint32_t PLANTED_DELAY_US = 10000;
 constexpr int kCap = 4096;
 constexpr int kDumpPerLine = 32;
@@ -128,6 +142,13 @@ struct State {
     // the forced rebuilds recorded, and the steady window's rebuild count (expected 0)
     uint8_t ftPart = 0;
     uint16_t ftForced = 0, ftSteadyRebuilds = 0;
+    uint16_t ftForcings = 0;      // the forced part's re-accepts issued (kFtForced of them, kFtForceGapMs apart)
+    uint32_t ftNextForceMs = 0;
+    // FT: the scene's home, its package's own centre, set by the scene's application from bmpk's reading (lat0Micro /
+    // 1e6, the conversion the map bench's Initialise region uses); returned to Initialise and the table, never printed
+    bool ftHome = false;
+    double ftLat = 0.0, ftLon = 0.0;
+    char ftLatS[16] = {}, ftLonS[16] = {};
 };
 
 // FT's rebuild record, filled at DrawMapBase's call site from the composer's laps and BuildInfo, so this header needs
@@ -153,6 +174,23 @@ inline portMUX_TYPE& Mux()
     return m;
 }
 
+// FT: the scene's home, at 2 dp in the strings Initialise reads (exact: FT-CTR proves every pinned centre sits at 2 dp).
+inline void SetHome(double lat, double lon)
+{
+    State& s = S();
+    s.ftHome = true;
+    s.ftLat = lat;
+    s.ftLon = lon;
+    snprintf(s.ftLatS, sizeof s.ftLatS, "%.2f", lat);
+    snprintf(s.ftLonS, sizeof s.ftLonS, "%.2f", lon);
+}
+
+// The scene's rung: FT's own, or C1's kRungMi.
+inline int RungMi(int scene)
+{
+    return (scene >= 0 && scene < kNumScenes && kScenes[scene].rungMi) ? kScenes[scene].rungMi : kRungMi;
+}
+
 inline uint16_t Ten(uint32_t us)
 {
     const uint32_t t = us / 10;
@@ -170,10 +208,11 @@ inline bool InScene()
 inline const char* Override(const char* key)
 {
     if (!InScene()) return nullptr;
+    const State& st = S();
     static char rung[8];
-    snprintf(rung, sizeof rung, "%d", kRungMi);
-    if (strcmp(key, "latitude") == 0) return kHomeLat;
-    if (strcmp(key, "longitude") == 0) return kHomeLon;
+    snprintf(rung, sizeof rung, "%d", RungMi(st.scene));   // FT: the scene's rung; C1: kRungMi
+    if (strcmp(key, "latitude") == 0) return st.ftHome ? st.ftLatS : kHomeLat;    // FT: the package's own centre
+    if (strcmp(key, "longitude") == 0) return st.ftHome ? st.ftLonS : kHomeLon;
     if (strcmp(key, "radius") == 0) return rung;
     if (strcmp(key, "radius-unit") == 0) return "mi";
     if (strcmp(key, "data-source") == 0) return "";      // the cloud, on a cloud build
@@ -228,7 +267,11 @@ inline void PrintNoted(int k)
 
 // MAP OFF (the registered deviation): MapEnabled()'s region returns false whenever this is true, from boot, so the
 // map's buffers are never allocated in any arm.
+#if defined(FRAME_BENCH_FT)
+inline bool MapOff() { return false; }   // FT: the map ON, its pinned package swapped per scene (docs/frame-time-bench.md)
+#else
 inline bool MapOff() { return true; }
+#endif
 
 // The table's synthetic hexes (fb0000 .. fb0027) never leave the board: the enrichment scan's region skips them.
 inline bool IsSceneHex(const String& icao)
@@ -393,7 +436,8 @@ inline void OnCloudPoll(JsonDocument& doc, Rows& rows, long& dataEpoch, Parse pa
     if (!InScene()) return;
     const uint32_t t0 = micros();
     const long now = (long)time(nullptr);
-    const double lat0 = atof(kHomeLat), lon0 = atof(kHomeLon);
+    const State& st = S();   // FT: the table around the scene's own home (its package's centre); C1: Bend
+    const double lat0 = st.ftHome ? st.ftLat : atof(kHomeLat), lon0 = st.ftHome ? st.ftLon : atof(kHomeLon);
     doc.clear();
     doc["v"] = 1;
     doc["t"] = now;

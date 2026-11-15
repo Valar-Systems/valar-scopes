@@ -42,6 +42,16 @@ that must read exactly that row red (--selftest).
         counter (never micros, the timer the laps use: a wait on the timer it checks proves only that it fired); the
         flag taken and cleared at Rebuild's start
   FT-DREW Addition 2 per frame: step C's mapFrameDrawn enters Record's stateFlags as bit value 32, in a region
+  FT-SWAP FT's install is MAP_BENCH's MapBenchAccept, a second path beside ConsumeBasemap's Accepted branch: it sets
+        every draw-side field that branch sets (derived from both bodies: mapPkg, mapHeldLen, ++mapPkgSeq), after its
+        copy into the landing buffer and maplayer::Load
+  FT-ENV the two FT envs: cloud.prod, WX_LAYER_SHIPS, FRAME_BENCH, MAP_BENCH, FRAME_BENCH_FT and the row's flag; no
+        WX_LOOK_AB, no -DBLIPSCOPE_MAP_STEP_C; common's scripts then pre:scripts/ft_prebuild.py; the row's pin list; and
+        board_build.embed_files equal to the pins, in order
+  FT-TAB FrameBenchFt.h's package table equals each row's pin list (point, variant, sha256 prefix), in order, with the
+        symbols named for each embed file
+  FT-SCENES each row's window as registered: KORD's A/A pair 1 at 10/25/50 mi, the plant (KORD at 25), every point's
+        baseline then option at 10/25/50, pair 2 as pair 1 (FT-SEA 31 scenes, FT-HR 49)
     python -I check_frame_bench.py <tree>             exit 0 every row ok; 1 a row off
     python -I check_frame_bench.py --selftest <tree>  the clean tree green; each plant reads exactly its row red"""
 import os
@@ -53,12 +63,15 @@ SOURCES = ["src/main.cpp", "src/AircraftManager.cpp", "src/ConfigurationWebServe
 HEADER, TABLE, MARKS = "include/FrameBench.h", "include/FrameBenchTable.h", "scripts/check-no-bench-hooks.sh"
 AMH, EXEMPT = "src/AircraftManager.h", "BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT"
 MCH, AMC = "include/MapCompose.h", "src/AircraftManager.cpp"
+FTH, INI = "include/FrameBenchFt.h", "platformio.ini"
+FT_ROWS = {"SEA": ("blipscope-s3-128-framebench-v20-ftsea", "test/fixtures/frame-bench/ft_sea.pins", "FRAME_BENCH_FT_SEA"),
+           "HR": ("blipscope-s3-128-framebench-v20-fthr", "test/fixtures/frame-bench/ft_hr.pins", "FRAME_BENCH_FT_HR")}
 NVS = re.compile(r"Preferences|nvs_|SPIFFS|LittleFS|prefs\.(put|remove|clear)")
 
 
 def load(tree):
     files = {}
-    for rel in SOURCES + [HEADER, TABLE, MARKS, AMH, MCH]:
+    for rel in SOURCES + [HEADER, TABLE, MARKS, AMH, MCH, FTH, INI] + [r[1] for r in FT_ROWS.values()]:
         files[rel] = open(os.path.join(tree, rel), "rb").read().decode("utf-8").replace("\r\n", "\n").split("\n")
     # FB-TU: which project headers #define which macros (include/**, the bench's own two headers excluded)
     defs = {}
@@ -215,7 +228,155 @@ def rows(f):
     res["M3-L"], res["M3-D"] = m3_l(f), m3_d(f)
     res["FB-REC"] = fb_rec(f)
     res["FT-LAPS"], res["FT-PLANT"], res["FT-DREW"] = ft_laps(f), ft_plant(f), ft_drew(f)
+    res["FT-SWAP"], res["FT-ENV"] = ft_swap(f), ft_env(f)
+    res["FT-TAB"], res["FT-SCENES"] = ft_tab(f), ft_scenes(f)
     return res
+
+
+ASSIGN = re.compile(r"^\s*(?:\+\+\s*(\w+)|(\w+)\s*=)[^=]")
+
+
+def assigned(lines):
+    """The member names a block assigns (`x = ...` or `++x`), in order, comparisons excluded."""
+    out = []
+    for l in lines:
+        m = ASSIGN.match(l)
+        if m:
+            out.append(m.group(1) or m.group(2))
+    return out
+
+
+def ft_swap(f):
+    """FT-SWAP: FT's install is MAP_BENCH's MapBenchAccept, a second path beside ConsumeBasemap's Accepted branch; it
+    must establish exactly what that branch does on the draw side (mapPkg, mapHeldLen, ++mapPkgSeq), after its own copy
+    into the landing buffer and the gate. Both sets are derived from the code, never typed."""
+    a = f[AMC]
+    s, e = func_span(a, "void AircraftManager::MapBenchAccept(int which)")
+    cs, ce = func_span(a, "void AircraftManager::ConsumeBasemap(")
+    if s < 0 or cs < 0:
+        return (False, "MapBenchAccept or ConsumeBasemap not found")
+    acc = next((i for i in range(cs, ce) if "if (o == mappolicy::Outcome::Accepted) {" in a[i]), -1)
+    acc_end = next((i for i in range(acc + 1, ce) if a[i].strip() == "}"), -1) if acc >= 0 else -1
+    branch = set(assigned(a[acc + 1:acc_end])) if acc >= 0 and acc_end > acc else set()
+    body = a[s:e]
+    tail = assigned(body[-6:])   # the install is the function's last statements
+    cpy = next((i for i, l in enumerate(body) if "memcpy(mapLanding, s, len);" in l), -1)
+    gate = next((i for i, l in enumerate(body) if "maplayer::Load(mapLanding, len, &pk);" in l), -1)
+    inst = next((i for i, l in enumerate(body) if l.strip() == "mapPkg = pk;"), -1)
+    order = 0 <= cpy < gate < inst
+    ok = branch == {"mapPkg", "mapHeldLen", "mapPkgSeq"} and set(tail) >= branch and order
+    return (ok, f"the Accepted branch sets {sorted(branch)}; MapBenchAccept's install {sorted(set(tail) & branch)}; "
+                f"copy -> gate -> install {order}")
+
+
+def ini_env(lines, name):
+    """The lines of [env:name] in platformio.ini, comments (';' to the end) stripped."""
+    out, on = [], False
+    for l in lines:
+        if l.strip().startswith("[") and l.strip().endswith("]"):
+            on = l.strip() == f"[env:{name}]"
+            continue
+        if on:
+            t = l.split(";")[0].rstrip()
+            if t.strip():
+                out.append(t)
+    return out
+
+
+def pins_of(lines):
+    return [tuple(l.split()[:3]) for l in lines if l.strip() and not l.lstrip().startswith("#")]
+
+
+def ft_env(f):
+    """FT-ENV: each FT env compiles the accepted flag set and nothing that would change what is measured: cloud.prod,
+    WX_LAYER_SHIPS, FRAME_BENCH, MAP_BENCH, FRAME_BENCH_FT and its row's flag (and not the other's); no WX_LOOK_AB; no
+    -DBLIPSCOPE_MAP_STEP_C (CD4: MapSweep.h only); the pre-build step after common's; its pin list; and embed_files equal
+    to .pio/ftpkg/<POINT>-<variant>.bmpk for each pin, in the pin list's order."""
+    bad = []
+    for row, (env, pins, flag) in FT_ROWS.items():
+        e = ini_env(f[INI], env)
+        txt = "\n".join(e)
+        other = [v[2] for k, v in FT_ROWS.items() if k != row][0]
+        need = ["${cloud.prod}", "-DWX_LAYER_SHIPS", "-DFRAME_BENCH", "-DMAP_BENCH", "-DFRAME_BENCH_FT", "-D" + flag,
+                "${common.extra_scripts}", "pre:scripts/ft_prebuild.py", f"custom_ft_pins = {pins}"]
+        miss = [n for n in need if not any(l.strip() == n or l.strip().startswith(n + " ") for l in e)
+                and n not in txt.split()]
+        if not e:
+            bad.append(f"{env} absent")
+            continue
+        if miss:
+            bad.append(f"{env} lacks {miss}")
+        if "WX_LOOK_AB" in txt or "BLIPSCOPE_MAP_STEP_C" in txt or other in txt:
+            bad.append(f"{env} carries a forbidden flag")
+        i = next((k for k, l in enumerate(e) if l.strip().startswith("board_build.embed_files")), -1)
+        emb = [l.strip() for l in e[i + 1:] if l.startswith((" ", "\t"))] if i >= 0 else []
+        want = [f".pio/ftpkg/{p}-{v}.bmpk" for p, v, _ in pins_of(f[pins])]
+        if emb[:len(want)] != want or len(emb) < len(want) or (len(emb) > len(want) and emb[len(want)].startswith(".pio")):
+            bad.append(f"{env} embed list is not its pins in order")
+    return (not bad, "both FT envs as registered" if not bad else "; ".join(bad))
+
+
+TAB_ROW = re.compile(r'\{"([A-Z]+)", "([A-Za-z0-9-]+)", "([0-9a-f]{12})", (\w+)Start, (\w+)End\}')
+PKG_SYM = re.compile(r'FRAME_BENCH_FT_PKG\((\w+), "([A-Za-z0-9_]+)"\)')
+
+
+def ft_section(h, flag):
+    """FrameBenchFt.h's lines for one row: from its #if/#elif defined(flag) to the next #elif/#else."""
+    s = next((i for i, l in enumerate(h) if re.match(r"#(el)?if defined\(" + flag + r"\)", l.strip())), -1)
+    if s < 0:
+        return []
+    e = next((i for i in range(s + 1, len(h)) if h[i].startswith(("#elif", "#else"))), len(h))
+    return h[s + 1:e]
+
+
+def ft_tab(f):
+    """FT-TAB: each row's package table in FrameBenchFt.h equals its pin list, entry for entry (point, variant, sha256
+    prefix), in order, and each entry's symbols are declared for <POINT>_<variant>, the embed file's own name."""
+    bad = []
+    for row, (env, pins, flag) in FT_ROWS.items():
+        sec = ft_section(f[FTH], flag)
+        tab = [m.groups() for l in sec for m in [TAB_ROW.search(l)] if m]
+        syms = {m.group(1): m.group(2) for l in sec for m in [PKG_SYM.search(l)] if m}
+        want = [(p, v, s[:12]) for p, v, s in pins_of(f[pins])]
+        if [(t[0], t[1], t[2]) for t in tab] != want:
+            bad.append(f"{row}: the table is not the pins in order ({len(tab)} entries, {len(want)} pins)")
+        for p, v, _, a, b in tab:
+            if a != b or syms.get(a) != f"{p}_{v}":
+                bad.append(f"{row}: {p} {v} names the wrong symbols")
+    return (not bad, "both rows' tables equal their pins" if not bad else "; ".join(bad))
+
+
+SCENE_ROW = re.compile(r"\{FT_K, (\w+), (\d+), (\w+)\}")
+
+
+def ft_scenes(f):
+    """FT-SCENES: each row's window as registered: KORD's A/A pair 1 (its package twice at 10, 25 and 50 mi), the
+    plant (KORD's package at 25 mi), every point's baseline then option at 10, 25 and 50 mi, and pair 2 as pair 1.
+    kFtAA is KORD's pinned package. FT-SEA 6 + 1 + 18 + 6 = 31 scenes; FT-HR 6 + 1 + 36 + 6 = 49."""
+    bad = []
+    for row, (env, pins, flag) in FT_ROWS.items():
+        sec = ft_section(f[FTH], flag)
+        pl = pins_of(f[pins])
+        aa = next((int(m.group(1)) for l in sec for m in [re.search(r"constexpr uint8_t kFtAA = (\d+);", l)] if m), -1)
+        if not (0 <= aa < len(pl)) or pl[aa][0] != "KORD":
+            bad.append(f"{row}: kFtAA is not KORD's package")
+            continue
+        sc = [(aa if a == "kFtAA" else int(a), int(r), role) for l in sec for a, r, role in SCENE_ROW.findall(l)]
+        pair = [(aa, r, "PAIR1") for r in (10, 10, 25, 25, 50, 50)]
+        points = []
+        for p, _, _ in pl:
+            if p not in points:
+                points.append(p)
+        graded = []
+        for p in points:
+            idx = [i for i, x in enumerate(pl) if x[0] == p]
+            base, opt = (idx[0], idx[1]) if len(idx) == 2 else (idx[0], idx[0])
+            for r in (10, 25, 50):
+                graded += [(base, r, "GRADED"), (opt, r, "GRADED")]
+        want = pair + [(aa, 25, "PLANT")] + graded + [(a, r, "PAIR2") for a, r, _ in pair]
+        if sc != want:
+            bad.append(f"{row}: {len(sc)} scenes, not the registered {len(want)}")
+    return (not bad, "both windows as registered (31 and 49 scenes)" if not bad else "; ".join(bad))
 
 
 def lines_with(lines, needle):
@@ -436,6 +597,14 @@ def selftest(tree):
                     "const uint32_t c0 = micros();\n        while ((uint32_t)(micros() - c0) < us) {}"), {"FT-PLANT"})
     rc |= plant("FT-DREW, the bit dropped from stateFlags", sub(AMC, "(nightNow ? 16 : 0) | mapDrew);",
                                                                 "(nightNow ? 16 : 0));"), {"FT-DREW"})
+    rc |= plant("FT-SWAP, MapBenchAccept's ++mapPkgSeq dropped",
+                sub(AMC, "    mapHeldLen = len;\n    ++mapPkgSeq;\n}\n", "    mapHeldLen = len;\n}\n"), {"FT-SWAP"})
+    rc |= plant("FT-ENV, WX_LOOK_AB in the ftsea env", sub(INI, "    -DFRAME_BENCH_FT_SEA\n",
+                                                           "    -DFRAME_BENCH_FT_SEA\n    -DWX_LOOK_AB\n"), {"FT-ENV"})
+    rc |= plant("FT-ENV, an embed line dropped", sub(INI, "    .pio/ftpkg/KBOS-sea.bmpk\n", ""), {"FT-ENV"})
+    rc |= plant("FT-TAB, a table sha prefix altered", sub(FTH, '"ee8c834bc81a"', '"ee8c834bc81b"'), {"FT-TAB"})
+    rc |= plant("FT-SCENES, a pair-2 rung changed", sub(FTH, "{FT_K, kFtAA, 50, PAIR2}, {FT_K, kFtAA, 50, PAIR2},",
+                                                        "{FT_K, kFtAA, 25, PAIR2}, {FT_K, kFtAA, 50, PAIR2},"), {"FT-SCENES"})
     rc |= plant("FB-REC, a changed line in its callee Ten()",
                 sub(HEADER, "return t >= 0xFFFF ? 0xFFFF : (uint16_t)t;", "return t > 0xFFFF ? 0xFFFF : (uint16_t)t;"), {"FB-REC"})
     print("selftest PASSED" if rc == 0 else "selftest FAILED")
