@@ -2674,8 +2674,14 @@ never graded."
   2. the timer plant;
   3. the graded pairs;
   4. KORD A/A pair 2, LAST, graded against pair 1's frozen margins. Over a margin is INSTRUMENT, and nothing is graded.
-- **The timer plant (the timer must see a known change first):** `delayMicroseconds(5000)`, D = 5,000 µs, inside the
-  swap + names lap. That is after Load and inside the graded figure, on KORD-A0, in its own scene.
+- **The timer plant (the timer must see a known change first):** `delayMicroseconds(20000)`, **D = 20,000 µs**, inside
+  the swap + names lap. That is after Load and inside the graded figure, on KORD-A0, in its own scene.
+  - **Why 20,000, not the 5,000 first agreed** (the orchestrator's suggestion, taken before the code): it must be
+    separable (D > 2 × M_zoom), and no rebuild noise has been measured yet.
+    - 5,000 µs would be separable only for M_zoom under 2.5 ms; 20,000 µs is separable for any M_zoom up to 10 ms.
+    - The plant has its own ungraded scene, so a larger D moves nothing else, and 20 ms is far inside the 10 s task
+      watchdog.
+    - A larger D also tests the timer's scale harder, since a rate error grows with D.
   - Every rebuild record carries a plant bit: set on every planted rebuild, clear on all others.
   - **Predicted:** the graded delta = D ± M_zoom; the total's delta = D ± M_total; the Load lap's delta within ± M_load
     (the plant sits outside Load).
