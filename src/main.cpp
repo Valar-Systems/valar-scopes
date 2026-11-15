@@ -84,6 +84,9 @@ static_assert(joinfail::R_HANDSHAKE_TIMEOUT      == WIFI_REASON_HANDSHAKE_TIMEOU
 
 LGFX tft;
 LGFX_Sprite backbuffer(&tft);
+#if defined(BLIPSCOPE_PUSH_TASK)
+LGFX_Sprite backbuffer2(&tft);   // M3: the second backbuffer (docs/m3-push-task.md, section 3)
+#endif
 
 // The borrowed view the /diag/fb handler reads. No second allocation: on every
 // SKU BANDED_RENDER is false, so this sprite IS the whole 240x240 RGB565 frame
@@ -113,6 +116,297 @@ uint32_t     Clears()                { return g_fbClears; }
 void         SetTag(uint32_t tag)    { g_fbTag = tag; }
 uint32_t     Tag()                   { return g_fbTag; }
 }  // namespace framebuf
+
+#if defined(BLIPSCOPE_PUSH_TASK)
+// =====================================================================================================
+// M3: THE PUSH ON ITS OWN TASK (docs/m3-push-task.md; design (i), DMA straight from the PSRAM buffer).
+//
+// Two backbuffers. The loop draws frame N into one, hands it over, and draws frame N+1 into the other
+// while frame N goes out over SPI. Each buffer has a binary semaphore, "free": the loop takes it before
+// drawing, and the push task gives it back only AFTER the send completes, so the loop can never draw
+// into a buffer that is being sent, and a frame is handed over exactly once.
+//
+// What was read before this was written (the doc's section 2): the push held the loop for its whole
+// 25.8 ms; LovyanGFX turns DMA OFF for PSRAM sprites on purpose ("DMA disable with use SPIRAM",
+// LGFX_Sprite.hpp), which is why the cache is written back here first and why design (ii) exists; the
+// S3's DMA path issues a long buffer segment by segment and yields between them; nothing the loop calls
+// at run time writes the SPI bus, EXCEPT the two restart screens, which call Quiesce() first.
+// =====================================================================================================
+#include <esp_cache.h>
+#if defined(M3_BENCH)
+#include <esp_async_memcpy.h>
+#endif
+namespace pushtask {
+constexpr size_t kBytes = (size_t)SCREEN_SIZE * SCREEN_SIZE * 2;   // one RGB565 frame
+static_assert(!variant::BANDED_RENDER, "M3 needs whole-frame buffers: BANDED_RENDER must be false");
+static_assert(kBytes % 64 == 0, "the cache write-back covers whole 64-byte lines");
+
+LGFX_Sprite* g_buf[2] = {&backbuffer, &backbuffer2};
+SemaphoreHandle_t g_free[2] = {nullptr, nullptr};
+QueueHandle_t g_queue = nullptr;
+int g_draw = 0;                  // the buffer the loop draws into next (loop task only)
+volatile int g_complete = -1;    // the last buffer handed over complete: what /diag/fb reads
+
+// The [m3] line's counters: written by the push task, printed by it every kReportEvery pushes.
+uint32_t g_pushes = 0, g_syncErr = 0;
+uint64_t g_pushUsSum = 0, g_syncUsSum = 0;
+uint32_t g_pushUsMax = 0;
+volatile uint32_t g_waitUsSum = 0, g_waitUsMax = 0, g_waits = 0;   // the loop's waits for a free buffer
+constexpr uint32_t kReportEvery = 750;                              // ~30 s at 25 fps
+
+#if defined(M3_BENCH)
+// ---- M3-9's COHERENCY SELF-CHECK (bench only: env blipscope-s3-128-m3bench; docs/m3-push-task.md) ----------------
+// Every kCheckEvery-th push, right after it, the same PSRAM frame is read again by a second DMA (esp_async_memcpy)
+// into an internal buffer, chunk by chunk, and compared with what the CPU sees. A mismatch means the DMA read bytes
+// the CPU had not written back: the fault behind a stale band. The plant (-DM3_SELFCHECK_PLANT) skips the cache
+// write-back on exactly the checked frames, and must be caught, or the check is not believed.
+constexpr uint32_t kCheckEvery = 30;
+constexpr size_t kChunk = 4096;
+async_memcpy_handle_t g_mcp = nullptr;
+uint8_t* g_chunk = nullptr;
+SemaphoreHandle_t g_chunkDone = nullptr;
+uint32_t g_checks = 0, g_badFrames = 0, g_badChunks = 0, g_checkErr = 0;
+
+static bool IRAM_ATTR OnChunkDone(async_memcpy_handle_t, async_memcpy_event_t*, void* arg)
+{
+    BaseType_t woken = pdFALSE;
+    xSemaphoreGiveFromISR((SemaphoreHandle_t)arg, &woken);
+    return woken == pdTRUE;
+}
+
+void CheckInit()
+{
+    async_memcpy_config_t cfg = ASYNC_MEMCPY_DEFAULT_CONFIG();
+    if (esp_async_memcpy_install(&cfg, &g_mcp) != ESP_OK) g_mcp = nullptr;
+    g_chunk = (uint8_t*)heap_caps_aligned_alloc(64, kChunk, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    g_chunkDone = xSemaphoreCreateBinary();
+    Serial.printf("[m3-bench] self-check: async memcpy %s, chunk %u B internal %s, every %lu pushes%s\n",
+                  g_mcp ? "ok" : "FAILED", (unsigned)kChunk, g_chunk ? "ok" : "FAILED", (unsigned long)kCheckEvery,
+#if defined(M3_SELFCHECK_PLANT)
+                  "; PLANT: the checked frames skip the cache write-back"
+#else
+                  ""
+#endif
+    );
+}
+
+void Check(const uint8_t* frame)
+{
+    if (!g_mcp || !g_chunk || !g_chunkDone) { g_checkErr++; return; }
+    bool bad = false;
+    for (size_t off = 0; off < kBytes; off += kChunk) {
+        const size_t n = (kBytes - off < kChunk) ? kBytes - off : kChunk;   // the last chunk is 2,512 B
+        if (esp_async_memcpy(g_mcp, g_chunk, (void*)(frame + off), n, OnChunkDone, g_chunkDone) != ESP_OK ||
+            xSemaphoreTake(g_chunkDone, pdMS_TO_TICKS(50)) != pdTRUE) {
+            g_checkErr++;
+            return;
+        }
+        if (memcmp(g_chunk, frame + off, n) != 0) { g_badChunks++; bad = true; }
+    }
+    g_checks++;
+    if (bad) g_badFrames++;
+}
+#endif  // M3_BENCH
+
+
+void Task(void*)
+{
+    for (;;) {
+        uint8_t i;
+        if (xQueueReceive(g_queue, &i, portMAX_DELAY) != pdTRUE) continue;
+        uint8_t* const p = (uint8_t*)g_buf[i]->getBuffer();
+        const uint32_t t0 = micros();
+#if defined(M3_BENCH)
+        const bool checkThis = (g_pushes + 1) % kCheckEvery == 0;   // M3-9: this push is re-read afterwards
+#endif
+        // Design (i): the DMA reads PSRAM directly, so the CPU's cached writes must reach PSRAM first.
+#if defined(M3_BENCH) && defined(M3_SELFCHECK_PLANT)
+        if (!checkThis)   // M3-9's control: the checked frames skip the write-back, and the check must catch them
+#endif
+        if (esp_cache_msync(p, kBytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M) != ESP_OK) g_syncErr++;
+        const uint32_t t1 = micros();
+        tft.startWrite();
+        tft.pushImageDMA(0, 0, SCREEN_SIZE, SCREEN_SIZE, (const lgfx::swap565_t*)p);
+        // Bus_SPI::wait() busy-polls, so wait for the last segment by yielding instead of spinning.
+        while (tft.dmaBusy()) vTaskDelay(1);
+        tft.endWrite();
+        const uint32_t t2 = micros();
+#if defined(M3_BENCH)
+        if (checkThis) Check(p);   // before the buffer is freed, so nothing redraws it during the re-read
+#endif
+        // FrameDone moves HERE (doc, section 5): map-client's p2p is timed from it, and it must stay
+        // "present to present". Left in the loop it would time the loop, not the glass.
+        framebuf::SetPhase(framebuf::kPhasePushed);
+        framebuf::FrameDone();
+        xSemaphoreGive(g_free[i]);
+
+        g_pushes++;
+        g_syncUsSum += t1 - t0;
+        g_pushUsSum += t2 - t0;
+        if (t2 - t0 > g_pushUsMax) g_pushUsMax = t2 - t0;
+        if (g_pushes % kReportEvery == 0) {
+            const uint32_t waits = g_waits ? g_waits : 1;
+            Serial.printf("[m3] pushes=%lu push_avg_us=%lu push_max_us=%lu sync_avg_us=%lu sync_err=%lu "
+                          "loop_wait_avg_us=%lu loop_wait_max_us=%lu\n",
+                          (unsigned long)g_pushes, (unsigned long)(g_pushUsSum / g_pushes),
+                          (unsigned long)g_pushUsMax, (unsigned long)(g_syncUsSum / g_pushes),
+                          (unsigned long)g_syncErr, (unsigned long)(g_waitUsSum / waits),
+                          (unsigned long)g_waitUsMax);
+            g_pushUsMax = 0;
+            g_waitUsMax = 0;
+#if defined(M3_BENCH)
+            Serial.printf("[m3-bench] checks=%lu bad_frames=%lu bad_chunks=%lu check_err=%lu\n",
+                          (unsigned long)g_checks, (unsigned long)g_badFrames, (unsigned long)g_badChunks,
+                          (unsigned long)g_checkErr);
+#endif
+        }
+    }
+}
+
+// Both buffers 64-byte aligned in PSRAM, so the cache write-back covers whole lines. Allocated once, at
+// boot, before Wi-Fi (doc, section 3). Returns the first buffer, or nullptr if either allocation failed.
+void* CreateBuffers()
+{
+    const size_t internalBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    void* a = heap_caps_aligned_alloc(64, kBytes, MALLOC_CAP_SPIRAM);
+    void* b = heap_caps_aligned_alloc(64, kBytes, MALLOC_CAP_SPIRAM);
+    if (!a || !b) {
+        Serial.printf("[m3] buffers: ALLOC FAILED a=%p b=%p\n", a, b);
+        return nullptr;
+    }
+    memset(a, 0, kBytes);
+    memset(b, 0, kBytes);
+    backbuffer.setColorDepth(16);
+    backbuffer2.setColorDepth(16);
+    backbuffer.setBuffer(a, SCREEN_SIZE, SCREEN_SIZE, 16);
+    backbuffer2.setBuffer(b, SCREEN_SIZE, SCREEN_SIZE, 16);
+    g_free[0] = xSemaphoreCreateBinary();
+    g_free[1] = xSemaphoreCreateBinary();
+    g_queue = xQueueCreate(1, sizeof(uint8_t));
+    xSemaphoreGive(g_free[0]);
+    xSemaphoreGive(g_free[1]);
+#if defined(M3_BENCH)
+    CheckInit();   // M3-9's self-check: its DMA channel and 4 KB internal buffer, before the task can push
+#endif
+    // One priority above the loop, on the loop's core: it mostly sleeps in the DMA's yields, and its
+    // short bursts preempt the draw rather than Wi-Fi on core 0 (M3-5 measures the effect).
+    const UBaseType_t prio = uxTaskPriorityGet(nullptr) + 1;
+    const BaseType_t ok = xTaskCreatePinnedToCore(Task, "m3push", 4096, nullptr, prio, nullptr, xPortGetCoreID());
+    const size_t internalAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    Serial.printf("[m3] buffers: a=%p b=%p aligned64=%d bytes=%u each; task=%s core=%d prio=%u; "
+                  "internal free %u -> %u (%d B)\n",
+                  a, b, (int)(((uintptr_t)a % 64 == 0) && ((uintptr_t)b % 64 == 0)), (unsigned)kBytes,
+                  ok == pdPASS ? "ok" : "FAILED", (int)xPortGetCoreID(), (unsigned)prio,
+                  (unsigned)internalBefore, (unsigned)internalAfter,
+                  (int)internalAfter - (int)internalBefore);
+    return (ok == pdPASS && g_free[0] && g_free[1] && g_queue) ? a : nullptr;
+}
+
+// The loop takes the buffer it is about to draw into: it waits only if that buffer's push is still
+// running (or /diag/fb is copying it).
+LGFX_Sprite& TakeForDrawing()
+{
+    const uint32_t t0 = micros();
+    xSemaphoreTake(g_free[g_draw], portMAX_DELAY);
+    const uint32_t w = micros() - t0;
+    g_waits = g_waits + 1;
+    g_waitUsSum = g_waitUsSum + w;
+    if (w > g_waitUsMax) g_waitUsMax = w;
+    return *g_buf[g_draw];
+}
+
+// The loop hands the finished frame to the push task and moves to the other buffer.
+void HandOver()
+{
+    const uint8_t i = (uint8_t)g_draw;
+    g_complete = i;
+    framebuf::Register(g_buf[i]);
+    xQueueSend(g_queue, &i, portMAX_DELAY);
+    g_draw ^= 1;
+}
+
+// Before the loop draws straight to the panel (the two restart screens): wait out any push in flight
+// and keep both buffers, so nothing else touches the SPI bus. Bounded, so a stuck push cannot hang a
+// restart: the restart proceeds either way.
+void Quiesce()
+{
+    xSemaphoreTake(g_free[0], pdMS_TO_TICKS(200));
+    xSemaphoreTake(g_free[1], pdMS_TO_TICKS(200));
+}
+}  // namespace pushtask
+
+namespace framebuf {
+LGFX_Sprite* AcquireComplete(uint32_t timeoutMs)
+{
+    const int i = pushtask::g_complete;
+    if (i < 0) return nullptr;
+    if (xSemaphoreTake(pushtask::g_free[i], pdMS_TO_TICKS(timeoutMs)) != pdTRUE) return nullptr;
+    return pushtask::g_buf[i];
+}
+void ReleaseComplete(LGFX_Sprite* sprite)
+{
+    for (int i = 0; i < 2; ++i)
+        if (pushtask::g_buf[i] == sprite) xSemaphoreGive(pushtask::g_free[i]);
+}
+}  // namespace framebuf
+#endif  // BLIPSCOPE_PUSH_TASK
+
+#if defined(M3_BENCH)
+// ---- M3-2's GLASS TEST FRAME (bench only; docs/m3-push-task.md, section 4) -----------------------------------------
+// Drawn over the radar every frame. The radar is still drawn under it, so the frame costs what it costs. Every row
+// carries a distinct colour (the row number encoded into RGB565), a frame counter sits in 8 horizontal bands, and a
+// white bar moves 4 px a frame. A stale band shows as a band whose counter is 2+ frames older than its neighbours;
+// tearing as two counters in one frame; shear as a broken bar. Env -m3bench-base runs the same frame on today's push.
+namespace m3bench {
+// The test frame stops 24 rows short of the bottom, so the radar's own screen-indicator dots (DrawScreenIndicator,
+// y = SCREEN_SIZE - 16) stay visible. map-client's frame-trust test reads those dots as proof of a finished frame, so
+// the M3-1b plant below is graded in this same image (the orchestrator, 2026-11-12).
+constexpr int kTestRows = SCREEN_SIZE - 24;
+uint32_t g_frame = 0;
+void DrawTestFrame(BandCanvas& c)
+{
+    ++g_frame;
+    for (int y = 0; y < kTestRows; ++y)   // low 5 bits of y in red, high 3 in green: no two rows alike
+        c.fillRect(0, y, SCREEN_SIZE, 1, lgfx::color565((y & 31) << 3, ((y >> 5) << 5) | 0x10, 0x40));
+    c.fillRect((int)((g_frame * 4) % SCREEN_SIZE), 0, 8, kTestRows, lgfx::color565(255, 255, 255));
+    char num[12];
+    snprintf(num, sizeof(num), "%lu", (unsigned long)g_frame);
+    c.setTextSize(2);
+    c.setTextColor(lgfx::color565(255, 255, 255));
+    const int band = kTestRows / 8;
+    const int tw = (int)c.textWidth(num);
+    for (int b = 0; b < 8; ++b) {
+        const int y = b * band + (band - 16) / 2;
+        c.fillRect((SCREEN_SIZE - tw) / 2 - 3, y - 2, tw + 6, 20, lgfx::color565(0, 0, 0));
+        c.drawString(num, (SCREEN_SIZE - tw) / 2, y);
+    }
+}
+
+// M3-1b's PLANT: one grab of the DRAW buffer taken right after the frame-start clear, before the sweep and the
+// radar's Draw. So it has no screen-indicator dots. /diag/fb-middraw serves it labelled as a finished frame, and
+// map-client's frame-trust test must still read it UNTRUSTWORTHY from its pixels.
+volatile bool g_grabWanted = false;
+volatile bool g_grabReady = false;
+uint8_t* g_grab = nullptr;
+void MaybeGrabMidDraw(LGFX_Sprite& s)
+{
+    if (!g_grabWanted || g_grabReady) return;
+    const size_t n = (size_t)s.bufferLength();
+    if (!g_grab) g_grab = (uint8_t*)heap_caps_malloc(n, MALLOC_CAP_SPIRAM);
+    if (g_grab) memcpy(g_grab, s.getBuffer(), n);
+    g_grabReady = (g_grab != nullptr);
+}
+const uint8_t* RequestMidDrawGrab(uint32_t timeoutMs)
+{
+    g_grabReady = false;
+    g_grabWanted = true;
+    const uint32_t t0 = millis();
+    while (!g_grabReady && millis() - t0 < timeoutMs) vTaskDelay(1);
+    g_grabWanted = false;
+    return g_grabReady ? g_grab : nullptr;
+}
+}  // namespace m3bench
+#endif
 
 #ifdef FEATURE_WEATHERSCOPE
 // DiagText.h's storage (docs/weatherscope-stage3.md A9.42): diag only, Weatherscope its one user. The route asks, the
@@ -387,10 +681,18 @@ void setup()
   } else {
     backbuffer.setColorDepth(8);
   }
+#if defined(BLIPSCOPE_PUSH_TASK)
+  // M3: both backbuffers, 64-byte aligned in PSRAM, plus the push task; allocated here, once, before Wi-Fi.
+  void* spriteBuf = pushtask::CreateBuffers();
+#else
   void* spriteBuf = backbuffer.createSprite(SCREEN_SIZE, BAND_H);
+#endif
   // Published only once it exists; the handler checks for nullptr, so a
   // failed allocation is a 503 rather than a crash.
   if (spriteBuf) framebuf::Register(&backbuffer);
+#if defined(M3_BENCH)
+  Serial.println("[m3-bench] glass test frame over the radar (docs/m3-push-task.md, M3-2)");
+#endif
 
   // FIRST PIXELS EVER DRAWN. Everything above this point is panel/bus bring-up, so this
   // is the earliest the wordmark can physically appear -- ~100-150 ms after reset, and
@@ -765,6 +1067,9 @@ void loop()
 #endif
   if (tier != factoryreset::Tier::None) {
     factoryreset::Perform(tier, [&wm]() { wm.resetSettings(); });
+#if defined(BLIPSCOPE_PUSH_TASK)
+    pushtask::Quiesce();   // M3: this splash writes the panel directly; no push may be in flight
+#endif
     DrawSplash(tft, backbuffer,
                tier == factoryreset::Tier::Factory ? "Factory reset" : "Wi-Fi cleared",
                "Restarting into setup...");
@@ -809,6 +1114,9 @@ void loop()
         Serial.println("[WiFi] link lost; watchdog armed (reboot in 10 min if it stays down)");
       } else if (millis() - wifiDownSinceMs >= WIFI_DOWN_REBOOT_MS) {
         Serial.println("[WiFi] down 10 min -- restarting to re-run the join/portal path");
+#if defined(BLIPSCOPE_PUSH_TASK)
+        pushtask::Quiesce();   // M3: this splash writes the panel directly; no push may be in flight
+#endif
         DrawSplash(tft, backbuffer, "Wi-Fi lost", "Restarting...");
         delay(1500);
         ESP.restart();
@@ -922,8 +1230,16 @@ void loop()
   const float sweep = appManager.CurrentSweepAngle();
 #endif
 
+#if defined(BLIPSCOPE_PUSH_TASK)
+  // M3: the buffer this frame draws into. It waits only while that buffer's previous push is still going.
+  LGFX_Sprite& drawBuf = pushtask::TakeForDrawing();
+#endif
   for (int bandY = 0; bandY < SCREEN_SIZE; bandY += BAND_H) {
+#if defined(BLIPSCOPE_PUSH_TASK)
+    BandCanvas canvas(drawBuf, bandY);
+#else
     BandCanvas canvas(backbuffer, bandY);
+#endif
     const bool firstPass = (bandY == 0);
 
     framebuf::SetPhase(framebuf::kPhaseClearing);  // /diag/fb copies only between Drawn and this (A9.26)
@@ -947,6 +1263,9 @@ void loop()
     canvas.fillScreen(lgfx::color888(0, 0, 0));
 #endif
     framebuf::SetPhase(framebuf::kPhaseCleared);   // diag only (A9.22)
+#if defined(M3_BENCH)
+    m3bench::MaybeGrabMidDraw(canvas.sprite());   // M3-1b's plant: the draw buffer, cleared and not yet drawn
+#endif
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
     if (drawScan) {
@@ -973,14 +1292,23 @@ void loop()
 #endif
 
     appManager.Draw(canvas, firstPass);
+#if defined(M3_BENCH)
+    m3bench::DrawTestFrame(canvas);   // M3-2: the glass test frame, over the radar
+#endif
     framebuf::SetPhase(framebuf::kPhaseDrawn);     // diag only (A9.22)
 #ifdef FEATURE_WEATHERSCOPE
     // Diag only (A9.22): what was pushed, the phase it was pushed at, and how long the push held the loop task.
     const uint8_t pushPhase = framebuf::Phase();
     const uint32_t pushT0 = micros();
 #endif
+#if defined(BLIPSCOPE_PUSH_TASK)
+    // M3: frame N goes to the push task, and the loop moves on to frame N+1. The Pushed phase and
+    // FrameDone are set by the push task when the send completes (docs/m3-push-task.md, section 5).
+    pushtask::HandOver();
+#else
     backbuffer.pushSprite(0, bandY);
     framebuf::SetPhase(framebuf::kPhasePushed);    // diag only (A9.22)
+#endif
 #ifdef FEATURE_WEATHERSCOPE
     appManager.OnPushed(framebuf::Tag(), pushPhase, micros() - pushT0);
 #endif
@@ -992,7 +1320,12 @@ void loop()
   // AFTER the flush, so a reader that samples the counter either side of its
   // copy is comparing against completed frames rather than against a frame
   // still being assembled.
+#if !defined(BLIPSCOPE_PUSH_TASK)
   framebuf::FrameDone();
+#endif
+  // M3: FrameDone runs in the push task, at the send's completion. RecordFrameUs below therefore no
+  // longer contains the push: `fr` drops by up to the push's 25.8 ms whether or not the glass is faster.
+  // The gate reads map-client's p2p, which is anchored on FrameDone (docs/m3-push-task.md, section 5).
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
   appManager.RecordFrameUs(micros() - frameStartUs);
