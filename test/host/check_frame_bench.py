@@ -56,6 +56,11 @@ that must read exactly that row red (--selftest).
         fbtable::Sum at the scene's STORED home (st.ftLat, st.ftLon: the doubles OnCloudPoll serves around), kLevel and
         kTblT, with no float conversion in its body (a CRC, never a coordinate); AircraftManager.cpp calls it once, in a
         region, on the line right after SetHome inside the branch where the scene's package validated
+  TAG-SET S2b's map-rebuild tag (docs/frame-time-bench.md, "S2b's map-rebuild frames", re-registered as (B)), four
+        clauses: `mapRebuilt = true` exactly once in src/ and include/, inside OnRebuild after its `scene < 0 || done`
+        return; TakeMapRebuilt's body exactly reads it as 64 and clears it; its result enters the one framebench::Record(
+        call, taken on the line before it, in a region; no other 64 flag write in the bench's files (the header, the
+        sources' regions). Record() itself is untouched, so FB-REC still holds
     python -I check_frame_bench.py <tree>             exit 0 every row ok; 1 a row off
     python -I check_frame_bench.py --selftest <tree>  the clean tree green; each plant reads exactly its row red"""
 import os
@@ -71,6 +76,17 @@ FTH, INI = "include/FrameBenchFt.h", "platformio.ini"
 FT_ROWS = {"SEA": ("blipscope-s3-128-framebench-v20-ftsea", "test/fixtures/frame-bench/ft_sea.pins", "FRAME_BENCH_FT_SEA"),
            "HR": ("blipscope-s3-128-framebench-v20-fthr", "test/fixtures/frame-bench/ft_hr.pins", "FRAME_BENCH_FT_HR")}
 NVS = re.compile(r"Preferences|nvs_|SPIFFS|LittleFS|prefs\.(put|remove|clear)")
+# TAG-SET (S2b, (B)): the set, the take's head and exact body, the one Record call and its take, a 64 flag write
+TAG_TRUE = "mapRebuilt = true"
+TAKE_HEAD = "inline uint8_t TakeMapRebuilt()"
+TAKE_BODY = ["{", "State& s = S();", "const uint8_t v = s.mapRebuilt ? 64 : 0;", "s.mapRebuilt = false;", "return v;", "}"]
+TAG_TAKE = "const uint8_t mapTag = framebench::TakeMapRebuilt();"
+TAG_CALL = "framebench::Record(frameUs, trackedAircraft.size(), (uint8_t)(stateFlags | mapTag));"
+FLAG64 = re.compile(r"\?\s*64\s*:|\|=?\s*64\b|\b64\s*\|")
+
+
+def nocomment(l):
+    return l.split("//")[0]
 
 
 def load(tree):
@@ -92,6 +108,21 @@ def load(tree):
                 if m:
                     defs.setdefault(m.group(1), set()).add(rel)
     files["__defs__"] = defs
+    # TAG-SET: the tag's set in every OTHER src/ and include/ file (the loaded ones are scanned from `files`, so a plant
+    # in them is seen)
+    loaded = set(SOURCES + [HEADER, TABLE, AMH, MCH, FTH])
+    other = []
+    for top in ("src", "include"):
+        for root, _, names in os.walk(os.path.join(tree, top)):
+            for n in names:
+                if not n.endswith((".h", ".hpp", ".cpp", ".c", ".inc")):
+                    continue
+                rel = os.path.relpath(os.path.join(root, n), tree).replace(os.sep, "/")
+                if rel in loaded:
+                    continue
+                text = open(os.path.join(root, n), "rb").read().decode("utf-8", "replace")
+                other += [f"{rel}:{i + 1}" for i, l in enumerate(text.split("\n")) if TAG_TRUE in nocomment(l)]
+    files["__tag_other__"] = other
     return files
 
 
@@ -235,6 +266,7 @@ def rows(f):
     res["FT-SWAP"], res["FT-ENV"] = ft_swap(f), ft_env(f)
     res["FT-TAB"], res["FT-SCENES"] = ft_tab(f), ft_scenes(f)
     res["FT-TBL"] = ft_tbl(f)
+    res["TAG-SET"] = tag_set(f)
     return res
 
 
@@ -528,6 +560,41 @@ def m3_d(f):
                 f"releasing the buffer and continuing: {ok}")
 
 
+def tag_set(f):
+    """TAG-SET (S2b, (B)): the map-rebuild tag's set, its take, its one way into the record, and no other 64."""
+    h = f[HEADER]
+    # (1) the set: once in src/ and include/, inside OnRebuild after its early return
+    sets = [(rel, i) for rel in [HEADER, TABLE, AMH, MCH, FTH] + SOURCES
+            for i, l in enumerate(f[rel]) if TAG_TRUE in nocomment(l)]
+    n_sets = len(sets) + len(f["__tag_other__"])
+    os_, oe = func_span(h, "inline void OnRebuild(const RebuildRec& r)")
+    ret = next((i for i in range(max(os_, 0), max(oe, 0)) if h[i].strip() == "if (s.scene < 0 || s.done) return;"), -1)
+    c1 = n_sets == 1 and len(sets) == 1 and sets[0][0] == HEADER and 0 <= ret < sets[0][1] < oe
+    # (2) the take: one definition, exactly this body (reads the tag as 64, then clears it)
+    heads = sum(1 for l in h if l.startswith(TAKE_HEAD))
+    ts, te = func_span(h, TAKE_HEAD)
+    body = [l.strip() for l in h[ts + 1:te] if l.strip()] if ts >= 0 else []
+    c2 = heads == 1 and body == TAKE_BODY
+    # (3) the one framebench::Record( call passes the take, taken on the line before it, in a region
+    a = f[AMC]
+    recs = [(rel, i) for rel in SOURCES for i, l in enumerate(f[rel]) if "framebench::Record(" in nocomment(l)]
+    takes = [(rel, i) for rel in SOURCES for i, l in enumerate(f[rel]) if "TakeMapRebuilt(" in nocomment(l)]
+    c3 = (len(recs) == 1 and recs[0][0] == AMC and nocomment(a[recs[0][1]]).strip() == TAG_CALL and len(takes) == 1
+          and takes[0] == (AMC, recs[0][1] - 1) and nocomment(a[recs[0][1] - 1]).strip() == TAG_TAKE
+          and inside(regions(a), recs[0][1]))
+    # (4) no other 64 flag write in the bench's files: the header whole, the sources' regions (comments stripped)
+    w64 = [(HEADER, i) for i, l in enumerate(h) if FLAG64.search(nocomment(l))]
+    for rel in SOURCES:
+        regs = regions(f[rel])
+        w64 += [(rel, i) for i, l in enumerate(f[rel]) if inside(regs, i) and FLAG64.search(nocomment(l))]
+    take_line = next((i for i in range(max(ts, 0), max(te, 0)) if h[i].strip() == TAKE_BODY[2]), -1)
+    c4 = len(w64) == 1 and w64[0] == (HEADER, take_line)
+    ok = c1 and c2 and c3 and c4
+    return (ok, f"set {n_sets} time(s), in OnRebuild after its return {c1}; take defined {heads} time(s), body exact {c2}; "
+                f"Record calls {len(recs)}, takes {len(takes)}, the call passes the take {c3}; 64 flag writes "
+                f"{len(w64)}, only the take's {c4}")
+
+
 def report(f):
     res = rows(f)
     for k, (ok, d) in res.items():
@@ -647,6 +714,12 @@ def selftest(tree):
                 sub(HEADER, "    const State& st = S();\n    Serial.printf(\"[frame-bench] ft S%d table sum",
                     "    const State& st = S();\n    Serial.printf(\"[frame-bench] ft home %.2f\\n\", st.ftLat);\n"
                     "    Serial.printf(\"[frame-bench] ft S%d table sum"), {"FT-TBL"})
+    rc |= plant("TAG-SET P-TAG-EVERY, the take returns 64 whatever mapRebuilt says",
+                sub(HEADER, "const uint8_t v = s.mapRebuilt ? 64 : 0;", "const uint8_t v = 64;"), {"TAG-SET"})
+    rc |= plant("TAG-SET P-TAG-NOCLEAR, the take's clear removed", sub(HEADER, "    s.mapRebuilt = false;\n", ""),
+                {"TAG-SET"})
+    rc |= plant("TAG-SET P-TAG-NOPASS, the Record call passes stateFlags alone",
+                sub(AMC, "(uint8_t)(stateFlags | mapTag));", "stateFlags);"), {"TAG-SET"})
     print("selftest PASSED" if rc == 0 else "selftest FAILED")
     return rc
 

@@ -13,7 +13,9 @@
 //
 // PER FRAME (Rec): fr and p2p in 10 us units; tracked and drawn; flags: bit 0 the weather layer rebuilt on this frame,
 // bit 1 the loop's planted delay, bit 2 the weather crop shown (wxShowing == Crop), bit 3 the map enabled, bit 4 the
-// night clock's night; and `pres`, the presents since the previous record (M3-2: 1 in lockstep).
+// night clock's night; and `pres`, the presents since the previous record (M3-2: 1 in lockstep). FT's Addition 2 adds
+// bit 5 (32), step C's map drew this frame; S2b adds bit 6 (64), the map layer rebuilt on this frame (OnRebuild's tag,
+// taken by TakeMapRebuilt at the one Record call, so Record's own text, which FB-REC pins, is unchanged). Bit 7 is free.
 #pragma once
 #ifdef FRAME_BENCH
 
@@ -125,6 +127,7 @@ struct State {
     uint16_t drawn = 0;
     bool rebuilt = false;        // the weather layer rebuilt this frame (RebuildWeatherLayer's region)
     bool delayed = false;
+    bool mapRebuilt = false;     // S2b: the map layer rebuilt this frame (set by OnRebuild, taken by TakeMapRebuilt)
     // M3-3's instrument (b): the push's own timing over the measured span (B), under Mux(), and its histogram in
     // 1 ms bins over t2 - t0 (the span the D plant sits inside), for D = 60's p95(push) (p4, 02:05Z)
     uint32_t pushN = 0;
@@ -393,25 +396,45 @@ inline uint32_t SettleMs(int) { return SETTLE_MS; }
 // FT's rebuild row: one record per map rebuild while a scene runs, labelled by its part. The steady window's rebuilds
 // are counted (expected 0: an airports-fetch arrival is the named exception). The residue is the total minus the four
 // laps, printed signed so a negative one is visible rather than wrapped.
+// S2b (docs/frame-time-bench.md, "S2b's map-rebuild frames", re-registered as (B)): every rebuild record printed here
+// tags its frame, so a window's tagged count equals its `measure` records (TAG-AGREE). Outside FRAME_BENCH_FT the part
+// is the phase, `settle` or `measure`; FT's three parts are unchanged.
 inline void OnRebuild(const RebuildRec& r)
 {
     State& s = S();
     if (s.scene < 0 || s.done) return;
+    s.mapRebuilt = true;   // S2b's tag: after the return above, so it exists exactly when the record below prints
+#if defined(FRAME_BENCH_FT)
     static const char* const kPart[] = {"settle", "steady", "forced"};
     const uint8_t part = s.ftPart < 3 ? s.ftPart : 0;
+    const char* const partName = kPart[part];
+#else
+    const uint8_t part = 0;
+    const char* const partName = s.measuring ? "measure" : "settle";
+#endif
     if (part == 1) s.ftSteadyRebuilds++;
     const unsigned idx = part == 2 ? s.ftForced++ : 0;
     const long residue = (long)r.totalUs - (long)(r.load + r.build + r.names + r.compose);
     Serial.printf("[frame-bench] rebuild S%d %s i=%u plant=%d total=%lu load=%lu loaded=%d build=%lu names=%lu "
                   "compose=%lu composed=%d residue=%ld ms=%lu ready=%d bi=%lu/%lu/%lu/%lu/%lu/%lu "
                   "counts=%d/%d/%d/%d/%d/%d/%d/%d placed=%d mhz=%lu\n",
-                  s.scene, kPart[part], idx, r.plant ? 1 : 0, (unsigned long)r.totalUs, (unsigned long)r.load,
+                  s.scene, partName, idx, r.plant ? 1 : 0, (unsigned long)r.totalUs, (unsigned long)r.load,
                   r.loaded ? 1 : 0, (unsigned long)r.build, (unsigned long)r.names, (unsigned long)r.compose,
                   r.composed ? 1 : 0, residue, (unsigned long)r.ms, r.ready ? 1 : 0, (unsigned long)r.usS1,
                   (unsigned long)r.usWater, (unsigned long)r.usRivers, (unsigned long)r.usRoads,
                   (unsigned long)r.usColour, (unsigned long)r.usTotal, r.rings, r.rivers, r.primary, r.secondary,
                   r.primaryInView, r.secondaryInView, r.secondaryDrawn ? 1 : 0, r.level, r.placed,
                   (unsigned long)r.cpuMhz);
+}
+
+// S2b's tag into the record: bit value 64 on the frame whose draw ran OnRebuild, read once and cleared at the one Record
+// call in RecordFrameUs (outside Record, whose text FB-REC pins; FT-DREW's bit 32 enters the same way).
+inline uint8_t TakeMapRebuilt()
+{
+    State& s = S();
+    const uint8_t v = s.mapRebuilt ? 64 : 0;
+    s.mapRebuilt = false;
+    return v;
 }
 
 inline void PrepareScene(int)

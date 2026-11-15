@@ -2348,7 +2348,8 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 #endif
         const uint8_t stateFlags = (uint8_t)((wxShowing == wxpolicy::Show::Crop ? 4 : 0) | (MapEnabled() ? 8 : 0) |
                                              (nightNow ? 16 : 0) | mapDrew);
-        framebench::Record(frameUs, trackedAircraft.size(), stateFlags);
+        const uint8_t mapTag = framebench::TakeMapRebuilt();   // S2b: bit value 64 on the frame a map rebuild drew
+        framebench::Record(frameUs, trackedAircraft.size(), (uint8_t)(stateFlags | mapTag));
         const uint32_t nowMs = millis();
         auto applyScene = [&](int k) {
 #if defined(FRAME_BENCH_FT)
