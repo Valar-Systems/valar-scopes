@@ -291,5 +291,47 @@ one tree, and S0 and S1 match A0a's stop rows.
   - S0 stands as registered. FB-TU is a source check, so it does not replace S0's read of the built image.
   - S1 stands as registered in 4a. This tree carries no per-scene count of its own (THE PACKAGE's is not on it). So
     p4 is asked whether A0a's read on `1d9e91740e1e` prints a drawn count per frame. If no sha with one is named, S1
-    is re-stated here before the addendum.
+    is re-stated here before the addendum. **(Wrong; corrected in 4c.)**
 - **No P5/P6 image is built** until this section is pushed and the orchestrator has read it.
+
+### 4c. Section 0 re-read on `a0583e88b142`, and a correction to 4b (2026-11-15, before any reading)
+
+Read from the tree's source with `git show`, 19:53:58Z (date -u). Nothing was built. Both heads were unchanged at the
+end of the read.
+
+**The correction.** 4b's S1 bullet says this tree carries no per-scene count of its own. I wrote that before reading
+the tree, and it mixed up two counts. THE PACKAGE adds a per-SCENE count (M3-2's hand-over count). This tree already
+carries a per-FRAME drawn count:
+- `framebench::S().drawn++` at `src/AircraftManager.cpp:4339`, inside a FRAME_BENCH region. It runs once per contact
+  on the first pass, after `ZoomCulled`; the default view culls nothing.
+- `Record()` stores it as `Rec.drawn`, byte 5 of each 8-byte record (`fr10` bytes 0-1, `p2p10` 2-3, `tracked` 4,
+  `drawn` 5, `flags` 6, `pres` 7). It is clamped at 255, and N is at most 60.
+- The `[frame-bench] dump S<k> <pos> <hex>` lines print each record's 8 bytes. The scene line prints the scene's
+  `level`, which is its N.
+- The profile at `1d9e91740e1e` keeps the same counter, at `src/AircraftManager.cpp:4400`.
+
+So S1 reads `Rec.drawn` against N on every dumped frame of every reading, as 4a registered it, and the bench already
+prints the count. The question to p4 narrows to one thing: does A0a's reader also check drawn == N on every frame, so
+that the two stop rows match?
+- S1 counts contacts that reach the draw step after the cull, not pixels.
+- A row-aliasing plant (40 fed, 1 tracked) reads drawn = 1, not N, so S1's control still goes red.
+
+**Section 0's three constraints, re-read:**
+1. **The kind tables: unchanged; only their line numbers moved.**
+   - `kKindName` and `kPushDelayMs` are now at `include/FrameBench.h:56-57` (they were at 43-44), still 4 entries each.
+   - `PushDelayMs()` still indexes the delays by kind (lines 268-271).
+   - `DelayOn()` still adds the loop's +10 ms only for `C1_LOOP10` (lines 273-276).
+   - The tree's only `static_assert` is on `Rec`'s size, as it was at `bfcb47e01c3d`. So the `static_assert` on both
+     arrays' length is still P5/P6's to add, as section 0 says.
+2. **`kScenes`: now chosen three ways, and each scene carries a level.**
+   - `FRAME_PROFILE` takes the list from p4's `FrameProfileScenes.h`. Otherwise `BLIPSCOPE_PUSH_TASK` gives image B's
+     list, and otherwise image A's `{C1}`.
+   - `FrameBench.h` now includes `variants/Variant.h` itself (line 34), so every translation unit sees one list. S0
+     still reads this from the image.
+   - C1-L's `Scene` carries `level` (the (a) table's n: default 40, at most `kTableMax` 60) and `wx` (default on).
+   - So P5's and P6's kinds still go into image B's list, and their bench envs define no `FRAME_PROFILE`. Their N
+     (20, 40 or 60) is the scene's `level`, which is within `kTableMax`.
+3. **The step-C exemption: unchanged.** `BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT` is still defined at
+   `src/AircraftManager.h:50`, so a bench branch is still never a PR.
+
+None of the three blocks P5/P6, and section 0 stands with these readings.
