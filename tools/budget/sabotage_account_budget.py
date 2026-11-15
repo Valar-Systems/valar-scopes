@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Red first (docs/account-budget.md section 4): each control in scripts/account_budget.py --selftest must FAIL when
-the logic it guards is broken. Every plant is applied to a COPY of the checker, asserted to have applied (its needle
-occurs exactly once and the text changes), and the copy's selftest must fail with EXACTLY the predicted set of
-controls -- a whole-set comparison, so an unexpected extra failure is a finding, not a pass.
+"""Red first (docs/account-budget.md section 4): each control in scripts/account_budget.py --selftest, and in
+tools/budget/build_budget.py --selftest (the kv-days refusals and --miss a, 2026-11-15), must FAIL when the logic it
+guards is broken. Every plant is applied to a COPY of its file, asserted to have applied (its needle occurs exactly once
+and the text changes), and the copy's selftest must fail with EXACTLY the predicted set of controls -- a whole-set
+comparison, so an unexpected extra failure is a finding, not a pass.
 
   python3 tools/budget/sabotage_account_budget.py        exit 0 every plant read as predicted, 1 otherwise
 """
@@ -14,6 +15,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(os.path.dirname(os.path.dirname(HERE)), "scripts", "account_budget.py")
+SRC_B = os.path.join(HERE, "build_budget.py")
 
 PLANTS = [  # (name, needle, replacement, the set of controls predicted to FAIL)
     ("S0 none (anchor control)", None, None, set()),
@@ -36,13 +38,32 @@ PLANTS = [  # (name, needle, replacement, the set of controls predicted to FAIL)
      '[(x, 1.0) for x, h in segments(s, p, st, m, v["states"])]', {"M2"}),
 ]
 
+# The builder's kv-days refusals and B2's rows (ruled 2026-11-15), each set predicted here before the first run.
+BUILDER_PLANTS = [
+    ("K-S0 none (anchor control)", None, None, set()),
+    ("K-S1 without --miss, (A) outside passes", 'if not a_in and miss != "a":', "if False:", {"K1"}),
+    ("K-S2 --miss a ignores the other bands", "for n, v, (lo, hi) in others if not lo <= v <= hi]",
+     "for n, v, (lo, hi) in others if False]", {"K2"}),
+    ("K-S3 --miss a accepted with (A) in its band", '        if a_in:\n            stop(3, f"--miss a refused: {a_name}',
+     '        if False:\n            stop(3, f"--miss a refused: {a_name}', {"K3"}),
+    ("K-S4 --miss a without its S5/P5 cross-check", "if s5 != A_S5[2] or p5 < A_P5[2]:", "if False:", {"K4s", "K4p"}),
+    ("K-S5 --miss takes any value", 'argv[2] == "--miss" and argv[3] == "a"', 'argv[2] == "--miss"', {"K5"}),
+    ("K-S5u an unknown flag accepted", 'argv[2] == "--miss" and argv[3] == "a"', 'argv[3] == "a"', {"K5u"}),
+    ("K-S6 a two-argument SystemExit (the process exits 1)", "    raise SystemExit(code)", "    raise SystemExit(code, msg)", {"K6"}),
+    ("K-S7 the background rows count 11-14", "d not in A_DAYS]", "d != A_DAY]", {"K7"}),
+    ("K-S8 (A) on its registered day alone", 'A_DAYS = ("2026-11-13", "2026-11-14")', "A_DAYS = (A_DAY,)", {"K7", "K8", "K9"}),
+    ("K-S9 the miss note dropped", "        a_note += (", "        a_note_unused = (", {"K9"}),
+    ("K-S10 the (A) line never reads MISS", '"MISS (recorded, not graded)" if (miss == "a" and n == a_name) else "OUTSIDE"',
+     '"OUTSIDE" if False else "OUTSIDE"', {"K10"}),
+]
+
 
 def failed_controls(out):
     got = set()
     for line in out.splitlines():
         if not line.startswith("FAIL "):
             continue
-        m = re.match(r"FAIL ((?:P|M|R)[\w-]*):", line)   # P1..P6, P-ONE(-ctl|-steady|-none), M1..M3, R1, R2
+        m = re.match(r"FAIL ((?:P|M|R|K)[\w-]*):", line)   # P1..P6, P-ONE(-ctl|-steady|-none), M1..M3, R1, R2; K0..K10
         if m:
             got.add(m.group(1))
         elif line.startswith("FAIL CONTROL: the clean budget's flags"):
@@ -55,10 +76,13 @@ def failed_controls(out):
 
 
 def main():
-    src = open(SRC, encoding="utf-8").read()
     off = 0
+    targets = [(SRC, "account_budget.py", [sys.executable], PLANTS),
+               (SRC_B, "build_budget.py", [sys.executable, "-I", "-B"], BUILDER_PLANTS)]
+    sources = {path: open(path, encoding="utf-8").read() for path, _, _, _ in targets}
+    runs = [(sources[path], base, py, plant) for path, base, py, plants in targets for plant in plants]
     with tempfile.TemporaryDirectory() as d:
-        for name, needle, repl, want in PLANTS:
+        for src, base, py, (name, needle, repl, want) in runs:
             text = src
             if needle is not None:
                 n = src.count(needle)
@@ -67,10 +91,10 @@ def main():
                 text = src.replace(needle, repl)
                 if text == src:
                     print(f"RIG {name}: the plant changed nothing"); off += 1; continue
-            copy = os.path.join(d, "account_budget.py")
+            copy = os.path.join(d, base)
             with open(copy, "w", encoding="utf-8", newline="\n") as fh:
                 fh.write(text)
-            r = subprocess.run([sys.executable, copy, "--selftest"], capture_output=True, text=True)
+            r = subprocess.run(py + [copy, "--selftest"], capture_output=True, text=True)
             got = failed_controls(r.stdout)
             want_exit = 0 if not want else 1
             ok = got == want and r.returncode == want_exit

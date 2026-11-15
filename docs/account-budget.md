@@ -507,6 +507,24 @@ reader's 30-day figure beside it. "Each line marked steady or one-off beside the
   product's state), so the next read attributes it rather than calling it unattributed.
 - **Read A cited where the doc states it:** developers.cloudflare.com/r2/pricing, "Billable unit rounding".
 
+**9.4a The kv-days read (2026-11-15): (A)'s band is a MISS, recorded and not graded.**
+- **Read 1** (04:03:33Z) and **read 2** (04:05:44Z, 131 s later) are byte-identical (sha256 `1e8287009e63`): 14 of 14
+  days, no writes in an unnamed namespace, no GraphQL errors.
+- **In band:** the Mondays, 132,762 (11-02) and 132,979 (11-09); the background median, 1,552.
+- **The MISS:** (A) on 11-13 read 630,612 against 1.08-1.32 M. 11-14, registered as background, read 570,547.
+  - **The cause:** (A) crossed UTC midnight. Staging ran 2026-11-13 17:25-17:44Z, production 2026-11-14 01:37-01:52Z
+    (`docs/route-refresh-2026-11.md`). The instrument splits by UTC day, and the predicted set gave that no meaning.
+  - **Refused:** re-registering the band after the read. A band written after the data cannot fail, so it would be a
+    re-grade. The miss stays a miss.
+  - **The data stand on records that are not this instrument.** 11-13's staging count, 628,713, equals S5's run-window
+    read exactly, which excludes an undercount. 567,930 of 11-14's 570,544 production writes sit inside P5's run
+    window. The other 2,614 are unattributed and not graded (about $0.01).
+- **The rows (ruled 2026-11-15, B2):** (A) has a one-off row per UTC day per namespace, 11-13 and 11-14, and the
+  background rows are the median of the other 10 days. Leaving 11-14 out (B1) would have dropped 567,930 writes that P5
+  saw happen, about $2.84 off November.
+- **For every registered event from now on:** date it by the instrument's own UTC-day split, and give an event that
+  crosses UTC midnight a row per day.
+
 **9.5 Predictions for the rendered table after 9.4, by arithmetic, frozen now:**
 - "OPERA running + shsr":
   - Class A 1.159 M - 132,450 + 120,780 = **1.147 M (OVER, $4.50)**, unchanged at Read A;
@@ -647,3 +665,40 @@ at x 30/30, the December fallback is -$0.052 against the corrected 5a. So the pr
 - **When the kv-days read can run.** 9.4's window ends 2026-11-15T00:00:00Z, so the read waits for that day to end.
   `kv_by_day.py` refuses a window that has not ended, and one that is not whole days, because a partial day reads
   exactly like a quiet one. The build waits on it.
+
+**9.11 The builder change, and the build run's predictions (registered 2026-11-15 04:16:08Z, before the build run).**
+- **`build_budget.py --miss a`** (ruled 2026-11-15):
+  - it prints (A)'s band as "MISS (recorded, not graded)" and writes the miss and its S5/P5 cross-check into the (A)
+    reads' notes;
+  - it is refused (exit 3) when (A) is inside its band, when any other band is outside, or when the S5/P5 records do not
+    hold in the data (11-13 staging exactly 628,713; 11-14 production at least 567,930);
+  - without it, a band outside still stops (exit 3), and any other argument is refused (exit 2).
+  - The bands are graded as registered: (A) on 11-13 alone, the background over 11 days. Only the rows follow B2.
+- **A finding, fixed:** every refusal the builder documented as exit 3, 4 or 5 exited 1. `raise SystemExit(3, msg)`
+  makes the tuple the exit code, which Python prints and then exits 1 on. The builder now refuses through `stop()`,
+  which prints the message and exits with the code. K6 runs the builder as a process and requires exit 3.
+- **Controls:** `build_budget.py --selftest` has 15 rows (K0-K10), on synthetic kv-days files, with no network. The
+  sabotage driver plants each refusal and each B2 rule out once (11 plants and an anchor). All 22 plants, these 12 and
+  the checker's 10, read as predicted.
+- **The build run's predictions, by arithmetic from the kv-days read under B2:**
+  - **Printed bands:** background 1,552 in; Mondays 132,762 and 132,979 in; Monday mean 132,870 in (132,870.5, printed
+    to the unit); (A) 2026-11-13 630,612 "MISS (recorded, not graded)". Exit 0.
+  - **KV rows:** 8 (each namespace: background, Monday and two (A) days) and 4 kv-days reads.
+    - Background: 45,630 (proxy, 1,521 x 30) and 0 (staging).
+    - Monday per_event: 67,197 (proxy) and 65,673.5 (staging).
+    - (A) per_event: proxy 1,899 (11-13) and 570,544 (11-14); staging 628,713 (11-13) and 3 (11-14). The (A) total is
+      1,201,159.
+  - **KV writes by scenario:**
+    - November: 1,911,141.5 (45,630 + 5 x 132,870.5 + 1,201,159). KV is $4.56, against the corrected 5a's $4.53
+      (1,906,000): +$0.026.
+    - December: 578,633 (45,630 x 31/30 + 4 x 132,870.5). The 30-day scenarios: 577,112. Both under 1 M, so $0, as
+      before.
+  - **9.10's totals:** every one is graded at its registered ±$0.05, unchanged. B2 moves only November's, by +$0.026;
+    December's and the 30-day scenarios' do not move. So a November total lands inside ±$0.05 only if the rest of the
+    build lands within -$0.076 to +$0.024 of 9.10's arithmetic. **Any total outside ±$0.05: STOP to the reviewer, not a
+    fix.**
+  - **The MTD-1114 read's totals** equal the saved read's (`budget-mtd-1114.json`; the window is closed). If they
+    differ, the instrument has moved: STOP.
+  - **Outside the set** (an UNATTRIBUTED line, an exit but 0, or anything above not as stated): STOP, with "the
+    instrument and the arithmetic disagree; decide".
+- **Write size:** one output JSON (under about 100 KB), and five reads in a temporary directory removed on exit.

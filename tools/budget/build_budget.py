@@ -2,11 +2,14 @@
 """Assemble docs/account-budget.json from its reads (docs/account-budget.md sections 2, 5.1 and 9). Read-only against
 Cloudflare: it runs tools/budget/budget_read.py five times, over fixed registered windows, and writes one file.
 
-  python3 -I tools/budget/build_budget.py <kv-days.json> <out.json>
+  python3 -I tools/budget/build_budget.py <kv-days.json> <out.json> [--miss a]
+  python3 -I tools/budget/build_budget.py --selftest
 
 <kv-days.json> is tools/budget/kv_by_day.py's output for the registered window (9.4). Its bands are checked FIRST:
 outside one, the builder stops (exit 3) before any read runs or any row is written. An unattributed script, bucket or
-namespace in any graded read stops it too (exit 4).
+namespace in any graded read stops it too (exit 4). --miss a (ruled 2026-11-15) records (A)'s band as a MISS instead,
+only when (A) is outside its band, every other band is in, and the (A) refresh's own S5/P5 records hold; the miss and
+its cross-check go into the (A) reads' notes. Any other argument is refused (exit 2).
 
 The base (9.8 v): the 2026-11-14 MTD read, scaled to 30 days, is every product's steady rows, with four changes.
 - shsr's first day (9.9 b) is split out of it into state "excluded", and X10's measured rows stand in "built":
@@ -44,7 +47,13 @@ SHSR_CLASS_B = 432_000   # docs/wx-server.md: the ingest's reads, 5 a check (des
 SHSR_STORAGE_GB = 0.4    # docs/wx-server.md: 31 frames
 X10 = {"cpu_ms": 22_392_657, "r2_class_a": 120_780, "requests": 43_050}   # weatherscope S4.28b (9d8ed07d): 520.2 ms x 43,050
 CREF_A_PER_H = 181.3     # X10's own anchor for cref (weatherscope S4.28b)
-MONDAYS, A_DAY = ("2026-11-02", "2026-11-09"), "2026-11-13"   # named before the read (9.4)
+MONDAYS, A_DAY = ("2026-11-02", "2026-11-09"), "2026-11-13"   # named before the read (9.4): (A)'s band is graded on A_DAY
+# The rows (ruled 2026-11-15, B2): (A) crossed UTC midnight -- staging ran 11-13, production 11-14 -- so it has a row per
+# UTC day, and the background rows leave both days out. The band is still graded as registered, on A_DAY alone.
+A_DAYS = ("2026-11-13", "2026-11-14")
+# The (A) refresh's own records (docs/route-refresh-2026-11.md), which --miss a requires to hold in the data it records:
+A_S5 = ("2026-11-13", "proxy-staging", 628_713)   # S5: staging's writes in its run window, 17:25-17:45Z (exactly)
+A_P5 = ("2026-11-14", "proxy", 567_930)           # P5: production's writes in its run window, 01:37-01:53Z (at least)
 EVENTS = {"monday": {"2026-11": 5, "2026-12": 4}, "a": {"2026-11": 1, "2026-12": 0}}
 BANDS = {"monday": (120e3, 146e3), "background": (1.35e3, 1.65e3), "a": (1.08e6, 1.32e6)}   # 9.4, across both namespaces
 LEVERS = {"shsr": ("built", "built-no-list", 43_050, "less one ListObjects per invocation (43,050 a month)"),
@@ -114,30 +123,57 @@ def hours(a, b):
     return (p(b) - p(a)).total_seconds() / 3600
 
 
-def kv_events(path):
-    """9.4's KV rows from kv-days, after its bands. Returns (rows, read) or stops (exit 3) before anything is written."""
+def stop(code, msg):
+    """Refuse with a real exit status. SystemExit(code, msg) does not: with two arguments its code is the tuple, so the
+    process exits 1 and prints the tuple (found 2026-11-15: every refusal here documented as exit 3, 4 or 5 was exit 1)."""
+    print(msg, file=sys.stderr)
+    raise SystemExit(code)
+
+
+def kv_events(path, miss=None):
+    """9.4's KV rows from kv-days, after its bands. Returns (rows, reads) or stops (exit 3) before anything is written.
+
+    The bands are graded as REGISTERED (9.4): (A) on A_DAY alone, the background over every other non-Monday day. The
+    rows follow the 2026-11-15 ruling (B2): a row per UTC day per namespace for (A) over A_DAYS, and background rows
+    that leave A_DAYS out. miss="a" records (A)'s band as a MISS instead of stopping -- and only when (A) is outside
+    its band, every other band is in, and the (A) refresh's own records (S5, P5) hold in this data."""
     kd = json.load(open(path, encoding="utf-8"))
     if tuple(kd["window"]) != KV_DAYS:
-        raise SystemExit(3, f"kv-days window {kd['window']} is not the registered {list(KV_DAYS)}")
+        stop(3, f"kv-days window {kd['window']} is not the registered {list(KV_DAYS)}")
     days = kd["days"]
     want = [f"2026-11-{d:02d}" for d in range(1, 15)]
     if sorted(days) != want:
-        raise SystemExit(3, f"kv-days holds {len(days)} days, not the 14 registered")
+        stop(3, f"kv-days holds {len(days)} days, not the 14 registered")
+    if miss not in (None, "a"):
+        stop(2, f"--miss {miss}: only (A) may be recorded as a miss")
     per = {day: days[day].get("write", {}) for day in want}
     other = sum(v.get("other", 0) for v in per.values())
     if other:
-        raise SystemExit(4, f"kv-days: {other:,} writes in a namespace the mapping does not name")
+        stop(4, f"kv-days: {other:,} writes in a namespace the mapping does not name")
     tot = {day: sum(v.values()) for day, v in per.items()}
-    rest = [d for d in want if d not in MONDAYS and d != A_DAY]
-    bg = statistics.median(tot[d] for d in rest)
+    reg_rest = [d for d in want if d not in MONDAYS and d != A_DAY]   # 9.4 as registered: the background band's days
+    rest = [d for d in want if d not in MONDAYS and d not in A_DAYS]   # B2: the background rows' days
+    bg = statistics.median(tot[d] for d in reg_rest)
     mon = [tot[d] for d in MONDAYS]
-    checks = [("background (median day)", bg, BANDS["background"])] + [(f"Monday {d}", tot[d], BANDS["monday"]) for d in MONDAYS] + [
-        ("Monday mean", sum(mon) / 2, BANDS["monday"]), (f"(A) {A_DAY}", tot[A_DAY], BANDS["a"])]
-    bad = [f"{n} {v:,.0f} outside {lo:,.0f}-{hi:,.0f}" for n, v, (lo, hi) in checks if not lo <= v <= hi]
-    for n, v, (lo, hi) in checks:
-        print(f"kv-days {n:24s} {v:>12,.0f}  band {lo:,.0f}-{hi:,.0f}  {'in' if lo <= v <= hi else 'OUTSIDE'}")
+    others = [("background (median day)", bg, BANDS["background"])] + [(f"Monday {d}", tot[d], BANDS["monday"]) for d in MONDAYS] + [
+        ("Monday mean", sum(mon) / 2, BANDS["monday"])]
+    a_name, a_val, (a_lo, a_hi) = f"(A) {A_DAY}", tot[A_DAY], BANDS["a"]
+    a_in = a_lo <= a_val <= a_hi
+    for n, v, (lo, hi) in others + [(a_name, a_val, (a_lo, a_hi))]:
+        tag = "in" if lo <= v <= hi else "MISS (recorded, not graded)" if (miss == "a" and n == a_name) else "OUTSIDE"
+        print(f"kv-days {n:24s} {v:>12,.0f}  band {lo:,.0f}-{hi:,.0f}  {tag}")
+    bad = [f"{n} {v:,.0f} outside {lo:,.0f}-{hi:,.0f}" for n, v, (lo, hi) in others if not lo <= v <= hi]
+    if not a_in and miss != "a":
+        bad.append(f"{a_name} {a_val:,.0f} outside {a_lo:,.0f}-{a_hi:,.0f}")
     if bad:
-        raise SystemExit(3, "kv-days OUTSIDE A BAND, nothing written: " + "; ".join(bad))
+        stop(3, "kv-days OUTSIDE A BAND, nothing written: " + "; ".join(bad))
+    s5, p5 = per[A_S5[0]].get(A_S5[1], 0), per[A_P5[0]].get(A_P5[1], 0)
+    if miss == "a":
+        if a_in:
+            stop(3, f"--miss a refused: {a_name} {a_val:,.0f} is inside its band, so there is no miss to record")
+        if s5 != A_S5[2] or p5 < A_P5[2]:
+            stop(3, f"--miss a refused: the (A) refresh's own records do not hold in this data: {A_S5[0]} {A_S5[1]} "
+                    f"{s5:,} (S5: exactly {A_S5[2]:,}); {A_P5[0]} {A_P5[1]} {p5:,} (P5: at least {A_P5[2]:,})")
     rows = []
     for ns in ("proxy", "proxy-staging"):
         b30 = statistics.median(per[d].get(ns, 0) for d in rest) * 30
@@ -145,17 +181,26 @@ def kv_events(path):
                      "basis": "measured", "cadence": "steady",
                      "how": f"background: the median of the {len(rest)} days without an event x 30"})
         pm = sum(per[d].get(ns, 0) for d in MONDAYS) / 2
-        pa = per[A_DAY].get(ns, 0)
-        for key, pe, how in (("monday", pm, f"refresh-data Monday: the mean of {' and '.join(MONDAYS)} (whole days)"),
-                             ("a", pa, f"the (A) route refresh: {A_DAY} (the whole day)")):
-            ev = EVENTS[key]
-            rows.append({"product": ns, "state": "now", "allowance": "kv_write", "value": pe * ev.get(MONTH, 0), "read": f"kv-days-{key}",
+        events = [("kv-days-monday", pm, EVENTS["monday"], f"refresh-data Monday: the mean of {' and '.join(MONDAYS)} (whole days)")]
+        events += [(f"kv-days-a-{day}", per[day].get(ns, 0), EVENTS["a"],
+                    f"the (A) route refresh, its UTC day {day} (the whole day; a row per UTC day, ruled 2026-11-15)") for day in A_DAYS]
+        for rid, pe, ev, how in events:
+            rows.append({"product": ns, "state": "now", "allowance": "kv_write", "value": pe * ev.get(MONTH, 0), "read": rid,
                          "basis": "measured", "cadence": "one-off", "per_event": pe, "events": ev, "how": how})
     read = {"tool": "tools/budget/kv_by_day.py", "window": list(KV_DAYS), "totals": {},
             "note": "not anchored here: per-day counts, by event; the background row counts every day, so the event days' "
                     "own background is in both (named: about 1.5k a day)"}
-    reads = {"kv-days": read, "kv-days-monday": {**read, "note": "the Monday rows of kv-days"},
-             "kv-days-a": {**read, "note": "the (A) rows of kv-days"}}
+    a_note = "the (A) rows of kv-days, a row per UTC day: (A) crossed UTC midnight (ruled 2026-11-15, B2)"
+    if miss == "a":
+        a_note += (f"; MISS (recorded, not graded): 9.4 graded {a_name} alone, {a_val:,.0f} against {a_lo:,.0f}-{a_hi:,.0f}. "
+                   "The refresh ran staging 2026-11-13 17:25-17:44Z and production 2026-11-14 01:37-01:52Z "
+                   "(docs/route-refresh-2026-11.md), and the predicted set gave an event crossing UTC midnight no meaning. "
+                   f"The data stand on records that are not this instrument: {A_S5[0]} {A_S5[1]} {s5:,} equals S5's "
+                   f"run-window read exactly; {A_P5[2]:,} of {A_P5[0]} {A_P5[1]}'s {p5:,} sit inside P5's run window, and "
+                   f"the other {p5 - A_P5[2]:,} are unattributed and not graded")
+    reads = {"kv-days": read, "kv-days-monday": {**read, "note": "the Monday rows of kv-days"}}
+    for day in A_DAYS:
+        reads[f"kv-days-a-{day}"] = {**read, "note": a_note + f"; this row's day: {day}"}
     return rows, reads
 
 
@@ -167,7 +212,7 @@ def read(d, rid, a, b, state, take, obs=False):
         raise SystemExit(f"{rid}: budget_read failed: {r.stdout[-300:]} {r.stderr[-300:]}")
     last = [ln for ln in r.stdout.splitlines() if ln.startswith("UNATTRIBUTED:")]
     if not obs and (not last or last[-1] != "UNATTRIBUTED: none"):
-        raise SystemExit(4, f"{rid}: {last[-1] if last else 'no UNATTRIBUTED line'} -- stop and report")
+        stop(4, f"{rid}: {last[-1] if last else 'no UNATTRIBUTED line'} -- stop and report")
     return json.load(open(out, encoding="utf-8"))
 
 
@@ -191,9 +236,113 @@ def excluded(rows, why):
     return list(acc.values())
 
 
+def parse_args(argv):
+    """<kv-days.json> <out.json> [--miss a]. Anything else is refused (exit 2): an unknown flag is never ignored."""
+    pos = [a for a in argv if not a.startswith("--")]
+    if len(argv) == 2 and len(pos) == 2:
+        return argv[0], argv[1], None
+    if len(argv) == 4 and len(pos) == 3 and argv[2] == "--miss" and argv[3] == "a":
+        return argv[0], argv[1], "a"
+    stop(2, "usage: build_budget.py <kv-days.json> <out.json> [--miss a]   (or --selftest)")
+
+
+def selftest():
+    """The kv-days refusals, --miss a, B2's row shape and the exit status, on SYNTHETIC kv-days files. No network:
+    every case stops or returns inside kv_events, before any read. tools/budget/sabotage_account_budget.py plants each
+    control out once and requires exactly its predicted set to fail."""
+    import contextlib
+    import io
+    fails = []
+
+    def check(cond, what):
+        print(("PASS " if cond else "FAIL ") + what)
+        if not cond:
+            fails.append(what)
+
+    def syn(**over):
+        """SYNTHETIC kv-days (example data, not a read): background days vary so a 10- and an 11-day median differ;
+        the (A) days carry the S5/P5 figures --miss a binds to. over = {day: {namespace: writes}}."""
+        days = {}
+        for i in range(14):
+            days[f"2026-11-{i + 1:02d}"] = {"write": {"proxy": 1_400 + 10 * i, "proxy-staging": 0}}
+        for d in MONDAYS:
+            days[d] = {"write": {"proxy": 67_000, "proxy-staging": 65_000}}
+        days["2026-11-13"] = {"write": {"proxy": 1_900, "proxy-staging": 628_713}}
+        days["2026-11-14"] = {"write": {"proxy": 569_500, "proxy-staging": 3}}
+        for d, w in over.items():
+            days[d] = {"write": {**days[d]["write"], **w}}
+        return {"window": list(KV_DAYS), "days": days}
+
+    def run(kd, miss=None):
+        """kv_events on a synthetic file: (refusal code or None, result or None, printed text). The in-process rows grade
+        WHICH refusal fired; K6 grades the exit status the process returns, so a tuple code is read as its first item."""
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "kv-days.json")
+            with open(p, "w", encoding="utf-8") as fh:
+                json.dump(kd, fh)
+            out = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                    res = kv_events(p, miss)
+                return None, res, out.getvalue()
+            except SystemExit as e:
+                code = e.code[0] if isinstance(e.code, tuple) else e.code
+                return code, None, out.getvalue()
+
+    def refused(args):
+        try:
+            with contextlib.redirect_stderr(io.StringIO()):
+                parse_args(args)
+            return None
+        except SystemExit as e:
+            return e.code[0] if isinstance(e.code, tuple) else e.code
+
+    code, res, txt = run(syn(), "a")
+    check(code is None and res is not None, f"K0: CONTROL: the synthetic file, (A) outside, with --miss a builds rows (refusal {code})")
+    rows, reads = res if res else ([], {})
+    a_line = [ln for ln in txt.splitlines() if ln.startswith("kv-days (A)")]
+    check(len(a_line) == 1 and a_line[0].endswith("MISS (recorded, not graded)"),
+          f"K10: with --miss a the (A) line reads 'MISS (recorded, not graded)' (got {a_line})")
+    bgp = [r["value"] for r in rows if r["read"] == "kv-days" and r["product"] == "proxy"]
+    check(bgp == [43_650], f"K7: the background row is the median of the 10 days without an event x 30, 1,455 x 30 = 43,650 (got {bgp})")
+    got_a = {(r["product"], r["read"]): r["per_event"] for r in rows if r["read"].startswith("kv-days-a")}
+    want_a = {("proxy", "kv-days-a-2026-11-13"): 1_900, ("proxy", "kv-days-a-2026-11-14"): 569_500,
+              ("proxy-staging", "kv-days-a-2026-11-13"): 628_713, ("proxy-staging", "kv-days-a-2026-11-14"): 3}
+    check(got_a == want_a, f"K8: (A) is a one-off row per UTC day per namespace, its day's whole count (got {got_a})")
+    notes = [reads.get(f"kv-days-a-{d}", {}).get("note", "") for d in ("2026-11-13", "2026-11-14")]
+    facts = ("MISS (recorded, not graded)", "628,713 equals S5's", "567,930 of 2026-11-14 proxy's 569,500", "the other 1,570")
+    check(all(f in n for n in notes for f in facts), "K9: both (A) reads' notes carry the miss and its S5/P5 cross-check")
+    code, _, _ = run(syn())
+    check(code == 3, f"K1: without --miss, (A) outside its band stops, exit 3 (got {code})")
+    code, _, _ = run(syn(**{"2026-11-13": {"proxy": 500_000}}))
+    check(code is None, f"K1-ctl: without --miss, every band in (A at 1,128,713) builds (refusal {code})")
+    code, _, _ = run(syn(**{"2026-11-02": {"proxy": 30_000}}), "a")
+    check(code == 3, f"K2: --miss a still stops when another band is outside (Monday 11-02 at 95,000), exit 3 (got {code})")
+    code, _, _ = run(syn(**{"2026-11-13": {"proxy": 500_000}}), "a")
+    check(code == 3, f"K3: --miss a is refused when (A) is inside its band (1,128,713), exit 3 (got {code})")
+    code, _, _ = run(syn(**{"2026-11-13": {"proxy-staging": 628_000}}), "a")
+    check(code == 3, f"K4s: --miss a is refused when 11-13 staging is not S5's 628,713 exactly (628,000), exit 3 (got {code})")
+    code, _, _ = run(syn(**{"2026-11-14": {"proxy": 500_000}}), "a")
+    check(code == 3, f"K4p: --miss a is refused when 11-14 proxy is below P5's 567,930 (500,000), exit 3 (got {code})")
+    check(refused(["k.json", "o.json", "--miss", "b"]) == 2, "K5: --miss with any value but a is refused, exit 2")
+    check(refused(["k.json", "o.json", "--mis", "a"]) == 2, "K5u: an unknown flag is refused, exit 2")
+    check(refused(["k.json", "o.json"]) is None and refused(["k.json", "o.json", "--miss", "a"]) is None,
+          "K5-ctl: <kv> <out> and <kv> <out> --miss a are accepted")
+    with tempfile.TemporaryDirectory() as d:
+        p, o = os.path.join(d, "kv-days.json"), os.path.join(d, "out.json")
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump({**syn(), "window": ["2026-11-01T00:00:00Z", "2026-11-14T00:00:00Z"]}, fh)
+        r = subprocess.run([sys.executable, "-I", "-B", os.path.abspath(__file__), p, o], capture_output=True, text=True)
+        check(r.returncode == 3, f"K6: a refusal is the process's real exit status: a wrong window exits 3 (got {r.returncode})")
+    print("SELFTEST " + ("PASSED" if not fails else f"FAILED: {len(fails)}"))
+    return 0 if not fails else 1
+
+
 def main():
-    kv_rows, kv_reads = kv_events(sys.argv[1])   # the bands first: outside one, nothing is read or written
-    out_path = sys.argv[2]
+    if sys.argv[1:] == ["--selftest"]:
+        return selftest()
+    kv_path, out_path, miss = parse_args(sys.argv[1:])
+    kv_rows, kv_reads = kv_events(kv_path, miss)   # the bands first: outside one, nothing is read or written
     with tempfile.TemporaryDirectory() as d:
         r7 = read(d, "r-7d", *R7, "silent", "rest")
         rs = read(d, "r-silent", *SILENT, "silent", "opera")
@@ -214,7 +363,7 @@ def main():
         elif r["product"] == "cref" and r["allowance"] == "r2_class_a":
             day = r["value"] - cref_a
             if day < 0:
-                raise SystemExit(5, f"blipscope-wx Class A {r['value']:,} is below cref's X10 share {cref_a:,}: 9.9(b) does not hold")
+                stop(5, f"blipscope-wx Class A {r['value']:,} is below cref's X10 share {cref_a:,}: 9.9(b) does not hold")
             rows.append(steady(r, value=cref_a, basis="derived",
                                how=f"cref at X10's anchor, {CREF_A_PER_H} an hour x 720 (9.9 b); blipscope-wx's row was {r['value']:,}"))
             rows.append(steady(r, product="shsr", state="excluded", value=day, basis="derived",
@@ -254,7 +403,7 @@ def main():
     for prod, (src, st, less, how) in LEVERS.items():
         base = [r for r in rows if r["product"] == prod and r["state"] == src]
         if not any(r["allowance"] == "r2_class_a" for r in base):
-            raise SystemExit(5, f"lever {prod}: no Class A row in {src} to lower")
+            stop(5, f"lever {prod}: no Class A row in {src} to lower")
         for al in sorted({r["allowance"] for r in base}):
             v = sum(r["value"] for r in base if r["allowance"] == al)
             if al == "r2_class_a":
