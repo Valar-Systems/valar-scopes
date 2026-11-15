@@ -3113,6 +3113,50 @@ ZOOM-T, at least 3 s), and a populated list refreshes every 24 h.
 
 **ACCEPTED at `372bf9028345`** (the orchestrator, 2026-11-15), with T1-T4 at their defaults.
 
+#### RE-REGISTERED as (B) before any code (2026-11-15, ~17:38Z; ACCEPTED by the orchestrator, recorded 17:40:45Z)
+
+**The off reading, in this section's own text.** "`Record` ORs 64 ... and clears it" puts the tag inside
+`framebench::Record()`. On the sibling (`6f0cdd1381eb`), FB-REC pins that text: struct `Rec`, `S()`, `Mux()`, `Ten()`,
+`Record()` and `SelfTime()`, hashed to `425040a3999d`, which is `0d6308cb`'s. FB-REC's own rule is that a change
+re-registers the I-5 band from a proof window. So the code as registered turned FB-REC red by construction, and it
+would have cost a board window before S2b. The registration cited `Record`'s lines (`:379`, `:386`) and did not name
+FB-REC. It was found before any code was written.
+
+**(B), the accepted form.** The tag enters through the call site, as FT-DREW's bit 32 does, so `Record()` stays
+byte-identical:
+- `State` gains `bool mapRebuilt`. `State` is outside `S()`'s span, so FB-REC's hash does not move.
+- `OnRebuild` sets it AFTER its `scene < 0 || done` return. So a tag exists exactly when a rebuild record prints.
+- A new `TakeMapRebuilt()` returns 64 when the tag is set, and clears it.
+- In `RecordFrameUs`'s region, the one `framebench::Record(` call passes `stateFlags | mapTag`, with `mapTag` taken on
+  the line before it. The `stateFlags` line, which is FT-DREW's anchor, is untouched.
+- Outside `FRAME_BENCH_FT`, the record's part reads `measuring ? "measure" : "settle"`. FT's three parts are unchanged.
+
+**TAG-SET, restated with four clauses:**
+- `mapRebuilt = true` appears exactly once in `src/` and `include/`, inside `OnRebuild`, after its early return;
+- `TakeMapRebuilt`'s body reads the tag as 64 and clears it, and nothing else;
+- its result enters the one `framebench::Record(` call, taken on the line before it, in a region;
+- there is no other 64 flag write in the bench's files.
+
+Its plants, each reading exactly {TAG-SET}:
+- P-TAG-EVERY: the take returns 64 unconditionally;
+- P-TAG-NOCLEAR: the clear removed;
+- P-TAG-NOPASS (new, ACCEPTED): the call passes `stateFlags` alone.
+
+**PREDICTED, frozen before the code ran:**
+- `check_frame_bench.py` at the new sibling commit reads 26 rows (25 before), 0 failed, with FB-REC still
+  `425040a3999d`.
+- `--selftest` reads 39 plants (36 + 3), each red set as named, and "selftest PASSED".
+- `scripts/draw_pin.py` at the new commit reads UNCHANGED, exit 0. Every edit is in `FrameBench.h` or inside a FRAME
+  BENCH region, and neither is a pinned part.
+- **The escape hatch:** any other row red, any plant off, or draw_pin exit 1 or 2 means stop and report.
+- The device compile is not claimed until S2b's image build (Monday).
+- **Timing:** the code is written during the owner's 17:45-20:50Z quiet window and committed locally. The runs (Windows
+  Python counts as a run) come after the orchestrator relays the window's end, then the push, then a report before
+  S2b's image is built.
+- **FT-HR is unaffected:** its `ft2-hr` image (`054e60e67bd4`) is prebuilt and sha-guarded. An FT image rebuilt from
+  the new commit would carry 64 on a steady-window rebuild frame, which FT's own rule expects 0 of. The frozen FT
+  reader's STEADY masks name 4, 8, 16 and 32. It is never run on such an image.
+
 ### THE POST-v20 QUEUE: the ~200 ms full redraw (the owner's answer, 2026-11-15; queued, nothing before v20)
 
 - **The owner, verbatim:** "Sea: a. Queue the faster water fill for after v20, and with it, look at the ~200 ms full
