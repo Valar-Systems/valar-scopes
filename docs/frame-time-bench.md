@@ -2681,7 +2681,19 @@ never graded."
     - 5,000 µs would be separable only for M_zoom under 2.5 ms; 20,000 µs is separable for any M_zoom up to 10 ms.
     - The plant has its own ungraded scene, so a larger D moves nothing else, and 20 ms is far inside the 10 s task
       watchdog.
-    - A larger D also tests the timer's scale harder, since a rate error grows with D.
+    - **STRUCK (the orchestrator's catch, 2026-11-15): "a larger D also tests the timer's scale harder".** It was false
+      for the plant as first written. That plant waited on `in.clock`, the very timer the laps use, so the lap would
+      read 20,000 whatever that timer's true rate. Such a wait proves only that the plant fired, and that the split
+      puts it in the right lap (Load unmoved). `delayMicroseconds` would not fix it, being esp_timer on this core too.
+  - **OPTION (a), taken and registered before the scene table:** the plant's wait spins on the CPU cycle counter
+    (`ESP.getCycleCount()`, converted at `getCpuFrequencyMhz()`). This clock is independent of esp_timer (`micros`), and
+    it reaches the pure header as `Inputs::spin`, the way `in.clock` does. So the swap + names lap reading D within its
+    band now also tests the lap timer's conversion. Every rebuild record carries the CPU MHz.
+    - **Its limit, named:** the cycle counter and esp_timer both derive from the one 40 MHz crystal. A crystal-frequency
+      error scales both equally and is not seen. What the plant does test: esp_timer's divider and conversion path,
+      the laps' arithmetic, and any µs-unit bug.
+    - FT-PLANT holds the wiring: the hook counts cycles and never `micros()`. Its plant, the hook rewired to `micros()`,
+      reads exactly {FT-PLANT}.
   - Every rebuild record carries a plant bit: set on every planted rebuild, clear on all others.
   - **Predicted:** the graded delta = D ± M_zoom; the total's delta = D ± M_total; the Load lap's delta within ± M_load
     (the plant sits outside Load).
