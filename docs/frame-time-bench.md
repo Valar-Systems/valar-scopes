@@ -2646,6 +2646,56 @@ FT and S2b are re-read on the merged tree before their numbers are used for v20.
 | Q-FT-E | where Load and swap + names are timed | bench-only µs laps on `in.clock` inside `Rebuild`'s FRAME BENCH regions |
 | Q-FT-F | MAP_BENCH without `WX_LOOK_AB` | to be shown compiling before the FT envs are pinned; if it cannot, back to the orchestrator |
 
+### THE REBUILD ROW, as agreed with map-server (#682 §5k, `22728e98ddde`; the orchestrator's rulings, 2026-11-15)
+
+**The graded figure, one sentence, word for word in both registrations:** "The graded figure is a forced rebuild's
+microsecond total, measured around the one Frame() call that rebuilds, minus its mapplaces::Load lap: Build's passes,
+the byte swap and the names, plus Compose when that frame shows the weather (FT-HR); Load and the total are reported,
+never graded."
+- **Compose, read from the code:** `Rebuild` ends with `m.layerFresh = true` (`MapCompose.h:309`). In the same
+  `Frame()` call, with `wx != nullptr` and `layerFresh` set, it runs `Compose(m.layer, wx, m.composite)` (`:337`).
+  With the weather off (FT-SEA), `Frame` returns `m.layer`, and Compose never runs.
+  - Compose also runs on a steady frame whenever the weather layer changes (`wxGen`), with no map rebuild. That is
+    steady-window noise, named here, and not part of the rebuild row.
+- **Four bench-only µs laps on `in.clock`,** in FRAME BENCH regions: Load; Build (= `usTotal`, with its passes
+  printed); swap + names; and Compose.
+  - **The total** is a µs timer around the rebuilding `Frame()` call. The residue (the total minus the laps) is printed,
+    and must not be negative.
+  - The millis `rebuilt in N ms` line is printed beside them, as the outer bound.
+- **N = 20 forced rebuilds per scene,** 2 s apart, after the scene's 120 s steady window. Each is forced by re-accepting
+  the same package (`++mapPkgSeq`). Fewer than 10 is INSTRUMENT.
+  - The statistic per scene is the median of its N, with the p95 and N printed beside.
+  - The U_part order-statistic ranks at N = 20 are 5 and 16.
+- **The margins:** `M_part = max(2 × |median_A − median_B|, 2 × U_part)` from KORD's A/A (the same bytes,
+  `cb59bb06a506`, twice). There is one margin each for the graded figure, Load and the total. They are frozen before any
+  graded reading.
+- **The window's order:**
+  1. KORD A/A pair 1, its margins printed and hashed;
+  2. the timer plant;
+  3. the graded pairs;
+  4. KORD A/A pair 2, LAST, graded against pair 1's frozen margins. Over a margin is INSTRUMENT, and nothing is graded.
+- **The timer plant (the timer must see a known change first):** `delayMicroseconds(5000)`, D = 5,000 µs, inside the
+  swap + names lap. That is after Load and inside the graded figure, on KORD-A0, in its own scene.
+  - Every rebuild record carries a plant bit: set on every planted rebuild, clear on all others.
+  - **Predicted:** the graded delta = D ± M_zoom; the total's delta = D ± M_total; the Load lap's delta within ± M_load
+    (the plant sits outside Load).
+  - **Separable only if D > 2 × M_zoom,** checked once pair 1 freezes the margins. Otherwise INSTRUMENT.
+  - A delta near 0, Load moving, or the bit disagreeing with the plan: INSTRUMENT, and nothing graded.
+- **The steady window:** each scene prints its rebuild count, expected 0. The named exception is an airports-fetch
+  arrival that bumps `airportsGen`, recorded with its fetch line. A rebuild with no fetch line is outside the set.
+- **The view print:** each scene prints home (at 2 dp, exact by FT-CTR), rLat, rLon and askedMm, so map-server's host
+  counts can tell a view mismatch from a draw failure.
+
+**THE HOME TABLE, pinned on the sibling at `08e68191f7b7`:**
+- `test/fixtures/frame-bench/ft_sea.pins` (6) and `ft_hr.pins` (11: the run-10 A0 column and option 2-L at 19.4).
+- Each full sha256 was read from the staged files' bytes, and its 12-character prefix matched against map-server's docs.
+- There are 14 distinct packages (KJFK-A0, KBOS-A0 and KORD-A0 are FT-SEA's sea bytes). With the rungs 10, 25 and 50 mi,
+  they make the 42 cells of map-server's host counts.
+- **Read:** FT-PKG and FT-CTR, 17 pins, 0 off. Every centre is at exactly 2 dp, MIDTOWN's included.
+- **The conversion,** given to map-server for its host port: `src/AircraftManager.cpp:953-954` at the pin,
+  `lat = pk.lat0Micro / 1e6; lon = pk.lon0Micro / 1e6;`, in double precision, in MAP_BENCH's Initialise region. FT reuses
+  it unchanged. radLat and radLon are at `:1031-1032`.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
