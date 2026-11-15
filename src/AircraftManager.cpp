@@ -3977,6 +3977,18 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
     in.airports = &AircraftManager::MapAirportBoxes;
     in.ctx = this;
     in.askedMm = mapReq.rvMm;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    // FT's timer plant spins on the CPU cycle counter, a clock independent of esp_timer (micros, which times the laps),
+    // so a lap reading D tests the timer's conversion too. Both derive from the one crystal: a crystal error scales
+    // both and is not seen (named in docs/frame-time-bench.md). The MHz goes into every rebuild record.
+    in.spin = [](uint32_t us) {
+        const uint32_t cycles = us * (uint32_t)getCpuFrequencyMhz();
+        const uint32_t c0 = ESP.getCycleCount();
+        while ((uint32_t)(ESP.getCycleCount() - c0) < cycles) {}
+    };
+#endif
+    // THE FRAME BENCH END
     // THE MAP BENCH BEGIN
 #ifdef MAP_BENCH
     in.clock = []() -> uint32_t { return (uint32_t)micros(); };   // CF5: Build times its passes
@@ -4043,6 +4055,7 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
         rr.secondaryDrawn = bi.secondaryDrawn;
         rr.level = bi.level;
         rr.placed = mapDraw.nPlaced;
+        rr.cpuMhz = getCpuFrequencyMhz();
         framebench::OnRebuild(rr);
 #endif
         // THE FRAME BENCH END

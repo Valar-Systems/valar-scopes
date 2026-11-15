@@ -37,8 +37,10 @@ that must read exactly that row red (--selftest).
         each, inside FRAME BENCH regions, in Rebuild's order (Load, its lap, Build, its lap, the names, their lap) and
         Compose's lap right after Compose; AircraftManager.cpp takes the µs total around the one Frame() call and hands
         the record over inside the rebuild branch
-  FT-PLANT the timer plant: D = 20,000 µs defined once; its busy wait once, gated by the plant flag, between the names
-        and their lap (inside the graded figure, after Load); the flag taken and cleared at Rebuild's start
+  FT-PLANT the timer plant: D = 20,000 µs defined once; its wait once, gated by the plant flag, between the names and
+        their lap (inside the graded figure, after Load), spun by Inputs::spin, which the bench wires to the CPU cycle
+        counter (never micros, the timer the laps use: a wait on the timer it checks proves only that it fired); the
+        flag taken and cleared at Rebuild's start
   FT-DREW Addition 2 per frame: step C's mapFrameDrawn enters Record's stateFlags as bit value 32, in a region
     python -I check_frame_bench.py <tree>             exit 0 every row ok; 1 a row off
     python -I check_frame_bench.py --selftest <tree>  the clean tree green; each plant reads exactly its row red"""
@@ -245,18 +247,28 @@ def ft_laps(f):
 
 
 def ft_plant(f):
-    """FT-PLANT: D = 20,000 µs once; the busy wait once, gated by the plant flag, inside the swap + names lap."""
+    """FT-PLANT: D = 20,000 µs once; the wait once, gated by the plant flag, between the names and their lap, spun by
+    Inputs::spin; the bench's spin counts CPU cycles (ESP.getCycleCount at getCpuFrequencyMhz), never micros(), so the
+    plant tests the lap timer's conversion and not only that it fired (the orchestrator's catch, option (a))."""
     m, mr = f[MCH], regions(f[MCH])
+    a, ar = f[AMC], regions(f[AMC])
     d = [(i, re.search(r"constexpr uint32_t kBenchPlantUs = (\d+);", l)) for i, l in enumerate(m)]
     d = [(i, x.group(1)) for i, x in d if x]
-    waits = lines_with(m, "while ((uint32_t)(in.clock() - p0) < kBenchPlantUs)")
+    waits = lines_with(m, "in.spin(kBenchPlantUs);")
+    field = lines_with(m, "void (*spin)(uint32_t us) = nullptr;")
     names, lap = lines_with(m, "    DrawNames(m, pk, k, in.airports, in.ctx);"), lines_with(m, "m.lap.names = t - lapT;")
     take, clear = lines_with(m, "const bool plant = m.benchPlant;"), lines_with(m, "m.benchPlant = false;")
-    ok = len(d) == 1 and d[0][1] == "20000" and inside(mr, d[0][0]) and len(waits) == 1 and inside(mr, waits[0]) and \
-        m[waits[0]].strip().startswith("if (plant) {") and len(names) == len(lap) == 1 and \
-        names[0] < waits[0] < lap[0] and len(take) == len(clear) == 1 and inside(mr, take[0]) and take[0] < clear[0]
-    return (ok, f"D defined {len(d)} time(s) = {d[0][1] if d else '-'} µs (want 20000); the gated wait {len(waits)}, "
-                f"between the names and their lap {bool(waits) and bool(names) and bool(lap) and names[0] < waits[0] < lap[0]}")
+    hook = lines_with(a, "in.spin = [](uint32_t us) {")
+    body = a[hook[0] + 1:hook[0] + 5] if len(hook) == 1 else []
+    cycles = any("ESP.getCycleCount()" in l for l in body) and any("getCpuFrequencyMhz()" in l for l in body) and \
+        not any("micros(" in l or "millis(" in l for l in body)
+    place = len(waits) == 1 and len(names) == len(lap) == 1 and names[0] < waits[0] < lap[0]
+    ok = len(d) == 1 and d[0][1] == "20000" and inside(mr, d[0][0]) and place and inside(mr, waits[0]) and \
+        m[waits[0]].strip().startswith("if (plant && in.spin)") and len(field) == 1 and inside(mr, field[0]) and \
+        len(take) == len(clear) == 1 and inside(mr, take[0]) and take[0] < clear[0] and len(hook) == 1 and \
+        inside(ar, hook[0]) and cycles
+    return (ok, f"D defined {len(d)} time(s) = {d[0][1] if d else '-'} µs (want 20000); the gated spin {len(waits)}, "
+                f"between the names and their lap {place}; the hook counts CPU cycles, not micros {cycles}")
 
 
 def ft_drew(f):
@@ -417,8 +429,11 @@ def selftest(tree):
         f[MCH] = t.split("\n")
     rc |= plant("FT-LAPS, the Load and Build laps swapped", swap_laps, {"FT-LAPS"})
     rc |= plant("FT-PLANT, D at 5,000", sub(MCH, "kBenchPlantUs = 20000;", "kBenchPlantUs = 5000;"), {"FT-PLANT"})
-    rc |= plant("FT-PLANT, the plant's gate removed", sub(MCH, "if (plant) { const uint32_t p0", "{ const uint32_t p0"),
-                {"FT-PLANT"})
+    rc |= plant("FT-PLANT, the plant's gate removed", sub(MCH, "if (plant && in.spin) in.spin(kBenchPlantUs);",
+                                                          "if (in.spin) in.spin(kBenchPlantUs);"), {"FT-PLANT"})
+    rc |= plant("FT-PLANT, the spin on micros() (the timer it checks)",
+                sub(AMC, "const uint32_t c0 = ESP.getCycleCount();\n        while ((uint32_t)(ESP.getCycleCount() - c0) < cycles) {}",
+                    "const uint32_t c0 = micros();\n        while ((uint32_t)(micros() - c0) < us) {}"), {"FT-PLANT"})
     rc |= plant("FT-DREW, the bit dropped from stateFlags", sub(AMC, "(nightNow ? 16 : 0) | mapDrew);",
                                                                 "(nightNow ? 16 : 0));"), {"FT-DREW"})
     rc |= plant("FB-REC, a changed line in its callee Ten()",

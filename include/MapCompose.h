@@ -66,6 +66,13 @@ struct Inputs {
     void* ctx = nullptr;
     uint32_t askedMm = 0;               // reaches only BuildInfo (F4), so it is not in the key
     maplayer::ClockUs clock = nullptr;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    // The timer plant's wait, on a clock INDEPENDENT of `clock` (the CPU cycle counter, wired by the bench), so the lap
+    // reading D tests the timer's conversion and not only that the plant fired. Null: no plant can run.
+    void (*spin)(uint32_t us) = nullptr;
+#endif
+    // THE FRAME BENCH END
 };
 
 struct Map {
@@ -348,9 +355,9 @@ inline bool Rebuild(Map& m, const bmpk::Package& pk, const Key& k, const Inputs&
     // THE FRAME BENCH BEGIN
 #ifdef FRAME_BENCH
     if (in.clock) {
-        // The timer plant: a known delay inside the swap + names lap (after Load, inside the graded figure), a busy wait
-        // on the same clock, as delayMicroseconds is; this header is pure and has no Arduino.
-        if (plant) { const uint32_t p0 = in.clock(); while ((uint32_t)(in.clock() - p0) < kBenchPlantUs) {} }
+        // The timer plant: a known delay inside the swap + names lap (after Load, inside the graded figure), spun on the
+        // bench's independent clock (Inputs::spin), never on `clock`, the timer it checks.
+        if (plant && in.spin) in.spin(kBenchPlantUs);
         const uint32_t t = in.clock(); m.lap.names = t - lapT;   // lap 3: the swap + names (+ the plant)
     }
 #endif

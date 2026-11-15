@@ -140,6 +140,7 @@ struct RebuildRec {
     int rings = 0, rivers = 0, primary = 0, secondary = 0, primaryInView = 0, secondaryInView = 0, level = -1;
     bool secondaryDrawn = false;
     int placed = 0;
+    uint32_t cpuMhz = 0;   // the plant's cycle-to-µs conversion (getCpuFrequencyMhz), per rebuild: a change is seen
 };
 inline State& S()
 {
@@ -360,13 +361,14 @@ inline void OnRebuild(const RebuildRec& r)
     const long residue = (long)r.totalUs - (long)(r.load + r.build + r.names + r.compose);
     Serial.printf("[frame-bench] rebuild S%d %s i=%u plant=%d total=%lu load=%lu loaded=%d build=%lu names=%lu "
                   "compose=%lu composed=%d residue=%ld ms=%lu ready=%d bi=%lu/%lu/%lu/%lu/%lu/%lu "
-                  "counts=%d/%d/%d/%d/%d/%d/%d/%d placed=%d\n",
+                  "counts=%d/%d/%d/%d/%d/%d/%d/%d placed=%d mhz=%lu\n",
                   s.scene, kPart[part], idx, r.plant ? 1 : 0, (unsigned long)r.totalUs, (unsigned long)r.load,
                   r.loaded ? 1 : 0, (unsigned long)r.build, (unsigned long)r.names, (unsigned long)r.compose,
                   r.composed ? 1 : 0, residue, (unsigned long)r.ms, r.ready ? 1 : 0, (unsigned long)r.usS1,
                   (unsigned long)r.usWater, (unsigned long)r.usRivers, (unsigned long)r.usRoads,
                   (unsigned long)r.usColour, (unsigned long)r.usTotal, r.rings, r.rivers, r.primary, r.secondary,
-                  r.primaryInView, r.secondaryInView, r.secondaryDrawn ? 1 : 0, r.level, r.placed);
+                  r.primaryInView, r.secondaryInView, r.secondaryDrawn ? 1 : 0, r.level, r.placed,
+                  (unsigned long)r.cpuMhz);
 }
 
 inline void PrepareScene(int)
