@@ -428,6 +428,15 @@ as misses. The real v20 number comes from the v20 bench."
   other miss, the I-5 record cost, is map-client's. Corrected limits apply to future runs only, and p4 re-signs any
   that touch its text.
 
+**2e, CORRECTED (2026-11-15, after 06:04Z; the orchestrator's two wording corrections; the text above stays as
+written):**
+1. **"2d is now FIXED, not provisional" overstates the owner.** His words are that v20 "stays on the "too small" plan
+   (Dec 3-10 or later)" and that "the real v20 number comes from the v20 bench". So the plan is **CONFIRMED on C1's
+   evidence, and still open to the v20 bench's reading.** The R3 line keeps its "or later": v20 promoted about
+   Dec 3-10, or later.
+2. **The miss, read exactly:** push − sync read **23.72 ms** (`push_avg` 24.18, `sync_avg` 0.46), against p4's 25.8 ±
+   1.0. "About 24.2" above was `push_avg`, not push − sync.
+
 ## 3. The methods, and what each is expected to gain
 
 **M1. Static layers drawn once and reused** (the owner's first method; the Weatherscope's).

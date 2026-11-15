@@ -256,6 +256,10 @@ map-client's windows on `bench/frame-bench-c1`; their records are in docs/frame-
   either by (P), the push task's preemption, or by (M), PSRAM contention. docs/frame-profile.md (f2) is the read that
   separates the two. It is also the plain reason the cut is about 9.5 and not 25.8.
 
+**M3-3's record, CORRECTED (2026-11-15, after 06:04Z):** p4's miss read push − sync = **23.72 ms** (`push_avg`
+24.18, `sync_avg` 0.46), against 25.8 ± 1.0. "About 24.2" above was `push_avg`. The owner's ruling CONFIRMS the "too
+small" plan on C1's evidence and leaves it open to the v20 bench's reading. It does not fix it.
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
