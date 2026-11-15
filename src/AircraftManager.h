@@ -59,6 +59,7 @@
 // THE MAP DRAW BEGIN
 #ifdef BLIPSCOPE_MAP_FETCH
 #include "MapCompose.h" // the composer, its stale test and its all-or-none PSRAM buffers (pure; CB1-CB5, CB9, CB11)
+#include "MapAirportsKey.h" // the airports list's content hash: airportsGen moves only on a change (pure; CD6b, AP-*)
 #endif
 // THE MAP DRAW END
 #include "OverlapCount.h" // what collides with what on the radar (pure)
@@ -729,6 +730,9 @@ private:
     mapcompose::Map mapDraw;
     uint32_t mapPkgSeq = 0;        // changed at every accepted package and at every config change
     uint32_t mapAirportsGen = 0;   // changed at every write of the airport list or its filters (CD6)
+    // The hash of the list the map last drew from; its boot value is the header's default, kEmptyHash, the empty list
+    // the device boots with (AP-BOOT). Declared without an initializer on purpose (CD6b).
+    mapairports::Held mapAirportsHeld;
     uint32_t mapWxGen = 0;         // changed at every weather-layer rebuild (CB5)
     // Step C's gate: DrawMapBase copied the composite THIS frame (cleared at every frame's clear, set only after the
     // copy), and whether that composite carried this frame's weather layer (then, and only then, wxPixels is read).

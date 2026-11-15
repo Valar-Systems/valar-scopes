@@ -11,7 +11,7 @@ The wiring's (registered 2026-11-12, "The wiring: registered before its code"):
   S-CD-PRINTNAME  a town's label printed in DrawMapBase's draw region: {CD2}
   S-CD-VIEW       DrawMapBase's view.rLat filled from radLat, not viewRadLat: {CD3}
   S-CD-NOSPIRAM   MapAlloc's MALLOC_CAP_SPIRAM dropped: {CD5}
-  S-CD-NOGEN      the ++mapAirportsGen after `cloudAirports = std::move(...)` removed: {CD6}
+  S-CD-NOGEN      the arrival's ++mapAirportsGen removed (its Changed call kept): {CD6}
   S-CD-CULL       MapAirportBoxes' strip threshold 0.55f becomes 0.5f: {CD7}
 The map bench's (registered 2026-11-12, "The mapbench env"):
   S-CB-BENCHLEAK  a `#ifdef MAP_BENCH` block planted outside every bench region in AircraftManager.cpp: {CB-B1}
@@ -22,6 +22,11 @@ Step C's (registered 2026-11-12, "Step C: the wedge's green added to the map"), 
   S-CD8-EARLY     mapFrameDrawn set true in DrawMapBase's draw region before the copy, a second set: {CD8} (c)
   S-CD8-NOCLEAR   DrawWeatherUnder's clear of mapFrameDrawn deleted: {CD8} (d)
   S-CD8-STALE     the code source reads wxPixels without withWx (a stale crop's codes under the map): {CD8} (e)
+Step C's scope addition (registered 2026-11-15, "airportsGen moves only when the airports CONTENT changes"), one per
+CD6b clause:
+  S-CD-NOHASH     the clear's reset of mapAirportsHeld deleted: {CD6b}
+  S-CD-UNCOND     the arrival's bump made unconditional again (the Changed call kept): {CD6b}
+  S-CD-BOOTINIT   mapAirportsHeld declared with an initializer, {0}: {CD6b}
   Each is graded AS PREDICTED only when the red set PARSED from the check's output equals its frozen set, so a FAIL
   regex that could not read a "CB-B" row would turn these plants off-prediction, never silently green.
 
@@ -60,7 +65,9 @@ REFUSAL = ("#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined
 STEPC_AT = '#include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task\n'
 
 PLACES = os.path.join("include", "MapPlaces.h")
-SOURCE_CHECKS = 12   # CD4, CB8, CB8b, CD1-CD3, CD5-CD7, CB-B1, CB-B2, CD8: the one place the count lives (run, --control)
+SOURCE_CHECKS = 13   # CD4, CB8, CB8b, CD1-CD3, CD5, CD6, CD6b, CD7, CB-B1, CB-B2, CD8: the one place the count lives
+ARRIVAL_BUMP_AT = ("                if (mapairports::Changed(mapAirportsHeld, apHash)) ++mapAirportsGen;   // CD6, CD6b: only "
+                   "on a change\n")
 MAPBASE_AT = "    k.airportsGen = mapAirportsGen;\n"   # a line in DrawMapBase's draw region
 BENCH_TICK_AT = "    MapBenchTick();   // after every [health] line of this interval: the next phase starts on a clean tick\n"
 
@@ -83,8 +90,8 @@ SABOTAGES = {
     "S-CD-VIEW": (AMCPP, [("    k.view.rLat = viewRadLat;\n", "    k.view.rLat = radLat;\n")], {"CD3"}),
     "S-CD-NOSPIRAM": (AMCPP, [("    return heap_caps_aligned_alloc(8, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);",
                                "    return heap_caps_aligned_alloc(8, bytes, MALLOC_CAP_8BIT);")], {"CD5"}),
-    "S-CD-NOGEN": (AMCPP, [("            ++mapAirportsGen;   // a new long tail: the names' obstacles change (CD6)\n", "")],
-                   {"CD6"}),
+    "S-CD-NOGEN": (AMCPP, [(ARRIVAL_BUMP_AT, "                (void)mapairports::Changed(mapAirportsHeld, apHash);   // the "
+                                             "plant: no bump\n")], {"CD6"}),
     "S-CD-CULL": (AMCPP, [("        const bool wide = viewRadLat > 0.55f;   // CD7: DrawAirports' strip threshold\n",
                            "        const bool wide = viewRadLat > 0.5f;   // CD7: DrawAirports' strip threshold\n")], {"CD7"}),
     # The map bench's two (CB-B1, CB-B2).
@@ -102,6 +109,14 @@ SABOTAGES = {
                               "DrawMapBase copies it\n", "")], {"CD8"}),
     "S-CD8-STALE": (AMCPP, [("{ return withWx ? wxPixels[(size_t)y * SCREEN_SIZE + x] : 0; });",
                             "{ return wxPixels[(size_t)y * SCREEN_SIZE + x]; });")], {"CD8"}),
+    # Step C's scope addition (airportsGen moves only on a content change), one per CD6b clause.
+    "S-CD-NOHASH": (AMCPP, [("        mapAirportsHeld.h = mapairports::kEmptyHash;   // CD6b: the list is empty again, so an "
+                             "empty arrival is no change\n", "")], {"CD6b"}),
+    "S-CD-UNCOND": (AMCPP, [(ARRIVAL_BUMP_AT, "                (void)mapairports::Changed(mapAirportsHeld, apHash);\n"
+                                              "                ++mapAirportsGen;   // the plant: unconditional again\n")],
+                    {"CD6b"}),
+    "S-CD-BOOTINIT": (AMH, [("    mapairports::Held mapAirportsHeld;\n", "    mapairports::Held mapAirportsHeld{0};\n")],
+                      {"CD6b"}),
 }
 
 # The instrument's two directions (registered with L1's fix): none is a {CD4}-set plant. Each runs in its own copy and is
@@ -154,7 +169,7 @@ def run_check(tree):
     m = sc.COUNT.search(c.stdout)
     if c.returncode not in (0, 1) or not m or int(m.group(1)) != SOURCE_CHECKS:
         return None, f"the check did not run as {SOURCE_CHECKS} row(s) (exit {c.returncode})\n" + c.stdout + c.stderr
-    return {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CD\d+|CB-B\d+|CB\d+b?)\b", c.stdout, re.M)}, None
+    return {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CD\d+b?|CB-B\d+|CB\d+b?)\b", c.stdout, re.M)}, None
 
 
 def control_tree(td, tag, spec):

@@ -2394,6 +2394,29 @@ exit "$rc"
 )
 note_block $? "MapCompose"
 
+# Step C's scope addition (docs/blipscope-map-client-steps.md, "Step C's scope addition: airportsGen moves only when the
+# airports CONTENT changes", and its amendment): include/MapAirportsKey.h held to its 13 rows -- an identical refetch,
+# empty or listed, is no change; the empty list's hash is kEmptyHash and the boot value; each field the names' obstacles
+# read, the order and the length each make a change; a refetch after the clear is one. Its sabotages: python -I
+# test/host/sabotage_map_airports.py (run by the driver blocks above).
+echo
+echo "== MapAirportsKey =="
+(
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_map_airports.cpp" -o "$OUT/test_map_airports.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the airports key test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_map_airports.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the airports key test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "MapAirportsKey"
+
 # Step C, the sweep over the map (docs/blipscope-map-client-steps.md, "Step C: the wedge's green added to the map"; S7):
 # include/MapSweep.h held to its 9 rows -- over black the add is today's wedge for every level (CS1, CS3), red and blue
 # are kept and green capped (CS2), the weather's drawn codes are untouched (CS4-A/-B), each pixel is added to once and the

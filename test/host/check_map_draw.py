@@ -32,6 +32,13 @@ step C's CD8 (registered 2026-11-12, "Step C: the wedge's green added to the map
   CD6  Every write of cloudAirports, airportsMin or displayAirports in AircraftManager.cpp is followed within 10 lines by
        `++mapAirportsGen;`. Line-based (the .cpp never goes through the stripper); a reference declaration
        (`const T& name = ...`) and another object's member are not writes. Finding no write at all is the rig.
+  CD6b Step C's scope addition (airportsGen moves only when the airports CONTENT changes), in three clauses: every write
+       of cloudAirports in AircraftManager.cpp is followed within 10 lines by a write of the held hash
+       (`mapairports::Changed(mapAirportsHeld,` or `mapAirportsHeld.h =`); after the arrival's ASSIGNMENT, every line
+       within those 10 holding `++mapAirportsGen;` also holds `mapairports::Changed(mapAirportsHeld,` (the clear's bump
+       stays unconditional, a config save); and src/AircraftManager.h declares `mapairports::Held mapAirportsHeld;`
+       with no initializer, so its boot value is the header's default (AP-BOOT). Line-based, like CD6. Finding no
+       cloudAirports write is the rig.
   CD7  MapAirportBoxes holds DrawAirports' list, filter and cull lines (those naming fabsf(, airportsMin, cloudAirports,
        AIRPORT_COUNT, AIRPORTS[ or wide), comment-stripped and whitespace-normalised, in the same order: the second
        path's guard (Q-MW2). Fewer than 6 such lines in DrawAirports is the rig.
@@ -62,7 +69,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from check_map_fetch import strip   # one comment stripper for the map's source checks, never a second copy
 
 REGION_COUNTS = {"src/AircraftManager.h": 4, "src/AircraftManager.cpp": 14}
-MAP_FILES = ["include/MapCompose.h", "include/MapPlaces.h", "include/AirportBoxes.h", "include/MapSweep.h"]
+MAP_FILES = ["include/MapCompose.h", "include/MapPlaces.h", "include/AirportBoxes.h", "include/MapSweep.h",
+             "include/MapAirportsKey.h"]
 NVS = [(re.compile(r"\bPreferences\b"), "Preferences"), (re.compile(r"\.put[A-Z]\w*\s*\("), "a .put*( call"),
        (re.compile(r"\bSPIFFS\b"), "SPIFFS"), (re.compile(r"\bLittleFS\b"), "LittleFS")]
 HEADER_PRINTS = [re.compile(r"\bSerial\b"), re.compile(r"(?<![sn])printf\s*\("), re.compile(r"\bputs\s*\("),
@@ -365,6 +373,43 @@ def cd6(root):
     return why, len(sites)
 
 
+CD6B_HASH = ("mapairports::Changed(mapAirportsHeld,", "mapAirportsHeld.h =")
+CD6B_COND = "mapairports::Changed(mapAirportsHeld,"
+CD6B_DECL = "mapairports::Held mapAirportsHeld;"
+
+
+def cd6b(root):
+    lines = read(root, "src/AircraftManager.cpp").split("\n")
+    code = [ln.split("//", 1)[0] for ln in lines]   # line-based, as CD6
+    sites, why = [], []
+    for i, c in enumerate(code):
+        for m in WRITE.finditer(c):
+            if not m.group(0).startswith("cloudAirports"):
+                continue   # the filters' writes are CD6's alone: config saves, unconditional
+            before = c[:m.start()]
+            if re.search(r"&\s*$", before) or re.search(r"(\.|->)\s*$", before):
+                continue
+            sites.append((i, "=" in m.group(0) and "." not in m.group(0)))
+    if not sites:
+        raise Rig("src/AircraftManager.cpp: no write of cloudAirports found")
+    for i, assignment in sites:
+        after = code[i + 1:i + 11]
+        if not any(any(t in c for t in CD6B_HASH) for c in after):
+            why.append(f"src/AircraftManager.cpp:{i + 1} writes the airport list without updating mapAirportsHeld after it")
+        if assignment:
+            for j, c in enumerate(after):
+                if BUMP in c and CD6B_COND not in c:
+                    why.append(f"src/AircraftManager.cpp:{i + j + 2} bumps the airports generation after the arrival "
+                               f"without asking {CD6B_COND}")
+    hdr = [ln.split("//", 1)[0].strip() for ln in read(root, "src/AircraftManager.h").split("\n")]
+    if hdr.count(CD6B_DECL) != 1:
+        why.append(f"src/AircraftManager.h: `{CD6B_DECL}` declared {hdr.count(CD6B_DECL)} time(s), not once")
+    if any(re.match(r"mapairports::Held\s+mapAirportsHeld\s*[{=(]", ln) for ln in hdr):
+        why.append("src/AircraftManager.h: mapAirportsHeld declared with an initializer (its boot value must be the "
+                   "header's default, AP-BOOT)")
+    return why, len(sites)
+
+
 def cull_lines(code):
     return [norm(ln) for ln in strip(code).split("\n") if norm(ln) and any(k in ln for k in CULL_KEYS)]
 
@@ -504,7 +549,7 @@ def main():
     try:
         rows = [("CD4",) + cd4(root), ("CB8", cb8(root), None), ("CB8b", cb8b(root), None), ("CD1",) + cd1(root),
                 ("CD2", cd2(root), None), ("CD3", cd3(root), None), ("CD5", cd5(root), None), ("CD6",) + cd6(root),
-                ("CD7",) + cd7(root), ("CB-B1",) + cbb1(root), ("CB-B2", cbb2(root), None), ("CD8", cd8(root), None)]
+                ("CD6b",) + cd6b(root), ("CD7",) + cd7(root), ("CB-B1",) + cbb1(root), ("CB-B2", cbb2(root), None), ("CD8", cd8(root), None)]
     except Exception as e:   # ANY exception, the stripper's own Rig and a decode error included: the rig, never a red
         print(f"RIG: {type(e).__name__}: {e}")
         return 2
@@ -532,6 +577,9 @@ def main():
             print(f"  ok   {name}: the allocator given to mapcompose::Init asks for MALLOC_CAP_SPIRAM")
         elif name == "CD6":
             print(f"  ok   {name}: {regions_seen} write site(s), each followed by {BUMP}")
+        elif name == "CD6b":
+            print(f"  ok   {name}: {regions_seen} write site(s), each followed by the held hash; the arrival's bump only "
+                  f"on a change; mapAirportsHeld declared without an initializer")
         elif name == "CD7":
             print(f"  ok   {name}: MapAirportBoxes holds DrawAirports' {regions_seen} list, filter and cull lines, in order")
         elif name == "CB-B1":

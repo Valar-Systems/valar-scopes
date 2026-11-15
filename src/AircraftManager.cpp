@@ -1485,6 +1485,7 @@ void AircraftManager::Initialise()
         cloudAirports.clear();
         // THE MAP DRAW BEGIN
 #ifdef BLIPSCOPE_MAP_FETCH
+        mapAirportsHeld.h = mapairports::kEmptyHash;   // CD6b: the list is empty again, so an empty arrival is no change
         ++mapAirportsGen;   // the long tail dropped: the names' obstacles change (CD6)
 #endif
         // THE MAP DRAW END
@@ -4094,7 +4095,16 @@ void AircraftManager::ConsumeFetchResult()
             cloudAirports = std::move(res->airports);
             // THE MAP DRAW BEGIN
 #ifdef BLIPSCOPE_MAP_FETCH
-            ++mapAirportsGen;   // a new long tail: the names' obstacles change (CD6)
+            {
+                // Step C's scope addition: a refetch whose content is identical changes nothing on screen, so it moves
+                // no generation and causes no redraw (an empty list re-fetches every 5 min, APT_EMPTY_RETRY_MS).
+                const uint32_t apHash = mapairports::ContentHash(cloudAirports.data(), cloudAirports.size());
+                const uint32_t genBefore = mapAirportsGen;
+                if (mapairports::Changed(mapAirportsHeld, apHash)) ++mapAirportsGen;   // CD6, CD6b: only on a change
+                Serial.printf("[map] airports: rows=%u (%s), %s\n", (unsigned)cloudAirports.size(),
+                              cloudAirports.empty() ? "empty" : "listed",
+                              mapAirportsGen != genBefore ? "changed: rebuild" : "unchanged: no rebuild");
+            }
 #endif
             // THE MAP DRAW END
             cloudAirportsRetryMs = 0; // back to the default rule

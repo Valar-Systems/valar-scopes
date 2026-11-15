@@ -5234,6 +5234,35 @@ In `sabotage_map_draw.py`:
 before the push, with the first line of `g++ --version` recorded. CI stays the authority. The escape hatch above is
 unchanged.
 
+**AMENDMENT ACCEPTED at `8cee5c169fca`. AS RUN (2026-11-15, 15:51-15:56Z): every step as predicted, with no off
+reading.**
+- **The compiler:** WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`, with `run.sh`'s flags. The steps ran
+  through `b1/ap_steps.py` (`a8522d5179f4`), one call per step, each read before the next.
+- **Step 1, the stub:** exactly {AP-EMPTY, AP-SAME} red, 11 ok; `13 checks, 2 failures` (`290409daea6f`).
+- **Step 2, the real hash:** `13 checks, 0 failures` (`a7f96c95850f`).
+- **Step 3, the 7 plants:** each read exactly its own row: S-AP-NOLAT, NOLON, NOCODE, NOKIND, NOORDER, EMPTYEQ and BOOT,
+  1 red each, the real file unchanged; `MAP AIRPORTS SABOTAGES (7) AS PREDICTED` (`08f2947719e2`).
+- **Step 4, the wiring:**
+  - `check_map_draw.py`: `13 checks, 0 failures`, with CD4 18 regions, CD1 "the map's 5 files", CD6 5 write sites and
+    CD6b 2 (`59844b06594c`).
+  - `sabotage_map_draw.py`: 21 plants and 3 controls AS PREDICTED, including S-CD-NOGEN (re-pointed), S-CD-NOHASH,
+    S-CD-UNCOND and S-CD-BOOTINIT (`cf645bf44bde`).
+  - The two other drivers that plant in AircraftManager: `sabotage_map_fetch.py` 23 AS PREDICTED (`50ca6447474c`) and
+    `sabotage_wx_outline.py` AS PREDICTED (`0db7aa191f31`).
+  - `--anchors` over all 42 drivers: 0 nonzero (`bcd1bac46d2b`).
+- **Named in the doing:**
+  - **(i) The instrument's own regex.** `sabotage_map_draw.py` parsed red rows with `(CD\d+|...)\b`. In "CD6b" there is no
+    word boundary after the 6, so a `FAIL CD6b` would have parsed as nothing. Its plants would then have read
+    OFF-PREDICTION: loud, never silently green. The regex is now `CD\d+b?`, and the three CD6b plants read through it.
+  - **(ii) `kEmptyHash` is written in closed form** (the length 0 hashed: the basis times the prime four times), not as
+    `ContentHash(nullptr, 0)`. AP-EMPTYEQ pins the two equal, and S-AP-EMPTYEQ shows that row can fail.
+  - **(iii) `run.sh` gains the `MapAirportsKey` block** (74 blocks; `bash -n` clean under WSL).
+- **Not run, and why:** no firmware image was built. C: was at 30.4-30.8 GiB against the 30 GB floor, and a pio build
+  would cross it. So the device compile of the AircraftManager change, and step 5 (the format string in the ELF, behind
+  an anchor), wait for step C's next build. The host suite and the static rows carry it until then.
+- **C:** 30.421 and 30.420 GiB before (60 s apart); 30.772 after step 3; 30.761 after the anchors pass. The rise came from
+  outside this work. The WSL `/tmp` scratch was removed by its own tempfile directories, and none of it is left.
+
 ## Step D: the "Terrain shading" setting, registered before any code (2026-11-12)
 
 **The owner's ruling, as relayed:** a new setting, "Terrain shading", with four values. Unset or unknown reads as
