@@ -18,6 +18,11 @@ that must read exactly that row red (--selftest).
   MRK   "[frame-bench]" is in check-no-bench-hooks.sh's MARKERS
   C1-X  the step-C exemption: BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT defined exactly once, inside a FRAME_BENCH region of
         src/AircraftManager.h, and named exactly once more, on the step-C refusal's #if
+  M3-L  THE PACKAGE: the loop plant (framebench::DelayOn) appears exactly once in main.cpp, in a FRAME BENCH region
+        whose END is followed at once by `pushtask::HandOver();` -- before the hand-over, outside the push's window
+  M3-D  THE PACKAGE: framebench::DropThis(i) appears exactly once, in a FRAME BENCH region of pushtask::Task after its
+        xQueueReceive and before its esp_cache_msync (before any push work); the region releases the buffer
+        (xSemaphoreGive(g_free[i])) and continues
   FB-TU every macro FrameBench.h tests (#if/#ifdef/#ifndef/#elif) that a PROJECT header #defines (include/**) is
         included by FrameBench.h itself before its first test -- that header, or "variants/Variant.h" for one under
         include/variants/ -- so no file can see a different scene table by its own include order (C1's plants, which
@@ -195,7 +200,41 @@ def rows(f):
     res["C1-X"] = (x_ok, f"exemption defines {len(defs)} (in a region {len(defs) == 1 and inside(hregs, defs[0])}); "
                          f"uses {len(uses)} (on the refusal's #if {len(on_if)}); in other files {elsewhere}")
     res["FB-TU"] = fb_tu(f)
+    res["M3-L"], res["M3-D"] = m3_l(f), m3_d(f)
     return res
+
+
+def region_of(regs, i):
+    return next(((a, b) for a, b in regs if a <= i <= b), None)
+
+
+def m3_l(f):
+    """M3-L: the loop plant immediately before the hand-over (THE PACKAGE)."""
+    m, regs = f["src/main.cpp"], regions(f["src/main.cpp"])
+    hits = [i for i, l in enumerate(m) if "framebench::DelayOn()" in l]
+    ok, where = False, "none"
+    if len(hits) == 1:
+        r = region_of(regs, hits[0])
+        nxt = r[1] + 1 if r else None
+        ok = r is not None and nxt < len(m) and m[nxt].strip() == "pushtask::HandOver();"
+        where = f":{hits[0] + 1}, region {'yes' if r else 'no'}, next after its END {m[nxt].strip() if r and nxt < len(m) else '-'}"
+    return (ok, f"loop plant lines {len(hits)}; {where}")
+
+
+def m3_d(f):
+    """M3-D: the dropped-update plant before any push work in pushtask::Task (THE PACKAGE)."""
+    m, regs = f["src/main.cpp"], regions(f["src/main.cpp"])
+    ts, te = func_span(m, "void Task(void*)")
+    hits = [i for i, l in enumerate(m) if "framebench::DropThis(i)" in l]
+    recv = next((i for i in range(ts, te) if "xQueueReceive(g_queue" in m[i]), -1) if ts >= 0 else -1
+    sync = next((i for i in range(ts, te) if "esp_cache_msync(" in m[i]), -1) if ts >= 0 else -1
+    ok = False
+    if len(hits) == 1 and ts <= hits[0] < te and recv < hits[0] < sync:
+        r = region_of(regs, hits[0])
+        body = [l.strip() for l in m[r[0]:r[1] + 1]] if r else []
+        ok = r is not None and "xSemaphoreGive(g_free[i]);" in body and "continue;" in body
+    return (ok, f"drop plant lines {len(hits)}; in pushtask::Task after xQueueReceive and before esp_cache_msync, "
+                f"releasing the buffer and continuing: {ok}")
 
 
 def report(f):
@@ -249,6 +288,23 @@ def selftest(tree):
                     "\n#define BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT 1\n// THE MAP DRAW BEGIN"), {"C1-X"})
     rc |= plant("FB-TU, the variant include removed (the plants' cause)",
                 sub(HEADER, '#include "variants/Variant.h"', "// (the variant include, planted away)"), {"FB-TU"})
+    old_site = ("    // THE FRAME BENCH BEGIN\n#ifdef FRAME_BENCH\n"
+                "    if (framebench::DelayOn()) delayMicroseconds(framebench::PLANTED_DELAY_US);   // I-6's +10 ms, BEFORE "
+                "the hand-over\n#endif\n    // THE FRAME BENCH END\n    pushtask::HandOver();\n")
+    back = ("    pushtask::HandOver();\n    // THE FRAME BENCH BEGIN\n#ifdef FRAME_BENCH\n"
+            "    if (framebench::DelayOn()) delayMicroseconds(framebench::PLANTED_DELAY_US);   // the OLD site\n"
+            "#endif\n    // THE FRAME BENCH END\n")
+    rc |= plant("M3-L, the loop plant back after the hand-over (the old site)", sub("src/main.cpp", old_site, back), {"M3-L"})
+
+    def drop_after_push(f):
+        t = "\n".join(f["src/main.cpp"])
+        a = t.index("        // THE FRAME BENCH BEGIN\n#ifdef FRAME_BENCH\n        if (framebench::DropThis(i))")
+        b = t.index("        // THE FRAME BENCH END\n", a) + len("        // THE FRAME BENCH END\n")
+        region, t = t[a:b], t[:a] + t[b:]
+        anchor = "        const uint32_t t1 = micros();\n"
+        assert t.count(anchor) == 1
+        f["src/main.cpp"] = t.replace(anchor, anchor + region).split("\n")
+    rc |= plant("M3-D, the drop region moved after the push's first work", drop_after_push, {"M3-D"})
     print("selftest PASSED" if rc == 0 else "selftest FAILED")
     return rc
 

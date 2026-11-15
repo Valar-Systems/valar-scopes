@@ -219,6 +219,16 @@ void Task(void*)
     for (;;) {
         uint8_t i;
         if (xQueueReceive(g_queue, &i, portMAX_DELAY) != pdTRUE) continue;
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        if (framebench::DropThis(i)) {   // THE DROPPED-UPDATE PLANT: not pushed, not presented; the buffer released
+            framebuf::SetPhase(framebuf::kPhasePushed);
+            framebuf::FrameDone();
+            xSemaphoreGive(g_free[i]);
+            continue;
+        }
+#endif
+        // THE FRAME BENCH END
         uint8_t* const p = (uint8_t*)g_buf[i]->getBuffer();
         const uint32_t t0 = micros();
 #if defined(M3_BENCH)
@@ -253,6 +263,7 @@ void Task(void*)
 #ifdef FRAME_BENCH
         framebench::Present(micros());   // M3-1: p2p at the push's completion, the glass
         framebench::PushTimes(t1 - t0, t2 - t0);   // M3-3 (b): the push's own times
+        framebench::TagPresented(i);   // THE PACKAGE's M3-2: a tagged frame, presented
 #endif
         // THE FRAME BENCH END
         xSemaphoreGive(g_free[i]);
@@ -338,6 +349,11 @@ void HandOver()
     const uint8_t i = (uint8_t)g_draw;
     g_complete = i;
     framebuf::Register(g_buf[i]);
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    framebench::TagHandOver(i);   // THE PACKAGE's M3-2: the tag that carries the span's boundary
+#endif
+    // THE FRAME BENCH END
     xQueueSend(g_queue, &i, portMAX_DELAY);
     g_draw ^= 1;
 }
@@ -1321,6 +1337,11 @@ void loop()
 #if defined(BLIPSCOPE_PUSH_TASK)
     // M3: frame N goes to the push task, and the loop moves on to frame N+1. The Pushed phase and
     // FrameDone are set by the push task when the send completes (docs/m3-push-task.md, section 5).
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::DelayOn()) delayMicroseconds(framebench::PLANTED_DELAY_US);   // I-6's +10 ms, BEFORE the hand-over
+#endif
+    // THE FRAME BENCH END
     pushtask::HandOver();
 #else
     backbuffer.pushSprite(0, bandY);
@@ -1350,11 +1371,6 @@ void loop()
   // The gate reads map-client's p2p, which is anchored on FrameDone (docs/m3-push-task.md, section 5).
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
-  // THE FRAME BENCH BEGIN
-#ifdef FRAME_BENCH
-  if (framebench::DelayOn()) delayMicroseconds(framebench::PLANTED_DELAY_US);   // I-6, the loop's +10 ms
-#endif
-  // THE FRAME BENCH END
   appManager.RecordFrameUs(micros() - frameStartUs);
 
 #ifdef FEATURE_CLOUD_FEED

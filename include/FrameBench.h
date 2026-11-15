@@ -31,18 +31,27 @@
 
 namespace framebench {
 
-enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3 };
+enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, C1_PUSH60_DROP = 4 };
 struct Scene {
     Kind kind;
 };
 #if defined(BLIPSCOPE_PUSH_TASK)
+#if defined(FRAME_BENCH_PROOF_DROP)
+// THE PACKAGE's proof image only (env c1b-proof): image B's four scenes, then S4, push60 with ONE dropped update
+static const Scene kScenes[] = {{C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}, {C1_PUSH60_DROP}};
+#else
 static const Scene kScenes[] = {{C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}};   // image B
+#endif
 #else
 static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
-static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10"};
-constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0};
+static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "C1+push60drop"};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 60};
+// THE PACKAGE's M3-2 (docs/frame-time-bench.md): an exact count per scene, the span boundary carried by a tag
+constexpr int kMaxScenes = 5;
+static_assert(kNumScenes <= kMaxScenes, "the per-scene counts hold five scenes");
+constexpr uint32_t kDropAt = 100;   // the dropped update: the 100th tagged frame of a C1_PUSH60_DROP scene
 
 // Bend, at 2 dp: only ever returned to Initialise() and to the table; nothing prints it.
 static const char* const kHomeLat = "44.06";
@@ -95,6 +104,10 @@ struct State {
     uint32_t lastPresentUs = 0, p2pUs = 0, presents = 0;
     bool havePresent = false;
     uint32_t seenPresents = 0;   // the loop's last read of `presents`
+    // THE PACKAGE's M3-2: each queued buffer's tag (the scene measuring when it was handed over, or -1), and per
+    // scene the frames handed over while measuring, the tagged frames presented, the planted drops, under Mux()
+    int8_t tag[2] = {-1, -1};
+    uint32_t handed[kMaxScenes] = {}, presented[kMaxScenes] = {}, dropped[kMaxScenes] = {}, dropSeen[kMaxScenes] = {};
     uint16_t drawn = 0;
     bool rebuilt = false;        // the weather layer rebuilt this frame (RebuildWeatherLayer's region)
     bool delayed = false;
@@ -233,6 +246,43 @@ inline void PushTimes(uint32_t syncUs, uint32_t pushUs)
         if (h < 0xFFFF) h++;
     }
     portEXIT_CRITICAL(&Mux());
+}
+
+// THE PACKAGE's M3-2 (B): the loop tags the buffer it hands over with the scene measuring now, and counts it.
+// A frame belongs to a scene's span if and only if it was handed over while that scene measured; its present
+// counts whenever it lands (TagPresented), so the span's boundary is carried by the tag, not by a window.
+inline void TagHandOver(uint8_t i)
+{
+    State& s = S();
+    portENTER_CRITICAL(&Mux());
+    const int8_t t = (s.scene >= 0 && !s.done && s.measuring) ? (int8_t)s.scene : (int8_t)-1;
+    s.tag[i & 1] = t;
+    if (t >= 0) s.handed[t]++;
+    portEXIT_CRITICAL(&Mux());
+}
+// ...and the push task counts a tagged frame presented, right after Present().
+inline void TagPresented(uint8_t i)
+{
+    State& s = S();
+    portENTER_CRITICAL(&Mux());
+    const int8_t t = s.tag[i & 1];
+    if (t >= 0) s.presented[t]++;
+    portEXIT_CRITICAL(&Mux());
+}
+// THE DROPPED-UPDATE PLANT (the owner's addition): true exactly once, for the kDropAt-th tagged frame of a
+// C1_PUSH60_DROP scene (only the proof image has one). The caller then skips the push and the present.
+inline bool DropThis(uint8_t i)
+{
+    State& s = S();
+    bool drop = false;
+    portENTER_CRITICAL(&Mux());
+    const int8_t t = s.tag[i & 1];
+    if (t >= 0 && kScenes[t].kind == C1_PUSH60_DROP && ++s.dropSeen[t] == kDropAt) {
+        s.dropped[t]++;
+        drop = true;
+    }
+    portEXIT_CRITICAL(&Mux());
+    return drop;
 }
 
 // M3-3's plants: the push task's delay (B; vTaskDelay at the call site) and the loop's +10 ms (I-6).
@@ -494,6 +544,17 @@ inline void PumpDump()
     }
     if (s.dumpPos >= s.dumpN) {
         Serial.printf("[frame-bench] dump S%d done %d\n", s.dumpScene, s.dumpN);
+#if defined(BLIPSCOPE_PUSH_TASK)
+        // THE PACKAGE's M3-2: printed after the dump, seconds after the span, when every in-flight frame has landed
+        uint32_t h, p, d;
+        portENTER_CRITICAL(&Mux());
+        h = s.handed[s.dumpScene];
+        p = s.presented[s.dumpScene];
+        d = s.dropped[s.dumpScene];
+        portEXIT_CRITICAL(&Mux());
+        Serial.printf("[frame-bench] presents S%d: handed %lu presented %lu dropped %lu\n", s.dumpScene,
+                      (unsigned long)h, (unsigned long)p, (unsigned long)d);
+#endif
         s.dumpScene = -1;
     }
 }

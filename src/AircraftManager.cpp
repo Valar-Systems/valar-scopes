@@ -2153,7 +2153,7 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                           framebench::kNumScenes, (unsigned long)(framebench::SETTLE_MS / 1000),
                           (unsigned long)(framebench::MEASURE_MS / 1000),
 #if defined(BLIPSCOPE_PUSH_TASK)
-                          "on");
+                          "on, presents counted");   // THE PACKAGE's M3-2: this image prints a presents line per scene
 #else
                           "off");
 #endif
