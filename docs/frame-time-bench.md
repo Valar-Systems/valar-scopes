@@ -2534,6 +2534,118 @@ registered here. Their homes, packages, rungs, margins and controls are theirs, 
 | Q-FT-C | the windows | FT-SEA after the sibling's proof window; FT-HR after its packages freeze; each in all its homes' daylight with 10 min clear of each edge (bit 3); their times are placement data, never committed |
 | Q-FT-D | the swap's copy | into the PSRAM landing buffer, never drawn from flash |
 
+### Q-S1 RE-REGISTERED: one tree with step C, and what that changes in FT (the orchestrator's rulings, 2026-11-15)
+
+**Why it moved.** Enumerating what ConsumeBasemap's Accepted branch establishes, and then looking for its readers,
+found none. Main `b282699ac091` draws no map:
+- no file in src/ or include/ calls into the draw;
+- "THE MAP DRAW" region holds only the step-C refusal's `#error`;
+- `BLIPSCOPE_MAP_FETCH` compiles only under `FEATURE_CLOUD_FEED && WX_LAYER_SHIPS`, and any such build without
+  `BLIPSCOPE_MAP_STEP_C` stops at that refusal.
+
+So maps reach an image only together with step C. FT on the tree as first frozen would have installed packages that
+nothing draws. Nothing had run on the sibling, so this is a re-registration, not a re-grade.
+
+**THE TREE (ruled: one tree, so that the proof window covers the tree FT runs on):**
+- main **`b282699ac091`**, plus M3 **`3bc7ec26fe28`**, plus step C **`3e9d6ec9f449`** (`feat/map-client-step-c-blend`,
+  no PR yet), all pinned.
+- The merge is **`76c617faa200`** on `bench/frame-bench-v20`, as one more merge into `7e7ae82f174e`. It was predicted
+  by merge-tree, with every conflict listed before any was resolved.
+- The proof window, FT-SEA, FT-HR and S2b all run on this tree.
+- **Every reading is labelled "measured on step C at 3e9d6ec9f449, not on main".**
+
+**Its three conflicts, one hunk each, resolved as ruled:**
+- the guard script's MARKERS: the union of 12, ending `[map-bench]`;
+- the release workflow: both positive-control steps, the card bench and then the map bench;
+- the refusal: step C's block verbatim.
+
+**C1's bench exemption is REMOVED** on this tree: its FRAME_BENCH define, its `#if` term, and the bench's
+`REFUSAL_IF` and `REFUSAL` lines, which now equal step C's.
+- Every FRAME_BENCH build defined it. On a tree with step C, it could only mask an FT image that lost step C.
+- **Such an image now hits the `#error` by construction.**
+- C1-X asserts step C's `MapSweep.h` include present and the exemption absent. Its three plants (the define back, the
+  term back, the include removed) each read exactly {C1-X} red.
+
+**Checked on `76c617faa200`:**
+- the guard selftest catches 12 of 12 planted markers;
+- `marker_xcheck`'s differences equal the union of both parents' own (each parent reads the same three as main), so
+  nothing was dropped;
+- check_frame_bench: 17 rows, 0 failed, and its selftest 20 of 20;
+- check_map_draw: 12 checks, 0 failures; CD4 sees 18 draw regions with the refusal present;
+- the pre-push chain: 10 ok and 1 skipped.
+
+**THE RE-READ RULE (registered now).** If the step C that finally merges differs from `3e9d6ec9f449` in the draw path,
+FT and S2b are re-read on the merged tree before their numbers are used for v20.
+- The draw path is `include/MapCompose.h`, `include/MapPlaces.h`, `include/MapLayer.h` and `include/MapSweep.h`, plus
+  the draw's call sites in `src/AircraftManager.cpp`.
+- It is checked by a textual pin, as FB-REC is, with the FRAME BENCH regions removed first.
+- **The cost, named:** step C is unreviewed. FT's deltas (package against package, under the same draw code) are robust
+  to the draw's version to first order only.
+
+**FT EXTENDS step C's reviewed MAP_BENCH swap, instead of adding a second one.**
+- Step C's `MapBenchAccept` already sets the home to the package's own centre, copies the package into the PSRAM
+  landing buffer, runs `maplayer::Load` and installs it.
+- Under MAP_BENCH, `RequestBasemap` returns false, so nothing is fetched. The draw re-accepts whenever
+  `mapHeldLen == 0`, which also covers a CA10 drop mid-scene.
+- FT generalizes this to its pinned packages. The package index and `wxOff` are driven by the frame bench's scenes, and
+  MAP_BENCH's phase machine (`MapBenchTick`) is off in the FT envs.
+- **FT-SWAP's comparison set is the three draw-side fields that ConsumeBasemap's Accepted branch sets:** `mapPkg`,
+  `mapHeldLen` and `++mapPkgSeq`. The draw reads exactly those (`mapHeldLen == 0` means no draw; `mapPkgSeq` is the
+  rebuild key; `mapPkg` gives `maxVertices` and `Frame`). The policy's `held` is read only by the fetch decision.
+  - A plant drops one field and must read red.
+
+**THE FLAG SET, per FT and S2b env** (read off each built ELF against an anchor, never off the ini):
+- `FEATURE_CLOUD_FEED` (`cloud.prod`), `WX_LAYER_SHIPS`, `FRAME_BENCH` and `MAP_BENCH`.
+- `BLIPSCOPE_MAP_STEP_C` comes only from `MapSweep.h`, never from a `-D`; CD4 forbids that.
+- FT-MAP's weather OFF comes at run time, through `mapBench.wxOff`.
+- **To check before the envs are registered by sha:** that MAP_BENCH compiles WITHOUT `WX_LOOK_AB`. Step C's mapbench
+  env sets it, and FT must not.
+- **The plant:** an FT env with `MapSweep.h`'s include removed must fail to build at the refusal. It holds by
+  construction now, and is shown at build time.
+
+**MAP-SERVER'S FINDING: steady p95 is blind to the package.**
+- On step C, `mapcompose::Frame` rebuilds only when `Stale`, that is, when the key changes: rotation, `radiusMi`,
+  `pkSeq`, `airportsGen` or the fixed boxes.
+- Every other frame copies the cached 240 × 240 layer, 115,200 B, at the same cost whatever the package.
+- So the package costs time only on a rebuild. The FT scene splits in two:
+  - **(a) STEADY:** 0 rebuilds expected, with the count printed. An airports-fetch arrival that bumps `airportsGen` is
+    the named exception. The steady p95 EXCLUDES every frame `Record` flags `rebuilt`, and those frames are counted per
+    part.
+  - **(b) FORCED-REBUILD:** each rebuild is forced by re-accepting the same package (`++mapPkgSeq`, identical inputs).
+    That is the package-accept path, and no bench-only poison of the key is used, which would be a second path into
+    it. There are enough rebuilds per scene for a noise estimate, frozen with map-server's rows.
+- **What `usTotal` spans, read from the code:**
+  - `BuildInfo::usTotal` is measured inside `maplayer::Build` alone (`MapLayer.h:283` to `:389`): Build's passes (S1,
+    water, rivers, roads, colour), with their per-pass µs. It fills only when `in.clock` is set.
+  - **It does NOT include `mapplaces::Load`.** Load runs in `Rebuild` before Build (`MapCompose.h:296-300`), and only
+    when `placesSeq != pkSeq`, so on every pkSeq-forced rebuild.
+  - **It does not include the byte swap or `DrawNames` either** (`:306-307`).
+  - The `[map] draw: rebuilt in N ms` line (`AircraftManager.cpp:3866-3872`) is `millis()` around the whole `Frame()`
+    call: Load, Build, swap and names. **It stays REPORTED only**, being too coarse to grade.
+- **So the subtraction "usTotal minus Load" would be wrong:** usTotal never contained Load. The registered composition
+  instead:
+  - **Laps:** three bench-only µs laps on `in.clock`, in FRAME BENCH regions inside `Rebuild`: Load, Build (= usTotal),
+    and swap + names. The shipping image's bytes do not move, and the draw-path pin excludes the regions.
+  - **The zoom/redraw hitch at this rung** = Build + swap + names. It is graded.
+  - **The package-update hitch** = Load + Build + swap + names. It is reported, with Load beside it.
+  - **The millis line** is reported as the outer bound, and must not be less than the µs sum.
+
+**ADDITION 2, split in two:**
+- **Per frame:** step C's own `mapFrameDrawn` must be set on every measured steady frame (the cached composite copied
+  that frame). Else the scene is the INSTRUMENT.
+- **Per rebuild:** BuildInfo's feature counts and `nPlaced` must equal map-server's host-computed values for that
+  package and rung, registered first. Else the scene is the INSTRUMENT.
+- **Plants:** a frame with the copy skipped, and a rebuild with one feature pass skipped, each reading INSTRUMENT, not a
+  frame time.
+
+**THE ORDER:** the FT code follows once map-server registers its rows and host values. Nothing builds under 30 GiB.
+
+| Q | the question | the default |
+|---|---|---|
+| Q-S1′ | the tree | main `b282699ac091` + M3 `3bc7ec26fe28` + step C `3e9d6ec9f449`, merged at `76c617faa200` (ruled) |
+| Q-FT-E | where Load and swap + names are timed | bench-only µs laps on `in.clock` inside `Rebuild`'s FRAME BENCH regions |
+| Q-FT-F | MAP_BENCH without `WX_LOOK_AB` | to be shown compiling before the FT envs are pinned; if it cannot, back to the orchestrator |
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
