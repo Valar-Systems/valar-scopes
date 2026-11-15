@@ -385,11 +385,15 @@ is measured rather than assumed.
 - **p2p is anchored on the completion of the frame's push to the panel, wherever that runs.** A candidate that moves
   the push (M3 moves `framebuf::FrameDone()` to the push task's completion) must move the anchor with it. Otherwise
   p2p times the loop, not the glass.
-- **`fr` loses the push under M3** (about 25.8 ms), whether or not the glass got faster. So `fr` is never compared
-  across that change, and p2p is the only number gated.
-- **A new row for candidates, P2P-FLOOR:** under M3, p2p cannot be faster than the push's own measured floor (about
-  25.8 ms, by p4's measurement). A p2p below it means the anchor is misplaced: INSTRUMENT. The reader gains that row in
-  its candidate version, frozen before that candidate is read.
+- **`fr` loses the push under M3** (about 24.2 ms, `push_avg`), whether or not the glass got faster. So `fr` is never
+  compared across that change, and p2p is the only number gated.
+- **A new row for candidates, P2P-FLOOR:** under M3, p2p cannot be faster than the push's own measured average in the
+  same arm (`push_avg`; 24.18 ms on 3bc7ec26fe28's path). A p2p below it means the anchor is misplaced: INSTRUMENT. The
+  reader gains that row in its candidate version, frozen before that candidate is read.
+  - (p4 decided both lines on 2026-11-15, before the v20 sibling's freeze. They replace "about 25.8 ms, by p4's
+    measurement", which sat 2.1 ms above every push − sync reading. A floor that high would have flagged a correct p2p
+    between 24.2 and 25.8 ms as the INSTRUMENT. The floor is `push_avg`, which includes the sync, not push − sync. The
+    prose now reads as the runtime row does. No reading changes.)
 - **Nothing changes for the v19 baseline.** Its push runs in the loop, before `FrameDone()`.
 
 **THE WINDOW, about 112 min on E2:08:**
@@ -2354,11 +2358,13 @@ Every number below was read from the traces and the reader outputs on disk, by c
   whose push path differs re-registers the centre from its proof window, before any FT read.
 - **This is p4's text** (`docs/m3-push-task.md`, quoted under "p4's predictions for B's arms"). p4 re-signs it.
 
-**The other use of 25.8 (Q-S2).** P2P-FLOOR, in the anchor rule, also carries "about 25.8 ms, by p4's measurement": a
-p2p under the push's floor is the INSTRUMENT.
-- **Default, unless ruled:** unchanged, because it is p4's rule and outside the owner's two named checks. Named here so
-  that it is not found later as a surprise.
-- Every p2p read so far is at least 70 ms, far above both 23.7 and 25.8, so the default changes no reading.
+**The other use of 25.8 (Q-S2): DECIDED by p4.** P2P-FLOOR, in the anchor rule, carried "about 25.8 ms, by p4's
+measurement" for the floor under which a p2p is the INSTRUMENT.
+- **p4 decided** P2P-FLOOR's floor is "the push's own measured average in the same arm (`push_avg`; 24.18 ms on
+  3bc7ec26fe28's path)". That is how the runtime row already reads, so the prose and the row cannot drift apart.
+- p4 withdrew its earlier "or 23.7": the floor is `push_avg`, which includes the sync, not push − sync.
+- p4 also corrected the anchor rule's descriptive `fr` sentence to "about 24.2 ms, `push_avg`". Nothing grades it.
+- No reading changes: every p2p read so far is at least 70 ms.
 
 ### The sibling's proof window, before FT (registered now; its numbers frozen with its images)
 
@@ -2390,6 +2396,23 @@ p2p under the push's floor is the INSTRUMENT.
 | Q-S2 | P2P-FLOOR's 25.8 | unchanged (p4's rule), named |
 | Q-S3 | FB-REC as a new row | added, with its plant |
 | Q-S4 | the ± 5 % in I-5's band | as derived; a narrower band is the orchestrator's to set |
+
+### THE DRAFT ACCEPTED (the orchestrator, 2026-11-15), with its rulings
+
+- **Q-S1, ACCEPTED, and frozen.** The sibling is based on main at **`b282699ac091`** plus #687 at **`3bc7ec26fe28`**.
+  If either moves before the build, the sibling is re-registered first. It is never rebased silently.
+- **Q-S2, DECIDED by p4:** P2P-FLOOR's floor is `push_avg` in the same arm (24.18 ms on `3bc7ec26fe28`'s path), and the
+  `fr` sentence reads about 24.2 ms (above). The stale 25.8 is gone from both.
+- **Q-S3, ACCEPTED:** FB-REC, the textual identity of `framebench::Record()` and its callees against `0d6308cb`, with a
+  planted extra statement reading red. It keeps the I-5 band honest.
+- **Q-S4, ACCEPTED as derived:** I-5's band is A 5,400 to 6,000 ns and B 6,400 to 7,300 ns, two-sided, from all
+  eleven readings. The purpose STOP over 50,000 ns is unchanged.
+- **push − sync = 23.7 ± 1.0 ms: p4 RE-SIGNED it** (scoped to `3bc7ec26fe28`'s push path, for future runs only).
+- The new fact is recorded: the C1 bench's record costs about 17 times the old bench record. At about 5.7 µs on an
+  80 ms frame, it moves no frame reading.
+- **The proof window before FT, and FT and S2b not starting before it is IN: ACCEPTED.**
+- **The disk is on the sibling's critical path.** Its builds (Wednesday to Thursday) need C: over 30 GiB, and C: reads
+  about 27. The orchestrator takes that to the owner if it has not recovered by Monday's readiness check.
 
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
