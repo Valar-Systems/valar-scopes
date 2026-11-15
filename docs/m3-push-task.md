@@ -354,6 +354,30 @@ container metadata. No frame has been decoded.
    - A read-only open cannot change a byte. The sha256 read after the grade must equal these.
    - Every plant (K2-K4) is made on synthetic copies of extracted stills, never on the originals.
 
+**M3-2 VIDEO GRADE, CLOSED on the registered branch (2026-11-15, 21:54Z; the orchestrator's ruling (a)).**
+- **K5 FAILS, by the test frame's design.** p4 found this while building the reader, before any count or control ran:
+  - **Observed:** the moving bar is drawn OVER the counter labels. In run_2 at frame 2500 it whitens the "0" of "450"
+    in every band, so while the bar crosses the label column, no band's number can be read in full.
+  - **Its geometry:** a label is about 33 panel px wide and the bar about 5 px, in a 240 px sweep at 4 px a frame. So
+    the bar is over the labels in about **16% of display frames**, deterministically. That alone caps "all 8 bands
+    read" below K5's 90%, whatever a reader does.
+  - **Predicted, and not needed for the verdict:** the write boundary falls inside a label's rows in roughly another
+    20% of captured frames, in the base and in (i) alike.
+  - **The registration's flaw, owned by p4:** the 90% was set without accounting for the draw order or for a torn
+    label.
+- **THE OUTCOME, as registered:** every count is reported UNRELIABLE, and the owner's eye stands. **That reads CLEAN
+  under section 4: design (i).**
+- **The reader was never run.** No C1, C2 or C3 count and no K1-K4 control exists. Only stills were extracted, to
+  build the reader.
+- **Two options were declined:**
+  - re-registering K5 after seeing frames, which is the re-fit move; its tear exclusions could also remove exactly the
+    frames C2 counts;
+  - running the reader only to confirm the ceiling.
+- **The originals are unchanged:** their sha256 at 21:54:19Z equals the 21:48:50Z read (run_1 `ca8dd0dad587`, run_2
+  `92378f4c064e`). Both files stay local in `_handoffs/p4/m3/glass/`, never committed.
+- **For the post-v20 queue, not now:** a test frame that keeps its labels clear of the moving bar, so that a future
+  video grade can reach its coverage control.
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
