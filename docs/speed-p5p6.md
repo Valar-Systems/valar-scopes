@@ -266,5 +266,30 @@ drawn == N on every frame.
 A0a moves onto, with both the hex fix and the include-order fix. Then the predicted gains and the readings come from
 one tree, and S0 and S1 match A0a's stop rows.
 
-- **The tree's name and sha: not yet written.** The tree does not exist yet. It is written here once it exists,
-  before any reading. Until then no P5/P6 image is built.
+- **The tree: map-client's `bench/frame-bench-levels` at `a0583e88b1424a03bee03fcacf2fb29bef75e25e`** (written
+  2026-11-15, before any reading). It is C1-L (`40f02c0fa812`) plus three commits:
+  - `a9894185b2a8`, the hex fix (the same fix as c1's `a599fcaaffc6`);
+  - `d813ea42be08`, the include-order fix: `FrameBench.h` includes `variants/Variant.h` itself (c1's `68cae820a44e`);
+  - `a0583e88b142`, check_frame_bench's FB-TU row (c1's `bcc4414ca870`).
+- **It is A0a's tree.** The source is p4's RE-PIN in `docs/frame-profile.md` section 0, on `p4/big-screens-plan` at
+  `1e34762aee25`: "A0a's tree is map-client's `bench/frame-bench-levels` at `a0583e88b142...`". The profile is
+  `bench/frame-profile-p1-final` at `1d9e91740e1e`. The orchestrator named this sha as P5/P6's base on 2026-11-15
+  after 19:48Z.
+- **Checked by me, read-only, 19:49:14Z (date -u):**
+  - ls-remote has `-levels` at `a0583e88b142` and `-p1-final` at `1d9e91740e1e`;
+  - `a0583e88b142` is an ancestor of `1d9e91740e1e`, with two commits between (`ed0430d50e6c`, `1d9e91740e1e`);
+  - `1e34762aee25` is on `p4/big-screens-plan`.
+  - The stale `bench/frame-profile-p1-levels` (`6979d2d7ff5b`, on the old C1-L) is not A0a's pin.
+- **Not on this tree:** c1's later `0d6308cb77b6` ("THE PACKAGE"). It moves the loop plant before HandOver, adds
+  M3-2's per-scene hand-over count and the owner's dropped-update plant. It is C1's proof instrument, nobody has said
+  it is coming to levels, and it is not part of this base.
+- **What this sets, under sections 4 and 4a:**
+  - Every P5/P6 bench branch starts from `a0583e88b142`, and every reading names it.
+  - Section 0's three constraints (the kind tables, `kScenes` compiled twice, the step-C exemption) are re-read on
+    this tree before the addendum. Any that moved is re-stated here.
+  - The addendum's gains come only from an A0a read on this tree.
+  - S0 stands as registered. FB-TU is a source check, so it does not replace S0's read of the built image.
+  - S1 stands as registered in 4a. This tree carries no per-scene count of its own (THE PACKAGE's is not on it). So
+    p4 is asked whether A0a's read on `1d9e91740e1e` prints a drawn count per frame. If no sha with one is named, S1
+    is re-stated here before the addendum.
+- **No P5/P6 image is built** until this section is pushed and the orchestrator has read it.
