@@ -2414,6 +2414,126 @@ measurement" for the floor under which a p2p is the INSTRUMENT.
 - **The disk is on the sibling's critical path.** Its builds (Wednesday to Thursday) need C: over 30 GiB, and C: reads
   about 27. The orchestrator takes that to the owner if it has not recovered by Monday's readiness check.
 
+### The sibling's tree as built, and its caveats (2026-11-15)
+
+**The branch:** `bench/frame-bench-v20`, accepted at `0a2eeb4537e4`.
+1. `3f7db5331986`: main `b282699ac091` plus M3 `3bc7ec26fe28`.
+2. `48b62615e91c`: C1's five bench commits (`bfcb47e0..0d6308cb`). `include/FrameBench.h` is byte-identical to
+   `0d6308cb`'s.
+3. `0a2eeb4537e4`: FB-REC.
+   - It covers `struct Rec`, `S()`, `Mux()`, `Ten()`, `Record()` and the measuring loop `SelfTime()`, pinned at
+     `425040a3999d`.
+   - `State` is left out: the FT code adds fields to it, which move no record cost.
+
+**The checks:**
+- check-no-bench-hooks: its selftest catches 10 of 10 planted markers after (1), and 11 of 11 after (2).
+- check_frame_bench: 17 rows, 0 failed. Its selftest PASSED; both FB-REC plants read exactly {FB-REC}.
+- The pre-push chain: 10 ok and 1 skipped (check_no_bench_exemption, as on every bench branch).
+- **The merges' one conflict** was the guard script's MARKERS line, both times. It was resolved as the union, 11
+  markers ending `[card-bench]` `[m3-bench]` `[frame-bench]`, so that neither side's bench hook can ride into a
+  slug-ful image unrefused.
+
+**The marker check from the other side** (`marker_xcheck.py`, a one-off, `157648e317a9`). It derives the marker set
+from the hooks' own string literals in src/ and include/. Both of its plants read red: an unlisted hook, and a dropped
+list entry.
+- **"Equal exactly" is false on main itself,** before any merge. The same three differences read on main, on M3 and on
+  the bench tip. So the check that ran is the one that answers the merge question, with its predictions frozen first:
+  **each merged tree's differences equal the union of its parents' own.** It held after both merges, so the merges
+  dropped nothing.
+- **Caveat (i), latent, not live.** `[bench]` is printed unlisted, inside the `WX_LOOK_AB` and `FOLLOW_BENCH`
+  regions. The orchestrator read it on main: no env defines `FOLLOW_BENCH`, and `WX_LOOK_AB` is defined only in
+  `blipscope-s3-128-wxlook`. That env is slug-less, and its image must carry `[wx-bench]`, which refuses it in any
+  slug-ful image. So no shipping image compiles either region today.
+- **Caveats (ii) and (iii):** `[crash-bench]` and `[wx-key]` are listed but printed nowhere in the tree. They are stale
+  entries, which refuse nothing.
+- The guard fixes go to the release owner's queue as a small main PR, not to this branch.
+
+### FT on the sibling: the embedded packages, the swap and the scenes (registration, before its code)
+
+FT-SEA (`docs/basemap-dense-code.md`) and FT-HR (`docs/basemap-hudson-rule.md`, map-server's branch) both say that the
+sibling "embeds the packages and swaps them in RAM through `Initialise`", and that this is map-client's code,
+registered here. Their homes, packages, rungs, margins and controls are theirs, and are cited, not restated.
+
+**A. Two images, one code** (Q-FT-A). Both are B class (the push task on), slug-less and never published.
+- **`…-framebench-v20-ftsea`:** FT-SEA's six packages; kind FT-MAP, weather OFF; 18 scenes (3 points × 3 rungs × 2).
+  Its packages are pinned and verified now: KJFK `ee8c834bc81a` / `52ac9dc39de0`, KBOS `ed5393b4fc0f` / `f21d705d8b8a`,
+  KORD `4238243a57a6` / `cb59bb06a506`; 1,268,360 B in all.
+- **`…-framebench-v20-fthr`:** FT-HR's run-10 column plus the chosen option's column; kind FT-WX, weather ON; 36
+  scenes (6 points × 3 rungs × 2).
+  - It is built only after map-server freezes the option's packages ("the packages are frozen once the chosen build
+    reads").
+  - Its pin list is registered then, before its image.
+- **Why two:** FT-SEA's packages are frozen and FT-HR's are not. Separate images let FT-SEA proceed, and each keeps room
+  in ota_0.
+
+**B. The embedding.**
+- **A framebench-only pre-build step,** in the FT envs alone. It reads a tracked pin list (point, variant, sha256,
+  length; no coordinate). It reads the files from an UNTRACKED local directory named by `FRAME_BENCH_PKG_DIR`, as
+  `FRAME_BENCH_HOST` is named.
+- It checks each file against its pin, and writes a generated header into the build dir (never tracked). The header
+  holds each package as a `const` array, and a table {point, variant, length, sha12}.
+- **A missing file, or a sha or length mismatch, FAILS the build** and names the pin. A substitute is never built in.
+- **Predicted image sizes:**
+  - FT-SEA: c1fix3-B's 1,965,584 B, plus the six packages' 1,268,360, plus under 4 KB of table and code. That is about
+    **3.24 MB, 49 % of ota_0** (6,553,600 B).
+  - FT-HR: about 4.3 MB, under 70 % of ota_0. It has eleven distinct packages: KORD is shared between its columns, and
+    its run-10 KJFK is FT-SEA's `52ac9dc39de0`.
+  - Over ota_0 is outside the set.
+
+**C. The swap, through production's own path.** At each FT scene's setup, in the unmeasured settle:
+1. **The home is the package's own centre** (`lat0Micro`, `lon0Micro`), so no coordinate is typed anywhere, MIDTOWN's
+   included (Q-FT-B).
+   - **Predicted:** every pinned package's centre sits at exactly 2 dp, each a multiple of 10,000 µdeg, because each
+     was built at the client's 2-dp query.
+   - A host row (FT-CTR) checks this on the pins before any image, and prints booleans only. A centre off 2 dp is
+     outside the set.
+2. **The scene's rung** is set.
+3. **`Initialise` runs,** as a config change does. `MapConfigure` keys on the new view and drops the old package (CA10).
+4. **The embedded package is COPIED into the PSRAM landing buffer.** It is the same `heap_caps_malloc(MALLOC_CAP_SPIRAM)`
+   that `RequestBasemap` uses, sized max(the cap, the length).
+5. **The copy passes through `maplayer::Load`,** the CRC and format gate.
+6. **It is installed** as `ConsumeBasemap`'s Accepted branch installs (`mapPkg`, `mapHeldLen`). The policy records it as
+   held, so no map fetch goes out.
+
+- **Why copy, and not point into flash:** production draws a package from the PSRAM landing buffer. A package read
+  through the flash cache has different access costs, and would bias the very number FT measures.
+- **Map ON:** C1's `MapOff()` returns true for C1's scenes only, and false for FT scenes.
+- **Weather:** FT-MAP pins it OFF (FT-SEA's amendment). FT-WX has it ON, with the bench's fixed field, so both packages'
+  scenes carry the same weather CRC.
+- **Traffic:** the (a) hook serves `FrameBenchTable.h`'s rows around the scene's home at level 40. The table is
+  home-relative (`At(lat0, lon0, i, t)`).
+  - TBL-DEV's expected sum for each FT home is computed on the host by `tbl_host.py`, against `fixed_traffic.py`, and
+    frozen with the image. It is never typed.
+
+**D. The rows, each with a plant read red first.**
+- **FT-PKG:** the generated table equals the pin list. On the host, the step refuses a package with one byte flipped.
+- **FT-SWAP:** the install region exists exactly once, inside a FRAME BENCH region of the scene setup. It copies into
+  the landing buffer and calls `maplayer::Load` on that buffer. No `mapPkg` points at an embedded array.
+- **FT-NOFETCH:** `RequestBasemap`'s bench region returns before any send while an FT scene holds a package.
+- **FT-CTR:** the centres, as in C.1.
+- **FB-REC stays green:** the FT code adds no statement to the record's spans.
+- **At run time,** in every FT scene, each else that scene is the INSTRUMENT:
+  - one `[frame-bench] ft-package` line, giving the point, the variant, the on-device sha256 (12) of the PSRAM copy, the
+    gate's verdict and the length. The reader requires the sha equal to the scene's pin and the gate "passed". The input
+    is proven per scene, on the device;
+  - 0 `[map]` request lines;
+  - the FT guard row by kind, as registered.
+
+**E. Predicted, frozen now:**
+- FT-SEA's run: 18 scenes, about 66 min, plus the 90 s start.
+- FT-HR's run: 36 scenes, about 132 min, plus the 90 s start.
+- Each image's size and ota_0 share, as in B.
+- The reader's FT version is frozen by sha before either row is read.
+
+**F. Questions, each with the default I take unless ruled:**
+
+| Q | the question | the default |
+|---|---|---|
+| Q-FT-A | one image or two | two (FT-HR's packages are not frozen) |
+| Q-FT-B | where each FT home comes from | the package's own centre, checked at 2 dp by FT-CTR; MIDTOWN has no airport entry |
+| Q-FT-C | the windows | FT-SEA after the sibling's proof window; FT-HR after its packages freeze; each in all its homes' daylight with 10 min clear of each edge (bit 3); their times are placement data, never committed |
+| Q-FT-D | the swap's copy | into the PSRAM landing buffer, never drawn from flash |
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
