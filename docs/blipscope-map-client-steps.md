@@ -5063,6 +5063,110 @@ pixel whose colour is an overlay colour is the rule's priced-in blind spot.
   goes to the owner.**
 - anything outside the set: stop, to the owner.
 
+### Step C's scope addition: airportsGen moves only when the airports CONTENT changes (registered before code, 2026-11-15T15:38Z)
+
+**Why (the orchestrator's ruling, 2026-11-15, from FT-SEA's redraw-frequency read).** Today every SUCCESSFUL airports
+arrival bumps `mapAirportsGen` (`AircraftManager.cpp:4097` at step C's `3e9d6ec9f449`). So does an EMPTY list, which
+re-fetches every 5 min (`APT_EMPTY_RETRY_MS`, `:1894`). The result is a map redraw every 5 minutes for as long as the
+list stays empty, with nothing on screen changing. FT-SEA measured a redraw at 185-262 ms, so that is 12 redraws an hour
+at that cost. A populated list re-fetched with identical content (daily, `APT_REFRESH_MS`, `:1885`) redraws for nothing
+too. The addition is in step C's scope and lands before step C's PR merges.
+
+**What the first path establishes, enumerated (the second-paths rule).** `MapAirportBoxes` (`:3895-3916`) reads four
+fields of each list row: `lat`, `lon`, `code` and `kind`. It reads them in list order, and the order matters, because
+`n < maxAirports` keeps the first rows. It filters by `airportsMin`, and by the view, which is already in the key. An
+empty list serves the baked majors table (`AIRPORTS[]`), whatever caused the emptiness. Two sites write the list:
+- the config save's clear (`:1485`, bump at `:1488`);
+- the arrival's assignment (`:4094`, bump at `:4097`).
+
+The two filter writes (`airportsMin` and `displayAirports`, bumps at `:1033` and `:2578`) are config saves, and they stay
+unconditional.
+
+**The change:**
+- **A new pure header, `include/MapAirportsKey.h`** (namespace `mapairports`, no Arduino dependency):
+  - `ContentHash(rows, n)`: 32-bit FNV-1a over `n`, then each row's `lat` and `lon` float bits, its 5 `code` bytes and
+    its `kind`, in list order.
+  - `kEmptyHash = ContentHash(nullptr, 0)`.
+  - `bool Changed(uint32_t& held, uint32_t h)`: returns `h != held` and stores `h`.
+- **AircraftManager:**
+  - `mapAirportsHash` starts at `kEmptyHash`, since the list starts empty.
+  - The arrival computes the hash of `res->airports`, assigns the list, and runs
+    `if (mapairports::Changed(mapAirportsHash, h)) ++mapAirportsGen;`.
+  - The clear resets `mapAirportsHash = mapairports::kEmptyHash;` and keeps its unconditional bump (a config save).
+- **The line, printed on every successful arrival, with no coordinate and no code:**
+  `[map] airports: rows=%u (%s), %s`, where the first `%s` is `empty` or `listed` and the second is
+  `changed: rebuild` or `unchanged: no rebuild`.
+  - The empty case therefore names its cause on every 5-min retry: `rows=0 (empty), unchanged: no rebuild`.
+  - The existing `[cloud] airports: %u within %d km` line is untouched.
+
+**The host rows: a new suite, `test/host/test_map_airports.cpp`, 11 checks pinned (`g_checks != 11` is the RIG), with
+its own `run.sh` block.** `test_map_draw.cpp`'s frozen 28 rows are not touched.
+
+| row | held, then the arrival | `Changed` |
+|---|---|---|
+| AP-EMPTY | `kEmptyHash`, an empty list | false |
+| AP-SAME | L, the identical L | false |
+| AP-FIRST | `kEmptyHash`, L | true |
+| AP-GONE | L, an empty list | true |
+| AP-LAT / AP-LON / AP-CODE / AP-KIND | L, L with that one field of one row changed (one float ulp; one `code` byte; `kind` `S` → `M`) | true |
+| AP-ORDER | L, L with two rows swapped | true |
+| AP-COUNT | L, L plus one row | true |
+| AP-CLEAR | the clear's reset (`kEmptyHash`), the L held before the clear | true |
+
+**The static row: CD6b in `check_map_draw.py`, which goes from 9 checks to 10.**
+- Every write of `cloudAirports` is followed within 10 lines by a write of `mapAirportsHash`: `mapairports::Changed(mapAirportsHash,`
+  or `mapAirportsHash =`.
+- The bump that follows the arrival's assignment sits on a line holding `mapairports::Changed(mapAirportsHash,`.
+- The control: it finds **2** `cloudAirports` write sites and prints the count. CD6 itself is unchanged, and still reads
+  5 write sites.
+
+**Predicted, in order (each step before the next):**
+1. **Red first.** The header lands with `Changed` stubbed to return true (today's unconditional bump), and the suite runs:
+   **exactly {AP-EMPTY, AP-SAME} red, 9 ok.**
+2. **The real hash:** **11 checks, 0 failures.**
+3. **The plants**, in `test/host/sabotage_map_airports.py`, each with its expected set:
+   - S-AP-NOLAT, the `lat` bits dropped from the hash: {AP-LAT};
+   - S-AP-NOLON: {AP-LON};
+   - S-AP-NOCODE: {AP-CODE};
+   - S-AP-NOKIND: {AP-KIND};
+   - S-AP-NOORDER, the rows combined by XOR: {AP-ORDER}.
+
+   No plant drops `n`: appending a row changes the bytes hashed anyway, so such a plant could not change the result.
+   AP-COUNT stays a control.
+4. **The AircraftManager wiring:**
+   - `check_map_draw.py` reads **10 checks, 0 failures**, with CD6 `5 write site(s)` and CD6b `2 write site(s)`.
+   - Two plants in `sabotage_map_draw.py`: S-CD-NOHASH, the clear's reset removed: {CD6b}; S-CD-UNCOND, the arrival's bump
+     made unconditional again: {CD6b}.
+   - S-CD-NOGEN's needle is re-pointed to the new bump line. It still reads {CD6}, and the driver asserts that its needle
+     is present.
+5. **The artifact,** at step C's next build: the ELF holds `[map] airports: rows=%u (%s), %s`, with an anchor string as
+   its control.
+6. **The redraw frequency, read from the code after the change:**
+   - the empty-list case: 1 redraw, at the first arrival that empties the list, then 0 per hour (was 12);
+   - an identical daily refresh: 0 (was 1 a day);
+   - config saves, zoom, the idle return and package accepts: unchanged.
+
+**Named, not prevented.** A hash collision, about 2⁻³² per change, means one missed redraw until the next change or
+config save. The obstacles would then be stale until that redraw: never a crash, and never a wrong airport position.
+
+**What it does not touch:**
+- the forced-rebuild path (`pkSeq`): FT-HR on Tuesday runs its accepted image built from the sibling at `6f0cdd1381eb`,
+  so it is unaffected;
+- the frozen readings at earlier commits.
+
+FT and S2b are re-read on the merged tree (frame-time-bench.md), where fewer steady-window rebuilds is inside FT's
+STEADY rule.
+
+**The escape hatch.** Any other red set at any step, a RIG, or a plant that reads anything but its own set: STOP,
+report, and no fix until a ruling.
+
+| Q | the question | the default I take unless ruled |
+|---|---|---|
+| Q-AP1 | where the logic lives | a new pure header, `include/MapAirportsKey.h` |
+| Q-AP2 | what the hash covers | the four fields the obstacles read, plus `n`, in list order; the filters and the view stay out |
+| Q-AP3 | the line | printed on every successful arrival, in the format above |
+| Q-AP4 | the rows' home | a new suite, so the frozen `test_map_draw.cpp` stays at 28 |
+
 ## Step D: the "Terrain shading" setting, registered before any code (2026-11-12)
 
 **The owner's ruling, as relayed:** a new setting, "Terrain shading", with four values. Unset or unknown reads as
