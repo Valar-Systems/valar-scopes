@@ -94,7 +94,24 @@ struct Map {
     int nPlaced = 0;
     uint32_t composes = 0, namesRefused = 0, buildFails = 0;
     maplayer::BuildInfo info;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    // FT's rebuild row (docs/frame-time-bench.md, "THE REBUILD ROW"): the last Frame()'s laps in microseconds, taken on
+    // Inputs::clock, and the timer plant. Bench only; nothing here prints (CD2): the wiring reads and prints them.
+    struct BenchLaps {
+        uint32_t load = 0, build = 0, names = 0, compose = 0;   // mapplaces::Load; Build; the swap + names; Compose
+        bool loaded = false, composed = false;                  // whether Load and Compose ran in that Frame()
+    };
+    BenchLaps lap;
+    bool benchPlant = false;   // the timer plant: set by the bench for one planted rebuild, cleared by Rebuild
+#endif
+    // THE FRAME BENCH END
 };
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+constexpr uint32_t kBenchPlantUs = 20000;   // the timer plant's D, registered before the code (docs/frame-time-bench.md)
+#endif
+// THE FRAME BENCH END
 
 static_assert(sizeof(Map) < 1024, "Q-MC14: the Map struct stays internal, under 1 KB");
 
@@ -290,6 +307,14 @@ inline void Compose(const uint16_t* layer, const uint16_t* wx, uint16_t* out)
 // The map for key k: the place list (once per package), Build, the swap, the names.
 inline bool Rebuild(Map& m, const bmpk::Package& pk, const Key& k, const Inputs& in)
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    m.lap = Map::BenchLaps();
+    const bool plant = m.benchPlant;
+    m.benchPlant = false;
+    uint32_t lapT = in.clock ? in.clock() : 0;
+#endif
+    // THE FRAME BENCH END
     m.ready = false;
     m.built = k;
     m.attempted = true;   // A FAILED ATTEMPT TOO: a Build that fails waits for the key to change, never per frame
@@ -297,14 +322,39 @@ inline bool Rebuild(Map& m, const bmpk::Package& pk, const Key& k, const Inputs&
         mapplaces::Load(pk, m.places);   // more than 256 places refuses the towns (Q-MB6)
         m.placesSeq = k.pkSeq;
         m.placesLoaded = true;
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        m.lap.loaded = true;
+#endif
+        // THE FRAME BENCH END
     }
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (in.clock) { const uint32_t t = in.clock(); m.lap.load = t - lapT; lapT = t; }   // lap 1: Load
+#endif
+    // THE FRAME BENCH END
     if (!in.build || !in.build(pk, k.view, in.askedMm, kLayers, maplayer::kThemes[maplayer::kThemeDark], m.sc, m.layer,
                                &m.info, in.clock)) {
         ++m.buildFails;
         return false;
     }
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (in.clock) { const uint32_t t = in.clock(); m.lap.build = t - lapT; lapT = t; }   // lap 2: Build (usTotal inside)
+#endif
+    // THE FRAME BENCH END
     for (size_t i = 0; i < kPixels; ++i) m.layer[i] = Swap(m.layer[i]);   // to the canvas's byte order
     DrawNames(m, pk, k, in.airports, in.ctx);
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (in.clock) {
+        // The timer plant: a known delay inside the swap + names lap (after Load, inside the graded figure), a busy wait
+        // on the same clock, as delayMicroseconds is; this header is pure and has no Arduino.
+        if (plant) { const uint32_t p0 = in.clock(); while ((uint32_t)(in.clock() - p0) < kBenchPlantUs) {} }
+        const uint32_t t = in.clock(); m.lap.names = t - lapT;   // lap 3: the swap + names (+ the plant)
+    }
+#endif
+    // THE FRAME BENCH END
     m.ready = true;
     m.layerFresh = true;
     return true;
@@ -332,7 +382,17 @@ inline const uint16_t* Frame(Map& m, const bmpk::Package* pk, const Key& k, cons
         return m.layer;
     }
     if (m.layerFresh || !m.lastShown || wxGen != m.composedWxGen) {
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        const uint32_t lapC = in.clock ? in.clock() : 0;
+#endif
+        // THE FRAME BENCH END
         Compose(m.layer, wx, m.composite);
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        if (in.clock) { m.lap.compose = in.clock() - lapC; m.lap.composed = true; }   // lap 4: Compose (FT-HR)
+#endif
+        // THE FRAME BENCH END
         m.composedWxGen = wxGen;
         m.layerFresh = false;
         ++m.composes;

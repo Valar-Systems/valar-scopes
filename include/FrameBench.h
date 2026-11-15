@@ -124,6 +124,22 @@ struct State {
     bool noting = false;
     int nNoted = 0;
     Noted noted[kMaxKeys];
+    // FT's rebuild row (docs/frame-time-bench.md, "THE REBUILD ROW"): the scene's part (0 settle, 1 steady, 2 forced),
+    // the forced rebuilds recorded, and the steady window's rebuild count (expected 0)
+    uint8_t ftPart = 0;
+    uint16_t ftForced = 0, ftSteadyRebuilds = 0;
+};
+
+// FT's rebuild record, filled at DrawMapBase's call site from the composer's laps and BuildInfo, so this header needs
+// no map type (it also compiles in the C1 envs, which have no map). Microseconds and counts only: no coordinate.
+struct RebuildRec {
+    uint32_t totalUs = 0, ms = 0;                             // the µs total around the rebuilding Frame(); millis
+    uint32_t load = 0, build = 0, names = 0, compose = 0;     // the four laps
+    bool loaded = false, composed = false, ready = false, plant = false;
+    uint32_t usS1 = 0, usWater = 0, usRivers = 0, usRoads = 0, usColour = 0, usTotal = 0;   // Build's passes
+    int rings = 0, rivers = 0, primary = 0, secondary = 0, primaryInView = 0, secondaryInView = 0, level = -1;
+    bool secondaryDrawn = false;
+    int placed = 0;
 };
 inline State& S()
 {
@@ -329,6 +345,29 @@ inline void Record(uint32_t frameUs, size_t tracked, uint8_t stateFlags)
 
 inline uint32_t MeasureMs(int) { return MEASURE_MS; }
 inline uint32_t SettleMs(int) { return SETTLE_MS; }
+
+// FT's rebuild row: one record per map rebuild while a scene runs, labelled by its part. The steady window's rebuilds
+// are counted (expected 0: an airports-fetch arrival is the named exception). The residue is the total minus the four
+// laps, printed signed so a negative one is visible rather than wrapped.
+inline void OnRebuild(const RebuildRec& r)
+{
+    State& s = S();
+    if (s.scene < 0 || s.done) return;
+    static const char* const kPart[] = {"settle", "steady", "forced"};
+    const uint8_t part = s.ftPart < 3 ? s.ftPart : 0;
+    if (part == 1) s.ftSteadyRebuilds++;
+    const unsigned idx = part == 2 ? s.ftForced++ : 0;
+    const long residue = (long)r.totalUs - (long)(r.load + r.build + r.names + r.compose);
+    Serial.printf("[frame-bench] rebuild S%d %s i=%u plant=%d total=%lu load=%lu loaded=%d build=%lu names=%lu "
+                  "compose=%lu composed=%d residue=%ld ms=%lu ready=%d bi=%lu/%lu/%lu/%lu/%lu/%lu "
+                  "counts=%d/%d/%d/%d/%d/%d/%d/%d placed=%d\n",
+                  s.scene, kPart[part], idx, r.plant ? 1 : 0, (unsigned long)r.totalUs, (unsigned long)r.load,
+                  r.loaded ? 1 : 0, (unsigned long)r.build, (unsigned long)r.names, (unsigned long)r.compose,
+                  r.composed ? 1 : 0, residue, (unsigned long)r.ms, r.ready ? 1 : 0, (unsigned long)r.usS1,
+                  (unsigned long)r.usWater, (unsigned long)r.usRivers, (unsigned long)r.usRoads,
+                  (unsigned long)r.usColour, (unsigned long)r.usTotal, r.rings, r.rivers, r.primary, r.secondary,
+                  r.primaryInView, r.secondaryInView, r.secondaryDrawn ? 1 : 0, r.level, r.placed);
+}
 
 inline void PrepareScene(int)
 {

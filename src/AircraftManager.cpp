@@ -2307,8 +2307,12 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 #endif
             framebench::PrintTable();
         }
+        uint8_t mapDrew = 0;   // FT's Addition 2, per frame: step C's own mapFrameDrawn (the composite copied this frame)
+#ifdef BLIPSCOPE_MAP_FETCH
+        mapDrew = mapFrameDrawn ? 32 : 0;
+#endif
         const uint8_t stateFlags = (uint8_t)((wxShowing == wxpolicy::Show::Crop ? 4 : 0) | (MapEnabled() ? 8 : 0) |
-                                             (nightNow ? 16 : 0));
+                                             (nightNow ? 16 : 0) | mapDrew);
         framebench::Record(frameUs, trackedAircraft.size(), stateFlags);
         const uint32_t nowMs = millis();
         auto applyScene = [&](int k) {
@@ -3991,14 +3995,57 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
     // THE MAP BENCH END
     const bool rebuild = mapcompose::Stale(mapDraw, k);
     const bool wasRefused = mapDraw.refused;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    const bool ftPlant = mapDraw.benchPlant;   // Rebuild consumes it; the record says whether this rebuild was planted
+    const uint32_t ftT0 = micros();            // FT's rebuild row: the µs total around the one Frame() that rebuilds
+#endif
+    // THE FRAME BENCH END
     const unsigned long t0 = millis();
     const uint16_t* b = mapcompose::Frame(mapDraw, &mapPkg, k, wx, mapWxGen, in);
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    const uint32_t ftTotal = micros() - ftT0;
+#endif
+    // THE FRAME BENCH END
     if (mapDraw.refused && !wasRefused) {
         mapAllocFailed = true;   // Q-MW3: one flag; the next config change clears it, and Forget the refusal
         Serial.println("[map] draw: buffers refused");
     } else if (rebuild && mapDraw.attempted) {
         Serial.printf("[map] draw: rebuilt in %lu ms, %d label(s)%s\n", millis() - t0, mapDraw.nPlaced,
                       mapDraw.ready ? "" : ", Build refused the package");
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        framebench::RebuildRec rr;
+        rr.totalUs = ftTotal;
+        rr.ms = millis() - t0;
+        rr.load = mapDraw.lap.load;
+        rr.build = mapDraw.lap.build;
+        rr.names = mapDraw.lap.names;
+        rr.compose = mapDraw.lap.compose;
+        rr.loaded = mapDraw.lap.loaded;
+        rr.composed = mapDraw.lap.composed;
+        rr.ready = mapDraw.ready;
+        rr.plant = ftPlant;
+        const maplayer::BuildInfo& bi = mapDraw.info;
+        rr.usS1 = bi.usS1;
+        rr.usWater = bi.usWater;
+        rr.usRivers = bi.usRivers;
+        rr.usRoads = bi.usRoads;
+        rr.usColour = bi.usColour;
+        rr.usTotal = bi.usTotal;
+        rr.rings = bi.rings;
+        rr.rivers = bi.rivers;
+        rr.primary = bi.primary;
+        rr.secondary = bi.secondary;
+        rr.primaryInView = bi.primaryInView;
+        rr.secondaryInView = bi.secondaryInView;
+        rr.secondaryDrawn = bi.secondaryDrawn;
+        rr.level = bi.level;
+        rr.placed = mapDraw.nPlaced;
+        framebench::OnRebuild(rr);
+#endif
+        // THE FRAME BENCH END
     }
     if (b == nullptr) return false;
     memcpy(dst, b, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2);
