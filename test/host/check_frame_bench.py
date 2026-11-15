@@ -27,6 +27,10 @@ that must read exactly that row red (--selftest).
         included by FrameBench.h itself before its first test -- that header, or "variants/Variant.h" for one under
         include/variants/ -- so no file can see a different scene table by its own include order (C1's plants, which
         never fired because main.cpp kept image A's kScenes; docs/frame-time-bench.md, "THE PLANTS' CAUSE")
+  FB-REC the v20 sibling's I-5 band holds only for C1's record: struct Rec, S(), Mux(), Ten(), Record() and the
+        measuring loop SelfTime() in FrameBench.h are textually identical to 0d6308cb's (their whitespace-trimmed
+        text's sha256 against REC_SHA). A change re-registers the band from the sibling's proof window
+        (docs/frame-time-bench.md, "THE v20 SIBLING", Q-S3)
     python -I check_frame_bench.py <tree>             exit 0 every row ok; 1 a row off
     python -I check_frame_bench.py --selftest <tree>  the clean tree green; each plant reads exactly its row red"""
 import os
@@ -201,7 +205,34 @@ def rows(f):
                          f"uses {len(uses)} (on the refusal's #if {len(on_if)}); in other files {elsewhere}")
     res["FB-TU"] = fb_tu(f)
     res["M3-L"], res["M3-D"] = m3_l(f), m3_d(f)
+    res["FB-REC"] = fb_rec(f)
     return res
+
+
+# FB-REC: the record I-5's band was derived from (0d6308cb's FrameBench.h), by its spans' trimmed text.
+REC_HEADS = ["struct Rec {", "inline State& S()", "inline portMUX_TYPE& Mux()", "inline uint16_t Ten(uint32_t us)",
+             "inline void Record(uint32_t frameUs, size_t tracked, uint8_t stateFlags)", "inline void SelfTime()"]
+REC_SHA = "425040a3999d2f46a3f400d8030d98b435340dc6f39a03a0ea37d795359145cb"   # 0d6308cb's, by rec_text()
+
+
+def rec_text(h):
+    """The record's spans, each found once by its head and cut by brace depth, joined; None if any is missing."""
+    parts = []
+    for head in REC_HEADS:
+        if sum(1 for l in h if l.startswith(head)) != 1:
+            return None
+        s, e = func_span(h, head)
+        parts.append("\n".join(l.rstrip() for l in h[s:e]))
+    return "\n".join(parts)
+
+
+def fb_rec(f):
+    import hashlib
+    t = rec_text(f[HEADER])
+    if t is None:
+        return (False, "a span of the record is missing or not unique")
+    got = hashlib.sha256(t.encode("utf-8")).hexdigest()
+    return (got == REC_SHA, f"{len(REC_HEADS)} spans, {len(t)} chars; sha256 {got[:12]} against 0d6308cb's {REC_SHA[:12]}")
 
 
 def region_of(regs, i):
@@ -305,6 +336,10 @@ def selftest(tree):
         assert t.count(anchor) == 1
         f["src/main.cpp"] = t.replace(anchor, anchor + region).split("\n")
     rc |= plant("M3-D, the drop region moved after the push's first work", drop_after_push, {"M3-D"})
+    rc |= plant("FB-REC, one extra statement in Record()",
+                sub(HEADER, "    s.delayed = false;\n}", "    s.delayed = false;\n    s.overflowFrames += 0;\n}"), {"FB-REC"})
+    rc |= plant("FB-REC, a changed line in its callee Ten()",
+                sub(HEADER, "return t >= 0xFFFF ? 0xFFFF : (uint16_t)t;", "return t > 0xFFFF ? 0xFFFF : (uint16_t)t;"), {"FB-REC"})
     print("selftest PASSED" if rc == 0 else "selftest FAILED")
     return rc
 
