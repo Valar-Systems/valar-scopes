@@ -2052,6 +2052,103 @@ update that the new 60 ms rule must catch. If it doesn't, the rule is too loose 
 - **Any other off reading, or anything outside the set:** stop.
 - **Then C1,** its slot proposed under the standing rule.
 
+### THE SAME-INSTRUMENT CHECK, amended before its first run, and read (2026-11-15)
+
+**The gap, found before any run.** As registered in 5a, `pp_diff.py` allowed only the `kScenes` line to differ. The
+two envs' text must also differ in a second way, which has nothing to do with the counting code: the env's own name.
+- `-DBUILD_ENV="$PIOENV"`, and `BuildIdentity::Env()` returns it inline in a header that `main.cpp` and
+  `ConfigurationWebServer.cpp` include.
+- Each env has its own `.pio/libdeps/<env>` include dirs, so any `__FILE__` in a library header carries the name.
+- Both were read from the two compile databases before the amendment was written, not assumed: `BUILD_ENV` reads
+  `...framebench-c1b` against `...framebench-c1b-proof`, and each env's 7 libdeps `-I` paths name its own dir.
+- Run as registered, the plain check would have read RED on the env name. `FRAME_BENCH_PROOF_DROP` itself appears once
+  in the tree, the `kScenes` guard.
+
+**The amendment (the orchestrator accepted it before any run): `pp_diff_v2.py`.** `pp_diff.py` is kept unchanged
+and was never run.
+- In the PROOF env's text only, exactly `framebench-c1b-proof` is replaced by `framebench-c1b`. Then the `kScenes` line
+  is allowed, and nothing else.
+- **Guard 1:** `c1b-proof` is counted in the c1b text first; the run stops unless the count is 0.
+- **Guard 2:** the replacements made in the proof text are counted; the run stops unless there is at least one.
+- A normalized line that is not a path must carry the complete quoted env name (`BUILD_ENV`'s form), or the run stops.
+- Normalized lines are printed per source, split into path-bearing and other.
+- **A new control on the widening (`--env-plant`):** `FrameBench.h` with ONE line that differs between the envs only by
+  `BUILD_ENV`. It must read PASS, while the counter plant must still read RED.
+- The line alignment is `difflib.SequenceMatcher`'s opcodes, the line matcher `ndiff` uses, without the character
+  hints: the same − and + lines.
+- **Predicted:**
+  - PLAIN: PASS. The scene table differs by 2 in every source and nothing else does. At least one normalized
+    `BUILD_ENV` line in `main.cpp` and in `ConfigurationWebServer.cpp`.
+  - `--plant`: RED, exactly one other line per source (3), each the planted increment.
+  - `--env-plant`: PASS, one normalized probe line per source.
+  - Any other shape: the instrument is unreliable here. Stop and report.
+
+**The environment.** The compile databases (at `0d6308cb77b6`) were generated in a process created by WMI, so pio ran
+with no MSYS variables. The proof env had no libdeps dir. It was given a copy of c1b's, rather than a download:
+`diff -rq` identical, every `lib_deps` pinned exactly. Each database: pio exit 0, 259 entries, no "Installing" line.
+
+**Read (02:00-02:04Z): every prediction HELD.**
+
+| source | lines (c1b = proof) | normalized: path / other | PLAIN | `--plant` | `--env-plant` |
+|---|---|---|---|---|---|
+| `main.cpp` | 114,531 | 2 / 1 | table 2, else 0 | table 2, else 1: `+ if (t >= 0) s.presented[t]++;` | table 2, else 0; other 2 |
+| `AircraftManager.cpp` | 118,626 | 3 / 0 | table 2, else 0 | table 2, else 1: the same line | table 2, else 0; other 1 |
+| `ConfigurationWebServer.cpp` | 110,895 | 2 / 1 | table 2, else 0 | table 2, else 1: the same line | table 2, else 0; other 2 |
+| **verdict** | | | **PASS, exit 0** | **RED, exit 1 (3 lines)** | **PASS, exit 0** |
+
+- Guard 1 read 0 and guard 2 read 3 in every source (4 with the env plant).
+- The env plant raised "other" by exactly 1 in each source.
+- Afterwards the tree was clean and the plant include dirs were removed.
+- So the proof image and C1's image B carry the same counting code. The env's own name is the only widening, and the
+  control shows it hides nothing else.
+
+### THE PACKAGE's images, and I-3's MISS on its registered words (2026-11-15)
+
+**The four images**, from `bench/frame-bench-c1` at `0d6308cb77b6`, each built clean. pio ran in a WMI-created process
+with no MSYS variables.
+- The disk was read twice, 60 s apart (30.89 GiB both). Before each build it read 30.89 / 30.84 / 30.77 / 30.71 GiB,
+  against a guard of 30.2 plus 0.2. Each env's build dir was removed once its image was recorded; the low point was
+  30.61 GiB.
+
+| image | env | firmware.bin sha256 | bytes |
+|---|---|---|---|
+| c1fix3-I3 | `blipscope-s3-128` (FRAME_BENCH off) | `805556b5f6c1` | 1,933,952 |
+| c1fix3-A | `...-framebench-c1a` | `3cf72c29f08f` | 1,963,200 |
+| c1fix3-B (C1's c1-B) | `...-framebench-c1b` | `669f87ec5839` | 1,965,584 |
+| c1fix3-P (the proof image) | `...-framebench-c1b-proof` | `00a1b5c23475` | 1,965,616 |
+
+**I-3 missed on its registered words.** It was registered as "byte-identical to `de75e3606ba7`", and it is not.
+- `bindiff_elfhash.py`, `c1fix2-I3` against `c1fix3-I3`: the same length. The differing bytes are app_elf_sha256 32,
+  the image SHA-256 32, the checksum 1, and **elsewhere 0**. The loaded image is identical to the byte, but the sha is
+  not, and the registered words named the sha.
+- The orchestrator recorded it as a miss, with no re-grade (the first off reading on the row).
+- **The two explanations, named before the discriminator ran:**
+  - (H1) this is the first fix since I-3 began to edit a `.cpp` (`main.cpp`, inside `FRAME_BENCH`). The lines after it
+    shift, so the debug data change, and with them the ELF and its hash, while no loaded byte moves.
+  - (H2) something else in a non-loaded, non-debug section changed.
+- **The discriminator, `elf_sections.py`** (read-only; it compares two ELFs section by section; its outcomes were ruled
+  before it ran):
+
+| run | predicted | read |
+|---|---|---|
+| ANCHOR: `c1fix-I3` vs `c1fix2-I3` (both bins `de75e3606ba7`) | SAME | 40 = 40 sections; 0 differing; 0 bytes outside any section: **SAME** |
+| PLANT: one byte flipped mid-`.debug_line` | exactly `.debug_line` named | `.debug_line`, 1 byte; nothing else: **as predicted** |
+| SUBJECT: `c1fix2-I3` vs `c1fix3-I3` | H1, H2 or ESCAPE | every SHF_ALLOC section identical; differing: `.debug_info` 149 B and `.debug_line` 241 B only; 0 outside: **H1** |
+
+- **The ruling (the orchestrator, before the run):** under H1 the row stays a MISS on its words, and the property it
+  protects (the shipping image's loaded bytes, elsewhere 0) HOLDS.
+- **Future I-3 rows are registered as "elsewhere 0; the 65 ELF-hash bytes may move when a `.cpp`'s line numbers
+  move".** A sha never identifies a build; content does.
+
+**The proof window's set, acknowledged by the orchestrator:**
+- `plants2_manifest.json` `188bf5c91502`: c1-P `00a1b5c23475` (1,965,616 B, written 0x020000..0x1FFE2F, ota_0 alone,
+  30.0 % of it) and restore-v19 `f6d73e391631`, against the release's table `28f336fe57a9`.
+- The dry runs: c1-P accepted, the restore accepted. The control, the old `c1fix2-B` image under the c1-P label, reads
+  STOP (exit 20).
+- The launcher refuses COM99 (exit 9), since E2:08 resolves by its serial to another port.
+- The window waits only on p4's re-sign of C1's changed sentence and the M3-2 rule, at these shas. It grades p4's
+  +10.0 ± 1.5. The window does not depend on I-3, which guards the shipping image.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
