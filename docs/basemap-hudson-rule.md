@@ -789,8 +789,9 @@ compared with today at any of the five.** At 5 and 10 mi road and river pixels I
 
 **FT-HR re-staged** (`C:\Github\_handoffs\map-server\frame-row-packages-hudson\`, full sha256 read back after the copies):
 KBOS-2L194 696c6d00122d, KJFK-2L194 e042d61aa8f1, MIDTOWN-2L194 aaede1785364, KEWR-2L194 c619f4a89f14, KLGA-2L194 6ab44cd8fbea, and
-today's KORD-A0 cb59bb06a506 unchanged. **The manifest names these six** (to be re-frozen before 11-15 18:00Z). The older staged
-files are untouched.
+today's KORD-A0 cb59bb06a506 unchanged. **The manifest names these six** (to be re-frozen before 11-15 18:00Z). [SUPERSEDED: the
+freeze happened at 19:00:37Z on 11-13, recorded eight lines below; this phrase is the deadline as written before it.] The older
+staged files are untouched.
 
 **Pictures** (`hudson-options\`, not opened by this session): the owner's two 25 km views, informational -- KBOS-2L194-25km
 f0cac58dae58 (about 170-200 road pixels and 11 river pixels move, all beyond 19.4 km; water +15 px) and KLGA-2L194-25km ab944a9282de
@@ -988,6 +989,22 @@ the authority for both rows.
   run-10 count of 25 equals FT-HR's "25 water rings". Those are two implementations agreeing: the prototype's TypeScript and the
   device's Build.
 
+### 5k addendum: the sibling's newer pin (2026-11-15), recorded outside 5k so #696's byte-identical copy (4d8c7677ee4b) stays exact
+
+- **Both FT images are built at the sibling's bb28b362c287** (map-client: each image carries its pinned packages byte for byte,
+  found in `firmware.bin` and hashing to the pins). There, section 5k's view inputs have moved, with their expressions unchanged.
+  Map-server read each line at 08:30:00Z:
+  - the home: `lat = pk.lat0Micro / 1e6;` and `lon = pk.lon0Micro / 1e6;` at src/AircraftManager.cpp:988-989, in Initialise's
+    map-bench region. 5k cited :953-954 at 08e68191f7b7;
+  - FT's `framebench::SetHome(hp.lat0Micro / 1e6, hp.lon0Micro / 1e6)` at :2364, the same expression on the scene's package;
+  - radLat and radLon at :1066-1067. 5k cited :1031-1032, in the same form.
+  - **So the host counts stand.**
+- **The pins:** `test/fixtures/frame-bench/ft_hr.pins` at bb28b362c287 equals the full sha256 of the staged files' bytes, 11 of 11.
+  Those are the five 2-L at 19.4, KORD-A0 and the five run-10 baselines. Map-server read it at 08:22:17Z.
+- **Two things belong to map-client, not to this doc:**
+  - the run images are rebuilt with one more print line, and their pin's line numbers are cited here when sent;
+  - each FT scene prints a per-scene table-sum CRC line, which the reader checks against host sums.
+
 ## 6. This PR's CI, predicted
 
 A docs-only change on main 4b00c97b3dbd. The only workflow change since the docs-only shape was read (main 099f1946) is #669's one-line
@@ -1053,6 +1070,12 @@ GitHub-side re-run rule applies. Anything else: stop and report.
   main is still b282699ac091, so the reasoning above stands unchanged. **33 = 31 / 2 / 0**, tested on the merge into main as it then
   stands, read from the run's own checkout log. The coordinate gate is re-read on this head's text before the push. A new red from
   `ship-alert` reads INSTRUMENT; anything else: stop and report.
+- **Read at 3aad28ee3bb2:** 33 = 31 / 2 / 0 as predicted (stable at 07:16:36Z on 11-15), tested on "Merge 3aad28ee3bb2... into
+  b282699ac091...".
+- **Predicted for this head** (the 5k addendum and the superseded-phrase note; this doc only): main is still b282699ac091, so the
+  same reasoning applies. **33 = 31 / 2 / 0**, tested on the merge into main as it then stands, read from the run's own checkout log.
+  The coordinate gate is re-read on this head's text before the push. A new red from `ship-alert` reads INSTRUMENT; anything else:
+  stop and report.
 
 ## 7. Where the measurements are (scratch, sha256 first 12)
 
