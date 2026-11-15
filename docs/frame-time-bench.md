@@ -2192,6 +2192,63 @@ never reached.
   caveats name the layout residual: 5c's control read NOT LAYOUT (a 1,740 B shift moved the frame +0.51 ms, inside
   M), but an effect of one specific alignment is not excluded. C1 goes before 5c's label window, which must not push it.
 
+### C1's THIRD RUN, 2026-11-15 02:46:55-03:21:35Z: OFF, with the owner
+
+THE PACKAGE's images, under the acknowledged set:
+- `win_c1fix3.ps1` `1d6bf2505a42`, cut mechanically from the retake's script with every substitution counted.
+- Manifest `c1fix3_manifest.json` `bf5b8ac3cace`: c1-A `3cf72c29f08f` and c1-B `669f87ec5839`, each written to ota_0
+  alone.
+- The dry runs: both images and the restore accepted; both controls refused.
+- The reader: `fb_read_c1.py` v2 `0dde3f661ee1`, whose selftest output was byte-identical to its frozen one just before.
+- E2:08 reserved by its serial. The PC had no build, test or python process; its load was a background file sync that
+  had run all night, through the proof window too.
+- This is C1's third run, so any off reading goes to the owner with both ends, and nothing is re-graded.
+
+**The window:**
+- All three images were written and verified, with the checks line exact each time.
+- The A1 / B / A2 traces (6, 17 and 6 min) exited 0, and the `/diag/fb` grabs kept 3 of 3 in each arm.
+- **The restore read PASSES:** `[WiFi] CONNECTED` 1; "fast join OK"; 0 portal-START lines; `fw=v19`, OTA latest = 19;
+  read-mac ok; HTTP 200 on the second attempt.
+- **The rig check PASSES on all four traces:** A1 215/215, B 670/670, A2 215/215, the restore 49/49; 0 records.
+- E2:08 was released at 03:22:38Z.
+- **The overlap, outcome (i), as registered before the trace was read.** Another session's read-only disk sweep
+  overlapped the window's opening and ended by 02:47:54Z. A1's stamps put its settle at 02:48:49Z and its measuring at
+  02:50:29Z, so the sweep touched no measured frame.
+
+**The read: `fb_read_c1.py` v2 exit 1, "8 rows, 3 off, 0 MISS"** (output `25c2d3c38c7c`).
+
+| row | registered | read | |
+|---|---|---|---|
+| **C1, M3's cut** | its band graded only if cut ± E falls in one band | A1 p95 82.39, A2 82.51, B 72.99; N 0.12, E 1.54; **cut +9.46, from +7.92 (failed) to +11.00 (partial)** | **STRADDLES** |
+| **I-5, record cost** | ≤ 5,000 ns per frame | **A1 5714, B 6840, A2 5706** | **RED** |
+| **B plain push − sync** | 25.8 ± 1.0 ms | **23.72** (push 24.18, sync 0.46) | **RED** |
+| D=10 push | +9.0 to +10.0 | +9.93 | ok |
+| D=10 p2p | within ± E | +0.01 | ok |
+| D=60 push | +59 to +60 | +59.76 | ok |
+| D=60 p2p | p95(push) ± E, and at least plain + 10 | 84.00 against 84.00; at least 82.99 | ok |
+| loop +10 | +10.0 ± 1.5, push within ± 1.0 | +10.00; push −0.00 | ok |
+
+- **Also read:**
+  - M3-2 exact in S0-S3: 1703/1703, 1697/1697, 1428/1428, 1492/1492.
+  - The push reads (a) and (b) agree in every B scene.
+  - Rebuild frames 1/1/1; TBL-DEV `b1ace60e` in all three arms.
+  - "present count != 1" is 26 in S2 only, the push60 scene.
+- **Against the retake (11-14, the images before THE PACKAGE):**
+  - The cut read +8.97, from +7.43 to +10.51, straddling the same boundary.
+  - I-5 read 5713 / 6827 / 5712; the first window's A1 read 5712.
+  - Push − sync read 23.69.
+  - Then, no plant moved. Now the plants read at their true size inside this run's own B trace.
+- **Named alternatives for the two instrument reds, not discriminated:** (a) the registered bounds (5,000 ns; 25.8 ms)
+  never matched this hardware; (b) an instrument effect that is real and stable from run to run.
+- **The caveats, as registered:**
+  - C1 is measured on p4's pin `3bc7ec26fe28` without step C. This was checked on the tree: five bench-only commits,
+    none adding it.
+  - A and B differ by 2,384 B, and an effect of one specific alignment is not excluded.
+  - E's floor is U = 1.54.
+- **The artifacts (sha256, 12):** A1 trace `35c6f718490a`, B `360bcabb065c`, A2 `cf8f3ef40f9b`, the restore
+  `c270b9c5b84c`, the window ledger `d2c414d400dc`.
+- **With the owner.** The orchestrator has put the options to him. Nothing else moves on C1 until he answers.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
