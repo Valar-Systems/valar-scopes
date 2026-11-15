@@ -315,6 +315,15 @@ prints the count. The question to p4 narrows to one thing: does A0a's reader als
 that the two stop rows match?
 - S1 counts contacts that reach the draw step after the cull, not pixels.
 - A row-aliasing plant (40 fed, 1 tracked) reads drawn = 1, not N, so S1's control still goes red.
+- **The clamp cannot manufacture a pass** (the orchestrator's point after reading 4c, written here before any reading;
+  the addendum's S1 row cites this bullet). `Record()` clamps the count: `r.drawn = s.drawn > 255 ? 255 : s.drawn`
+  (`FrameBench.h:297`). A clamp could fake drawn == N only if N were 255, and it never is here:
+  - every scene's level, its N, is 1..`kTableMax` = 60;
+  - `LevelsOk()` (`FrameBench.h:158-163`) refuses any scene outside that, and its caller (line 442) then starts no
+    scene.
+  - So a runaway count reads 255 ≠ N, which is red.
+  - `s.drawn` itself is a `uint16_t` that is zeroed every frame (lines 109 and 304). A wrap back onto N would take
+    65,536 draws in one frame.
 
 **Section 0's three constraints, re-read:**
 1. **The kind tables: unchanged; only their line numbers moved.**
