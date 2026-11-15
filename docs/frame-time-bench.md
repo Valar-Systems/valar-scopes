@@ -2805,6 +2805,21 @@ never graded."
 - **Where the sums come from:** `tbl_host_ft.py`, which imports `tbl_host.py`'s own mirror (`f2f838f9a3da`, sha
   asserted). The FT section's "computed on the host by `tbl_host.py`" means this tool. Never typed.
 
+**THE RUN IMAGES, built at `6f0cdd1381eb`** (build_ft1's recipe and guard, labels ft2-*; 08:45:34Z to 08:50:20Z):
+- **ft2-sea:** 3,252,976 B, sha256 `2b4e0bf1a5e143d8eb13ac8540ea0c0a796e574ff4ea15ba7e4902e8a573e93a` (112 B over ft1-sea).
+- **ft2-hr:** 4,310,432 B, sha256 `054e60e67bd4bbb9176068869a3ee40daa0da05fb3464ded60f14623600722c2` (128 B over ft1-hr).
+- **The guard:** 31.42 / 31.42 GB, read 60 s apart; 31.42 then 31.39 GiB before each build; 31.36 at the end. Both build
+  dirs were removed, and the tree was clean after each build.
+- **Every reading as frozen before either image existed:**
+  - **Warnings:** each log has its ft1 twin's 40 unique warnings. The one difference is main's three in
+    `AircraftManager.cpp`, each at exactly +2 lines (`:5275`, `:6831`, `:8918`). The comparison script
+    (`warn_cmp.py`, `4474cbcff827`) was written after the images existed. It encodes the prediction sent before they
+    did, and it reads only the build logs.
+  - **ft_elf.py at its final sha `45e92539c5e7`** (frozen at 08:45:00Z, one PRESENT needle added: the table-sum format):
+    SEA 19 present, 12 absent, 6 packages, 0 off; HR 29, 7, 11, 0 off.
+- **map-server's cited lines** read unchanged at the commit: `:988-989`, `:2364`, `:1066-1067`. The table-sum call is
+  `:2365`.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
