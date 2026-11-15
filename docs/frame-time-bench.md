@@ -2249,6 +2249,18 @@ THE PACKAGE's images, under the acknowledged set:
   `c270b9c5b84c`, the window ledger `d2c414d400dc`.
 - **With the owner.** The orchestrator has put the options to him. Nothing else moves on C1 until he answers.
 
+### C1 CLOSED: the owner's ruling (2026-11-15, relayed by the orchestrator)
+
+> "C1: a. ~9.5 ms is the answer; v20 stays on the "too small" plan (Dec 3-10 or later); no more C1 runs. The two side
+> checks get corrected limits for future runs only, and this run's two misses stay on record as misses. The real v20
+> number comes from the v20 bench."
+
+- **The answer: M3's cut is about 9.5 ms** (+9.46, from +7.92 to +11.00). That is below on-track at either end.
+- **v20 stays on the "too small" plan** (Dec 3-10 or later). The real v20 number comes from the v20 bench, not C1.
+- **No more C1 runs.** Nothing in C1 is re-graded.
+- **I-5 and B plain push − sync stay MISSES on this run.** Their corrected limits apply to future runs only. They are
+  derived from the matching runs and registered in the v20 sibling's registration, not in any C1 file.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
