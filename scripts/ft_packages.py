@@ -13,7 +13,7 @@ import re
 import struct
 import sys
 
-PIN = re.compile(r"^([A-Z]{3,8}) ([a-z0-9-]{1,16}) ([0-9a-f]{64}) ([0-9]{1,9})$")
+PIN = re.compile(r"^([A-Z]{3,8}) ([A-Za-z0-9-]{1,16}) ([0-9a-f]{64}) ([0-9]{1,9})$")   # the variant as its file names it
 
 
 class Stop(Exception):

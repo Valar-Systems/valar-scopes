@@ -1,0 +1,17 @@
+# FT-HR's packages for the v20 sibling's fthr image (docs/frame-time-bench.md, "FT on the sibling" and the Q-S1
+# re-registration; the pins are FT-HR's own, docs/basemap-hudson-rule.md section 5j at 22728e98ddde): the run-10
+# column (A0) and the owner's pick, option 2-L at r_f 19.4 km (2L194). One line each: point, variant, sha256, length.
+# The files come from the UNTRACKED directory named by FRAME_BENCH_PKG_DIR, as <point>-<variant>.bmpk. KJFK-A0, KBOS-A0
+# and KORD-A0 are byte-identical to ft_sea.pins' KJFK/KBOS/KORD sea packages. No coordinate is written here: each
+# scene's home is its package's own centre (FT-CTR checks it sits at exactly 2 dp).
+KEWR A0 dff28487eaf40d85cc23355205b671928b3fd73c30e3ffbbe1f8df7f4e8a372a 211403
+MIDTOWN A0 20a22bed55109553460a3ca12736d50aa2a53755ff63248e1950e799ab64139e 211400
+KJFK A0 52ac9dc39de0881e1cc74134d4ca1ed814cf70b32cd8b9e1661b41570f066615 211392
+KLGA A0 feb6ef3bdf04d490dc71297e84a3d15544b7269e7f8bde8d624bcd4092613592 211400
+KBOS A0 f21d705d8b8aa5a69bb52aba01fe5fe7b9dd5f6eb90b5349a662c39333eb3db9 211399
+KORD A0 cb59bb06a5060bf174eee1b16de8dc7ecc8c7c03a538a38f6867d162bd41b41a 211402
+KEWR 2L194 c619f4a89f1403546502aa6dd31a4e2bf5120323885569a118c43eb9b71bc0a2 211406
+MIDTOWN 2L194 aaede17853646ed84a21e525e99d1dcc4f4343850d6cee091e7cf7346cad49e0 211400
+KJFK 2L194 e042d61aa8f1eeeef1b445641b4bbcee0a218397d12fe12d72f2d251acedb11c 211405
+KLGA 2L194 6ab44cd8fbea8215bbf2dd97901a984f22aeb1b53026e2427593ef8e5020b699 211405
+KBOS 2L194 696c6d00122db8484e761e41fe7f8457f342893267f9eedfa3ef9a7a10ac03f2 211394
