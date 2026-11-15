@@ -2579,6 +2579,10 @@ FT and S2b are re-read on the merged tree before their numbers are used for v20.
 - The draw path is `include/MapCompose.h`, `include/MapPlaces.h`, `include/MapLayer.h` and `include/MapSweep.h`, plus
   the draw's call sites in `src/AircraftManager.cpp`.
 - It is checked by a textual pin, as FB-REC is, with the FRAME BENCH regions removed first.
+  - **Since 2026-11-15 the pin is a script:** `scripts/draw_pin.py`
+    (`ba03b003b609f4c4ff39d925b64140a39519968416c8ecc3637b6218ba98ff9c`), with its value registered at `3e9d6ec9f449`. See
+    "DRAW-PIN" below. "Differs in the draw path" means its exit 1 on the merged revision; exit 0 means no re-read. The
+    script, not this paragraph, decides.
 - **The cost, named:** step C is unreviewed. FT's deltas (package against package, under the same draw code) are robust
   to the draw's version to first order only.
 
@@ -3178,6 +3182,42 @@ the script's own refusals.
 
 **Then:** the re-read rule points at `scripts/draw_pin.py` and its sha, and "differs in the draw path" means its exit 1.
 **The escape hatch:** any other reading, on any row: STOP, report, and no fix until a ruling.
+
+**AS RUN (2026-11-15, 16:06-16:08Z): every row as predicted.** The script, frozen:
+`ba03b003b609f4c4ff39d925b64140a39519968416c8ecc3637b6218ba98ff9c`.
+- **The registered value, computed at `3e9d6ec9f449`:** pin
+  `21fc376c8a2a57b86cf5dbbab724b01579241590e036b2053884da919aed61e4`. The parts are:
+
+  | part | sha (12) |
+  |---|---|
+  | MapCompose.h | `8f1cefd40a53` |
+  | MapPlaces.h | `7c40624960a2` |
+  | MapLayer.h | `68e82c2bfcdc` |
+  | MapSweep.h | `fc69563a1eea` |
+  | DrawWeatherUnder | `5fb58241dde6` |
+  | DrawMapBase | `3854ed90252f` |
+  | MapAirportBoxes | `2b6307d96887` |
+  | DrawSweepOverMap | `2fd410c5b0b6` |
+  | gate | `443dac1dfda5` |
+
+  - Its first run exited 3, "no registered value yet", as designed (`5a81736bf661`).
+  - The full shas were read from the script's own `parts_of` and written into it. They were not transcribed.
+- **The revision reads, each exit 0, UNCHANGED, with the same pin:** `3e9d6ec9f449`, `c96bd0b04182` (step C with the
+  airports addition) and the sibling `6f0cdd1381eb`. The three outputs are byte-identical (`a86c85379822`).
+  - So **the sibling's draw path equals step C's at `3e9d6ec9f449`** once the FRAME BENCH regions are removed. FT's label
+    "measured on step C at 3e9d6ec9f449" describes the draw path FT ran.
+  - So **step C merging with the airports addition does not trigger the re-read.**
+- **The selftest: 7 plants AS PREDICTED** (`4dfc10ceee7b`):
+  - P-IN: CHANGED {DrawMapBase};
+  - P-BENCH: UNCHANGED;
+  - P-OUT: UNCHANGED;
+  - P-HDR: CHANGED {MapSweep.h};
+  - P-GATE: CHANGED {gate};
+  - P-RIG-SIG: the rig;
+  - P-RIG-REGION: the rig.
+- **The identical outputs are not a blind instrument's.** Byte-identical output from three revisions is the shape a
+  broken pin would also make. Here it is the prediction, and the plants separate the two worlds: an edit in a pinned body
+  reads CHANGED, naming exactly its part, and an edit inside a FRAME BENCH region reads UNCHANGED.
 
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
