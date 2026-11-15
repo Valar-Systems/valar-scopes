@@ -225,6 +225,39 @@ SUPERSEDES (f) above in full; (f) stays as the record of what was first accepted
   else. Stop.
 - **A0a's gate** is "P-CTRL passes as above". C1's loop +10 arm is not a gate.
 
+**(f2) ADDENDUM: where P-CTRL's spin falls against the push's window, and what `fr` should then read (2026-11-15,
+after 00:43Z; the orchestrator's request).**
+- **Narrowed by map-client's code reading:** (S) is excluded, because `delayMicroseconds` is a wall-clock busy loop on
+  core 3.3.9. (D) is excluded, because the period moved about 1.4%. Left: **(P)**, the push task's preemption, and
+  **(M)**, PSRAM contention. This is (C) above, the ε of 2026-11-13. Under either, a busy-wait that overlaps the push's
+  window gets repaid by a faster draw.
+- **The push's window, from the code (#687's tree):** the previous frame's `pushtask::HandOver()` queues its buffer.
+  The push task then write-backs and DMAs it for about 24 ms (`push_avg` 24.16 in the proof window). The next frame's
+  `frameStartUs` follows within the flush, the tail and `RecordFrameUs`. **So the window covers roughly the first
+  24 ms of each frame.**
+- **Where the spin sits, from the code:** `PlantLabels()` spins once a frame, at the FIRST label draw inside the
+  contact loop: `FrameProfile.h:119-126`, called from `DrawAircraftInfo`'s lbl_draw region, `AircraftManager.cpp:5866`
+  on the profile tree. Before it come `upd` (not yet measured; 1-6 ms registered), `wait` (about 0), `under` (about
+  5.1 with weather on), `sweep` (about 6.6), `static` (1-6 ms) and the first contact's pre-label work. **The spin
+  therefore starts about 13-24 ms into the frame, near the END of the push's window,** so it overlaps the window by 0 to
+  5 ms.
+- **What `fr` should read, written down and UNFROZEN** (reported, not graded):
+  - Let t = the spin's start in the frame, which the profile measures per frame: `upd` + `wait` + `under` + `sweep` +
+    `static` + the loop's time to the first label.
+  - Let W = p95(push) from the bench's histogram, and overlap = max(0, min(5, W − t)).
+  - **`fr` moves by about 5 − k × overlap**, where k is the repayment ratio. The loop +10 arm gives k = 8.5 / 10 =
+    0.85: a 10 ms spin placed right at the hand-off, fully inside the window, was repaid all but 1.5 ms.
+  - With t = 13-24 ms and W ≈ 24: overlap 0-5 ms, so **`fr` +5 down to about +0.8**.
+  - **If t ≥ W (no overlap): `fr` ≈ +5.** That is the case where the profile's reported `fr` cleanly confirms the plant.
+- **What would separate (P)/(M) from a phase fault:** `fr`'s move matches 5 − 0.85 × overlap, as computed from that
+  run's own boundaries, within ± 1 ms. A `fr` move well below that, with overlap 0, is outside the model: stop and
+  decide. The 0.85 and the ± 1 are taken from one arm, so this row is reported only. It is graded only after a second
+  measurement fixes k.
+- **(P) against (M), within the overlap:** (P) can repay at most the push task's CPU in the overlap (M3-4: under 1 ms a
+  frame for design (i)). A repayment well above 1 ms points to (M). The phase pattern (f2) names, the shrink
+  concentrated in the early phases, is the second sign.
+
+
 
 **OUTSIDE THE SET** (in addition to section 4's): the amendment's tree sha, image shas or flags differ from those
 pinned at the window. Stop, nothing is read.
