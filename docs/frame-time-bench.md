@@ -2843,6 +2843,73 @@ docstring and THE REBUILD ROW above.
   - an empty trace stops at BOOT, never at INPUT, so both pins match the files on disk;
   - the counts file passed as `--tbl` stops at INPUT.
 
+### THE SIBLING's PROOF SET, frozen with its image (2026-11-15T09:08:12Z)
+
+The window registered above ("The sibling's proof window, before FT"), on the orchestrator's schedule: the proof today,
+then FT-SEA in daylight (12:51-21:13Z per map-server), ending by 17:20Z. **No I-3 in this set** (the orchestrator's
+ruling): the proof image is a bench image on a branch that never merges, and I-3 guards a shipping image this window
+does not produce.
+
+**The image: v20-P,** env `blipscope-s3-128-framebench-c1b-proof`, at `6f0cdd1381eb`.
+- 1,967,312 B, sha256 `1481f29504166b95cbe3d656370ad35e4b6f4d101cb04faef9b4534a40dd6ae9`; 63 warnings.
+- The guard: 31.06 / 30.99 GB, read 60 s apart; 30.93 GiB after. The tree was clean, and the build dir was removed.
+
+**The same-instrument check** (`pp_diff_v2.py`, `7f4e6e1f121a`, as registered). The c1b and c1b-proof compile databases
+are at `6f0cdd1381eb`, 259 entries each.
+- Both envs' libdeps are copies of ftsea's, verified file by file (843 files, 0 differing). Both pio logs show no
+  "Installing" line.
+  - The control: two independent installs (ftsea, fthr) differ only in `integrity.dat`, which lists the same seven
+    libraries at the same versions in another order, with no env name.
+- **Plain: PASS.** Each source differs in the scene table's 2 lines and nothing else. Both guards held: "c1b-proof" is
+  counted 0 times in the c1b text, and 3 replacements were made in the proof text.
+- **The counter plant: RED.** Exactly 1 other line per source, each the planted increment.
+- **The env-name plant: PASS.** Every prediction HELD.
+
+**The gate for the two added rows,** executed by the reader on every read, from git at the image's commit:
+- **FB-REC:** `check_frame_bench.py`'s own `fb_rec()` at that commit. It reads `425040a3999d`.
+- **PUSH-SCOPE:** `push_scope.py` (`9df639f6fed5`).
+  - **SCOPE-M3:** `pushtask`'s block without its 4 bench regions equals `3bc7ec26fe28`'s, and LGFX.h, variants/s3_128.h
+    and FrameBuffer.h are byte-identical.
+  - **SCOPE-RD:** the block with its regions equals `0d6308cb77b6`'s (where the corrected centre was read).
+  - Its selftest has three plants: a push line (both rows red); a panel header line (both red); a line inside a bench
+    region (SCOPE-RD alone).
+
+**The reader: `fb_read_v20p.py` at `183cb2ec1f052d9c01a9caa2f6ed01b3322a74759673bb1db19a0b4a56168d7c`** (a byte copy is
+kept). It imports `fb_read_plants.py` (`bb1315423a29`, sha asserted, which asserts `fb_read_c1.py` `0dde3f661ee1`).
+- **THE PACKAGE's six rows,** at their true size, by C1's own `read_trace()`.
+- **I-5 B:** 6,400 to 7,300 ns, two-sided. Over 50,000 ns is read_trace's STOP.
+- **PUSH-SYNC:** B plain (S0) push − sync = 23.7 ± 1.0 ms; sync is reported.
+- Both are graded only if the gate holds; otherwise they are reported and re-registered.
+- **Added for this tree: the map-drawn bit (32) on any measured frame is the INSTRUMENT.** Step C is what the sibling adds
+  to C1. Its bit cannot rise in a C1 scene (DrawMapBase returns before the copy when MapEnabled() is false, and C1's
+  map-off region makes it false). C1's reader never looks at the bit, so this makes the argument a check.
+- **Selftest: 7 of 7, PASSED.** The gate holds at `6f0cdd1381eb`. The cases:
+  - the real cap8 trace: exit 0;
+  - the record cost at 5,000: I-5 B alone;
+  - the record cost at 60,000: the INSTRUMENT;
+  - S0's sync 1.5 ms higher: PUSH-SYNC alone;
+  - the same plant with the gate off: exit 0 (reported, not graded);
+  - bit 32 set on one S0 frame: the INSTRUMENT.
+- **The reference reading, on cap8's real trace** (THE PACKAGE's proof, the C1 image): 8 graded rows, 0 off. Record cost
+  6,824 ns; push − sync 23.72 ms (sync 0.46); bit 32 on 0 of 7,751 measured frames.
+
+**The window's scripts,** cut by `cut_v20p.py` (`c4e040991ed4`) from cap8's accepted three. Each replacement is
+asserted once, and each diff is only that: the ledger cap10, the manifest, the image label and path, and a header line.
+- `win_v20p.ps1` `d9464ac4fd3d`; `launch_v20p.ps1` `0dab4b1e048e`; `make_v20p_manifest.py` `d119e5403362`.
+- **The manifest** (`v20p_manifest.json`, `427e79f8578c`), against the release's table `28f336fe57a9`. Every write is
+  ota_0 alone (0x20000, 6,553,600 B): no factory image, no erase, nothing to NVS.
+  - v20-P `1481f2950416`, write 0x020000..0x2004CF (30.0 % of ota_0);
+  - restore-v19 `f6d73e391631`, write 0x020000..0x1F7A3F (29.5 %).
+- **The dry run, both halves:**
+  - v20-P's file stages and matches, and no port is touched (exit 0);
+  - ft2-sea's file under the v20-P label STOPs: "not the acknowledged manifest's; nothing written" (exit 20).
+- **The window:** a 21-min trace of S0-S4 with the PC quiet and no /diag/fb grabs. Then the v19 restore: its boot
+  tokens (a Wi-Fi rejoin, no portal), read-mac and HTTP. About 30 min in all.
+
+**Predicted:** every graded row in (THE PACKAGE's six, I-5 B and PUSH-SYNC), exit 0.
+- S4 not caught goes to the owner (exit 3).
+- Any other off reading, or anything outside the set, is a STOP.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
