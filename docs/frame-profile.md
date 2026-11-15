@@ -186,6 +186,46 @@ reads OFF on a correct profile.
 - **OUTSIDE THE SET:** labels not +5, `fr` − `wait` not +5, the cross-instrument row off, or anything else. Stop.
 - **A0a's gate** is now "the profile's own P-CTRL passes as above", no longer "C1's loop +10 arm passes".
 
+**(f2) P-CTRL UNDER M3, AMENDED before any run (the orchestrator's amended acceptance, 2026-11-15, after 00:40Z). This
+SUPERSEDES (f) above in full; (f) stays as the record of what was first accepted.**
+- **The new fact:** map-client read the board's own `[m3] loop_wait_avg_us`, windowed inside each measured span, at
+  **5 µs a frame in S0 and 15 µs in S3**, the loop +10 arm. So the buffer wait absorbs NOTHING. (f)'s "why" was
+  wrong, and so is its "~1.5 ms of wait per frame": that figure was `fr`'s delta, not the wait.
+- **`fr` − `wait` would read the same +1.5 ms as `fr`.** So the 10 ms planted after `HandOver` is repaid somewhere
+  inside `fr`'s span other than the wait, or the plant is short.
+- **THE LIVE CANDIDATES, named before any profile run:**
+  - **(P)** the push task's CPU bursts land inside a busy-wait instead of preempting the draw. M3-4's prediction for
+    design (i) is that the push task uses under 1 ms a frame, so (P) alone can repay at most about 1 ms;
+  - **(D)** draw work that scales with the time between frames;
+  - **(S)** the plant is short;
+  - **(C)** PSRAM bus contention between the push's DMA and the draw. This is the "ε" named on 2026-11-13 against the
+    CTRL argument. The DMA reads one PSRAM buffer for about 24 ms after `HandOver` while the loop draws into the
+    other. A spin placed right after `HandOver` overlaps that DMA, so the DMA finishes uncontended, and the next
+    frame's early phases run faster by the contention they no longer pay. (C) can repay several ms; (P) cannot.
+- **What each predicts in the profile, against P1@40:**
+  - **(C):** the shrink concentrates in the phases that run during the DMA window, the first ~24 ms after the hand-off
+    (`under`, `sweep`, `static`);
+  - **(P):** a shrink of at most about 1 ms, spread across phases;
+  - **(D):** a shrink in the phases whose work depends on elapsed time (trail and fade sampling in `contacts`);
+  - **(S):** `lbl_draw` reads under +5.
+- **GRADED:** `lbl_draw` **+5.0 ± 0.75 ms** at p50. It is the plant's own boundary, which (P), (D) and (C) cannot
+  move: the spin is a wall-clock 5 ms timed by the cycle counter around it.
+- **GRADED: the instrument rows that CAN fail.**
+  - **0 partial frames** in every span.
+  - The remainders `contacts` and `rest` are **≥ −0.05 ms**.
+  - The cross-instrument wait row from (f): the profile's `wait` against M3's own `loop_wait_avg_us`, windowed,
+    within **± 0.2 ms**, with its plant. The windowed wait is about 15 µs, so the wrap concern in (f) does not arise.
+- **NOT a graded row: "the phases sum to `fr` exactly".** The orchestrator's amended acceptance lists it as graded,
+  but (c) above removed it as a check: the marks are back to back, so the sum is `fr` by construction and cannot fail.
+  It stays a property of the code. The rows above are the ones that catch a misplaced or missing boundary.
+- **REPORTED, not graded, until the mechanism is known:** `fr`, `wait`, `fr` − `wait`, and every other phase's change.
+  Their pattern is the read that tells (C), (P) and (D) apart. One more outcome counts as outside the set rather than
+  an answer: no phase shrinks, yet `fr` moves less than +5.
+- **OUTSIDE THE SET:** `lbl_draw` not +5 (what (S) would look like); a graded instrument row failing; or anything
+  else. Stop.
+- **A0a's gate** is "P-CTRL passes as above". C1's loop +10 arm is not a gate.
+
+
 **OUTSIDE THE SET** (in addition to section 4's): the amendment's tree sha, image shas or flags differ from those
 pinned at the window. Stop, nothing is read.
 
