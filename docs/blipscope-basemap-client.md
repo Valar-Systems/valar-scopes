@@ -75,6 +75,17 @@ Weatherscope's style does not change.
 | **S6: labels** | collisions keep today's behaviour (decision 5) |
 | **S6′: place names** | **On by default, with a setting to turn them off** (Daniel, Q-MC7 (c), 2026-11-07 ~21:13Z). The Weatherscope's rule: the largest towns first, at most 8, the centre kept clear. **A name never covers an airport code.** Daniel judges it on glass. The setting's rules are in §6 |
 | **S7: the sweep over the map** | **The wedge's green is added to the map pixel** below it, so the map stays visible under the beam. Over black this is bit-identical to today's opaque wedge. Daniel judges it on glass (Q-MC2, 2026-11-07 ~19:08Z) |
+| **S8: a change to how lines are drawn** | **Before/after pictures at 5, 10, 50 and 100 mi, drawn by the device's renderer, go to the owner before he is asked to decide** (the owner, 2026-11-13 16:49Z: "Register the road-appearance check now: any change to line detail gets before/after pictures at 5/10/50/100 mi before I'm asked to decide"). It covers every client-side change to how lines are drawn or thinned: simplification at render, the choice of detail level, line width, which road classes draw (S1), and step D's defaults. Each such change also registers, before its code, **one named multi-line corridor, with its band width and its crossings predicted** |
+
+**Why S8 exists.** The Hudson rule coarsened Boston's lines from 0.4 to 1.6 km. At 10 mi the Southeast Expressway's
+roughly 36 stacked Census lines fanned into a hatched bundle of 4 to 6 strands, and roads went ruler-straight. No
+registered row graded how roads look; the owner rejected the change on the pictures.
+
+**S8 against this plan's queue (2026-11-13).** Step D is the one queued step it covers. Its terrain-shading setting
+changes the land under the lines, not the lines themselves, so its corridor prediction is **band width and crossings
+unchanged**; the pictures still go to the owner, since shading changes how a road reads against the land. The frame
+bench (C1, C1-L), the recording and replay windows, and step C (the sweep's green added over the map) change nothing in
+how lines are drawn or thinned.
 
 **S1's check, with values measured on the approved packages** (view half-width 49.5 km, centred on each package's
 origin). These are registered here, before any client code:

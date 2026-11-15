@@ -19,6 +19,7 @@ export interface LatestRecord {
   ingestedAt: number;   // ms
   ni: number; nj: number; la1: number; lo1: number; di: number; dj: number; tile: number;
   coveredShare?: number;   // OPERA products only (K9): cells not 14, over all cells
+  source?: "primary" | "backup";   // OPERA products only (docs/wx-opera-backup-fallback.md 2a): the host it came from
 }
 
 export async function readLatest(bucket: R2Bucket, p: Product): Promise<LatestRecord | null> {
@@ -33,18 +34,22 @@ export async function readLatest(bucket: R2Bucket, p: Product): Promise<LatestRe
  *  - `coveredShare`, for an OPERA product, null when absent -- never a made-up share;
  *  - `routed`, whether /wx/cref may be answered from it (the routed set, production's ROUTED);
  *  - `stale`, the endpoint's own wx_stale rule (now - epoch > maxAgeS, on the unrounded age, as handleWx below), or
- *    null when there is no frame -- never a made-up verdict.
+ *    null when there is no frame -- never a made-up verdict;
+ *  - `source`, for an OPERA product, the host its newest frame came from ("primary" | "backup"), or null when there is
+ *    no frame or `latest` predates the fallback (docs/wx-opera-backup-fallback.md 2a) -- never a made-up value.
  *  The `latest` reads run in parallel, one Class B each. "not_configured" without the binding. */
 export async function wxHealth(env: Env, products: readonly Product[], routed: ReadonlySet<string>): Promise<unknown> {
   const bucket = env.WX;
   if (!bucket) return "not_configured";
   const recs = await Promise.all(products.map((p) => readLatest(bucket, p).catch(() => null)));
   const now = Date.now() / 1000;
-  const out: Record<string, { frameAgeS: number | null; coveredShare?: number | null; routed?: boolean; stale?: boolean | null }> = {};
+  const out: Record<string, { frameAgeS: number | null; coveredShare?: number | null; source?: string | null; routed?: boolean;
+                               stale?: boolean | null }> = {};
   products.forEach((p, i) => {
     const rec = recs[i] ?? null;
     const e: (typeof out)[string] = { frameAgeS: rec ? Math.round(now - rec.epoch) : null };
     if (p.source === "opera") e.coveredShare = typeof rec?.coveredShare === "number" ? rec.coveredShare : null;
+    if (p.source === "opera") e.source = rec?.source === "primary" || rec?.source === "backup" ? rec.source : null;
     e.routed = routed.has(p.id);
     e.stale = rec ? now - rec.epoch > p.maxAgeS : null;
     out[p.id] = e;

@@ -15,8 +15,15 @@ import { type ResampleMap, buildMap, cacheMap, cachedMap, decodeMap, encodeMap, 
 export const NOAA_BUCKET = "https://noaa-mrms-pds.s3.amazonaws.com";
 /** OPERA's 24 h cache (docs/uk-data.md A3.9: no published limit; about 3 requests a minute from us). */
 export const OPERA_BUCKET = "https://s3.waw3-1.cloudferro.com/openradar-24h";
+/** ORD's temporary backup of the same cache (docs/wx-opera-backup-fallback.md section 1: "temporarily moved our
+ *  services to the backup domain", 2026-11). The same objects, keys and licence; used only when the primary has none. */
+export const OPERA_BACKUP_BUCKET = "https://object-store.os-api.cci1.ecmwf.int/openradar-24h-backup";
+export type OperaSource = "primary" | "backup";
+const OPERA_HOST: Record<OperaSource, string> = { primary: OPERA_BUCKET, backup: OPERA_BACKUP_BUCKET };
+/** N1: the host a request goes to, for its error text. A base that is neither (a tool's own) reads as itself. */
+const hostLabel = (base: string): string => (base === OPERA_BACKUP_BUCKET ? "backup" : base === OPERA_BUCKET ? "primary" : base);
 /** K14: every request to the cache names us, with a contact URL, as the map server's ingest does. */
-export const OPERA_UA = "BlipscopeWxIngest/1 (+https://github.com/Valar-Systems/valar-scopes)";
+export const OPERA_UA = "BlipscopeWxIngest/1 (+https://github.com/Valar-Systems/valar-scopes; support@valarsystems.com)";
 export const RETAIN_S = 3600;
 const LOOKBACK_S = 20 * 60;
 
@@ -108,7 +115,7 @@ const operaDay = (ms: number) => { const s = new Date(ms).toISOString(); return 
 
 /** Every DBZH GeoTIFF OPERA's cache holds from the last 20 min, oldest first (the day before too across midnight). */
 export async function operaKeys(p: Product, nowMs: number, doFetch: Fetch, opts: IngestOpts = DEFAULT_OPTS,
-                                x: IngestX = {}): Promise<{ keys: string[]; attempts: number }> {
+                                x: IngestX = {}, base: string = OPERA_BUCKET): Promise<{ keys: string[]; attempts: number }> {
   const from = nowMs - LOOKBACK_S * 1000;
   const starts = operaDay(from) === operaDay(nowMs) ? [from] : [from, nowMs];
   const keys = new Set<string>();
@@ -116,8 +123,9 @@ export async function operaKeys(p: Product, nowMs: number, doFetch: Fetch, opts:
   for (const s of starts) {
     const prefix = `${operaDay(s)}/OPERA/COMP/`;
     const after = s === from ? `&start-after=${encodeURIComponent(`${prefix}OPERA@${operaStamp(from)}`)}` : "";
-    const url = `${OPERA_BUCKET}/?list-type=2&prefix=${encodeURIComponent(prefix)}${after}`;
-    const r = await noaaRequest("OPERA list", url, opts.list, doFetch, (res) => res.text(),
+    const url = `${base}/?list-type=2&prefix=${encodeURIComponent(prefix)}${after}`;
+    // N1 (docs/wx-opera-backup-fallback.md 9): every OPERA error names its host, so a log line says which one failed
+    const r = await noaaRequest(`OPERA ${hostLabel(base)} list`, url, opts.list, doFetch, (res) => res.text(),
                                 x.uaOff === "list" ? undefined : { "User-Agent": OPERA_UA });
     attempts = Math.max(attempts, r.attempts);
     for (const m of r.value.matchAll(/<Key>([^<]+)<\/Key>/g)) {
@@ -126,6 +134,31 @@ export async function operaKeys(p: Product, nowMs: number, doFetch: Fetch, opts:
     }
   }
   return { keys: [...keys].sort(), attempts };
+}
+
+/** One check's OPERA source (docs/wx-opera-backup-fallback.md 2a, as amended). The primary when its listing holds a
+ *  frame; else the backup. `no-frame` (keys empty, source null) ONLY when every host consulted answered EMPTY: any
+ *  listing failure that leaves the check without a frame THROWS, so "we could not reach OPERA" never reads like "OPERA
+ *  has no frame". Never mixed: the caller reads only from the source chosen here. */
+export async function operaListing(p: Product, nowMs: number, doFetch: Fetch, opts: IngestOpts = DEFAULT_OPTS,
+                                   x: IngestX = {}): Promise<{ keys: string[]; attempts: number; source: OperaSource | null;
+                                                               primaryListError?: string }> {
+  let prim: { keys: string[]; attempts: number } | null = null;
+  let pErr: NoaaError | null = null;
+  try { prim = await operaKeys(p, nowMs, doFetch, opts, x, OPERA_BUCKET); }
+  catch (err) { if (!(err instanceof NoaaError)) throw err; pErr = err; }
+  if (prim && prim.keys.length) return { ...prim, source: "primary" };
+  let back: { keys: string[]; attempts: number };
+  try { back = await operaKeys(p, nowMs, doFetch, opts, x, OPERA_BACKUP_BUCKET); }
+  catch (err) {
+    if (!(err instanceof NoaaError)) throw err;
+    if (pErr) throw new NoaaError(`${pErr.message}; ${err.message}`, Math.max(pErr.attempts, err.attempts));   // each names its host
+    throw err;                                                   // the primary answered empty: the backup's failure is the error
+  }
+  const attempts = Math.max(prim?.attempts ?? pErr?.attempts ?? 0, back.attempts);
+  if (back.keys.length) return { keys: back.keys, attempts, source: "backup", ...(pErr ? { primaryListError: pErr.message } : {}) };
+  if (pErr) throw new NoaaError(`${pErr.message} (the backup listed empty)`, pErr.attempts);
+  return { keys: [], attempts, source: null };
 }
 
 /** The newest frame NOAA has published in the last 20 min. */
@@ -209,15 +242,16 @@ export interface OperaBuild {
 }
 
 export async function buildOperaFrame(p: Product, key: string, epoch: number, doFetch: Fetch, opts: IngestOpts,
-                                      attempts: { get: number }, x: IngestX = {}, bucket?: R2Bucket): Promise<OperaBuild> {
-  const url = `${OPERA_BUCKET}/${key}`;
+                                      attempts: { get: number }, x: IngestX = {}, bucket?: R2Bucket,
+                                      base: string = OPERA_BUCKET): Promise<OperaBuild> {
+  const url = `${base}/${key}`;
   let first = true;
   const fetchRange: RangeFetch = async (a, z) => {
     const kind = first ? "head" : "tiles";
     first = false;
     const h: Record<string, string> = { Range: `bytes=${a}-${z}` };
     if (x.uaOff !== kind) h["User-Agent"] = OPERA_UA;
-    const got = await noaaRequest("OPERA get", url, opts.get, doFetch, async (res) => new Uint8Array(await res.arrayBuffer()), h);
+    const got = await noaaRequest(`OPERA ${hostLabel(base)} get`, url, opts.get, doFetch, async (res) => new Uint8Array(await res.arrayBuffer()), h);
     attempts.get = Math.max(attempts.get, got.attempts);
     return got.value;
   };
@@ -258,6 +292,8 @@ export interface IngestResult {
   map?: MapSource; mapRefused?: boolean;   // OPERA, stage 1c: where the resample map came from
   mapPutErrors?: number; mapPutErr?: string;   // a map put that threw; the frame is kept (free text, cut at 80)
   attempts?: { list: number; get: number };
+  source?: OperaSource;          // OPERA: the one host this check listed frames on and read from (2a)
+  primaryListError?: string;     // OPERA: the primary's listing failure when the backup served instead (cut at 80)
 }
 
 /** One check, for one product. It builds AT MOST ONE frame: the newest frame NOAA has that the bucket lacks --
@@ -267,10 +303,13 @@ export interface IngestResult {
  *  frame, and old frames are pruned. Safe to call any number of times, in parallel. */
 export async function ingestOnce(bucket: R2Bucket, p: Product, nowMs: number, doFetch: Fetch,
                                  opts: IngestOpts = DEFAULT_OPTS, x: IngestX = {}): Promise<IngestResult> {
-  const listed = p.source === "opera" ? await operaKeys(p, nowMs, doFetch, opts, x) : await noaaKeys(p, nowMs, doFetch, opts);
+  const listed: { keys: string[]; attempts: number; source?: OperaSource | null; primaryListError?: string } =
+    p.source === "opera" ? await operaListing(p, nowMs, doFetch, opts, x) : await noaaKeys(p, nowMs, doFetch, opts);
   const attempts = { list: listed.attempts, get: 0 };
   const keys = listed.keys;
   if (!keys.length) return { status: "no-frame", attempts };
+  const source = listed.source ?? undefined;               // OPERA only; every read below goes to this one host
+  const tag = source ? { source, ...(listed.primaryListError ? { primaryListError: listed.primaryListError.slice(0, 80) } : {}) } : {};
   const newest = keys[keys.length - 1] as string;
   let target: string | null = null;
   for (let i = keys.length - 1; i >= 0; i--) {
@@ -282,18 +321,21 @@ export async function ingestOnce(bucket: R2Bucket, p: Product, nowMs: number, do
   const key = target ?? newest;
   const epoch = epochOfKey(p, key)!;
   const out: IngestResult = { status: target === null ? "already-stored" : key === newest ? "stored" : "backfilled",
-                              key, epoch, attempts };
+                              key, epoch, attempts, ...tag };
   let wrote = false;
   if (target !== null) {
     let bytes: Uint8Array;
     let customMetadata: Record<string, string> | undefined;
     if (p.source === "opera") {
-      const b = await buildOperaFrame(p, key, epoch, doFetch, opts, attempts, x, bucket);
+      // N4 (section 9): never a silent default to a host. operaListing names a source with every non-empty listing.
+      if (!source) throw new Error("OPERA check without a source");
+      const b = await buildOperaFrame(p, key, epoch, doFetch, opts, attempts, x, bucket, OPERA_HOST[source]);
       out.map = b.map;
       if (b.mapRefused) out.mapRefused = true;
       if (b.mapPutErr !== undefined) { out.mapPutErrors = 1; out.mapPutErr = b.mapPutErr.slice(0, 80); }
       bytes = b.fb.bytes;
-      customMetadata = { coveredShare: String(b.covered) };   // K9: carried into `latest` by whichever check moves it
+      // K9's share, and 2a's source: both carried into `latest` by whichever check moves it
+      customMetadata = { coveredShare: String(b.covered), ...(source ? { source } : {}) };
       out.coveredShare = b.covered;
     } else {
       const got = await noaaRequest("NOAA get", `${NOAA_BUCKET}/${key}`, opts.get, doFetch,
@@ -331,8 +373,10 @@ async function frameGeometry(bucket: R2Bucket, p: Product, epoch: number) {
   if (!o) throw new Error("frame vanished between head and get");
   const m = readHeader(new Uint8Array(await o.arrayBuffer()));
   const share = p.source === "opera" ? Number(o.customMetadata?.coveredShare) : NaN;
+  const src = p.source === "opera" ? o.customMetadata?.source : undefined;   // 2a: a frame stored before it has none
   return { ni: m.ni, nj: m.nj, la1: m.la1, lo1: m.lo1, di: m.di, dj: m.dj, tile: m.tile,
-           ...(Number.isFinite(share) ? { coveredShare: share } : {}) };
+           ...(Number.isFinite(share) ? { coveredShare: share } : {}),
+           ...(src === "primary" || src === "backup" ? { source: src as OperaSource } : {}) };
 }
 
 /** Delete this product's frames older than RETAIN_S. Never the frame `latest` names. */

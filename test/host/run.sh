@@ -354,7 +354,7 @@ note_block $? "overlap count (labels AND badges)"
 #
 # Found by the fresh-boot acceptance stalling at step 2 on an iPhone: the lat/lon
 # boxes carried inputmode="decimal", whose keypad has no minus key -- and the
-# hint beneath them said "No minus key? Write 121.315 W", on a keypad with no W
+# hint beneath them said "No minus key? Write 121.31 W", on a keypad with no W
 # either. The advice was unreachable on the one device it addressed.
 #
 # ONE EXTRA -I, AND IT IS NOT ON $INCLUDES. include/CoordParse.h is the single
