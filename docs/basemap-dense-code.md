@@ -4472,3 +4472,475 @@ Only GNIS differs (51 / 51, recorded at S-1).
 - **36 check runs: 34 success, 2 skipped, 0 failures.**
 - **P1 BLIND again:** STOP. The orchestrator takes it to the locate check's owner, with both runs' evidence. That would be the instrument's second failure on this PR; a third goes to the project's owner.
 - **Anything else outside 34 / 2 / 0:** STOP, and read which job before anything else.
+
+### 44349515's CI, the census switch's end and the owner's hand fetch, and FT-SEA on step C (2026-11-13 to 11-15)
+
+**This push: main b282699ac091 merged in** (1c8dd093, clean), the records below, and FT-SEA's re-registration copied from #682.
+
+**CI on 44349515: OFF, the instrument's SECOND failure on this PR.** 36 check runs: 33 success, 2 skipped, **1 failure** (read
+13:44Z on 11-13), tested on "Merge 44349515fd0b... into b7184243fc60...".
+- **The job:** `test (proxy)`, `check-locate-page.mjs --selftest`, row P1 BLIND again (30.3 s). This was the pre-registered STOP. It
+  went to the orchestrator for the locate check's owner, 5c.
+- **A correction to my own evidence.** I reported that P1's time separates a pass (4-14 s) from a BLIND (30-39 s). That came from
+  4 runs, and it was WRONG.
+  - 5c's survey of 48 runs (from 11-11 19:09Z) has a 33.5 s PASS (image 360, 11-11 23:24Z).
+  - Both BLINDs were the last two runs on image 370.
+  - P1's cold cost varies from 0 to 35 s.
+- **The fix is in this push's base:** 5c's #698 (aa40aa43, on main 14:22Z on 11-13). It has a 12 s bounded wait, phase timings, and
+  10 selftest rows, including S1 and "P1 again, last".
+
+**The census files.**
+- **The background:** round 6 (06:44/06:45Z on 11-14) fetched 27081 and 54093 linearwater from www2, and S-1 read both byte-SAME
+  as bm-obj's records. Round 7 (06:49-06:55Z) refused the other 6.
+- **The orchestrator's ruling (ii):** the switch at n = 6, registered in `mirror/switch_n6.pred` (below). Step 1 (`apply`) read AS
+  PREDICTED: plan 1cadb9712e03, with the kept copies `plan.original.f12d3eb56040.json` and `retry.before.89475784fe22.json`. Step 2,
+  the mirror fetch, was REFUSED 6/6 (`text/html;charset=ISO-8859-1`): STOP.
+- **Ruling (a): the mirror retried on the ingest's own schedule** (`mirror/sched_n6.pred`). There was one round at each of +60,
+  +180, +360, +720 and +1440 min from 07:26:34Z on 11-14, each its own process.
+  - **All five read REFUSED:** 08:26Z, 10:26Z, 13:27Z, 19:27:30-19:33:35Z, then 07:27:17-07:33:25Z on 11-15. Each read exit 1, 0
+    fetched, 6 refused, 0 other, stderr 0 B.
+  - **Verdict: ALL REFUSED (exit 5).**
+  - **The state is held as registered:** plan.json 1cadb9712e03; `retry-attempts.jsonl` from 60 to 90 lines (6 a round); 0 files
+    under `files/ftp2.census.gov`; the dry-clone at 44349515 unused.
+- **(c) goes to the owner** (the orchestrator, after 07:36:34Z on 11-15):
+  - he fetches the six from his own network, and the hand placement below proves each by bytes and sha256;
+  - the alternatives are (a) re-armed over a longer span and (b) a restore;
+  - building the store without the six is named as NOT registered;
+  - the cache stays untouched until he answers.
+- **What the six are for.** They are 6 of the 16,036 source files of this PR's store: four counties' water areas (38021, 39167,
+  44007, 56029) and two counties' rivers (17005, 19123), 3,449,454 B in all. The build needs every planned file. Until they are in,
+  there is no new store; production keeps today's, and FT-SEA does not wait on it.
+- **Step 8's guard, amended so that #696 may move** (the orchestrator's ACCEPT, after 07:36:34Z). The old rule was "re-read #696's
+  head before step 8, STOP if it moved from 44349515". It is REPLACED by a check that keeps its reason, the dry run testing this PR's
+  proposed code. Immediately before step 8:
+  - `git diff` from 44349515 to this PR's head must be EMPTY over the dry run's import closure, traced at 44349515:
+    `proxy/scripts/ingest-basemap.ts`, `proxy/scripts/basemap/`, `proxy/src/basemap/`, `proxy/src/util.ts`, `proxy/src/wx/crop.ts`,
+    `proxy/src/wx/grid.ts`, `proxy/package.json`, `proxy/package-lock.json` and `proxy/tsconfig.json`.
+  - EMPTY: step 8 reads 44349515 BY SHA, from the dry-clone pinned there. NOT EMPTY: STOP and re-register.
+  - **Read on this push's merge (1c8dd093):** EMPTY (exit 0). Its control, the same diff over all of `proxy/src/wx/` (where main
+    changed `handler.ts` and `ingest.ts`), reads NOT EMPTY (exit 1), so the diff is not blind.
+- **The three registrations, verbatim** (scratch, never run on the cache until ruled):
+
+`mirror/switch_n6.pred` (c4fb80a73ea3, with its step-8 amendment):
+
+```text
+Form (d) at n = 6, re-registered (the orchestrator's ruling (ii), after 06:56:14Z 2026-11-14), before anything is applied.
+Replaces the M rows of docs/basemap-dense-code.md (#696, "Predictions, registered before the switch") for this switch; the doc
+takes this text at #696's next push. NOT run until the orchestrator accepts it AND rehearse_n6.sh has read AS PREDICTED.
+
+WHAT CHANGED, AND WHY
+- Round 6 fetched 27081 and 54093 linearwater from www2 (06:44/06:45Z). S-1 read both byte-SAME as bm-obj's records
+  (1ea420092897, 502372153bb1). Round 7 (06:49-06:55Z) refused the other 6 again.
+- switch_d.py (361161bdc565) refuses outright once any primary file is fetched, and its rows name 8. Its successor is
+  switch_d2.py: the same stages, mirroring only planned_not_fetched (the 6), skipping the 2. Its P1-P3 are rehearsed red-first
+  against the old script in rehearse_n6.sh / rehearse_n6.pred.
+- The store will hold the 2 from the primary (no note) and the 6 via the mirror (each with the note). The note's wording is
+  unchanged (MI4b's form, notes_d.mts 6ba47d942b07):
+  `<primary url>: fetched via the Census Bureau's mirror <mirror url> after www2.census.gov's firewall refused it; its bytes and
+  sha256 equal this url's record in store 4c0875738f38`
+
+THE STEPS, on the real cache, in order (each through runlog.sh; any STOP stops here)
+1. apply: `python -X utf8 -I mirror/switch_d2.py apply` (the process guard needs 0 ingest-basemap processes).
+   Expected: "apply: plan.json f12d3eb56040 -> <P6> (6 urls to the mirror; 2 primary-fetched skipped:
+   tl_2024_27081_linearwater.zip, tl_2024_54093_linearwater.zip); kept plan.original.f12d3eb56040.json and
+   retry.before.89475784fe22.json", exit 0, where <P6> is the value the rehearsal's N0.2 printed (same input bytes).
+2. the mirror fetch: the ingest's own `retry --schedule-min 0 --urls <the 6 ftp2 urls>`, from sab-ingest/proxy (c3acc338,
+   clean), one a minute, with its UA. Expected: 6 "fetched", "retry: all fetched", exit 0, stderr 0 B.
+3. M-1, check: 6 lines "mirror, SAME as bm-obj" and 2 "primary-fetched, SAME as bm-obj"; "identity: ALL 6 mirror + 2
+   primary-fetched SAME", exit 0.
+4. rekey: "rekey: 6 records moved to the primary urls; 6 files copied to the primary paths; 2 primary-fetched skipped,
+   unchanged; plan.json = original f12d3eb56040 + 6 notes -> <P6N>", exit 0, where <P6N> is the rehearsal's N0.7 value.
+5. M-2, final: 8 OK, "final: plan = original + 6 notes; 6 mirrored + 2 primary-fetched records, files and bm-obj records
+   agree", exit 0.
+6. P1 on the real cache: the 2 primary-fetched files (1ea420092897, 502372153bb1) and their records, by sha, printed before
+   step 1 and after steps 1, 4 and 5: all equal.
+7. S-1 (s01.py a3b285ea0a38), all 8 now: water same 3144, rivers same 3144, changed 0; planned_not_fetched 0; everything
+   else as 5-s01.out (r7-primary.pred's S1-8, now reached through the mirror).
+8. M-4 first, then S-2: m4-strip, ONE extra dry run on the original plan bytes, m4-restore, then S-2's two dry runs.
+   M-4 expected as registered: the trees identical except `store/manifest.json` (the notes key) and `dry-run.json` (its
+   `storeId`, `manifestBytes` and `vectorStoreBytes`).
+9. M-3, the dry run's manifest: 16,036 entries; the 8 byte-equal to bm-obj's entries; keys `builder,files,notes,predicates`;
+   `notes` exactly the 6 above, on the 6 primary urls, and NONE on 27081 or 54093.
+10. M-5, the rows after it: SEA-OWN, I2, KB7-b and KB7-c-real as registered. The switch moves no url, so it moves nothing at
+    KBOS or KJAC.
+Then S-3 to S-7 as registered.
+
+OUTSIDE THIS SET
+| reading | then |
+|---|---|
+| any mirror fetch refused, a 404, or another error | nothing is logged: STOP and report |
+| any file fetched but not SAME at M-1 | STOP before rekey. Its record stays under the mirror url, unused without a ruling |
+| a P1 sha differing at any print | STOP: a primary-fetched file or record moved, which P1 forbids |
+| S-1 not as above | STOP before S-2 |
+| M-3 or M-4 not as above | STOP before S-3 |
+| a primary round that fetches any of the 6 meanwhile | none is scheduled (the orchestrator: no more primary rounds unless it schedules one) |
+| anything else | stop and decide |
+
+AMENDMENT to step 8 (the orchestrator's ACCEPT, after 07:36:34Z on 2026-11-15), before any file arrives:
+- "#696's head is re-read before step 8, STOP if it moved from 44349515" is REPLACED by a guard that keeps its reason (the dry run
+  tests #696's proposed code) as a check that runs. Immediately before step 8:
+    git diff --quiet 44349515fd0b <#696 head by ls-remote> -- proxy/scripts/ingest-basemap.ts proxy/scripts/basemap/
+      proxy/src/basemap/ proxy/src/util.ts proxy/src/wx/crop.ts proxy/src/wx/grid.ts proxy/package.json
+      proxy/package-lock.json proxy/tsconfig.json
+  (the dry run's import closure, traced at 44349515). EMPTY (exit 0): step 8 runs in the dry-clone pinned at 44349515.
+  NOT EMPTY (exit 1): STOP and re-register on the new head. Any other exit: STOP and decide.
+- Read 2026-11-15 ~07:36Z: main b282699ac091 (30 commits past #696's base 4abb65082f5e) touches none of those paths, so #696 may
+  take main and docs now.
+- Steps 1-4 are superseded if the owner's hand fetch (c) is used: see mirror/place_n6.pred.
+```
+
+`mirror/sched_n6.pred` (cdbefc6c665d):
+
+```text
+The census MIRROR retry on a schedule: the orchestrator's ruling (a), after 07:22:11Z 2026-11-14. Registered before it runs.
+
+State held throughout: step 1's applied state, consistent and reversible.
+- plan.json 1cadb9712e03; plan.original.f12d3eb56040.json and retry.before.89475784fe22.json kept in mirror/;
+  retry-fetched.json 89475784fe22 (round 6's 2 records); 0 files under files/ftp2.census.gov.
+- Nothing else reads the cache meanwhile. The dry-clone at 44349515 is held, unused. #696's head is re-read before step 8,
+  as ruled.
+
+The schedule (mirror/sched_n6.sh, with mirror/sched_n6_counts.py):
+- one round at each of +60, +180, +360, +720 and +1440 min from the script's start;
+- each round is the ingest's own `retry --schedule-min 0 --urls <the 6 ftp2 urls>` from sab-ingest/proxy (c3acc338, clean),
+  one file a minute, with its UA, through runlog.sh (tag census-mirror-p<min>);
+- each round is its OWN process. The ingest's in-process schedule would go on to the next point after a partial round, and
+  stopping it there would need a kill.
+- Before each round: 0 ingest-basemap processes, and plan.json still 1cadb9712e03.
+
+Each round's verdict, from m = the ftp2 records in retry-fetched.json, the round's attempt lines, its exit and its stderr:
+| reading | verdict | then |
+|---|---|---|
+| m 6; 6 "fetched" lines, 0 other; exit 0; stderr 0 B | ALL | the schedule ends (exit 0); resume at step 3 (check, M-1) as registered in switch_n6.pred |
+| m 1 to 5 | PARTIAL | STOP after that round (exit 4); bring n = 6 - m to the orchestrator |
+| m 0; 6 "not fetched" lines, 0 fetched, 0 other; exit 1; stderr 0 B | REFUSED | the next point |
+| REFUSED at +1440 | ALL REFUSED | STOP (exit 5); (c) goes to the owner then, not before |
+| a guard fails before a round (a process running, or plan.json moved) | OUTSIDE | STOP (exit 3) without running the round |
+| anything else (another exit, a crash, stderr not empty, a line that is neither, m disagreeing with the lines) | OUTSIDE | STOP (exit 3) and decide |
+- CONTROL, before arming: sched_n6_counts.py on step 2's own logs (switch-n6-fetch-20261114T071526Z.out/.err) reads
+  "0 0 6 0 0", which is REFUSED's shape. The script's bash parses (bash -n).
+- Each round adds 6 lines to retry-attempts.jsonl (60 -> 66 after the first round, and so on).
+- A refusal writes no record and no file (as at 07:15-07:20Z).
+
+Amendment, before round +1440 (the orchestrator's ruling, after 02:49:38Z on 2026-11-15; C: read 28.13 GiB free at 02:45:37Z):
+- Round +1440 runs at its booked 07:26Z, unchanged. REFUSED writes nothing, and the scheduler exits 5: (c) goes to Daniel as registered.
+- ALL: the six zips land. THEN, before step 8, take ONE free-space reading, `(Get-PSDrive C).Free / 1GB`, with no sweep.
+  Under 30 GiB: STOP before step 8 and bring the reading to the orchestrator. At or above 30 GiB: proceed as registered.
+- 5c's label window on E2:08 is kept clear of 07:20-07:40Z by the orchestrator.
+```
+
+`mirror/place_n6.pred` (d1535c06906d), the owner's hand fetch, registered before any file arrives:
+
+```text
+The owner's hand fetch, (c): placing the 6 census files into the cache. Registered before any file arrives (the orchestrator's
+ACCEPT, after 07:36:34Z on 2026-11-15). Nothing is applied until the owner has answered (c) AND the tool below has read AS PREDICTED
+in its rehearsal. The cache stays untouched until then.
+
+WHY A STEP OF ITS OWN
+- switch_n6.pred's steps 1-4 expect the ingest's own mirror fetch, and their note says "fetched via the Census Bureau's mirror".
+  For a file the owner downloads by hand that note would be FALSE, so it is never used here.
+- The 6 (primary urls on www2.census.gov, each with bm-obj's record in store 4c0875738f38: bytes, sha256 first 12):
+  .../TIGER2024/AREAWATER/tl_2024_38021_areawater.zip    188,627  129bdf71dcb8
+  .../TIGER2024/AREAWATER/tl_2024_39167_areawater.zip    595,192  a8c5673287f1
+  .../TIGER2024/AREAWATER/tl_2024_44007_areawater.zip  1,239,416  3e4bd9cfe184
+  .../TIGER2024/AREAWATER/tl_2024_56029_areawater.zip    382,297  2839d41c40c0
+  .../TIGER2024/LINEARWATER/tl_2024_17005_linearwater.zip  146,563  0ae92f7a7093
+  .../TIGER2024/LINEARWATER/tl_2024_19123_linearwater.zip  897,359  6150b7eca101
+  (3,449,454 B in all.)
+
+THE SOURCE
+- The owner downloads each file from its www2.census.gov url on a network other than this PC's, and saves it unrenamed in
+  C:\Github\_handoffs\map-server\census-n6\ (a new folder, outside every repo). The note's "from <www2 url>" rests on his word.
+  If he used the mirror (ftp2) instead, the note names ftp2, in the same form; the bytes cannot tell the two hosts apart.
+
+THE NOTE (one per placed url, MI4b's form: no wall-clock time; plan entry `note`, which the manifest prints after the url):
+  fetched by the owner from <www2 url> on another network after www2.census.gov's firewall refused this machine; its bytes and
+  sha256 equal this url's record in store 4c0875738f38
+
+THE TOOL: mirror/place_n6.py, a sibling of switch_d2.py (common.py, the same P1-P3 placement checks before any write; no
+rehearsal flag works on the real cache). Its stages:
+  check-src  read-only, on the source folder. The folder holds EXACTLY the 6 names: a missing name, or any other file, is refused
+             (others are counted, not named). Per file, M-1's four checks on the bytes as they lie:
+               (a) its name equals the primary url's file name (its directory is assigned at placement: the primary's path);
+               (b) a real zip: PK signature, not text/html;
+               (c) byte count AND sha256 equal bm-obj's record for the primary url;
+               (d) vintage 2024 (bm-obj's record, and the name's tl_2024_ prefix).
+             Prints per file "SAME as bm-obj" or the check that failed; then "src: ALL 6 SAME" or "src: n of 6 SAME".
+  place      only after check-src reads ALL 6 SAME, and with P1-P3 holding, every refusal checked before the first write:
+             copies each file to its PRIMARY path under files/; writes its record under the PRIMARY url in retry-fetched.json
+             (bytes, sha256 and vintage from the placed bytes, equal to bm-obj's); plan.json = the kept original f12d3eb56040 + the
+             6 owner notes on exactly the 6, no mirror url anywhere. Every write is read back.
+             Prints "place: 6 files placed at the primary paths; 6 records under the primary urls; 2 primary-fetched skipped,
+             unchanged; plan.json = original f12d3eb56040 + 6 notes -> <P6H>".
+  final      switch_d2.py's final, with the owner note: plan == original + notes on exactly the 6; no mirror url in the plan, the
+             records or files/; the records exactly the 8 under primary urls; the 2 primary-fetched as kept at apply; every file
+             matching its record and bm-obj's.
+  m4-strip / m4-restore   as switch_d2.py's.
+
+PREDICTED, on the owner's 6: check-src "src: ALL 6 SAME" (the base rate: every census.gov file in both bm-obj and November's
+fetch is byte-identical, water 3,140/3,140 and rivers 3,140/3,140); place and final as printed above, exit 0, stderr 0 B.
+
+THEN, on the real cache, switch_n6.pred's steps 6 to 10 as registered, with three changes:
+- step 6's P1 prints are made before check-src, and after place and final;
+- step 8 runs behind the AMENDED guard (switch_n6.pred, after 07:36:34Z): the closure diff from 44349515 to #696's head empty;
+- step 9's M-3: `notes` exactly the 6 OWNER notes above, on the 6 primary urls, and NONE on 27081 or 54093.
+Then S-3 to S-7 as registered.
+
+THE REHEARSAL, red-first, before any real use (rehearse_place.sh, on a copy of the cache in step 1's state, with SYNTHETIC
+source files; real bytes are not available and none are invented):
+- R1 the clean path: 6 synthetic files under the 6 names, --rehearsal-skip-identity (only check (c) skipped, since synthetic bytes
+  cannot match bm-obj): check-src "6 SAME (identity SKIPPED)", place, final, each exit 0.
+- R2 a 7th file in the folder: check-src refuses, exit 1, nothing written.
+- R3 one name missing: refused, exit 1.
+- R4 one file an HTML page under a right name: (b) fails for exactly that file, exit 1.
+- R5 one file renamed (a wrong county): (a) refuses, exit 1.
+- R6 place run before check-src has read ALL SAME: refused, exit 1.
+- R7 --rehearsal-skip-identity on the REAL cache: refused, exit 1, before any read of the source.
+- R8 identity NOT skipped on synthetic bytes: (c) fails for all 6, exit 1 (the check is not blind).
+- After R1, the copy's plan carries exactly the 6 owner notes and no "mirror" string anywhere in plan or records; the 2
+  primary-fetched records and files are byte-equal to the kept copies (P1).
+Each case's exit code and its one-line reason are predicted above; a case that passes when it should refuse means the tool is
+not used.
+
+OUTSIDE THIS SET
+| reading | then |
+|---|---|
+| check-src fewer than 6 SAME on the owner's files | STOP. A file failing (c) is not used without a ruling (base rate 3,140/3,140) |
+| any refusal, error or stderr in place or final | STOP and report; the cache is restored from the kept copies by bytes |
+| a P1 sha differing at any print | STOP: a primary-fetched file or record moved |
+| the closure diff not empty before step 8 | STOP and re-register on the new head |
+| any rehearsal case not as predicted | the tool is not used; report |
+| anything else | stop and decide |
+```
+
+**FT-SEA: the rulings since d0, recorded in this doc.**
+- **Ruling 1 (the orchestrator, 11-14 ~18:00Z), verbatim:**
+
+  > 1. The run order does NOT bind FT-SEA. Its six packages are pinned and staged from the prototype's run-10 builds, independent of
+  > SEA-STORE and the census, so FT-SEA waits only on its window and on map-client's framebench sibling. FT-HR is "after FT-SEA or
+  > with it", as registered.
+
+- **The 11-16 04:00-07:30Z window is VOID** (the orchestrator, 11-14 18:03Z). It was night at every home. The device's night poll
+  (`isNightNow` at the scene's home, AircraftManager.cpp:582-601 on main) sets H4's STATE bit 3, and that makes every frame
+  INSTRUMENT. FT moves to a daylight window from map-client's calendar, with at least 10 min clear of each edge. The sun times are
+  placement data and are never committed.
+- **The guard (ruling Q-FT1):** FT-SEA is held to "THE FT GUARD ROW", kind **FT-MAP**, in map-client's `docs/frame-time-bench.md`
+  (branch `docs/frame-time-bench` at 2cc682d0b4b9).
+  - FT-MAP is STATE bit 2 SET (the map drawn), with bits 1 and 3 CLEAR (no weather crop: FT-SEA's weather is off; no night poll, no
+    night clock).
+  - The kind is read from the record. Any measured frame otherwise makes that scene the INSTRUMENT.
+  - The row's selftest (eleven cases, including the FT-MAP and FT-WX cross-plants) must read as predicted before its reader is used.
+- **The owner's ruling (relayed 11-14 ~22:2xZ), verbatim:** "Tuesday's v20 bench and map-server's two tests start only after the
+  slowdown fix is proven to fire at true size. If the fix won't be ready in time, tell me by Monday, not on Tuesday."
+  - So FT-SEA waits on map-client's proof that the bench's plants fire at true size, as well as on the sibling's build.
+  - The Tuesday 11-17 13:00Z slot was then released, because the sibling is a port of the whole bench. The realistic window is
+    Thursday 11-19 or Friday 11-20, in all homes' daylight.
+- **FT on step C.** Main draws no map. FT runs on the v20 sibling, re-cut as one tree: main + M3 3bc7ec26fe28 + step C 3e9d6ec9f449.
+  This is re-registered in #682's section 5k, which is the authority for both rows until it is copied here. It is copied below
+  BYTE-IDENTICAL:
+  - the block from "### 5k." to the blank line before #682's "## 6." heading, at #682's 3aad28ee3bb2: 15,950 bytes, 185 lines;
+  - **sha256 4d8c7677ee4b in #682's blob, and the same in this doc's blob;**
+  - inside it, "this doc", "this PR" and sections 5a-5j mean #682's (docs/basemap-hudson-rule.md);
+  - FT-SEA's rows are its "FT-SEA alike" text: the steady row reworded, the named reading (KJFK at 50 mi) moved to the rebuild row,
+    the rebuild row, the steady-window rebuild count, and Addition 2's counts for FT-SEA's six packages.
+
+### 5k. FT on step C: re-registered before any FT code (the orchestrator's rulings, 2026-11-15)
+
+**Why.** Main (b282699ac091) draws no map. The draw exists only in map-client's step C (3e9d6ec9f449,
+`feat/map-client-step-c-blend`), read there by this session and confirmed independently by map-client.
+- `mapcompose::Frame` (include/MapCompose.h:322-341) rebuilds only when `Stale` (:313) finds the key changed. `Same` (:119) compares
+  the home, rLat/rLon, the size, the rotation, radiusMi, pkSeq, airportsGen and the fixed label boxes.
+- Every other frame copies the cached 240 x 240 buffer: 115,200 B, whatever the package holds (src/AircraftManager.cpp:3876).
+- `Compose` (:279) and step C's sweep (include/MapSweep.h) do not depend on density either.
+- **So a steady window's p95 cannot see a package, by construction. Density costs time only on a rebuild frame.**
+
+**Where FT runs (ruled):** on the v20 sibling, re-cut as ONE pinned tree: main + M3 3bc7ec26fe28 + step C 3e9d6ec9f449.
+- Every FT reading is labelled "measured on step C at 3e9d6ec9f449, not on main".
+- If the merged step C differs in the draw path, FT is re-read before its numbers are used.
+- A run-time anchor (map-client's Addition 2) makes every FT scene prove the map drew, so a silent no-draw reads INSTRUMENT.
+
+**These rows replace FT-HR's above where they differ, and FT-SEA's (docs/basemap-dense-code.md, #696) alike. Nothing has run.**
+FT-SEA's text is recorded here because #696's head stays at 44349515 until the census switch's step 8 re-reads it. #696's next push
+carries it word for word (ACCEPTED): the copy is byte-identical, with both section texts' sha256 cited. Until then this section is
+the authority for both rows.
+
+1. **The steady row stays, reworded.** It is p95(`p2p`), package minus package, <= M = 3.08 ms, with KORD's A/A, all as above.
+   - **Predicted now: within noise at every point and rung, for any package.**
+   - A pass reads "the steady frame does not see the package". It never reads "the density costs nothing" or "no slowdown".
+2. **The named readings move to the rebuild.** "Expected to differ most" (FT-SEA: KJFK at 50 mi; FT-HR: KEWR at 50 mi) now names
+   row 3's zoom hitch. No direction is predicted, as before.
+3. **The rebuild row (ruled).** Rebuilds are forced by re-accepting the same package (`++mapPkgSeq`), the reviewed path; a key
+   poison would be a second path into the key. Map-client designs the forcing and the split timing, in microseconds. The device's
+   `[map] draw: rebuilt in N ms` (AircraftManager.cpp:3872) is printed beside, but is too coarse for a delta.
+   - **The split.** A pkSeq rebuild runs `mapplaces::Load` (MapCompose.h:296-300) before Build, and a zoom change does not. So each
+     forced rebuild is timed in two parts:
+     - **GRADED, "the zoom/redraw hitch at this rung, same package":** the rebuild's total minus Load, i.e. Build's passes plus the
+       swap and the names. FT-HR adds `Compose` (its weather is on), the same per-pixel loop for every package. BuildInfo's pass times
+       (`usS1` to `usTotal`, filled under MAP_BENCH, which the FT envs compile) are printed beside. `usTotal` covers Build only, so it
+       is not the graded figure.
+     - **REPORTED, "the package-update hitch":** Load alone, and the total. Neither is graded.
+     - **The definition, agreed word for word with map-client's registration (2026-11-15):** "The graded figure is a forced
+       rebuild's microsecond total, measured around the one Frame() call that rebuilds, minus its mapplaces::Load lap: Build's
+       passes, the byte swap and the names, plus Compose when that frame shows the weather (FT-HR); Load and the total are reported,
+       never graded."
+   - **The statistic:** per scene, the median of its N forced rebuilds, with the p95 and N printed beside. N is map-client's, stated
+     before the run. A scene with N under 10 is INSTRUMENT.
+   - **Each margin is DERIVED, not chosen,** from KORD's A/A (the same bytes twice) by M's construction, and frozen before any graded
+     reading. It is `M_part = max(2 x |median_A - median_B|, 2 x U_part)`.
+     - `U_part` is the larger of the two KORD scenes' distribution-free 95% half-width of the median: half the gap between the order
+       statistics at 1-based ranks floor(N/2 - 0.98 sqrt N) and ceil(N/2 + 1 + 0.98 sqrt N).
+     - There is one margin each for the graded part, Load and the total. There is no fixed floor, since a floor would be chosen.
+     - **PER RUNG (the orchestrator's ruling, agreed by map-server, 2026-11-15).** KORD pair 1 runs at 10, 25 and 50 mi, giving
+       9 margins: the graded part, Load and the total at each rung. Pair 2 runs the same three rungs against them. Rebuild noise
+       may differ by rung, and one margin across rungs would assume away what the A/A measures. This costs ~26 min more per row:
+       FT-SEA ~134 min, FT-HR ~212 min. FT-HR runs as ONE window in its six homes' shared daylight.
+   - **The order in the window (ACCEPTED by the orchestrator, 2026-11-15):**
+     1. KORD's A/A pair 1. Its margins are printed and hashed before anything else is read.
+     2. The plant check (below).
+     3. The graded pairs.
+     4. KORD's A/A pair 2, graded against pair 1's frozen margins as that window's live noise reading. A margin that defines itself
+        cannot test itself.
+     - Over a margin on pair 2: INSTRUMENT, and nothing in the window is graded.
+   - **The timer must see a known change first (ACCEPTED: the C1 retake's failure of 2026-11-14, applied).** Map-client implements it:
+     - **The plant:** a bench-only delay of D µs, with D stated by map-client before the run. It sits AFTER Load, inside the
+       Build-swap-names span of the timed rebuild (map-client: inside the swap-and-names lap), on KORD's package for N forced
+       rebuilds.
+       - **D = 20,000 µs**, registered by map-client before any code (docs/frame-time-bench at 57ca03b92f4e). It was 5,000 µs.
+         Separability needs D > 2 x M_zoom, and no rebuild noise has been measured yet: 5,000 covered M_zoom only up to 2.5 ms,
+         while 20,000 covers it up to 10 ms.
+       - **N = 20** forced rebuilds per scene, 2 s apart, after the 120 s steady window. U_part's ranks at N = 20 are 5 and 16. It is read against pair 1's plant-off
+       scene (the same bytes) in the same window.
+     - **Its own flag:** each rebuild's record carries a plant bit, SET on every planted rebuild and CLEAR on every other one.
+     - **Predicted, from medians:**
+       - the graded part's delta is D +- M_zoom;
+       - the total's delta is D +- M_total;
+       - Load's delta is within +- M_load. The plant sits outside Load, so a correct split does not move it.
+     - **Separable:** only if D > 2 x M_zoom, checked once pair 1 freezes the margins. A smaller D cannot tell "ran" from "did not
+       run" at that window's noise: INSTRUMENT.
+     - **Each of these is INSTRUMENT, with nothing graded:**
+       - a delta near 0, meaning the plant did not run (C1's shape);
+       - Load moving, meaning the split misattributes time;
+       - the flag disagreeing with the plan.
+     - Anything else: stop and decide.
+   - **A comparison row, not a product bar.** At each point and rung the graded delta is the option minus the baseline (FT-HR: 2-L at
+     19.4 minus run 10's; FT-SEA: sea minus no-sea), set against M_zoom.
+     - Every delta over its margin goes to the orchestrator with the numbers. The orchestrator decides whether it raises a user-facing
+       question (a visible hitch at a zoom change) for the owner.
+     - The row does not gate this PR's merge. It is read and reported before the merge.
+4. **The rebuild count in the steady window.** Each scene prints the rebuilds inside its 120 s measured window. Expected: 0.
+   - The named exception: an airports-fetch arrival bumping airportsGen (AircraftManager.cpp ~4097, after `Initialise`'s drop at
+     ~1488). It is recorded with that scene's fetch line.
+   - A rebuild with no fetch line is OUTSIDE: stop and decide.
+
+**Outside the set for rows 1-4: stop and report, no reading.**
+- A scene's N under 10.
+- The known delay not moving the timer at its size.
+- The second KORD pair over its margin.
+- A steady-window rebuild with no fetch line.
+- A reading without the step C label.
+- **None of the above:** the instrument is unreliable at this scale. Stop and decide.
+
+**Addition 2's anchor: the host BuildInfo counts (accepted). The method is registered here, before any count is computed.**
+- **What is computed.** For each FT package and rung, the counts `maplayer::BuildInfo` holds after Build: `rings`, `rivers`,
+  `primary`, `secondary`, `primaryInView`, `secondaryInView`, `secondaryDrawn` and `level`. The device's counts must equal them.
+- **The 14 packages, by sha256:**
+  - FT-SEA's six (#696's FT-SEA table).
+  - FT-HR's run-10 KEWR dff28487eaf4, MIDTOWN 20a22bed5510 and KLGA feb6ef3bdf04. Its run-10 KJFK and KBOS are FT-SEA's sea packages,
+    the same bytes.
+  - The five 2-L at 19.4 packages (section 5j).
+  - KORD-A0 cb59bb06a506, which is in both rows.
+- **The cells:** the rungs 10, 25 and 50 mi, so 42 cells.
+- **The tool.** A host harness compiles step C's `include/MapLayer.h` (byte-identical on main b282699ac091). It calls
+  `maplayer::Build` exactly as `mapcompose::Rebuild` does: `kLayersAll`, the dark theme, kSize 240, Scratch sized for the package's
+  maxVertices, no clock. It prints counts only: no coordinate, no place name.
+- **The view comes from the device's side, not chosen:**
+  - the home from the sibling's scene table at its pin, parsed as the device parses it;
+  - radLat/radLon by AircraftManager.cpp:1005-1006 (3e9d6ec9f449), at the zoom ladder's top (f = 1.0, :5887-5890);
+  - north-up (radar-up 0, :1570);
+  - askedMm as `mapReq.rvMm` (include/MapQuery.h:89).
+  - So the counts are computed after the sibling's table is pinned. The sibling printing its view per scene would let a view mismatch
+    be told apart from a draw failure.
+- **The controls, each read before any count is believed:**
+  - (i) ANCHOR: on test_map_layer.cpp's own fixture, the harness reproduces that suite's S1 outcomes (secondary drawn exactly when
+    no primary is in view, its lines ~284-294), with counts above 0.
+  - (ii) PLANT: with the water layer masked off, `rings` reads 0 and every other count is unchanged.
+  - (iii) DETERMINISM: every cell is computed twice, with identical results.
+  - (iv) FLOATING POINT, named in advance: the ESP32-S3's FPU fuses multiply-adds, and GCC contracts a float `a*b+c` by default. So
+    the harness is built twice, with `-ffp-contract=off` and with `=fast`. A cell whose counts differ between the two is BORDERLINE,
+    and its anchor is the pair, not one value.
+  - (v) KORD, from S1: FT-SEA's two KORD packages differ only in 9 secondary roads. So at every rung all counts are equal except
+    `secondaryInView`, and `secondaryDrawn` is false for both. FT-HR's KORD is the same bytes twice, so its counts are identical.
+- **The outcomes:**
+  - All five controls as predicted: the 42 cells are recorded here (counts only), with the harness's sha256 and the sibling's pin.
+  - Any control off: STOP, no counts.
+  - The device's counts differ from the host's at a cell: that scene's anchor reads INSTRUMENT. The printed view separates the two
+    named alternatives: a view that differs from the port (a port defect, not a draw failure), or a BORDERLINE cell.
+  - Anything else: stop and decide.
+- **The build was allowed under the disk floor.** The orchestrator allows an MB-scale host build there (the floor is for the
+  ~0.3 GiB firmware builds), on three conditions: its expected write size is stated first, C: is read before and after, and the
+  build stays under ~100 MB.
+- **The view's inputs, pinned by map-client** on the sibling `bench/frame-bench-v20` at 08e68191f7b7:
+  - `test/fixtures/frame-bench/ft_sea.pins` (6) and `ft_hr.pins` (11). Each full sha256 was read from the staged files' bytes, and
+    its prefix matches this doc.
+  - Each home is its package's own centre: `lat = pk.lat0Micro / 1e6` (AircraftManager.cpp:953-954 at the pin).
+  - radLat/radLon at :1031-1032 there, the same code as step C's :1005-1006.
+- **Registered, then run** (the extra one-ulp test was sent to the orchestrator at 06:51:58Z, before the build):
+  - **The build:** WSL g++ 11.4, against the sibling's own headers. `MapLayer.h`, `BasemapPackage.h` and `WxLayer.h` are
+    byte-identical across the sibling, step C and main. Two binaries: `-ffp-contract=off`, and `-mfma -ffp-contract=fast`.
+  - **The extra test, against libm:** every cell is re-built with rLat and rLon each moved one ulp up and down. The ESP32's newlib
+    `cos` may differ from the host's in the last ulp.
+  - **The disk:** C: read 27.174 GiB free before and 27.172 after. The scratch tree came to 1.6 MB.
+  - **The driver:** `fb_counts.cpp` ba9ee2290eeb, run through `runlog.sh` (stdout 1b7760eb29f3 from both binaries).
+- **ALL AS PREDICTED (06:53:29Z):**
+  - (i) Bend reads CM4's five rows exactly: 5/0/67, 10/0/74, 25/4/173, 50/4/308, 60/4/324. Secondary is drawn (350) exactly where
+    primaryInView is 0.
+  - **The run printed 45 cells: the registered 42, plus 3 more from KORD-A0's own file** (`frame-row-packages-hudson\KORD-A0.bmpk`,
+    cb59bb06a506, the same bytes as KORD-sea), run as a 15th file at 10, 25 and 50 mi so that (v)'s "same bytes, identical counts"
+    is read, not assumed. Those 3 are not new cells; they repeat KORD-sea's 3. Bend's five rows are (i)'s anchor lines, not cells.
+  - (ii) The water plant reads OK at all 45.
+  - (iii) All 45 read SAME when built twice.
+  - Every cell is ok and draws.
+  - (iv) The two binaries print identical lines, and all 45 cells are STABLE under the one-ulp moves: **0 BORDERLINE**, so every
+    anchor below is one value.
+  - (v) KORD: no-sea and sea read equal in everything but secondaryInView (12/38/80 against 10/36/75, a difference of at most 5, with
+    no-sea above). secondaryDrawn is 0 for both. KORD-A0 reads identical to KORD-sea.
+- **The counts:** `secondary` is 0 and `secondaryDrawn` false at every cell, and `level` is 0, 0, 1 at 10, 25 and 50 mi for every
+  package. `rings`, `rivers` and `primary` are the same at all three rungs, since Build counts every feature it walks. The in-view
+  counts are the ones that follow the view.
+
+  | package | rings | rivers | primary | primaryInView 10/25/50 | secondaryInView 10/25/50 |
+  |---|---|---|---|---|---|
+  | KJFK no-sea ee8c834bc81a | 119 | 755 | 1,289 | 81 / 625 / 845 | 0 / 0 / 0 |
+  | KJFK sea = FT-HR's run 10, 52ac9dc39de0 | 93 | 755 | 1,289 | 81 / 625 / 845 | 0 / 0 / 0 |
+  | KBOS no-sea ed5393b4fc0f | 222 | 575 | 721 | 86 / 156 / 394 | 0 / 1 / 1 |
+  | KBOS sea = FT-HR's run 10, f21d705d8b8a | 197 | 575 | 721 | 86 / 156 / 394 | 0 / 0 / 0 |
+  | KORD no-sea 4238243a57a6 | 112 | 84 | 691 | 69 / 208 / 322 | 12 / 38 / 80 |
+  | KORD sea = KORD-A0, cb59bb06a506 | 112 | 84 | 691 | 69 / 208 / 322 | 10 / 36 / 75 |
+  | KEWR run 10 dff28487eaf4 | 25 | 759 | 1,467 | 289 / 683 / 883 | 0 / 0 / 0 |
+  | MIDTOWN run 10 20a22bed5510 | 53 | 762 | 1,397 | 448 / 690 / 862 | 0 / 0 / 0 |
+  | KLGA run 10 feb6ef3bdf04 | 58 | 763 | 1,356 | 396 / 684 / 875 | 0 / 0 / 0 |
+  | KBOS 2-L at 19.4 696c6d00122d | 242 | 575 | 721 | 86 / 156 / 394 | 3 / 21 / 82 |
+  | KJFK 2-L at 19.4 e042d61aa8f1 | 179 | 755 | 1,289 | 81 / 625 / 845 | 0 / 0 / 3 |
+  | MIDTOWN 2-L at 19.4 aaede1785364 | 142 | 762 | 1,397 | 448 / 690 / 862 | 0 / 0 / 0 |
+  | KEWR 2-L at 19.4 c619f4a89f14 | 120 | 759 | 1,467 | 289 / 683 / 883 | 0 / 0 / 0 |
+  | KLGA 2-L at 19.4 6ab44cd8fbea | 151 | 763 | 1,356 | 396 / 684 / 875 | 0 / 0 / 0 |
+
+- **Observed, not predicted:** the five 2-L rings counts (242, 179, 142, 120, 151) equal section 5j's prototype table, and KEWR's
+  run-10 count of 25 equals FT-HR's "25 water rings". Those are two implementations agreeing: the prototype's TypeScript and the
+  device's Build.
+
+**CI for this push, predicted from the workflows at the merged head.**
+- **The base:** main is b282699ac091, merged in at 1c8dd093 (clean). 44349515's run was tested on b7184243fc60.
+- **The workflow changes since then, each read:**
+  - `device-ids.yml` gains STEPS in its existing job: `check_precise_coords.py` (selftest, sabotage and `--diff HEAD^1`), and
+    `check_routes_workflow.py` with its selftest.
+  - `workers.yml` gains four STEPS in `test (proxy)`: the route refresh's selftests, all on a fake KV.
+  - The new `routes-refresh.yml` triggers on `workflow_dispatch` only.
+  - None adds a job.
+- **P1's fix (#698, aa40aa43) is in the base.**
+- **Predicted: 36 check runs, 34 success, 2 skipped (`promote`, `version`), 0 failed,** tested on the merge into main as it then
+  stands, read from the run's own checkout log.
+- **The coordinate gate is new to this PR.** `--diff HEAD^1` sees this PR's whole diff as added lines, code and docs alike. Main's
+  gate, run on this head before the push, must count 0.
+- **A new red from `ship-alert`** reads INSTRUMENT. **P1 BLIND a third time** goes to the project's owner, as registered. Anything
+  else outside 34 / 2 / 0: STOP, and read which job before anything else.
