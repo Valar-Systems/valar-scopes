@@ -5167,6 +5167,73 @@ report, and no fix until a ruling.
 | Q-AP3 | the line | printed on every successful arrival, in the format above |
 | Q-AP4 | the rows' home | a new suite, so the frozen `test_map_draw.cpp` stays at 28 |
 
+**ACCEPTED at `7570f3534dcf` (the orchestrator, 2026-11-15), with two rows added: AP-EMPTYEQ and AP-BOOT.** The
+amendment below is registered before any code (2026-11-15T15:50Z). The plants were to read exactly their own rows, and
+that forced three changes:
+
+- **The held hash becomes a type.**
+  - `mapairports::Held { uint32_t h = kEmptyHash; }`, with `Changed(Held&, uint32_t)`.
+  - AircraftManager's member is `mapairports::Held mapAirportsHeld;`, declared with **no initializer** in
+    `src/AircraftManager.h`, beside `mapAirportsGen` in that draw region (`:731`). So its boot value is the header's
+    default, which is what the host suite can read.
+  - CD6b gains a clause: that declaration is present, with no initializer.
+  - Wherever CD6b and the change above say `mapAirportsHash`, read `mapAirportsHeld`:
+    - the arrival runs `if (mapairports::Changed(mapAirportsHeld, h)) ++mapAirportsGen;`;
+    - the clear runs `mapAirportsHeld.h = mapairports::kEmptyHash;`;
+    - CD6b's "write of the hash" is `mapairports::Changed(mapAirportsHeld,` or `mapAirportsHeld.h =`.
+- **AP-EMPTY's held input changes from `kEmptyHash` to the hash of an empty list.** It then tests `Changed`'s equality
+  on the empty hash alone.
+  - Kept as first registered, the kEmptyHash plant would turn it red too. That plant's set would be {AP-EMPTYEQ,
+    AP-EMPTY}, not its own row.
+  - The composite ("cleared, then an empty arrival, reads unchanged") is AP-EMPTYEQ and AP-EMPTY together.
+- **All rows but AP-BOOT set `h` explicitly.** So the boot-value plant can reach only AP-BOOT.
+
+**The two rows:**
+- **AP-EMPTYEQ:** `ContentHash(nullptr, 0) == kEmptyHash`, and the hash of a zero-length non-null array equals it too.
+- **AP-BOOT:** a default-constructed `Held` holds `kEmptyHash`.
+
+The suite pins **13** checks.
+
+**Two corrections to the counts registered above, read from the tree at `7570f3534dcf`:**
+- `check_map_draw.py` reads **12 checks, 0 failures** today. The "9" registered above was step B's.
+  - So CD6b makes it **13**, and `sabotage_map_draw.py`'s `SOURCE_CHECKS` goes from 12 to 13.
+  - CD4 reads 18 draw regions, and stays at 18: no region is added.
+- The new header joins `MAP_FILES` (`check_map_draw.py:65`), so CD1 and CD2 cover it: "the map's **5** files". This is
+  the second-paths rule: a new map file under the map's no-NVS, no-print rows.
+
+**THE STUB'S RED SET, predicted node by node before it runs.**
+- The stub keeps the real `ContentHash`, `kEmptyHash` and `Held`. It changes only `Changed`'s body, to `held.h = h;
+  return true;`, today's unconditional bump.
+- A row reads red under it only if its expected value is **false**, and only if that value comes from `Changed`:
+
+| row | from `Changed`? | expected | under the stub |
+|---|---|---|---|
+| AP-EMPTY | yes | false | **red** |
+| AP-SAME | yes | false | **red** |
+| AP-EMPTYEQ | no: two hashes compared | true | ok |
+| AP-BOOT | no: the default `h` | true | ok |
+| AP-FIRST, AP-GONE, AP-LAT, AP-LON, AP-CODE, AP-KIND, AP-ORDER, AP-COUNT, AP-CLEAR | yes | true | ok (the stub returns true) |
+
+**Predicted: exactly {AP-EMPTY, AP-SAME} red, 11 ok, of 13.** This is not the four-row set the ruling allowed for:
+AP-EMPTYEQ and AP-BOOT test values the stub does not change. Their red-first evidence is their own plants:
+- **S-AP-EMPTYEQ**, `kEmptyHash` defined as `0u`: {AP-EMPTYEQ}.
+  - AP-BOOT stays ok: the default is `kEmptyHash` too, so both are 0.
+  - AP-FIRST and AP-CLEAR stay ok: any listed hash differs from 0.
+- **S-AP-BOOT**, `Held`'s default `h = 0`: {AP-BOOT}. No other row default-constructs a `Held`.
+
+**The plants in full** (`sabotage_map_airports.py`, 7): S-AP-NOLAT, S-AP-NOLON, S-AP-NOCODE, S-AP-NOKIND, S-AP-NOORDER,
+S-AP-EMPTYEQ and S-AP-BOOT, each reading exactly its own row.
+
+In `sabotage_map_draw.py`:
+- S-CD-NOGEN is re-pointed, and still reads {CD6};
+- S-CD-NOHASH: {CD6b};
+- S-CD-UNCOND: {CD6b};
+- **S-CD-BOOTINIT**, the declaration given `{0}`: {CD6b}.
+
+**The compilers.** The suite and every driver are compiled and run in WSL `Ubuntu-24.04` (g++ 13.3, `run.sh`'s flags)
+before the push, with the first line of `g++ --version` recorded. CI stays the authority. The escape hatch above is
+unchanged.
+
 ## Step D: the "Terrain shading" setting, registered before any code (2026-11-12)
 
 **The owner's ruling, as relayed:** a new setting, "Terrain shading", with four values. Unset or unknown reads as
