@@ -154,6 +154,38 @@ customer defaults, and P5/P6 are sized from it.
 - **And the guard that stays:** `lbl_draw` > 0 at p50 in every arm with contacts. Otherwise the label rows and P-CTRL
   read INSTRUMENT.
 
+**(f) P-CTRL UNDER M3, re-registered before any run (the orchestrator's acceptance, 2026-11-15, after 00:35Z).**
+Section 4's control predicted "labels +5.0 ± 0.75, `fr` +5.0 ± 0.75, every other phase within ± 0.5". Under M3 that
+reads OFF on a correct profile.
+- **Why:** in image B, `fr` spans `pushtask::TakeForDrawing()`. A delay late in one frame can be repaid by a shorter
+  buffer wait in the next.
+- **The measurement:** map-client measured it on the C1 tree, its proof window's B trace. The loop's planted +10 ms
+  moved `fr` by only +1.51 ms at p50, and `p2p` by +1.01.
+- **The control:** the same delay on v19, which has no push task, read +10.05.
+- So `fr` alone cannot separate "absorbed in the wait" from "the plant is short". The profile's own `wait` phase can,
+  and that is why A0a's gate is now its own P-CTRL, not C1's loop arm.
+- **GRADED, P-CTRL against P1@40 (the adjacent arm):**
+  - `lbl_draw` (labels, where the plant sits) moves **+5.0 ± 0.75 ms** at p50;
+  - **`fr` − `wait`** (the loop's own work) moves **+5.0 ± 0.75 ms** at p50;
+  - every other phase moves within **± 0.5 ms**.
+- **REPORTED, not graded:** `wait` and `fr`. Their change is the absorption, measured.
+- **THE CONSISTENCY ROW, corrected before acceptance.** The row proposed with this re-registration was "wait + (fr −
+  wait) = fr, per frame". It is an arithmetic identity, true whatever the data, and so it cannot fail: the same family
+  as the accounting row removed in (c). Replaced by a cross-instrument row that CAN fail:
+  - **the profile's `wait`, averaged over a window, against M3's OWN wait timer** for the same window;
+  - M3's timer is `g_waitUsSum` / `g_waits`, around the same `TakeForDrawing` call (`main.cpp:307-315` at
+    `3bc7ec26fe28`). It is printed on every `[m3]` line as `loop_wait_avg_us`, a since-boot average, windowed
+    between consecutive lines inside a span, as for `push_avg`;
+  - **they agree within ± 0.2 ms.** A larger gap means one of the two boundaries is misplaced, and that is an
+    instrument fault: stop;
+  - `g_waitUsSum` is a 32-bit sum, so it wraps after about 71.6 min of CUMULATIVE wait. At the measured ~1.5 ms of
+    wait per frame at ~14 fps (about 21 ms per second), that is more than 3 h of uptime, and A0a ends about 40 min
+    after boot. The reader refuses a window whose reconstructed sum (avg × count) decreases, which is how a wrap would
+    show, or whose `g_waits` went backwards.
+  - **Its plant:** the same window graded with the profile's `wait` shifted by +0.5 ms reads red.
+- **OUTSIDE THE SET:** labels not +5, `fr` − `wait` not +5, the cross-instrument row off, or anything else. Stop.
+- **A0a's gate** is now "the profile's own P-CTRL passes as above", no longer "C1's loop +10 arm passes".
+
 **OUTSIDE THE SET** (in addition to section 4's): the amendment's tree sha, image shas or flags differ from those
 pinned at the window. Stop, nothing is read.
 
