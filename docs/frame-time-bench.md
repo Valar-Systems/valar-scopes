@@ -2910,6 +2910,35 @@ asserted once, and each diff is only that: the ledger cap10, the manifest, the i
 - S4 not caught goes to the owner (exit 3).
 - Any other off reading, or anything outside the set, is a STOP.
 
+### THE SIBLING's PROOF WINDOW, as read: every graded row in (2026-11-15T09:38:35Z)
+
+The orchestrator opened it on acknowledging the set at `920babdbba66`. E2:08 was reserved by serial for map-client
+(09:11:39Z, unreserved before), and the PC was quiet of builds; the top CPU user was a background cloud sync.
+- **The window's ledger (cap10):**
+  - E2:08 was identified by its serial on COM18 at every step.
+  - v20-P: ota_0 alone, the checks line exact, verified, reset ok (09:12:24Z). The 21-min trace exited 0 (09:33:25Z).
+  - read-mac recovered the board after the trace closed.
+  - restore-v19 `f6d73e391631`: ota_0 alone, verified, reset ok (09:33:48Z).
+  - Its boot tokens PASS: `fw=v19`, the saved credentials, `[WiFi] CONNECTED`, `current=19 latest=19`. All six portal
+    tokens are absent. The join was "fast join OK".
+  - HTTP 200 on attempt 2 (09:37:13Z). E2:08 was released at 09:38:15Z.
+- **The reader** (`fb_read_v20p.py` `183cb2ec1f05`, on the closed trace `b086d68f470f`; output `f8d89c088ee3`): exit 0,
+  **8 graded rows, 0 off.**
+  - **The gate held:** FB-REC `425040a3999d`, and PUSH-SCOPE (SCOPE-M3).
+  - DELAYED-FLAG: S3 1489/1489, the other scenes 0.
+  - D=10 push +9.95 ms; D=60 push +59.77 ms.
+  - loop +10: +10.00 ms, push −0.01 ms.
+  - M3-2 exact: S0-S3 1700/1700, 1696/1696, 1428/1428, 1489/1489.
+  - DROP-CAUGHT: S4 handed 1429, presented 1428, dropped 1.
+  - **I-5 B: 6,834 ns** (cap8 read 6,824). **PUSH-SYNC: 24.17 − 0.46 = 23.71 ms.**
+  - Also held: TBL-DEV `b1ace60e`, and bit 32 on 0 of 7,742 measured frames.
+- **Reported, not graded:** D=10 p2p +0.00; D=60 p2p 84.00 against its push's 84.00; S4 and S2 equal.
+- **Named, not graded:** "present count != 1" reads 32 in S2 and 31 in S4, where cap8 read 18 and 15. The frozen reader
+  exempts push60 scenes on a counted image from the per-frame 1 % rule (`fb_read_c1.py:148`). The exact per-scene count
+  governs there, and it held. The difference from cap8 is recorded, not graded.
+- **So FB-REC and the push scope hold on the sibling, and both corrected limits read in band.** Nothing is
+  re-registered. FT follows on the orchestrator's acceptance.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
