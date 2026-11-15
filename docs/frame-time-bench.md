@@ -2796,8 +2796,14 @@ never graded."
     the centre's last digits.
 - **The reader's rule for each FT scene's TBL row:**
   - the scene's printed sum equals its package's sum above: ok;
-  - the two differ: the row reads off (the device's libm against the host's, the row's purpose);
+  - the two differ: INSTRUMENT, and the read stops. This is TBL-DEV's verdict as registered for C1 (above: "unequal is
+    the INSTRUMENT"); a last-unit flip in the device's libm is the named way it fails on a correct port;
   - the line is absent: INSTRUMENT.
+  - **Corrected before any run image was read (2026-11-15T08:45:50Z):** this bullet first said a difference "reads off".
+    That contradicted TBL-DEV's registered verdict and the draft reader (`fb_read_ft.py`), which both say INSTRUMENT.
+    The registration is the one above.
+- **Where the sums come from:** `tbl_host_ft.py`, which imports `tbl_host.py`'s own mirror (`f2f838f9a3da`, sha
+  asserted). The FT section's "computed on the host by `tbl_host.py`" means this tool. Never typed.
 
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
