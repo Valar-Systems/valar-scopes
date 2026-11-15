@@ -3032,6 +3032,81 @@ Recorded as measured. The ruling is the orchestrator's, and nothing here interpr
   - FORCED checked that the device's counts equal map-server's host counts for every package and rung. Reading the
     per-cell counts against these deltas is map-server's.
 
+### S2b's map-rebuild frames: the tag, the count and the p95 rule (registered before S2b's code and window, 2026-11-15T16:05Z)
+
+**Why (the orchestrator's ruling, from the FT-SEA redraw read).** Today a MAP rebuild frame carries no per-frame tag, so
+a rebuild inside a measured window is counted in the p95 and is invisible per frame. These line refs are on the sibling
+at `6f0cdd1381eb`:
+- the only per-frame "rebuilt" bit, bit 0, is the weather layer's (`AircraftManager.cpp:3969`; `FrameBench.h:14`, `:379`);
+- outside `FRAME_BENCH_FT`, every rebuild record prints its part as `settle`, whatever the phase (`FrameBench.h:400-401`;
+  `ftPart` moves only under `FRAME_BENCH_FT`, `AircraftManager.cpp:2420-2455`).
+
+This section is the rebuild-frame piece of S2b's registration. The rest of S2b is registered separately, before its window.
+
+**The tag:**
+- **Bit 6 (64) of `Rec.flags`: "the map layer was rebuilt on this frame".** Bits 0-5 are taken: weather rebuilt, the
+  planted delay, crop, map enabled, night (`FrameBench.h:14-16`), and map-drew 32 (`AircraftManager.cpp:2347`). Bit 7
+  stays free.
+- **Set in `framebench::OnRebuild`** (`FrameBench.h:396`), which runs exactly once for every attempted rebuild: the
+  `else if (rebuild && mapDraw.attempted)` branch, `AircraftManager.cpp:4128-4161`. A refused Build is tagged too, since it
+  costs a frame.
+- `Record` ORs 64 from a new `State::mapRebuilt` and clears it after the record, exactly as it does `rebuilt`
+  (`FrameBench.h:379`, `:386`).
+- **Outside `FRAME_BENCH_FT`, the record's part reads the phase:** `settle`, or `measure` while `measuring`. Under
+  `FRAME_BENCH_FT`, the three FT parts are unchanged.
+
+**The attribution, named.** On image B, with the push task (the v20 candidate), a frame is presented during the NEXT loop
+iteration (`main.cpp:264` in the push task, against the loop's `RecordFrameUs` at `:1374`). So a rebuild's long p2p lands
+on the record after the tagged one. On image A, the present comes before the record (`main.cpp:1365` then `:1374`), so it
+lands on the tagged record itself. **"A rebuild's frames" are therefore the tagged record and the next one on image B, and
+the tagged record alone on image A.**
+
+**The p95 rule, decided before the window: IN.**
+- The v20 bar's p95 includes rebuild frames, as v19's rule does (`:1606`) and as RP5 reads v19.
+- The reasons:
+  - the comparison with v19 stays like-for-like;
+  - a redraw is a frame the customer sees;
+  - FT-SEA's read puts the expectation at 0-1 per window.
+- Printed beside every window, reported and not graded:
+  - the tagged count;
+  - the window's `measure` rebuild records;
+  - the p95 with each rebuild's frames removed (as attributed above).
+
+**The rows** (S2b's reader, frozen with S2b's registration):
+- **TAG-AGREE:** per measured window, the tagged count equals the window's `measure` rebuild records, else the
+  INSTRUMENT. They must agree: `OnRebuild` runs in the draw before `Record`, and `measuring` flips only after `Record`
+  (`AircraftManager.cpp:2351`, then the scene driver).
+- **TAG-SET**, static, in `check_frame_bench.py`:
+  - `mapRebuilt = true` appears exactly once in `src/` and `include/`, inside `OnRebuild`;
+  - `Record` sets 64 from it and clears it;
+  - nothing else writes 64.
+  - Its plants: P-TAG-EVERY, the set moved into `Record` unconditionally: {TAG-SET}; P-TAG-NOCLEAR, the clear removed:
+    {TAG-SET}.
+- **The reader's selftest:**
+  - a synthetic window with one tagged record reads count 1 and prints both p95s;
+  - a window whose `measure` records disagree with its tags reads the INSTRUMENT;
+  - an image-B window drops two records per rebuild from the reported p95, an image-A window one.
+
+**Predicted per S2b window (120 s):** 0 rebuilds with a populated airports list. The zoom lands before measure (RP5's
+ZOOM-T, at least 3 s), and a populated list refreshes every 24 h.
+- **The named exception:** the sibling is at step C's `3e9d6ec9f449`, which does NOT carry step C's airports addition
+  (`c96bd0b04182`). So an EMPTY list still bumps every 5 min there, which is at most 1 rebuild per window.
+- **Outside the set:** more than 1 tagged rebuild in a window, or TAG-AGREE off. That window's X is printed PARTIAL and
+  goes to the orchestrator before X is used.
+
+**What it touches:**
+- the sibling only, so S2b's image;
+- FT-HR runs its accepted `ft2-hr` (`054e60e67bd4`), which the manifest's sha check guards, so a moved sibling cannot
+  reach it;
+- the FT reader's STEADY masks name bits 4, 8, 16 and 32 only.
+
+| Q | the question | the default I take unless ruled |
+|---|---|---|
+| Q-S2b-T1 | the bit | 64 (bit 6) |
+| Q-S2b-T2 | in or out of the bar's p95 | IN, with the p95 without rebuild frames printed beside it, ungraded |
+| Q-S2b-T3 | the record's part outside FT | `settle` / `measure` from `measuring` |
+| Q-S2b-T4 | when the code lands | on the sibling, before S2b's image is built (Monday), never in FT-HR's image |
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
