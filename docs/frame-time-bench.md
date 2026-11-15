@@ -2980,6 +2980,58 @@ The orchestrator opened it on acknowledging the set at `920babdbba66`. E2:08 was
   - **The graded deltas themselves are not predicted.** They are what the window measures, against margins frozen
     from pair 1 before any graded pair.
 
+### FT-SEA's WINDOW (2026-11-15, written 2026-11-15T15:24Z): the reader exits 1, 9 of 9 pairs over their margin
+
+Recorded as measured. The ruling is the orchestrator's, and nothing here interprets the numbers.
+
+- **The start,** on the orchestrator's pre-authorized terms:
+  - E2:08 was unreserved at 12:51Z, then reserved by serial (`--by map-client`) at 12:51:28Z, on COM18.
+  - The PC was quiet: no build, flash or trace process outside the check itself, and CPU at 14 %.
+  - `launch_ftsea.ps1 -Port COM18` ran detached at 12:52:41Z. A pid waiter had a 175-min deadline; the process
+    exited by 15:22:10Z.
+- **The ledger** (`cap11\window.log`):
+  - ft2-sea `2b4e0bf1a5e1` (the manifest's) was written to ota_0 only: 0x020000, 3,252,976 B, verified, reset ok.
+  - The trace ran 12:53:18Z-15:18:18Z, 145 min, exit 0. Its sha256 is `f5df38b36bc5`.
+  - restore-v19 `f6d73e391631` was written to ota_0 only: 1,931,840 B, verified, reset ok.
+  - The restore read PASSes: `[build] ... fw=v19`, `[WiFi] CONNECTED` and `[ota] ... current=19 latest=19` once each,
+    and 0 of the 6 portal tokens.
+  - The join: fast join OK, then HTTP 200 on attempt 2. This is the proof window's shape, line for line.
+  - E2:08 was released at 15:23:08Z.
+- **The read:** `fb_read_ft.py` `8a10f116fe02`, with its pinned inputs, exited 1. Its output is
+  `7130f3c05164cdf5404631087bc738d98e35328f50682e3c9eba03433f933015`. Measured on step C at 3e9d6ec9f449, not on main.
+  - **The instrument rows are all in.** BOOT, TBL, STEADY, FORCED (with the host counts), MARGINS, PLANT, PAIR2 and
+    STEADY A/A each raise the exit-2 INSTRUMENT before the graded loop, read from the reader's code. The graded lines
+    printing is therefore the evidence that every one of them held.
+  - **MARGINS** (pair 1's KORD A/A, µs; sha `431231e808e5`):
+
+    | rung | graded (g) | Load | total |
+    |---|---|---|---|
+    | 10 mi | 358.0 | 6.0 | 354.0 |
+    | 25 mi | 355.0 | 6.0 | 355.0 |
+    | 50 mi | 420.0 | 10.0 | 414.0 |
+
+  - **PLANT** at 25 mi: graded +19,889.0 µs (D 20,000 ± 355.0), total +19,887.5 (± 355.0), Load −1.0 (within ± 6.0).
+- **GRADED, nosea → sea** (the zoom hitch is the graded figure, against M_zoom; N 20/20 on every pair):
+
+  | point | rung | zoom hitch, µs | M_zoom | Load | total | steady p95, ms (M 3.08) | verdict |
+  |---|---|---|---|---|---|---|---|
+  | KJFK | 10 mi | +13,244.5 | 358.0 | +0.5 | +13,244.5 | +0.00 | OVER |
+  | KJFK | 25 mi | +9,685.0 | 355.0 | +0.5 | +9,686.0 | +0.00 | OVER |
+  | KJFK | 50 mi | +8,221.0 | 420.0 | +3.5 | +8,222.5 | +0.00 | OVER |
+  | KBOS | 10 mi | +6,678.0 | 358.0 | +0.5 | +6,676.0 | +0.00 | OVER |
+  | KBOS | 25 mi | +5,169.0 | 355.0 | +0.0 | +5,166.5 | +0.00 | OVER |
+  | KBOS | 50 mi | +7,542.5 | 420.0 | +0.0 | +7,538.5 | +0.00 | OVER |
+  | KORD | 10 mi | −655.0 | 358.0 | +1.0 | −657.5 | +0.00 | OVER |
+  | KORD | 25 mi | −429.5 | 355.0 | +0.0 | −415.5 | +0.01 | OVER |
+  | KORD | 50 mi | −447.0 | 420.0 | +2.0 | −454.5 | +0.00 | OVER |
+
+  - Every Load delta is within its M_load, and every steady p95 delta is within 3.08 ms. Only the zoom hitch moves,
+    with the total beside it.
+  - **Named, not explained:** KORD's three deltas are negative and the other six are positive. No explanation was
+    registered, and none is offered here.
+  - FORCED checked that the device's counts equal map-server's host counts for every package and rung. Reading the
+    per-cell counts against these deltas is map-server's.
+
 ## C1-L: a level and a weather answer per scene, for p4's A0a (registered before its code, 2026-11-13)
 
 **What it is for.** p4's profile (docs/frame-profile.md §0, A0a) reads weather's per-aircraft term as a SLOPE, so its
