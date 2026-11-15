@@ -1,0 +1,10 @@
+# FT-SEA's packages for the v20 sibling's ftsea image (docs/frame-time-bench.md, "FT on the sibling", accepted at
+# fd5ae9b1a08e; the pins are FT-SEA's own, docs/basemap-dense-code.md). One line each: point, variant, sha256, length.
+# The files come from the UNTRACKED directory named by FRAME_BENCH_PKG_DIR, as <point>-<variant>.bmpk. No coordinate
+# is written here: each scene's home is its package's own centre (FT-CTR checks it sits at exactly 2 dp).
+KJFK nosea ee8c834bc81a9a568ce73417c72f980bb581ce6fe294fb5145eaf289c344487c 211408
+KJFK sea 52ac9dc39de0881e1cc74134d4ca1ed814cf70b32cd8b9e1661b41570f066615 211392
+KBOS nosea ed5393b4fc0fa06b9a636364f0029923cae119ca888c0ed2c9b170bcbb62f615 211359
+KBOS sea f21d705d8b8aa5a69bb52aba01fe5fe7b9dd5f6eb90b5349a662c39333eb3db9 211399
+KORD nosea 4238243a57a68fe89499a9038dda359fe499d71e7da80d8d7aff2aec02125439 211400
+KORD sea cb59bb06a5060bf174eee1b16de8dc7ecc8c7c03a538a38f6867d162bd41b41a 211402
