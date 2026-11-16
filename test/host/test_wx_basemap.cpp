@@ -1,12 +1,12 @@
 // Weatherscope 3.5b's device code (docs/weatherscope-stage3.md A10.11, as A12.39 restates it after the rulings since):
 // the BMPK reader (include/BasemapPackage.h), the basemap rasteriser (src/weatherscope/WxBasemap.h) and the fold, the
-// basemap key and the peaks (src/weatherscope/WxScreens.h), held to 96 named cases in 9 families, and nothing else:
-//   PK 30 (A10.11's 28 + A12.15's 2), TX 5, TR 5, FL 7, LN 9, BF 9, BK 7, BW 8 (A12.53: the key's reason), PE 12.
+// basemap key and the peaks (src/weatherscope/WxScreens.h), held to 98 named cases in 9 families, and nothing else:
+//   PK 32 (A10.11's 28 + A12.15's 2 + S4.29's 2), TX 5, TR 5, FL 7, LN 9, BF 9, BK 7, BW 8 (A12.53: the key's reason), PE 12.
 // Its sabotages: python -I test/host/sabotage_wx_basemap.py (16, each failing exactly its set).
 //
 //     test_wx_basemap <test/fixtures/wx>
 //
-// Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, or a case count other than 96). Prints no coordinate.
+// Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, or a case count other than 98). Prints no coordinate.
 
 #include <cmath>
 #include <cstdarg>
@@ -33,7 +33,7 @@ namespace {
 using wxraster::Rgb;
 using wxscreens::Box;
 
-constexpr int kCases = 96;
+constexpr int kCases = 98;
 constexpr int kS = wxraster::kSize;
 
 int checks = 0, failures = 0;
@@ -101,7 +101,32 @@ bmpk::Package Origin(uint32_t radiusMm)
     return p;
 }
 
-// ------------------------------------------------------------------------------------------------ PK (30)
+// S4.29 (docs/weatherscope-stage4.md): whether `got`'s known sections (types 1-7) are `ref`'s, byte for byte, and how
+// many known sections `got` has. PK-unknown and the two PK-pair3 rows all go through here.
+//
+// Paired by INDEX, after the two type sequences are required equal. TERRAIN repeats, one section per level, so a
+// first-of-type lookup (bmpk::Package::Find) pairs every level of `got` with `ref`'s FIRST level: on a 3-terrain pair
+// it reads identical packages as different and misses a change to level 2 (the owner's ruling of 2026-11-16 15:13Z).
+// PK-pair3-same and PK-pair3-lvl2 turn red if this goes back to a first-of-type lookup.
+bool SameKnownSections(const bmpk::Package& ref, const bmpk::Package& got, int* known)
+{
+    std::vector<const bmpk::Section*> a, b;
+    for (int i = 0; i < ref.nSections; ++i)
+        if (ref.sections[i].type >= 1 && ref.sections[i].type <= 7) a.push_back(&ref.sections[i]);
+    for (int i = 0; i < got.nSections; ++i)
+        if (got.sections[i].type >= 1 && got.sections[i].type <= 7) b.push_back(&got.sections[i]);
+    *known = (int)b.size();
+    if (a.size() != b.size()) return false;
+    for (size_t k = 0; k < a.size(); ++k)   // the type sequences, before anything is paired
+        if (a[k]->type != b[k]->type) return false;
+    for (size_t k = 0; k < a.size(); ++k)
+        if (a[k]->count != b[k]->count || a[k]->length != b[k]->length ||
+            std::memcmp(ref.data + a[k]->offset, got.data + b[k]->offset, b[k]->length) != 0)
+            return false;
+    return true;
+}
+
+// ------------------------------------------------------------------------------------------------ PK (32)
 void PK()
 {
     struct Neg {
@@ -146,19 +171,41 @@ void PK()
     const bmpk::Status sun = bmpk::Validate(bun.data(), bun.size(), &pu);
     bool same = sun == bmpk::Status::kOk && smin == bmpk::Status::kOk;
     int known = 0;
-    for (int i = 0; same && i < pu.nSections; ++i) {   // every known section as syn-min's, byte for byte
-        const bmpk::Section& s = pu.sections[i];
-        if (s.type < 1 || s.type > 7) continue;
-        const bmpk::Section* m = pm.Find(s.type);
-        same = m && m->count == s.count && m->length == s.length &&
-               std::memcmp(pu.data + s.offset, pm.data + m->offset, s.length) == 0;
-        ++known;
-    }
+    if (same) same = SameKnownSections(pm, pu, &known);   // every known section as syn-min's, byte for byte
     check("PK-unknown", same && known == pm.nSections, fmt("syn-unknown: %s; %d known sections equal syn-min's",
                                                            bmpk::Name(sun), known));
     const std::vector<uint8_t> bb = Read("basemap/bend.bmpk");
     const bmpk::Status sb = bmpk::Validate(bb.data(), bb.size(), &pb);
     check("PK-bend", sb == bmpk::Status::kOk, fmt("bend.bmpk: %s", bmpk::Name(sb)));
+    // S4.29: a pair with THREE terrain sections, which syn-min and syn-unknown (one each) cannot exercise. Both rows
+    // are built from bend in memory. PK-pair3-same: bend against itself. PK-pair3-lvl2: two copies of bend's
+    // directory, aliased so ref's levels are [L0, L0, L2] and got's [L0, L0, L0]: equal everywhere but level 2.
+    std::vector<int> ter;   // bend's terrain sections, in directory order
+    for (int i = 0; sb == bmpk::Status::kOk && i < pb.nSections; ++i)
+        if (pb.sections[i].type == bmpk::kTerrain) ter.push_back(i);
+    const bool three = ter.size() == 3;
+    int knownSelf = 0;
+    const bool sameSelf = three && SameKnownSections(pb, pb, &knownSelf);
+    check("PK-pair3-same", sameSelf, fmt("bend against itself, %d terrain sections: %s (want 3, same)",
+                                         (int)ter.size(), sameSelf ? "same" : "not same"));
+    bmpk::Package ref = pb, got = pb;
+    if (three) {
+        ref.sections[ter[1]] = pb.sections[ter[0]];
+        got.sections[ter[1]] = pb.sections[ter[0]];
+        got.sections[ter[2]] = pb.sections[ter[0]];
+    }
+    bool level[3] = {false, false, false};   // level k of got equals level k of ref, compared here, not by the helper
+    for (int k = 0; three && k < 3; ++k) {
+        const bmpk::Section& a = ref.sections[ter[k]];
+        const bmpk::Section& b = got.sections[ter[k]];
+        level[k] = a.length == b.length && std::memcmp(ref.data + a.offset, got.data + b.offset, a.length) == 0;
+    }
+    int knownLvl = 0;
+    const bool sameLvl = three && SameKnownSections(ref, got, &knownLvl);
+    check("PK-pair3-lvl2", three && level[0] && level[1] && !level[2] && !sameLvl,
+          fmt("levels equal: 0 %s, 1 %s, 2 %s (want yes, yes, no); the pairing reads %s (want not same)",
+              level[0] ? "yes" : "no", level[1] ? "yes" : "no", level[2] ? "yes" : "no",
+              sameLvl ? "same" : "not same"));
     for (const Neg& n : kNeg) {
         const std::vector<uint8_t> b = Read(std::string("basemap/") + n.file + ".bmpk");
         bmpk::Package p;

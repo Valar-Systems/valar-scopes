@@ -2267,7 +2267,8 @@ note_block $? "WxLayout"
 
 # Weatherscope 3.5b's device code (docs/weatherscope-stage3.md A10.11, as A12.39 restates it): the BMPK reader
 # (include/BasemapPackage.h), the basemap rasteriser (WxBasemap.h), the fold, the basemap key and the peaks -- 84 named
-# cases, and A12.53's 8 for the key's reason: 92, and S4.21's 4 for the bridge: 96. Its sabotages: python -I test/host/sabotage_wx_basemap.py
+# cases, and A12.53's 8 for the key's reason: 92, S4.21's 4 for the bridge: 96, and S4.29's 2 for the terrain pairing:
+# 98. Its sabotages: python -I test/host/sabotage_wx_basemap.py
 echo
 echo "== WxBasemap =="
 (
