@@ -38,6 +38,15 @@ PY = os.path.join(PIO, 'penv', 'Scripts', 'python.exe')
 ESPTOOL = os.path.join(PIO, 'packages', 'tool-esptoolpy', 'esptool.py')
 PT_OFFSET, PT_SIZE = 0x8000, 0xC00
 COMMANDS = ('read-flash', 'write-flash', 'read-mac')  # the esptool commands this script runs (the selftest reads them)
+# The flasher stub, PINNED on every call (the orchestrator's ruling, 2026-11-16). esptool 5.3.0 runs the new stub
+# (esp-flasher-stub) by default and 5.2.0 the legacy one (v1.11.1), and nothing in esptool's output says which ran. The
+# shared ~/.platformio went from 5.3.0 to 5.2.0 on 2026-11-16, and the otadata read below then stalled on the bench board
+# after its first 4 KiB block, twice; the same read completed under the new stub. THIS PINS THE WORKING PATH, NOT A
+# PROVEN CAUSE: the new stub also stays resident between the two reads, where the legacy one exits to the ROM and is
+# uploaded again, and which of those two differences matters is not known. The pin covers both. --stub-version is a
+# hidden esptool option outside its versioning policy: an esptool without it fails every call loudly ("No such
+# option"), never silently. Every call goes through esptool_argv, and the selftest checks every argv a run builds.
+STUB_VERSION = '2'
 T_APP, T_DATA, ST_OTA0, ST_OTADATA = 0x00, 0x01, 0x10, 0x00
 
 
@@ -73,7 +82,7 @@ def selected_slot(otadata, n_ota=2):
 
 def esptool_argv(port, before, after, *args):
     """The ONE place an esptool argv is built: esptool() runs it, and the selftest checks every one a run builds."""
-    return [PY, ESPTOOL, '--chip', 'esp32s3', '--port', port, '--before', before, '--after', after, *args]
+    return [PY, ESPTOOL, '--chip', 'esp32s3', '--port', port, '--before', before, '--after', after, '--stub-version', STUB_VERSION, *args]
 
 
 def esptool(port, before, after, *args):
