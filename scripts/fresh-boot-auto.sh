@@ -229,6 +229,8 @@ HOST="$("${PY[@]}" "$ROOT/scripts/board-port.py" "$BOARD" --host)" || die "no mD
 case "$HOST" in *.local) ;; *) HOST="$HOST.local" ;; esac   # host_of() already ends in .local (2026-11-16 R0 000)
 WORK="$(mktemp -d "$CFGDIR/fba-XXXXXX")"   # pages carry his settings: they live beside his files, removed at the end
 cleanup_work() { rm -rf "$WORK"; }
+# An early stop removes $WORK too: it holds his pages (2026-11-16: a stop at step 2b left one beside his files).
+trap '"${PY[@]}" "$ROOT/scripts/board-port.py" --release "$BOARD" --by "$BY" >/dev/null 2>&1; cleanup_work' EXIT
 
 # ------------------------------------------------------------------------------------------------------- R0
 s="$(get_page "$HOST" "$WORK/before.html")"; [ "$s" = "200" ] || die "R0: GET / read $s; nothing was changed" 2
@@ -286,9 +288,20 @@ else
   say "    powershell -ExecutionPolicy Bypass -File \"$(winpath "$ROOT/scripts/fresh-boot-wifi-join.ps1")\""
   say "It joins Blipscope-XXXXXX, saves his network from his file, and removes the temporary profile. Waiting ${T_WIFI}s for [WiFi] CONNECTED."
   L2="$(wait_log "$LOG" '\[WiFi\] CONNECTED' "$L1" $T_WIFI)" || die "step 2: no [WiFi] CONNECTED after the reset within ${T_WIFI}s; the board is reset and in its setup portal"
+  # The firmware restarts once after provisioning ("provisioned via the portal -- restarting so the config server can
+  # bind :80"), so take the CONNECTED after that restart, then wait for its config page (2026-11-16: step 2b posted
+  # into the reboot and read 000).
+  if LR="$(wait_log "$LOG" 'provisioned via the portal' "$L2" 15)"; then
+    L2="$(wait_log "$LOG" '\[WiFi\] CONNECTED' "$LR" 120)" || die "step 2: no [WiFi] CONNECTED within 120s of the provisioning restart"
+  fi
   IP="$(sed -n "${L2}p" "$LOG" | sed -n 's/.*IP=\([0-9.]*\).*/\1/p')"
   [ -n "$IP" ] || die "step 2: the CONNECTED line carries no address"
   export FBA_DEVICE_IP="$IP"
+  end=$(( $(date -u +%s) + 60 ))
+  until [ "$(curl -s -m 5 -o /dev/null -w '%{http_code}' "http://$IP/")" = "200" ]; do
+    [ "$(date -u +%s)" -ge "$end" ] && die "step 2: the config page did not answer within 60s of CONNECTED"
+    sleep 2
+  done
   say "step 2: joined (capture line $L2)"
 fi
 

@@ -37,6 +37,7 @@ class _Form(HTMLParser):
     def __init__(self, form_id):
         super().__init__(convert_charrefs=True)
         self.form_id, self.depth, self.pairs = form_id, 0, []
+        self.checkboxes = []  # every checkbox's name in the form, checked or not: the page JS's cfg-toggles
         self._select = None   # (name, options [(value, selected)], multiple)
         self._option = None   # [value or None, selected, text]
         self._textarea = None  # [name, text]
@@ -50,6 +51,8 @@ class _Form(HTMLParser):
         if not self.depth:
             return
         name, disabled = a.get("name", ""), "disabled" in a
+        if tag == "input" and a.get("type", "").lower() == "checkbox":
+            self.checkboxes.append(name)   # as querySelectorAll('input[type=checkbox]'): disabled or not, any name
         if tag == "input" and name and not disabled:
             t = a.get("type", "text").lower()
             if t in SKIP_TYPES:
@@ -103,6 +106,15 @@ def form_pairs(html, form_id="cfg"):
     return p.pairs
 
 
+def checkbox_names(html, form_id="cfg"):
+    """The page's submit JS appends cfg-toggles = every checkbox's name in the form, joined by ','. /save turns an
+    absent box OFF only when cfg-toggles declares it, so a body without it can never turn one off (2026-11-16)."""
+    p = _Form(form_id)
+    p.feed(html)
+    p.close()
+    return p.checkboxes
+
+
 def masked(pairs):
     return sorted({n for n, v in pairs if v and set(v) == {"*"}})
 
@@ -118,8 +130,9 @@ def cmd_body(page, out, drop):
         print("NO FORM: form#cfg was not found or had no fields; nothing written")
         return 2
     kept = [(n, v) for n, v in pairs if n not in drop]
+    sent = kept + [("cfg-toggles", ",".join(checkbox_names(read(page))))]   # last, as the page's JS appends it
     with open(out, "w", encoding="utf-8", newline="") as fh:
-        fh.write(urllib.parse.urlencode(kept))
+        fh.write(urllib.parse.urlencode(sent))
     gone = sorted({n for n, _ in pairs} & set(drop))
     print(f"fields {len(kept)} written (of {len(pairs)}); dropped: {', '.join(gone) or 'none'}; "
           f"masked secret fields: {', '.join(masked(pairs)) or 'none'}")
@@ -131,7 +144,8 @@ def _norm(pairs):
 
 
 def cmd_compare(snap, page, ignore):
-    then = _norm(urllib.parse.parse_qsl(read(snap), keep_blank_values=True))
+    then = [(n, v) for n, v in _norm(urllib.parse.parse_qsl(read(snap), keep_blank_values=True))
+            if n != "cfg-toggles"]   # what the body tells /save, not a setting the page holds
     now = _norm(form_pairs(read(page)))
     names = []
     for n, _ in then + now:
@@ -244,7 +258,8 @@ def selftest():
         with contextlib.redirect_stdout(io.StringIO()):
             cmd_body(page, body, {"logbook"})
         sent = urllib.parse.parse_qsl(read(body), keep_blank_values=True)
-        check("F4 --drop logbook leaves out logbook and nothing else", sent == [p for p in SYNTH_WANT if p[0] != "logbook"])
+        check("F4 --drop logbook leaves out logbook and nothing else",
+              [p for p in sent if p[0] != "cfg-toggles"] == [p for p in SYNTH_WANT if p[0] != "logbook"])
         with contextlib.redirect_stdout(io.StringIO()):
             cmd_body(page, body, set())
         check("F4-control: without --drop, logbook is posted (the drop is not vacuous)",
@@ -290,6 +305,26 @@ def selftest():
         with contextlib.redirect_stdout(io.StringIO()):
             h5 = guarded(["hash-compare", os.path.join(d, "no.hash"), page])
         check("H5 a missing hash file is not 'equal' (exit != 0)", h5 != 0)
+        # CT (2026-11-16, the rehearsal's R1 and step 6): the page's own JS appends cfg-toggles, the NAME of every
+        # checkbox in the form, and /save turns an absent box OFF only when cfg-toggles declares it
+        # (src/ConfigurationWebServer.cpp SaveToggle). Without it a restore or a --drop can never turn a box off.
+        with contextlib.redirect_stdout(io.StringIO()):
+            cmd_body(page, body, set())
+        sent = urllib.parse.parse_qsl(read(body), keep_blank_values=True)
+        check("CT1 body ends with cfg-toggles naming every checkbox in form#cfg, in document order",
+              bool(sent) and sent[-1] == ("cfg-toggles", "logbook,chime"))
+        with contextlib.redirect_stdout(io.StringIO()):
+            cmd_body(page, body, {"logbook"})
+        sent = urllib.parse.parse_qsl(read(body), keep_blank_values=True)
+        check("CT2 --drop logbook: logbook is not posted AND cfg-toggles still declares it (so /save turns it OFF)",
+              ("logbook", "on") not in sent and bool(sent) and sent[-1] == ("cfg-toggles", "logbook,chime"))
+        check("CT3 form_pairs (the hash and compare's view) never carries cfg-toggles, so a kept hash stays comparable",
+              all(n != "cfg-toggles" for n, _ in form_pairs(SYNTH)))
+        with contextlib.redirect_stdout(io.StringIO()):
+            cmd_body(page, body, set())
+            ct4 = cmd_compare(body, page, set())
+        check("CT4 compare: a snapshot carrying cfg-toggles against its own page is all equal (transport, not a setting)",
+              ct4 == 0)
         # F7 (the reviewer's condition, 02:0xZ): a made-up SENTINEL value run through every printing path -- body,
         # compare (equal and differing), field-equals (equal and not), and a failing call through the guard -- must
         # appear in NO output, stdout or stderr; and the count/names lines must still print (the control).
