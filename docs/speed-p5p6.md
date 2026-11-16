@@ -756,3 +756,23 @@ compares `Blend` with `BlendRows`, and the table touches neither.
 - A W5c difference stops 1b. It is reported, and nothing is fixed before a ruling.
 - A plant off its set is reported, not re-predicted.
 - Anything else: stop.
+
+### 4l. P5 1b's first host run, read (2026-11-16 06:13Z, WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`)
+
+Read against 4k's predictions, pushed at `b8989f3dbcf0` before the run. The code read is `bench/speed-p5` at
+`b7ba59602fb2` (pushed 06:15:05Z, the tree the run read). **Every prediction held. Nothing is off the set.**
+- **test_p5_blend:** 4 ok, exit 0.
+  - W5c@A and W5c@B: 0 of 3,600 angles differ. 10,369,762 pixels came from the table and 15,832,839 through the
+    direct path, so the control read "yes".
+  - W5c-PCT: 0 of 360 frames differ, with one table and the look alternating 40% and 25%.
+- **sabotage_p5_blend.py:** ROUND and CODEGUARD each red on exactly W5c@A, W5c@B and W5c-PCT; STALE on W5c-PCT alone.
+  "P5 BLEND PLANTS AS PREDICTED", exit 0.
+  - `--anchors`: 3 plants and 3 anchors, each present exactly once.
+  - `--control`: 4 ok.
+  - lint: 0 flagged.
+- **Unchanged:**
+  - test_wx_sweep: all checks passed.
+  - sabotage_wx_sweep: as predicted, "real include/WxSweep.h unchanged: True"; `--anchors`: 4 plants and 4 anchors,
+    each present exactly once.
+  - test_p5_outline: all checks passed.
+  - check_frame_bench.py: 15 rows, 0 failed, and its selftest PASSED.
