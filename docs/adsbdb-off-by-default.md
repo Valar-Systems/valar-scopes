@@ -73,6 +73,35 @@ commit with its own check: the type switch reads off.
 
 **Outside the set:** any other red, or a regression in an existing row, is a stop.
 
+## Addendum (2026-11-16, the reviewer's condition; registered before its code): the type switch on /healthz
+
+**Why.** This defect lived about three months because no instrument could express "type backfill off". Meanwhile
+/healthz showed the route breakers green beside it. A switch that is off for a licence reason must be visible where a
+person already looks. A per-lookup log line was considered and declined: about 460 lines a day by the measured flow,
+and not asked for.
+
+**The change.** `feedHealth()` (`src/upstreams/chain.ts`, the source of /healthz's `upstreams` block) gains ONE entry,
+for the type backfill's own breaker id:
+- `{"id":"adsbdb_ac","enabled":<TYPE_ADSBDB_ENABLED === "true">,"state":<its breaker>,"reason":"licence"}`;
+- the `reason` is present when the switch is off;
+- nothing else in the block changes, and there are no per-request lines.
+
+**The row and its predictions:**
+
+| row | the test | before this code (at `d5822849`) |
+|---|---|---|
+| **AD6** | `/healthz` under the pool's default env: `upstreams` holds exactly one entry with `id` `adsbdb_ac`, and it reads `enabled` false and `reason` `"licence"` | **red**: no such entry |
+
+- **After the code:** AD6 green, and AD1-AD5 as predicted above.
+- **Plant P-AD6:** the new entry removed from `feedHealth()`. Run on `adsbdb-off.test.ts` alone, it is predicted red
+  exactly **{AD6}**, and restored from a byte copy, with its sha256 checked.
+- **Smoke is unaffected.** `smoke-prod.sh`'s "/healthz upstream posture" check reads only the `adsb_fi` and
+  `airplanes_live` entries (by `grep -oE` on their ids), so no smoke verdict can move. No other test pins the block's
+  shape or length. The scripts that read it (`healthz-commit`, `routes-age-verdict`, `wx-products-lines` selftests) read
+  fixed fixtures.
+- **For the next proxy deploy's plan:** its C1/C2 predictions include this entry on both environments, reading
+  `"enabled":false,"reason":"licence"`. That is the "the type switch reads off" check.
+
 ## CI, predicted before the push
 
 The count is derived from what CI expands (`skus.yml`'s rows and the workflow files):

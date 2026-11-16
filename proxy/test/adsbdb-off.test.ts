@@ -64,6 +64,15 @@ describe("adsbdb is off by default (docs/adsbdb-off-by-default.md)", () => {
     expect(((await res.json()) as { t: string }).t).toBe("E75L");
   });
 
+  it("AD6: /healthz shows the type backfill OFF, with the licence reason, where a person already looks", async () => {
+    const res = await call(new Request("https://proxy.test/healthz"));
+    expect(res.status).toBe(200);
+    const ups = ((await res.json()) as { upstreams: { id: string; enabled: boolean; reason?: string }[] }).upstreams;
+    const ac = ups.filter((u) => u.id === "adsbdb_ac");
+    expect(ac).toHaveLength(1);
+    expect(ac[0]).toMatchObject({ enabled: false, reason: "licence" });
+  });
+
   it("AD5 (control): ROUTE_ADSBDB_ENABLED=\"true\" still falls back for the route", async () => {
     fetchMock.get(LOL).intercept({ path: "/v2/hex/ad0005" }).reply(200, hexBody([makeAc({ hex: "ad0005", t: "A320" })]));
     fetchMock.get(LOL).intercept({ path: "/api/0/routeset", method: "POST" }).reply(201, "");
