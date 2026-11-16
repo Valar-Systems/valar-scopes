@@ -1061,11 +1061,16 @@ are read with `xtensa-esp32s3-elf-size -A`.
   - **B2 − B0 and B5 − B3: +2 KiB to +16 KiB** (LabelCache's templates, LabelKey and Slot).
   - **B7 − B6: +0.5 KiB to +12 KiB.** The marks' null checks are compiled into every edition's call sites, though no
     other edition attaches a set.
-- **I-4, read on each `.bin`** (`scripts/check-no-bench-hooks.sh`):
-  - B0, B1, B2, B6 and B7 pass;
-  - B3, B4 and B5 are refused (`[frame-bench]` is present);
-  - `--expect "[speed-p5]"` finds that marker in B4, and `--expect "[speed-p6]"` finds it in B5;
-  - so the extra flag is proved to have reached each image, read from the image rather than the command.
+- **I-4, read on each `.bin`** (`scripts/check-no-bench-hooks.sh`, run by each image's OWN tree's copy, because the
+  marker lists differ by tree). Corrected before acceptance and before any build; see below.
+  - B0, B1, B2, B6 and B7 pass (exit 0).
+  - B3 is refused (exit 1), naming exactly `[frame-bench]`.
+  - B4 is refused, naming exactly `[frame-bench]` and `[speed-p5]`.
+  - B5 is refused, naming exactly `[frame-bench]` and `[speed-p6]`.
+  - So the extra flag is proved to have reached each image, read from the image rather than the command.
+  - **The correction:** the frozen text said `--expect "[speed-p5]"` would find the marker in B4. But `--expect`
+    requires its marker present AND every other marker absent, and B4 also carries `[frame-bench]`, so it would exit 1
+    on a correct image. Found by reading the script at 13:0xZ, before acceptance and before any build.
 
 **What the builds show, and what they do NOT:**
 - **They show:** every firmware call site written tonight compiles, in the shipping shape and with the bench regions.
