@@ -378,6 +378,51 @@ container metadata. No frame has been decoded.
 - **For the post-v20 queue, not now:** a test frame that keeps its labels clear of the moving bar, so that a future
   video grade can reach its coverage control.
 
+**M3-9 OVERNIGHT, registered before anything is built or flashed (2026-11-16, after 04:55Z; the owner's overnight
+order, 04:49Z: "p4: M3's flash-write and overnight safety checks. Run them on the board overnight if it's free, under
+the start-early rule.").** E2:08 was free, on v19, from 04:35Z. The window runs to 11:45Z, when v19 is restored and
+verified and the board released, ahead of 5c's 12:00Z window.
+
+**What runs.** The coherency self-check is already in the M3 tree (`3bc7ec26fe28`, `src/main.cpp:155-210`): every 30th
+push is re-read by `esp_async_memcpy` in 4 KB chunks and compared with the CPU's view. The cumulative counters print
+every 750 pushes as `[m3-bench] checks= bad_frames= bad_chunks= check_err=`, and at boot as `[m3-bench] self-check:
+async memcpy ok ...`.
+1. **P, the planted control first** (about 10 min): `env:blipscope-s3-128-m3bench-plant`, built from `3bc7ec26fe28` with
+   `SOURCE_DATE_EPOCH=1762862445`. The checked frames skip `esp_cache_msync`.
+2. **S, the soak**: the frozen design (i) bench image `2ca8f914a729` (the one the owner judged on glass), from about
+   05:30Z to about 11:00Z.
+3. **R, the v19 restore**: `win_m32.ps1 -Mode restore` (the frozen script; its W3 boot read and W4 read-mac + HTTP),
+   then the release.
+
+Serial goes through `bench-trace.ps1` (one open, never reattached), with `-OutDir` set to `_handoffs/p4/m3/cap-m39`, never
+the repo's `bench-logs`. Every background process is registered under the bg rule with bgcheck.py `944e9ad8ce64`, and
+the end check is graded.
+
+**PREDICTIONS:**
+- **P, the plant:**
+  - the boot line reads "async memcpy ok, chunk 4096 B internal ok, every 30 pushes; PLANT: ...";
+  - `check_err` = 0 and `checks` > 0;
+  - **`bad_frames` / `checks` at least 0.5**, because the checked frames' writes are still in cache.
+- **P's outcomes:** at least 0.5 means the instrument is believed. A ratio between 0 and 0.5 means it is partly
+  sensitive: stop. `bad_frames` = 0 means the self-check is blind: stop, and no soak verdict is possible. A FAILED boot
+  line, `check_err` > 0, or `checks` = 0 is an instrument fault: stop.
+- **S, the soak:**
+  - `checks` grows at about pushes / 30, `check_err` = 0 and `sync_err` = 0;
+  - **`bad_frames` = 0 and `bad_chunks` = 0 keeps (i)**;
+  - one `[build]` banner, at the flash.
+- **S's outcomes:** `bad_frames` of 1 or more, with `check_err` = 0, sends the design to (ii), per the row. A second
+  boot banner, or an `rst:` line not caused by p4, is OFF: stop and decide. A crash is an instrument failure, never a
+  red. A trace that ends early is a gap: report it and do not grade the time after it.
+- **R:** the restore read is "[WiFi] CONNECTED" AND ("fast join OK" OR "autoConnect() returned true") AND no portal-START
+  lines; read-mac; HTTP 200 with v19. **The end check reads PASS.**
+- **OUTSIDE THE SET:** anything else. Stop; the fix waits for the orchestrator's ruling.
+
+**Stated limits, not hidden.** M3-9's row also asks for "periodic photos". There is no camera overnight, so the
+self-check is the only instrument tonight, and the glass part goes to the owner's next sitting. **M3-8 does not run
+tonight:** its pass needs "no torn frame on glass" (the owner's eyes and a video), its OTA half needs 5c's bench
+prerelease with the owner's OK, and its config-page save is the owner's browser save in the same window. It goes to
+the owner's morning list.
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
