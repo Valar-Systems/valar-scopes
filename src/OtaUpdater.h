@@ -16,7 +16,14 @@
 // clips rather than scales and would render a square as its own top-left corner.
 // Moving this number below 7, or shipping a build that reports 7 without the
 // full-bleed card in it, hands those devices a broken photo.
+#if defined(M3_BENCH) && defined(M3_BENCH_FW_VERSION)
+// M3-8 bench images only (docs/m3-push-task.md, row M3-8): the version a bench image reports, so a bench prerelease
+// can update it through the production OTA path. Never set by a shipping env; CI reads only the numeric line below,
+// which must stay at column 0 (tools/web-renderer/build.sh's sed is anchored there).
+constexpr int FW_VERSION = M3_BENCH_FW_VERSION;
+#else
 constexpr int FW_VERSION = 19;
+#endif
 
 // Check GitHub Releases for a newer firmware and self-update if one is published.
 // Blocking; on success the device flashes the new image and reboots into it. The
