@@ -453,6 +453,23 @@ the owner's morning list.
   - **R:** as registered above.
   - **Anything else:** stop.
 
+**M3-9, P2 READ and the soak's GRADE LINE (2026-11-16, written before the soak's 10:59Z read).**
+- **P2, AS PREDICTED** (plant `fa29b8b4249a`, 05:21:19-05:31:20Z): "checks=425 bad_frames=425 bad_chunks=4675
+  bad_bytes=1816706 max_bytes=5154 check_err=0". The ratio is 1.00 against at least 0.5. One boot banner, no reset.
+- **Per caught frame:** min 2,922, mean 4,299 and max 5,154 stale bytes (of 115,200), always 11 chunks. So the check
+  catches a frame that is only 2.5-4.5% stale.
+- **The count reconciled with its list:** 442 mismatch lines = the 425 at or before the last summary (push ≤ 12,750)
+  + 17 after it (pushes 12,780-13,260, before the trace closed). All 442 are distinct multiples of 30.
+- **Instrument effect, ungraded:** the check sits inside the sync mark, so `sync_avg_us` 740 and `push_max_us` 32,289
+  include about 8 ms on checked frames.
+- **The soak runs** on (i) `4ac1b8019a58`, from 05:32:39Z, with a detached trace of 325 min.
+- **THE SOAK'S GRADE LINE (the orchestrator, 2026-11-16):**
+  - the soak's stale-frame total = `bad_frames` from the LAST `[m3-bench] checks=` line + the `[m3-bench] mismatch`
+    lines printed AFTER it;
+  - **a total of 0 keeps (i); 1 or more sends it to (ii)**;
+  - `check_err` must be 0, and an error is never a check;
+  - the summary and the tail are reported separately and graded together, so the tail cannot hide a frame.
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
