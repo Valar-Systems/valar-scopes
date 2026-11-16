@@ -61,10 +61,31 @@ that must read exactly that row red (--selftest).
         return; TakeMapRebuilt's body exactly reads it as 64 and clears it; its result enters the one framebench::Record(
         call, taken on the line before it, in a region; no other 64 flag write in the bench's files (the header, the
         sources' regions). Record() itself is untouched, so FB-REC still holds
+  S2b's port (docs/frame-time-bench.md, "S2b's registration" and its P2 amendment): RP5's rows (b417d80cd4c5's
+  check_frame_bench.py), re-pointed at where S2b's pieces live (include/FrameBenchS2b.h, OnCloudPollS2b), plus S2B-SCOPE:
+  FB-R3  git tracks no recording and no generated recording header (framebench_rec_gen.h, *.fbrec, recordings/); the
+         generator scripts/framebench_rec.py is code and is tracked
+  FB-R4  no print in S2b's own text (its #if branches, FrameBenchS2b.h) carries a latitude or longitude value
+  FB-R5  FrameBenchS2b.h's airport strings equal include/Airports.h's values at 2 dp, code by code
+  FB-R6  the rung set is the single kRungs[] constant: one definition, and no other {25, 50, 100}-style list
+  FB-R7  the replay's CRC is computed on the device over the SAME body it deserialized, and the served line prints it
+  FB-R8  the generated header is included once, in FrameBenchS2b.h under FRAME_BENCH_S2B, which FrameBench.h includes
+         only under `#elif defined(FRAME_BENCH_S2B)`; scripts/framebench_rec.py checks each pin before using it
+  FB-R9  OnCloudPollS2b serves the replay in the settle too: no `s.measuring` test anywhere in it, and its REPLAY gate
+         precedes the body's deserialize
+  FB-R10 (Z): ApplyZoom( exactly once in the bench regions, after a scene's Initialise() and behind
+         framebench::ViewRung(), and ViewRung answers a rung only for kind == REPLAY below kShippingRadiusMi
+  FB-R11 THE CUSTOMER DEFAULTS: kKeepKeys equals the keys whose parse in Initialise() keeps the current value on "",
+         SnapshotKeep's argument passes their members in kKeepKeys' order, kOwnKeys is exactly the five identity keys,
+         and OverrideS2b's two fall-throughs return CustomerDefault(key)
+  S2B-SCOPE every line of FrameBench.h and the sources naming an S2b-only identifier lies inside an S2b preprocessor
+         branch (`#if defined(FRAME_BENCH_S2B)`, its `#elif`, or the `#else` of `#if !defined(FRAME_BENCH_S2B)`): the
+         text-level half of S2B-ISO, so no other env compiles an S2b line
     python -I check_frame_bench.py <tree>             exit 0 every row ok; 1 a row off
     python -I check_frame_bench.py --selftest <tree>  the clean tree green; each plant reads exactly its row red"""
 import os
 import re
+import subprocess
 import sys
 
 BEGIN, END = "// THE FRAME BENCH BEGIN", "// THE FRAME BENCH END"
@@ -83,6 +104,16 @@ TAKE_BODY = ["{", "State& s = S();", "const uint8_t v = s.mapRebuilt ? 64 : 0;",
 TAG_TAKE = "const uint8_t mapTag = framebench::TakeMapRebuilt();"
 TAG_CALL = "framebench::Record(frameUs, trackedAircraft.size(), (uint8_t)(stateFlags | mapTag));"
 FLAG64 = re.compile(r"\?\s*64\s*:|\|=?\s*64\b|\b64\s*\|")
+# S2b's port (RP5's rows, re-pointed): its table header, Airports.h, the generator script
+S2B_H, APH, REC_PY = "include/FrameBenchS2b.h", "include/Airports.h", "scripts/framebench_rec.py"
+TRACKED_REC = re.compile(r"framebench_rec_gen\.h|\.fbrec$|(^|/)recordings/")
+PRINT = re.compile(r"Serial\.(print|printf|println)\s*\(")
+COORD = re.compile(r"kAptLat|kAptLon|kS2bHomeLat|kS2bHomeLon|latSent|lonSent|req->lat|req->lon|\blat0\b|\blon0\b|"
+                   r"\.latitude|\.longitude")
+# S2B-SCOPE: identifiers only S2b's text may name (comments stripped first)
+S2B_ONLY = ["OnCloudPollS2b", "OverrideS2b", "SnapshotKeep", "CustomerDefault", "SelfTimeOverride", "ViewRung",
+            "HomeName", "RecCrc32", "kRecPolls", "kRecN", "FrameBenchS2b.h", "CTRL_IL", "LIVE_APT", "LIVE_OWN",
+            "keepTaken", "kKeepKeys", "kOwnKeys", "kNumKeep", "S().submits", "fb.submits", "sceneStartMs"]
 
 
 def nocomment(l):
@@ -91,7 +122,7 @@ def nocomment(l):
 
 def load(tree):
     files = {}
-    for rel in SOURCES + [HEADER, TABLE, MARKS, AMH, MCH, FTH, INI] + [r[1] for r in FT_ROWS.values()]:
+    for rel in SOURCES + [HEADER, TABLE, MARKS, AMH, MCH, FTH, INI, S2B_H, APH, REC_PY] + [r[1] for r in FT_ROWS.values()]:
         files[rel] = open(os.path.join(tree, rel), "rb").read().decode("utf-8").replace("\r\n", "\n").split("\n")
     # FB-TU: which project headers #define which macros (include/**, the bench's own two headers excluded)
     defs = {}
@@ -108,6 +139,12 @@ def load(tree):
                 if m:
                     defs.setdefault(m.group(1), set()).add(rel)
     files["__defs__"] = defs
+    # FB-R3: git's own list of tracked files (None when git cannot be read: the row then reads red, never green)
+    try:
+        out = subprocess.run(["git", "-C", tree, "ls-files"], capture_output=True, text=True, check=True).stdout
+        files["__tracked__"] = out.splitlines()
+    except (OSError, subprocess.CalledProcessError):
+        files["__tracked__"] = None
     # TAG-SET: the tag's set in every OTHER src/ and include/ file (the loaded ones are scanned from `files`, so a plant
     # in them is seen)
     loaded = set(SOURCES + [HEADER, TABLE, AMH, MCH, FTH])
@@ -267,6 +304,7 @@ def rows(f):
     res["FT-TAB"], res["FT-SCENES"] = ft_tab(f), ft_scenes(f)
     res["FT-TBL"] = ft_tbl(f)
     res["TAG-SET"] = tag_set(f)
+    res.update(s2b_rows(f))
     return res
 
 
@@ -595,6 +633,160 @@ def tag_set(f):
                 f"{len(w64)}, only the take's {c4}")
 
 
+def s2b_blocks(lines):
+    """The line indices inside S2b's own preprocessor branches: `#if defined(FRAME_BENCH_S2B)` (or `#ifdef`), an
+    `#elif defined(FRAME_BENCH_S2B)`, and the `#else` of `#if !defined(FRAME_BENCH_S2B)` (or `#ifndef`). Nested
+    branches inside one of them count as S2b's too."""
+    out, stack = set(), []   # each frame: [this branch's sense, the #if's own]; "pos" S2b, "neg" not S2b, None neither
+    for i, l in enumerate(lines):
+        m = re.match(r"\s*#\s*(ifdef|ifndef|if|elif|else|endif)\b(.*)", l)
+        if m:
+            d, rest = m.group(1), nocomment(m.group(2)).strip()
+            if d in ("if", "ifdef", "ifndef"):
+                pos = (d == "if" and rest == "defined(FRAME_BENCH_S2B)") or (d == "ifdef" and rest == "FRAME_BENCH_S2B")
+                neg = (d == "if" and rest == "!defined(FRAME_BENCH_S2B)") or (d == "ifndef" and rest == "FRAME_BENCH_S2B")
+                sense = "pos" if pos else ("neg" if neg else None)
+                stack.append([sense, sense])
+            elif d == "elif" and stack:
+                stack[-1][0] = "pos" if rest == "defined(FRAME_BENCH_S2B)" else None
+            elif d == "else" and stack:
+                first = stack[-1][1]
+                stack[-1][0] = "pos" if first == "neg" else ("neg" if first == "pos" else None)
+            elif d == "endif" and stack:
+                stack.pop()
+            continue
+        if any(fr[0] == "pos" for fr in stack):
+            out.add(i)
+    return out
+
+
+def s2b_rows(f):
+    """S2b's port: RP5's rows FB-R3 .. FB-R11 (b417d80cd4c5), re-pointed at FrameBenchS2b.h and OnCloudPollS2b, and
+    S2B-SCOPE. Each (ok, detail)."""
+    res = {}
+    h, s2, a = f[HEADER], f[S2B_H], f[AMC]
+    htext, s2text = "\n".join(h), "\n".join(s2)
+    hb, ab = s2b_blocks(h), s2b_blocks(a)
+    # FB-R3: nothing recorded or generated is tracked
+    lst = f["__tracked__"]
+    bad_t = [p for p in (lst or []) if TRACKED_REC.search(p)]
+    res["FB-R3"] = (lst is not None and not bad_t,
+                    "no tracked file listing to read" if lst is None else f"tracked recording files: {bad_t[:3] or 0}")
+    # FB-R4: no print in S2b's own text carries a coordinate
+    bad_p = []
+    for rel, lines, idx in ((HEADER, h, hb), (AMC, a, ab), (S2B_H, s2, set(range(len(s2))))):
+        for i in sorted(idx):
+            l = nocomment(lines[i])
+            if PRINT.search(l):
+                stmt, k = l, i
+                while ";" not in stmt and k + 1 < len(lines):
+                    k += 1
+                    stmt += nocomment(lines[k])
+                if COORD.search(stmt):
+                    bad_p.append(f"{rel}:{i + 1}")
+    res["FB-R4"] = (not bad_p, f"S2b prints carrying a coordinate: {bad_p[:3] or 0}")
+    # FB-R5: the airport strings equal Airports.h at 2 dp
+    apts = {}
+    for l in f[APH]:
+        for m in re.finditer(r'\{\s*(-?[\d.]+)f,\s*(-?[\d.]+)f,\s*"([A-Z]{3})"\s*\}', l):
+            apts.setdefault(m.group(3), (f"{float(m.group(1)):.2f}", f"{float(m.group(2)):.2f}"))
+    arr = {}
+    for name in ("kAptCode", "kAptLat", "kAptLon"):
+        m = re.search(name + r"\[\]\s*=\s*\{([^}]*)\}", s2text)
+        arr[name] = re.findall(r'"([^"]*)"', m.group(1)) if m else []
+    mism = [c for c, la, lo in zip(arr["kAptCode"], arr["kAptLat"], arr["kAptLon"]) if apts.get(c) != (la, lo)]
+    r5 = len(arr["kAptCode"]) == 9 == len(arr["kAptLat"]) == len(arr["kAptLon"]) and not mism
+    res["FB-R5"] = (r5, "9 airports, each equal to Airports.h at 2 dp" if r5 else
+                    f"airports {len(arr['kAptCode'])}, mismatched {mism[:3]}")
+    # FB-R6: one kRungs[] and no other rung list
+    krx = r"static const uint8_t kRungs\[\]\s*=\s*\{[^}]*\}"
+    defs = len(re.findall(krx, s2text)) + len(re.findall(krx, htext))
+    others = []
+    for rel in SOURCES + [HEADER, S2B_H]:
+        for i, l in enumerate(f[rel]):
+            code = nocomment(l)
+            if re.search(r"\{\s*25\s*,\s*50\s*,\s*100\s*\}|\{\s*10\s*,\s*25\s*,\s*50\s*\}", code) and "kRungs[]" not in code:
+                others.append(f"{rel}:{i + 1}")
+    res["FB-R6"] = (defs == 1 and not others, f"kRungs[] definitions {defs}; other rung lists {others[:3] or 0}")
+    # FB-R7: the CRC over the body deserialized, and the served line prints it
+    de = htext.count("deserializeJson(doc, rp[pick].body);")
+    cr = htext.count("RecCrc32(rp[pick].body, strlen(rp[pick].body))")
+    pr = htext.count('"[frame-bench] served A%u %d crc %08lx us %lu\\n", (unsigned)sc.home, rp[pick].seq,')
+    res["FB-R7"] = (de == 1 and cr == 1 and pr == 1 and "(unsigned long)crc" in htext,
+                    f"deserialize {de}, CRC over the same body {cr}, served print {pr}")
+    # FB-R8: the generated header, once, in FrameBenchS2b.h under FRAME_BENCH_S2B; that header included only under
+    # `#elif defined(FRAME_BENCH_S2B)`; the pre-build step checks each pin before using the file
+    inc = [i for i, l in enumerate(s2) if '#include "framebench_rec_gen.h"' in l]
+    s2code = [l.strip() for l in s2 if l.strip() and not l.strip().startswith("//")]
+    s2gated = (len(s2code) >= 3 and s2code[0] == "#pragma once" and s2code[1] == "#if defined(FRAME_BENCH_S2B)"
+               and s2code[-1].startswith("#endif"))
+    hinc = [i for i, l in enumerate(h) if '#include "FrameBenchS2b.h"' in l]
+    hgated = len(hinc) == 1 and hinc[0] > 0 and h[hinc[0] - 1].strip() == "#elif defined(FRAME_BENCH_S2B)"
+    hgen = sum(1 for l in h if "framebench_rec_gen.h" in nocomment(l))
+    sc = "\n".join(f[REC_PY])
+    pin, use = sc.find("hashlib.sha256(blob).hexdigest() != want"), sc.find("json.loads(l)")
+    res["FB-R8"] = (len(inc) == 1 and s2gated and hgated and hgen == 0 and 0 <= pin < use,
+                    f"generated-header includes {len(inc)} (FrameBench.h {hgen}), FrameBenchS2b.h gated {s2gated}, "
+                    f"included under its #elif {hgated}; pin check before use {0 <= pin < use}")
+    # FB-R9: the replay serves in the settle too: no measuring test in OnCloudPollS2b; its REPLAY gate first
+    fs, fe = func_span(h, "inline void OnCloudPollS2b(")
+    body = h[fs:fe] if fs >= 0 else []
+    meas = [i for i, l in enumerate(body) if "s.measuring" in nocomment(l)]
+    gate = next((i for i, l in enumerate(body) if nocomment(l).strip() == "if (sc.kind != REPLAY) return;"), -1)
+    deser = next((i for i, l in enumerate(body) if "deserializeJson(doc, rp[pick].body);" in l), -1)
+    res["FB-R9"] = (fs >= 0 and not meas and 0 <= gate < deser,
+                    f"OnCloudPollS2b found {fs >= 0}; measuring tests in it {len(meas)}; the REPLAY gate before the "
+                    f"deserialize {0 <= gate < deser}")
+    # FB-R10: the (Z) zoom, once, after a scene's Initialise(), behind ViewRung; ViewRung answers REPLAY only
+    zc = [i for x, y in regions(a) for i in range(x, y) if "ApplyZoom(" in a[i]]
+    z_ok = (len(zc) == 1 and any(a[j].strip() == "Initialise();" for j in range(max(0, zc[0] - 9), zc[0]))
+            and any("framebench::ViewRung(" in a[j] for j in range(max(0, zc[0] - 4), zc[0])))
+    vr = next((i for i, l in enumerate(h) if "inline uint8_t ViewRung(int k)" in l), -1)
+    vr_ok = vr >= 0 and any("kScenes[k].kind == REPLAY && kScenes[k].rungMi < kShippingRadiusMi" in h[j]
+                            for j in range(vr, min(len(h), vr + 5)))
+    res["FB-R10"] = (z_ok and vr_ok, f"bench zoom calls {len(zc)}; after Initialise() behind ViewRung {z_ok}; "
+                                     f"ViewRung REPLAY-only {vr_ok}")
+    # FB-R11: the customer defaults held to the parses
+    ini = next((i for i, l in enumerate(a) if l.startswith("void AircraftManager::Initialise()")), -1)
+    ini_end = next((i for i in range(ini + 1, len(a)) if a[i].startswith("void AircraftManager::")), len(a)) \
+        if ini >= 0 else -1
+    var_key, keep_pairs = {}, []
+    for l in (a[ini:ini_end] if ini >= 0 else []):
+        m = re.search(r'const String (\w+) = configServer\.GetStoredString\("([a-z0-9-]+)"\);', l)
+        if m:
+            var_key[m.group(1)] = m.group(2)
+        m = re.search(r"if \(!(\w+)\.isEmpty\(\)\) (\w+) = ", l)
+        if m and m.group(1) in var_key:
+            keep_pairs.append((var_key[m.group(1)], m.group(2)))
+
+    def str_list(name):
+        line = next((l for l in s2 if f"static const char* const {name}[] = " in l), "")
+        return re.findall(r'"([a-z0-9-]+)"', line.split("=", 1)[1]) if line else []
+
+    keep_keys, own_keys = str_list("kKeepKeys"), str_list("kOwnKeys")
+    snap = next((i for i, l in enumerate(a) if "const bool keepNow[framebench::kNumKeep] = {" in l), -1)
+    snap_members = re.findall(r"\b(display\w+)\b", " ".join(a[snap:snap + 3])) if snap >= 0 else []
+    member_of = dict(keep_pairs)
+    ordered = [member_of.get(k) for k in keep_keys]
+    so, se = func_span(h, "inline const char* OverrideS2b(")
+    falls = sum(nocomment(l).count("return CustomerDefault(key);") for l in h[so:se]) if so >= 0 else 0
+    r11 = (sorted(keep_keys) == sorted(k for k, _ in keep_pairs) and len(keep_pairs) == len(set(k for k, _ in keep_pairs))
+           and ordered == snap_members and own_keys == ["cloud-url", "cloud-key", "cloud-key-fac", "opensky-id",
+                                                        "opensky-secret"] and falls == 2)
+    res["FB-R11"] = (r11, f"keep-current parses {len(keep_pairs)} {sorted(k for k, _ in keep_pairs)}; kKeepKeys "
+                          f"{keep_keys}; snapshot order matches {ordered == snap_members}; kOwnKeys {own_keys}; "
+                          f"fall-throughs {falls}")
+    # S2B-SCOPE: every line naming an S2b-only identifier lies in an S2b branch (comments stripped)
+    bad_s = []
+    for rel in [HEADER] + SOURCES:
+        lines = f[rel]
+        idx = hb if rel == HEADER else (ab if rel == AMC else s2b_blocks(lines))
+        bad_s += [f"{rel}:{i + 1}" for i, l in enumerate(lines)
+                  if any(t in nocomment(l) for t in S2B_ONLY) and i not in idx]
+    res["S2B-SCOPE"] = (not bad_s, f"S2b-only identifiers outside an S2b branch: {bad_s[:3] or 0}")
+    return res
+
+
 def report(f):
     res = rows(f)
     for k, (ok, d) in res.items():
@@ -720,6 +912,49 @@ def selftest(tree):
                 {"TAG-SET"})
     rc |= plant("TAG-SET P-TAG-NOPASS, the Record call passes stateFlags alone",
                 sub(AMC, "(uint8_t)(stateFlags | mapTag));", "stateFlags);"), {"TAG-SET"})
+
+    # S2b's port: RP5's plants (b417d80cd4c5), re-pointed, and S2B-SCOPE's. Each reads exactly its own row red.
+    def tracked_plus(path):
+        def fn(f):
+            f["__tracked__"] = (f["__tracked__"] or []) + [path]
+        return fn
+
+    def tracked_again(path):
+        def fn(f):
+            f["__tracked__"] = sorted(set((f["__tracked__"] or []) + [path]))
+        return fn
+
+    rc |= plant("FB-R3, a recording tracked", tracked_plus("bench/framebench_rec_SFO.fbrec"), {"FB-R3"})
+    rc |= plant("FB-R3, the generated header tracked", tracked_plus("include/framebench_rec_gen.h"), {"FB-R3"})
+    rc |= plant("FB-R3 CONTROL, the generator script tracked", tracked_again(REC_PY), set())
+    rc |= plant("FB-R4, a coordinate printed in S2b's replay serve",
+                sub(HEADER, "    (void)lonSent;\n", "    (void)lonSent;\n    Serial.printf(\"%s\", latSent);\n"), {"FB-R4"})
+    rc |= plant("FB-R5, one airport digit changed", sub(S2B_H, '"33.64"', '"33.65"'), {"FB-R5"})
+    rc |= plant("FB-R6, a second rung list",
+                sub(AMC, "        const uint32_t nowMs = millis();\n",
+                    "        const uint32_t nowMs = millis();\n        static const uint8_t r[] = {25, 50, 100};\n"), {"FB-R6"})
+    rc |= plant("FB-R7, the CRC over another body",
+                sub(HEADER, "RecCrc32(rp[pick].body, strlen(rp[pick].body))", "RecCrc32(rp[0].body, strlen(rp[0].body))"),
+                {"FB-R7"})
+    rc |= plant("FB-R8, the pinned-sha check removed", sub(REC_PY, "hashlib.sha256(blob).hexdigest() != want", "False"),
+                {"FB-R8"})
+    rc |= plant("FB-R9, a measuring gate in the replay serve",
+                sub(HEADER, "    if (sc.kind != REPLAY) return;\n", "    if (sc.kind != REPLAY || !s.measuring) return;\n"),
+                {"FB-R9"})
+    rc |= plant("FB-R10, ViewRung no longer REPLAY-only",
+                sub(HEADER, "kScenes[k].kind == REPLAY && kScenes[k].rungMi < kShippingRadiusMi",
+                    "kScenes[k].rungMi < kShippingRadiusMi"), {"FB-R10"})
+    rc |= plant("FB-R10, a second zoom call in the driver",
+                sub(AMC, '                    ApplyZoom(i, radarzoom::Edge::None, "bench");\n',
+                    '                    ApplyZoom(i, radarzoom::Edge::None, "bench");\n'
+                    '                    ApplyZoom(0, radarzoom::Edge::None, "bench");\n'), {"FB-R10"})
+    rc |= plant("FB-R11, a KEEP-CURRENT key dropped from kKeepKeys",
+                sub(S2B_H, '{"infotext", "triangle", "airports", ', '{"infotext", "triangle", '), {"FB-R11"})
+    rc |= plant("FB-R11, a drawing key added to kOwnKeys", sub(S2B_H, '"opensky-secret"};', '"opensky-secret", "trail"};'),
+                {"FB-R11"})
+    rc |= plant("S2B-SCOPE, an S2b call moved outside its branch",
+                sub(AMC, "#if defined(FRAME_BENCH_S2B)\n                    framebench::SelfTimeOverride();",
+                    "                    framebench::SelfTimeOverride();\n#if defined(FRAME_BENCH_S2B)"), {"S2B-SCOPE"})
     print("selftest PASSED" if rc == 0 else "selftest FAILED")
     return rc
 
