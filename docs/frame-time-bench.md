@@ -3367,6 +3367,56 @@ cross-check of the transcriptions' v19-to-v20 differences against a real v19 run
 - **The push:** prepush_frame, every guard ok (`skus --validate` included, with the new env).
 - **Next:** the reader `fb_read_s2b.py` (registered as a delta from `e15a94a8a8f6`), then S2B-ISO's three build pairs.
 
+#### THE READER's AMENDMENTS, written before its code (R1-R3 accepted by the orchestrator, 2026-11-16 ~05:37Z)
+
+The registration's reader is `fb_read_rp5.py` `e15a94a8a8f6` with its listed changes. Reading the sibling's own text
+changed three of them, and two readings are recorded beside them.
+
+- **(R1) I-5 reads two lines.** The S2b image prints `record cost N ns/frame` (SelfTime, FB-REC's pinned text) and
+  `override cost N ns/call` (SelfTimeOverride) as two lines. Reader b's COST regex reads only RP5's one-line form, so
+  its `parse()` returns no cost for this image. `fb_read_s2b` parses both lines itself:
+  - each exactly once, before S0's settle line, else the INSTRUMENT;
+  - the record cost graded on image B's band, 6,400 to 7,300 ns (two-sided; outside it is a graded row off, exit 1),
+    with over 50,000 ns a STOP;
+  - the override cost reported.
+- **(R2) M3-2 reads `pres`, not flag bits.** On the sibling, `flags` bit 2 is the crop and bit 3 the map. The presents
+  since the previous record are the Rec's 8th byte, `pres` (reader b's `<HHBBBB` unpack keeps it as its 6th field).
+  The draft's "bits 2 and 3" is withdrawn. Instead:
+  - **per frame:** `pres != 1` on under 1 % of each scene's measured frames, else that scene is the INSTRUMENT;
+  - **per scene (THE PACKAGE's exact count):** its `presents S<k>: handed H presented P dropped D` line once, with
+    P == H and D == 0, else the INSTRUMENT.
+  - **Predicted:** 0 frames with `pres != 1` in every scene. No S2b scene has a push delay, and THE PACKAGE's proof
+    window read 0 in every scene without one.
+- **(R3) CTRL-IL's drop rule is unchanged in code** (the first frame of every run after the first is dropped). Its basis
+  on image B is restated:
+  - **The order on the loop task (B):** frame k draws, the plant runs (DelayOn, before HandOver), HandOver(k), then
+    RecordFrameUs and Record(k), which reads the latest p2p that Present published.
+  - **Present runs on the push task, after a frame's DMA completes.** Frame k-1 is handed over at H(k-1), and its push
+    takes about 24 ms (push − sync 23.7 ms, against a loop period of about 70-80 ms). So its present, P(k-1), lands
+    before H(k). Frame k's own present P(k) is still pending when Record(k) runs, since Record follows HandOver at once.
+  - **So Record(k) carries P(k-1) − P(k-2), which is about H(k-1) − H(k-2): frame k-1's period,** with frame k-1's
+    plant or its absence. Its `delayed` flag is frame k's (DelayOn runs in the same iteration). At a run boundary, the
+    first frame of the new run carries the previous run's period. That one frame is dropped, exactly RP5's rule,
+    for a different reason.
+  - **The alternatives, named and excluded.**
+    - Lag 0 (the push completes before the record): excluded by the order, since Record follows HandOver at once and
+      the push needs about 24 ms.
+    - Lag 2 (frame k-1's push not done by H(k)): excluded while the push is shorter than the period. Where it
+      happened, that frame would read `pres = 0`, which (R2) counts.
+  - **Its guard is (R2) itself:** `pres == 1`, exactly one present between consecutive records, is the lag-1
+    condition.
+- **(R4) THE TRANSCRIPTIONS ARE UNCHANGED** (read 2026-11-16, before the reader's code).
+  - All 24 pieces' texts at `7d4009fdbc92` are byte-identical to `b417d80cd4c5`'s.
+  - 22 are at their own paths, by the reader's own `--emit-hashes` against both commits.
+  - AptLat and AptLon are at their new path, `include/FrameBenchS2b.h`, by the reader's own `extract()`, with the same
+    hashes.
+  - So `fb_read_s2b` keeps all 24 EXPECTED hashes and moves only those two paths. Its transcription code is RP5's
+    unchanged: v20's prediction, projection, zoom and row-parse text is v19's.
+- **(R5) THE [health] LINE IS UNCHANGED.** Reader b's HEALTH and RP5's HINT match the sibling image's frame-health
+  lines: on FT-SEA's trace (the sibling's B image), 289 of 289 frame lines, all `interval=5000`. The control is the
+  11-12 v19 baseline, which reads the same shape (183 frame lines among 488 `[health]` lines). So CADENCE and the
+  windows read unchanged.
+
 ### THE POST-v20 QUEUE: the ~200 ms full redraw (the owner's answer, 2026-11-15; queued, nothing before v20)
 
 - **The owner, verbatim:** "Sea: a. Queue the faster water fill for after v20, and with it, look at the ~200 ms full
