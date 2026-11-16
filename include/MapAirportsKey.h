@@ -2,8 +2,10 @@
 // only when the airports CONTENT changes", and its amendment). Pure: no Arduino, no allocation, no output.
 //
 // The names' obstacles (MapAirportBoxes) read four fields of each airports-list row -- lat, lon, code and kind -- in list
-// order (the first maxAirports rows are the ones kept). So the list's CONTENT is those four fields in that order, plus
-// its length, and a refetch whose content is identical changes nothing on screen: it must not move airportsGen, or the
+// order. EVERY row counts: MapAirportBoxes counts all the rows in view and writes a box for at most maxAirports of them,
+// and when more than that are in view the composer refuses ALL the names (CB11) rather than keep a prefix. So the list's
+// CONTENT is those four fields of every row, in that order, plus its length (a change anywhere can change whether the
+// names are drawn), and a refetch whose content is identical changes nothing on screen: it must not move airportsGen, or the
 // map redraws (185-262 ms on the s3-128, FT-SEA) for nothing -- every 5 min while the list stays empty (APT_EMPTY_RETRY_MS).
 //
 // ContentHash: 32-bit FNV-1a over the length, then each row's lat and lon float bits, its five code bytes and its kind.

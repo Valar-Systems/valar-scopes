@@ -15,7 +15,7 @@
 //                green. The excepted share is printed.
 // Its sabotages: python -I test/host/sabotage_map_sweep.py (plants in a copy of include/MapSweep.h only).
 //
-//     test_map_sweep <fixtures dir: test/fixtures/wx>     exit 0 all pass; 1 a failure; 2 the rig
+//     test_map_sweep <fixtures dir: test/fixtures/wx>     exit 0 all pass; 1 a failure; 2 the rig (also: not 9 cases)
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -250,5 +250,11 @@ int main(int argc, char** argv)
         check(green == 0 && wedge > 0, "CS6", buf);
     }
     std::printf("%d checks, %d failures\n", checks, failures);
+    // The count is pinned in the binary, as its sibling suites' are (test_map_airports 13, test_map_draw 28): a row
+    // dropped or compiled out is the RIG here, not a green block in run.sh. The driver's SWEEP_CHECKS is the same 9.
+    if (checks != 9) {
+        std::printf("the RIG: %d cases, not 9\n", checks);
+        return 2;
+    }
     return failures ? 1 : 0;
 }
