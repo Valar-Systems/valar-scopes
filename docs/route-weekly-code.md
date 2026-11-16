@@ -891,6 +891,61 @@ attended production run, these are fixed first, each red-first where it is code.
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
 
+### 2s. W8 at main, in F1's form, and the backup's readiness (the owner's order 6, 2026-11-16; registered before any run)
+
+**The owner's words** (relayed, 04:49Z): *"W8's F1 re-run and the 827-route backup, ready for the Nov 18 route run."* The
+reviewer accepted two readings (05:01Z):
+- **W8:** ONE full W8 run at main's code, in F1's form. Nothing has read W8 at the code Wednesday runs: the four plants
+  whose sets #723 moved (S-GR8, S-VAL, S-JN-W, S-J7) are marked "DERIVED, NOT RUN" in the driver (2r item 1).
+  `--only S-VAL` would read one of the four.
+- **The backup:** READINESS, not a new backup. A backup is taken only inside the writing run, because BK0d refuses
+  `--backup` with `--dry-run` by design, and a separate reader would be the second path #723 avoided.
+
+**The checkout, made LF** (the owner, 2026-11-16 15:02Z, "eol: yes"):
+- the commands: `git worktree add --no-checkout --detach <path> <main sha>`, then
+  `git -C <path> -c core.autocrlf=false -c core.eol=lf reset --hard <main sha>`.
+- **Why:** `.gitattributes` begins `* text=auto`, so a default checkout on Windows writes CRLF whatever `core.autocrlf`
+  says. On 2026-11-16 that made S-FK1's anchor, which spans a newline, read 0 times. The blobs are LF.
+- Then, before `npm ci`: 0 CRLF in `proxy/src` and `proxy/scripts`, with a planted control that reads 2.
+- **The 11-18 run's checkout is made the same way, with the same assertion.** W8 vouches only for the bytes it read.
+
+**Before the run, read-only:**
+- the anchor check: 18 plants, each anchor exactly once;
+- the declared counts, from the driver's own `declared()`: guards 71, writer 81, freeze 4, runs 8, health 11,
+  reconcile 1;
+- every plant's `want` is inside its grader's declared set, except S-RC6's. Reconcile declares the one row RC5-RC6 and
+  reads a plant's red set from inside that row's text, by design;
+- no other session's vitest or sabotage run is live, since the health grader runs vitest on this PC.
+
+**The run:** `env -u BLIPSCOPE_TOKEN_FILE -u ROUTES_KV_TOKEN -u CLOUDFLARE_API_TOKEN node
+scripts/sabotage-routes-weekly.mjs` from `proxy/`, all 18 plants, fake KV only, no network write. It starts after
+2026-11-16's rehearsal end line, outside S2 and the rehearsal.
+
+**Predicted:**
+- **BASELINE:** guards 71, writer 81, freeze 4, runs 8, health 11, reconcile 1, every declared set read in full, 0 red.
+- **Every plant "as registered", red exactly its driver `want`.** The four that 2r derived are read for the first time:
+  - S-GR8: {GR8, RCP2, UN1, UN2, UN3, J1, J2, J3, J4, J5, J7, JR1, UNDO1, UNDO2, UNDO3, RS2, J7w, J7w-ctl};
+  - S-VAL: {GR10m, GR10a, RCP2, GR10, GR11, UN1, UN2, UN3, J3, J7, JR1, SN1, SN1-ctl, UNDO1, RS2, J7w, J7w-ctl};
+  - S-JN-W: {J1, J2, J3, J7, J7w-ctl, UNDO2};
+  - S-J7: {J7, J7w-ctl}.
+  The other 14 keep the sets they read on 2026-11-14 at 15:55Z (section 7), each checked unchanged by 2r.
+- `SABOTAGE PASSED (18 plant(s), after a full baseline)`, exit 0, with empty stderr.
+- **After:** every plant restored sha-equal; porcelain 0; the tree equal to HEAD; 0 `routes-`/`verify-` temp leftovers.
+
+**The backup's readiness, recorded with the run:**
+- **(a)** The planned path, `~/.config/blipscope/routes-backup-<env>-<UTC stamp>.json`, for staging and for production,
+  is checked read-only through the writer's own `backupPathRefusal()` (BK0's rule, `routes-backup.ts`). Predicted: null,
+  meaning allowed, for both.
+  - Control 1: a path inside the W8 checkout is refused, "the path lies inside a git work tree".
+  - Control 2: the folder itself is refused, "the backup file already exists".
+- **(b)** The backup, undo and restore rows read green inside the BASELINE:
+  - the writer's 24: BK-H, BK-M, BK-R, BK-SAME, BK-SAME-ctl, BK-T, BK-W, BK-X, BK-Xc, BK-Xd, BK0, BK0d, BK1, BK3, RS0,
+    RS0b, RS1e, RS1t, RS1v, RS2, UNDO-ctl, UNDO1, UNDO2 and UNDO3;
+  - the guards' 7: BK0e, BK0g, BK0n, BK0s, BK2, BK2s and RO1.
+
+**Outside the set:** any OFF, a BLIND, an anchor not exactly once, a CRLF reading, or an instrument failure is a STOP.
+Nothing is re-run; the reviewer decides whether it goes to the owner.
+
 ## 3. CI
 
 Predicted in its own commit before the code push, from main's CI after its last workflow change. The new selftests are
