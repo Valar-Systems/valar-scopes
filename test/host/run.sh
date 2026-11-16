@@ -2601,6 +2601,26 @@ exit "$rc"
 )
 note_block $? "P5 1a: the outline mask against 8 copies"
 
+# P5 1b (docs/speed-p5p6.md): the sweep blend as one table lookup (include/WxSweepLut.h) against wxsweep::Blend, at
+# all 3,600 angles, both looks. Its plants (test/host/sabotage_p5_blend.py) run in the drivers' passes above.
+echo
+echo "== P5 1b: the table blend against wxsweep::Blend =="
+(
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_p5_blend.cpp" -o "$OUT/test_p5_blend.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the P5 blend test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_p5_blend.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the P5 blend test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "P5 1b: the table blend against wxsweep::Blend"
+
 echo
 if [ -n "$RIG_BLOCKS$FAILED_BLOCKS" ]; then
   echo "FAILED BLOCKS:"

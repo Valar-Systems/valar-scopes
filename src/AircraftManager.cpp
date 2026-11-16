@@ -33,6 +33,7 @@
 #include "WxLayer.h"        // which crop cell each screen pixel shows, inverting ProjectAt (WD2)
 #include "WxLayerSwitch.h"  // "wx-layer": on when unset, the owner's saved choice after that
 #include "OutlineMask.h"    // P5 1a: the marker's geometry (one body) and its outline as one dilated edge
+#include "WxSweepLut.h"     // P5 1b: the lit wedge's colour as one table lookup
 // THE MAP FETCH BEGIN
 #ifdef BLIPSCOPE_MAP_FETCH
 #include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task
@@ -3746,10 +3747,28 @@ bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, i
     const uint32_t tBlend = micros();
 #endif
     // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped (colortype.hpp), so swap in and out.
-    const uint32_t blended = wxsweep::Blend(
-        wxs2::Percent(wxLook), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
-        [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
-        [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
+    // P5 1b (docs/speed-p5p6.md): each wedge pixel's colour from a table of Lit565 itself, rebuilt only when the look's
+    // percent changes (include/WxSweepLut.h), byte-identical to wxsweep::Blend (test/host/test_p5_blend.cpp).
+    static wxsweeplut::Table sweepLut;
+    const int sweepPct = wxs2::Percent(wxLook);
+    uint32_t blended = 0;
+    bool sweepOld = false;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::SweepOld()) {   // P5 1b's OLD path: today's per-pixel blend
+        sweepOld = true;
+        blended = wxsweep::Blend(
+            sweepPct, wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+            [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
+            [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
+    }
+#endif
+    // THE FRAME BENCH END
+    if (!sweepOld)
+        blended = wxsweeplut::Blend(
+            wxsweeplut::For(sweepLut, sweepPct), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+            [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
+            [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
 #ifdef WX_LOOK_AB
     const uint32_t tBeam = micros();
 #endif

@@ -37,7 +37,10 @@ namespace framebench {
 
 // P5 1a (docs/speed-p5p6.md, on weatherscope/speed-p5p6): OUTLINE_8COPY draws today's 8 black copies (the OLD path,
 // which lives only in AircraftManager's FRAME_BENCH region), OUTLINE_MASK the shipping mask. Neither delays anything.
-enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, OUTLINE_8COPY = 4, OUTLINE_MASK = 5, kKinds };
+// P5 1b: SWEEP_OLD blends the wedge with today's per-pixel wxsweep::Blend (only in AircraftManager's FRAME_BENCH
+// region), SWEEP_LUT with the shipping table.
+enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, OUTLINE_8COPY = 4, OUTLINE_MASK = 5,
+                      SWEEP_OLD = 6, SWEEP_LUT = 7, kKinds };
 constexpr int kLevel = 40;      // C1's level: a scene's default, and Level() outside a scene
 constexpr int kTableMax = 60;   // the rows TBL-HOST verifies (tbl_host_lv.py: i < 60); Allocate() refuses a level above
 struct Scene {
@@ -53,7 +56,8 @@ struct Scene {
 #if !defined(BLIPSCOPE_PUSH_TASK)
 #error "SPEED_P5_BENCH measures the shipping shape: image B, with the push task"
 #endif
-#define FRAMEBENCH_IMAGE_B {OUTLINE_8COPY}, {OUTLINE_MASK}, {OUTLINE_8COPY}, {OUTLINE_MASK}
+#define FRAMEBENCH_IMAGE_B {OUTLINE_8COPY}, {OUTLINE_MASK}, {OUTLINE_8COPY}, {OUTLINE_MASK}, \
+                           {SWEEP_OLD}, {SWEEP_LUT}, {SWEEP_OLD}, {SWEEP_LUT}
 #else
 #define FRAMEBENCH_IMAGE_B {C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}
 #endif
@@ -67,8 +71,9 @@ static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
-static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "outline-8copy", "outline-mask"};
-constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0};
+static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "outline-8copy", "outline-mask",
+                                        "sweep-old", "sweep-lut"};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0};
 // A kind without an entry in both tables fails the build (docs/speed-p5p6.md section 0, "the kind tables").
 static_assert(sizeof(kKindName) / sizeof(kKindName[0]) == kKinds, "kKindName needs one entry per Kind");
 static_assert(sizeof(kPushDelayMs) / sizeof(kPushDelayMs[0]) == kKinds, "kPushDelayMs needs one entry per Kind");
@@ -168,6 +173,8 @@ inline bool InScene()
 inline int Level() { return InScene() ? (int)kScenes[S().scene].level : kLevel; }
 // P5 1a: draw today's 8-copy outline (the OLD path) in this scene.
 inline bool OutlineOld() { return InScene() && kScenes[S().scene].kind == OUTLINE_8COPY; }
+// P5 1b: blend the wedge with today's per-pixel wxsweep::Blend (the OLD path) in this scene.
+inline bool SweepOld() { return InScene() && kScenes[S().scene].kind == SWEEP_OLD; }
 inline int MaxLevel()
 {
     int m = 0;
