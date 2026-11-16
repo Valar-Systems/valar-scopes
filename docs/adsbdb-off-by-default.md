@@ -145,6 +145,7 @@ read and not re-graded.** Five rows failed against the predicted four.
 | run | at | predicted red | why |
 |---|---|---|---|
 | R1b, AD5 alone (`-t "AD5"`), a NEW run and not a re-grade | `30824fef` | **none**: AD5 green, nothing pending in its `afterEach` | AD5 runs alone, so nothing earlier can leave a mock |
+| R1c, the code (added at 21:16:46Z, before it runs; it was left out of this table) | `d5822849`, `adsbdb-off`, `enrich` and `enrich-ttl` | **none**: `adsbdb-off` reads 5 of 5, and `enrich` and `enrich-ttl` stay green | the original "after the code" prediction above, unchanged: nothing is red, so nothing is left pending |
 | R2, the AD6 addendum | `819a89e0` | **{AD6}** | the code is present, so AD4 is green and leaves nothing; AD6 uses no mocks |
 | R3, green | `93b65f0b`, `adsbdb-off`, `enrich` and `enrich-ttl` | **none** | nothing red, so nothing left pending |
 | P-ADC, the old coupling restored | `93b65f0b` plus the plant, `adsbdb-off` alone | **{AD1, AD4, AD6, AD5}** | AD1 and AD4 for their own reasons; AD6 and AD5 by the CASCADE from AD4's pending `ad0004` mock, their bodies green |
@@ -153,3 +154,6 @@ read and not re-graded.** Five rows failed against the predicted four.
 **Outside the set:** anything else is a stop. A second OFF on AD5's row goes to the owner. A cascade-proof `afterEach`
 (draining pending mocks after asserting) is deferred to a later PR with its own red-first, because changing it now
 would change the rows being read.
+
+**Results, in run order:**
+- **R1b** (21:13:24-21:13:26Z, `30824fef`, AD5 alone): AS PREDICTED. 1 passed, 4 skipped, vitest exit 0; the background check and the process-group check both read 0 running.
