@@ -225,3 +225,52 @@ Then the report, with the failing check's output (counts and verdicts, nothing a
 | any check fails that the baseline does not hold | roll back at once, then report |
 | C3 "not run" | the deploy stands on C1, C2, C4, C5, C6 and C7. Report C3 as not run, with the reason |
 | anything else | stop, roll back if production changed, and decide |
+
+## 6. The run (2026-11-16), as read: AS PREDICTED, both environments
+
+**Deployed, `/healthz` reports `074863fc` on staging and production,** read by the confirm step and then by C1. The
+deploy sha was main `074863fc` (#727), with CI finished on it (36 of 36, 33 success and 3 skipped). The deployer lock was
+confirmed free by the reviewer at about 15:30Z. The claim was taken at 15:31:03Z and released at 16:36:46Z.
+
+| step | read | result |
+|---|---|---|
+| D0.8 | 15:31:10Z | the checkout was made in the two-step LF form at `074863fc`; the control read 2; `proxy/src` 0 CRLF (69 files), `proxy/scripts` 0 (132); porcelain 0 before and after `npm ci` |
+| D0.1 | 15:55:06Z | the wake |
+| D0.2 | 15:55Z | main `074863fc`; the ten carried commits, set-equal to the table; the proxy diff from `b282699a` empty (#727 has 0 `proxy/` files) |
+| D0.2b | 15:55Z | 0 carried subjects name `(#696)`; `TIGER/Line 2025` in 0 `proxy/` files, with the 2024 control once in each file; #696 open, 54 commits, ahead 54 |
+| D0.3 | 15:55Z | #19 `mergedAt` null. The reviewer's half: clear (no S1, S2, S4 or owner sitting in the hour) |
+| D0.4 | 15:55Z | production `69072b90-575a-4984-b704-3e101cd0e36a`, staging `1f1a0fae-7674-43d5-9499-e3b35c00ba68`, as planned |
+| D0.5 | 15:55:13Z, 15:56:16Z | production `aa40aa43`, staging `b7184243`, each `maxAgeDays` 14, each `builtAt` as section 3's C2 names; identical across the two reads |
+| D0.6 | 16:00:12-16:01:09Z | smoke 39 PASS, 0 FAIL, 0 SKIPPED on each; the route-age line read `limit 14 d`; OPERA lines `source=-` x10 |
+| D0.7, D0.7b | 16:00:12Z, 16:00:13Z and 16:01:16Z | the C4 sentence 0 on each; 10 OPERA products with 0 `source` keys, and 0 non-OPERA with the key, on each |
+| D1 | 16:10:09-16:11:07Z | `deploy.sh staging` exit 0, version `4464d8ab-15e8-4970-9c7d-97e26bcda9bd`, confirmed `074863fc` on its third poll |
+| D2 | 16:11:36-16:13:07Z | C1, C2 and C7 read twice, identical: `maxAgeDays` 10, `ageDays` 2, `builtAt` unchanged, rows 628956, not stale, no `why`, **no `sourceCommittedAt`**; 10 OPERA products, each `source` null. C4: 1. C5: 39/0/0, the route-age line exactly as registered, OPERA `source=null` x10 |
+| D3 | 16:30:09-16:30:48Z | `deploy.sh production` exit 0, version `2b92e9f1-73c8-4cb3-b2b0-b0090f6102a2`, confirmed `074863fc` |
+| D4 | 16:31:22-16:32:59Z | as D2, on production; C6: no verdict moved |
+| C3 | 16:35:06-16:35:08Z (the site session) | (1) TRUE: `/live`'s centre equals `BEND` at `074863fc`. (2) TRUE: `/blips` 200 with a `t` newer than the completion (16:30:48Z), and `/diag` not 503 `not_bend` or `radius` |
+| D5 | 16:36:46-16:39:35Z | the claim released; the background end check PASS on every run ledger |
+
+**C5's comparison key, a normalisation applied AFTER D2's read** (a defect in the key, not a re-grade; stated before
+D4 and pre-registered for it):
+- **The defect:** one smoke check names a live aircraft hex taken from that run's `/blips` response, so its name differs
+  between runs, and D2's by-name diff read "differing 2" for that one check, PASS in both runs.
+- **The normalisation:** the diff compares names after `re.sub(r"/v1/enrich/[0-9a-f]{6}\b", "/v1/enrich/<hex>", name)`,
+  applied to the name only, on both sides. Normalised on the saved files, D2 read 39 against 39, differing 0.
+- **Re-proved on saved files before D4:** a list against itself reads 0; one verdict flipped reads 1; the live hex
+  changed alone reads 0; and the verdict flipped on the live-hex line itself reads 1.
+
+**Instrument stops before the run, each recorded and none of their readings used.** The radar gate B took three runs:
+the first had no anchor, the second captured the parser's exit code instead of node's, and the third is the reading in
+section 1. D0.8's form came from four setup stops the night before, the last of them resolved by the owner at 15:02Z.
+
+**A MISS in this PR's CI prediction.** Predicted 33 check-runs (31 success, 2 skipped); read 34 (32 success, 2 skipped),
+finished, twice at least 60 s apart.
+- **The extra run:** `build (blipscope-s3-128-mapbench)`. #727 added that matrix row in `skus.yml`, where `firmware.yml`'s
+  matrix lives.
+- **Why it was missed:** the prediction read only the workflow file.
+- **The alternative excluded:** #729, which touches four `test/host` files only.
+- **What it means:** CI is green, and the registered total was wrong by one row.
+
+**For the reviewer and the owner (the site session's finding, not this deploy's to fix):** the proxy's 2-dp `BEND` and
+the site's public 2-dp value round one longitude tie in opposite directions. They are about 0.8 km apart, each inside the
+1 km rule.
