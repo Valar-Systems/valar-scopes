@@ -75,17 +75,27 @@ until it is planned. A deploy never carries a change nobody predicted.
 |---|---|---|---|
 | D0.1 | 15:55Z | the wake fires; `date -u` read | between 15:55 and 16:00Z on 11-16 |
 | D0.2 | before 16:00Z | `git ls-remote` main, and the carried list from `git log aa40aa43..<main> -- proxy/` | the eight commits above, or more that touch only files no Worker build reads. Anything else: stop |
+| D0.2b | with D0.2 | #696 (map-server's basemap branch, HELD from merge: its `/credits` line names TIGER/Line 2025 while the served store is 2024; the reviewer, 2026-11-15) is not carried. Three reads: no carried subject names `(#696)`; `TIGER/Line 2025` appears 0 times in `proxy/` at main's sha, with the control that `TIGER/Line 2024` is still in `photos/credits.html` and `src/photolicense.ts`; and #696 is OPEN with `ahead_by` equal to its commit count | all three true. #696 merged, a 2025 hit, or the 2024 control missing: stop |
 | D0.3 | before 16:00Z | the owner's other conditions: no S1, S2, S4 or Sunday sitting is on (asked of the reviewer), and valarscopes-site PR #19 (the live scope on /blipscope/) has not merged on 11-16: `gh pr view 19 --repo Valar-Systems/valarscopes-site --json mergedAt` | both true. If either is not, no deploy: report |
 | D0.4 | before 16:00Z | the rollback targets, from `deployments list --json` through the helper, ids only | production `69072b90-575a-4984-b704-3e101cd0e36a`, staging `1f1a0fae-7674-43d5-9499-e3b35c00ba68` (read 11-14 03:37-03:38Z). A different id means someone deployed since: write the new id down, and report before going on |
 | D0.5 | before 16:00Z | `/healthz` on both, twice, at least 60 s apart | production: commit `aa40aa43`, `routes.maxAgeDays` 14. Staging: commit `b7184243`, `routes.maxAgeDays` 14. The `builtAt` of each is written down; it carries into C2 |
 | D0.6 | 16:00Z | the baseline: `smoke-prod.sh` against production, and `BASE=<staging>` against staging, as the test identity, whole output to a file | each run's verdict list is saved by name. Today's FAILs, if any, are the baseline, not the deploy's |
 | D0.7 | 16:00Z | the control for C4: `/credits` on both | the new sentence is ABSENT on both (so C4 can fail) |
 | D0.7b | 16:00Z | the control for C7: `/healthz` on both, twice, at least 60 s apart, counts only | 10 OPERA products on each, and 0 carry a `source` key (so C7 can fail). Smoke's D0.6 OPERA lines end `source=-` |
-| D1 | about 16:10Z | the deploy claim (`--covers proxy:staging,proxy:production --until 17:00Z`), then `deploy.sh staging` from a fresh detached checkout of main's sha, with `npm ci` in `proxy/` | exit 0, with the stamp confirmed by `/healthz` |
+| D0.8 | before D1 | the deploy checkout, made LF (the owner, 2026-11-16 15:02Z: "eol: yes"): `git worktree add --no-checkout --detach <path> <main sha>`, then `git -C <path> -c core.autocrlf=false -c core.eol=lf reset --hard <main sha>`. Then a byte count of CRLF over `proxy/src` and `proxy/scripts` (every `.ts`, `.mts`, `.mjs`, `.js`, `.json`, `.html`, `.toml`, `.sh` and `.py` file, `node_modules` excluded), with a planted control | the control (a planted file with two CRLF lines) reads 2, and both folders read 0 CRLF. Any other reading: stop, no deploy |
+| D1 | about 16:10Z | the deploy claim (`--covers proxy:staging,proxy:production --until 17:00Z`), then `deploy.sh staging` from D0.8's checkout, with `npm ci` in `proxy/` | exit 0, with the stamp confirmed by `/healthz` |
 | D2 | after D1 | the checks on staging: C1, C2, C4, C5, C7 | as below. Any failure: roll staging back, stop, and production does not start |
 | D3 | about 16:30Z | `deploy.sh production`, from the same checkout | exit 0, with the stamp confirmed |
 | D4 | after D3 | the checks on production: C1-C7 | as below. **Any failure that the baseline does not hold: roll back at once, then report** |
 | D5 | by 17:00Z | release the claim and report | |
+
+**Why D0.8 (added 2026-11-16, before the deploy).** `.gitattributes` begins `* text=auto`. A text file with no `eol`
+attribute is checked out in `core.eol`, whose default on Windows is CRLF, whatever `core.autocrlf` says. The stored
+blobs are LF, and CI builds from LF on Linux. Read without touching any tree, with `git cat-file --filters`,
+`proxy/src/index.ts` is 0 CRLF as a blob, 467 in a default checkout, still 467 with `core.autocrlf=false`, and 0 with
+`core.eol=lf` added. TS template literals normalise CRLF, so the exposure is files read as raw bytes. Whether an earlier
+deploy was affected is a question, not a finding. D0.8 makes the deployed source the bytes CI tested. No git config
+changes anywhere.
 
 ## 3. The checks after each deploy
 
@@ -164,6 +174,8 @@ Then the report, with the failing check's output (counts and verdicts, nothing a
 |---|---|
 | every check as predicted, both environments | the deploy is done. #703's D-B rows are read as predicted |
 | D0.2 finds an unplanned proxy change | no deploy until it is planned |
+| D0.2b finds #696 carried, a 2025 hit, or the 2024 control missing | no deploy. Report |
+| D0.8 reads any CRLF, or its control does not read 2 | no deploy. Report |
 | D0.3 not met | no deploy. Report; the slot moves |
 | D0.4's id differs | write it down and report before deploying |
 | any check fails that the baseline does not hold | roll back at once, then report |
