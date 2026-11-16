@@ -226,7 +226,7 @@ fi
 trap '"${PY[@]}" "$ROOT/scripts/board-port.py" --release "$BOARD" --by "$BY" >/dev/null 2>&1' EXIT
 PORT="$("${PY[@]}" "$ROOT/scripts/board-port.py" "$BOARD")" || die "$LABEL is not in the port listing" 2
 HOST="$("${PY[@]}" "$ROOT/scripts/board-port.py" "$BOARD" --host)" || die "no mDNS name for $LABEL" 2
-HOST="$HOST.local"
+case "$HOST" in *.local) ;; *) HOST="$HOST.local" ;; esac   # host_of() already ends in .local (2026-11-16 R0 000)
 WORK="$(mktemp -d "$CFGDIR/fba-XXXXXX")"   # pages carry his settings: they live beside his files, removed at the end
 cleanup_work() { rm -rf "$WORK"; }
 
