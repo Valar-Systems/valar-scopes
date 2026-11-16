@@ -552,6 +552,32 @@ change before the orchestrator's ruling).**
   measured `fr` cost the owner accepts.
 - **Whichever is chosen is registered with C1-style A/B/A bands before any code.**
 
+**THE TICK NOTE, RULED (the orchestrator, 2026-11-16, after 11:09Z):**
+- **(1) FOR v20.** Design (i) has just passed a 5.4 h soak, and changing its wait path would re-open that proof for
+  about 0.5 ms of mean present latency, with throughput probably unchanged.
+- **(2) is QUEUED for after v20**, with the read below. It will be registered with A/B/A bands and its predictions,
+  then soaked like M3-9.
+- **(3) is DROPPED**, because it trades `fr`.
+- If the v20 bench (S2b) shows the whole-ms `p2p` costing the bar, it goes back to the orchestrator before the cut.
+
+**THE READ (2026-11-16, read-only): is the SPI transfer-done interrupt free? NO, as the library stands.** Read on
+LovyanGFX 1.2.21, the version M3's `platformio.ini:126` pins, from another checkout's `blipscope-s3-128` libdeps. The
+repo's pre-build patch touches only the RGB bus (`platformio.ini:73-75`), not SPI.
+- **The library hands the bus to ESP-IDF's driver:** `common.cpp:632` calls `spi_bus_initialize` (with `intr_flags = 0`
+  at `:621`, so not shared), and `:643` calls `spi_bus_add_device`.
+- **IDF claims the interrupt:** IDF 5.5.4's `esp_driver_spi/src/gpspi/spi_master.c:287` / `:331` then allocates the SPI
+  host's interrupt source to IDF's own ISR, `spi_intr` (`:972`), with `esp_intr_alloc`.
+- **The library then bypasses the driver:** it writes the SPI registers itself (`Bus_SPI.hpp:149-150`, `exec_spi` and
+  `wait_spi` polling `SPI_USR`). It finds its GDMA out-channel by searching the registers (`common.cpp:296`
+  `search_dma_out_ch`, used at `Bus_SPI.cpp:207`), so no GDMA channel handle exists for an end-of-frame callback.
+- **So (2) as written needs one of these, each a change with its own risk, not a hook:**
+  - taking the SPI host's interrupt away from IDF's ISR;
+  - allocating the GDMA channel's own end-of-frame interrupt directly on the channel the library found. That one is
+    ASSUMED possible until read: whether that interrupt source is free, and whether its flags allow it.
+- The post-v20 item is re-scoped accordingly: **"(2): own a completion interrupt (the GDMA out-EOF first), or accept
+  (1) for good"**. Each candidate is registered with A/B/A bands before any code.
+
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
