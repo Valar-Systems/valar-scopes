@@ -43,6 +43,33 @@ commits touch `proxy/`. Both were already on main at `b282699a`, so the eight-ro
 
 `074863fc` (#727) changes 0 files under `proxy/`, so the proxy tree there equals `b282699a`'s.
 
+**The radar fallback, re-checked from the same ten commits (the owner, 2026-11-16 15:13Z: confirm that the radar
+fallback, if carried, stays inert until the radar's own deploy).**
+- **Which commits:** only `b2233f0c` (#720) carries radar or OPERA fallback code. The method: each commit's `proxy/` files
+  matched against `/wx|opera|radar/i`, and its added lines against `/opera|fallback|backup host|operaListing/i`. #720
+  matches 6 files and 90 lines; the other nine match 0 and 0.
+- **The gates, cited from main `074863fc`:**
+  - the fallback lives in `src/wx/ingest.ts`, imported only by `src/wx/ingest-worker.ts:8` and
+    `src/wx/ingest-dev-worker.ts:15`. It is not one of the proxy bundle's 57 inputs (above);
+  - the proxy's only use is `src/wx/handler.ts:52`: `source` is the `latest` record's `"primary"` or `"backup"`, else
+    `null`;
+  - both proxy environments bind one bucket, `blipscope-wx` (`wrangler.toml:213` staging, `:419` production), so each
+    gate below is one reading that holds for both.
+- **Gate A, live (2026-11-16 15:15Z, through the helper):** `deployments list --config wx-ingest-opera.wrangler.toml
+  --env <id> --json` for all ten. Every newest deployment predates #720's merge (2026-11-14 10:14:49Z), so the code
+  that could write `source` is not deployed. The controls: each read exited 0 and parsed.
+- **Gate B, live and anchored (15:18:51-15:19:08Z, through the helper):**
+  - the anchor first: `wx/cref/latest` read (node exit 0) and parsed;
+  - then `r2 object get blipscope-wx/wx/<id>/latest --remote --pipe` for all ten. Each exited 1 with "The specified key
+    does not exist.", a positive not-found;
+  - booleans only: no record body was stored or printed;
+  - so `source` stays `null` (C7) until the radar deploy (Wed 11-18 10:00Z).
+- **Two instrument stops on the way, recorded:**
+  - gate B's first form had no anchor (BLIND);
+  - its second took the parser's exit code, not node's: `PIPESTATUS` read outside the command substitution;
+  - neither reading is used. The run above is the third, with its capture form proven red-first (`false` reads 1,
+    `true` reads 0).
+
 ### 1a. #720 in this deploy: inert until the radar deploy (the owner's condition)
 
 The owner, relayed 2026-11-14: *"If Monday's proxy deploy carries the merged radar fallback code, it must stay inert
