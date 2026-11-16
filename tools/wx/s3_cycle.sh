@@ -30,8 +30,8 @@ DEP="$(date -u +%Y-%m-%d)T${END}Z"
 
 # S3-1: the version record and the deployment
 cd proxy
-npx wrangler versions view "$VID" -c wx-ingest-opera.wrangler.toml -e "$P" --json > "$SCB/v-$P.json" 2> "$SCB/v-$P.err" < /dev/null; v=$?
-npx wrangler deployments status -c wx-ingest-opera.wrangler.toml -e "$P" --json > "$SCB/d-$P.json" 2> "$SCB/d-$P.err" < /dev/null; d=$?
+node scripts/wrangler-run.mjs versions view "$VID" -c wx-ingest-opera.wrangler.toml -e "$P" --json > "$SCB/v-$P.json" 2> "$SCB/v-$P.err" < /dev/null; v=$?
+node scripts/wrangler-run.mjs deployments status -c wx-ingest-opera.wrangler.toml -e "$P" --json > "$SCB/d-$P.json" 2> "$SCB/d-$P.err" < /dev/null; d=$?
 cd ..
 python "$HW/s31_check.py" "$SCW/v-$P.json" "$SCW/d-$P.json" "$P" "$VID" "$cron" "$v" "$d" || { echo "STOP: S3-1 off (claim held)"; exit 1; }
 

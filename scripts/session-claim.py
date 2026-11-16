@@ -417,7 +417,10 @@ def selftest(script=None):
                h('BLIPSCOPE_SESSION=alpha npx wrangler deploy --env staging'),
                h('npx wrangler secret put X --env staging', 'alpha'),
                h('npx wrangler deploy --dry-run --env staging', 'alpha'),
-               h('ls -la')]
+               h('ls -la'),
+               # docs/wrangler-run.md H1: the helper form must be gated exactly like the direct one
+               h('node proxy/scripts/wrangler-run.mjs deploy --env staging'),
+               h('node proxy/scripts/wrangler-run.mjs deploy --dry-run --env staging', 'alpha')]
         plant(d, 'deploy', dict(other, covers=['proxy:staging']))
         got.append(h('BLIPSCOPE_SESSION=alpha npx wrangler deploy --env staging'))
         plant(d, 'deploy', dict(stale, covers=['proxy:staging']))
@@ -425,13 +428,43 @@ def selftest(script=None):
         os.remove(os.path.join(d, 'deploy.json'))
         call(['take', 'deploy', '--covers', 'proxy:staging', '--until', '+10m'], 'alpha', d)
         got.append(h('BLIPSCOPE_SESSION=alpha npx wrangler deploy --env staging'))
+        got.append(h('BLIPSCOPE_SESSION=alpha node proxy/scripts/wrangler-run.mjs deploy --env staging'))
         os.remove(os.path.join(d, 'deploy.json'))
         plant(d, 'deploy', dict(other, covers=['proxy:production']))
         got.append(h('npx wrangler rollback --env production', 'alpha'))
-        logged = os.path.exists(os.path.join(d, 'rollbacks.log'))
-        want = [2, 2, 2, 0, 0, 2, 2, 0, 0]
-        row('CL12', got == want and logged, 'the hook: %s against %s (unnamed, no claim, secret put, dry run, ls, another session, '
-            'expired, holder, rollback held by another); the rollback logged: %s' % (got, want, logged))
+        got.append(h('node proxy/scripts/wrangler-run.mjs rollback --env production', 'alpha'))
+        rb = os.path.join(d, 'rollbacks.log')
+        logged = os.path.exists(rb) and len(open(rb, encoding='utf-8').read().splitlines()) == 2
+        want = [2, 2, 2, 0, 0, 2, 0, 2, 2, 0, 0, 0, 0]
+        row('CL12', got == want and logged, 'the hook: %s against %s (unnamed, no claim, secret put, dry run, ls, helper unnamed, '
+            'helper dry run, another session, expired, holder, helper holder, rollback held by another, helper rollback); '
+            'both rollbacks logged: %s' % (got, want, logged))
+
+        # CL13 (docs/wrangler-run.md H2): a hand-typed DIRECT key read or tail is refused and the helper named; the helper
+        # form passes, and so does a subcommand outside the ruled set. W is built in pieces so that these test lines are
+        # not themselves direct calls to scripts/check_wrangler_calls.py.
+        W = 'wrang' + 'ler'
+        d = os.path.join(root, 'cl13'); os.makedirs(d)
+        def h2(command):
+            env = dict(os.environ, BLIPSCOPE_CLAIMS_DIR=d)
+            env.pop('BLIPSCOPE_SESSION', None)
+            r = subprocess.run([sys.executable, hook], input=json.dumps({'tool_name': 'Bash', 'tool_input': {'command': command}}),
+                               env=env, capture_output=True, text=True)
+            return r.returncode, r.stderr
+        cases = [('npx %s kv key list --prefix=rt: --binding ENRICH_KV --env production --remote' % W, 2),
+                 ('npx %s kv key get rt:X --binding ENRICH_KV --remote' % W, 2),
+                 ('npx %s tail --env production' % W, 2),
+                 ('%s.cmd kv key list --binding ENRICH_KV' % W, 2),
+                 ('WRANGLER_LOG_PATH=/tmp/x/w.log npx %s kv key list --prefix rt:' % W, 2),
+                 ('node proxy/scripts/%s-run.mjs kv key list --prefix=rt: --remote' % W, 0),
+                 ('node proxy/scripts/%s-run.mjs tail --env production' % W, 0),
+                 ('npx %s kv namespace list' % W, 0),
+                 ('ls -la', 0)]
+        got13 = [h2(c)[0] for c, _ in cases]
+        want13 = [w for _, w in cases]
+        named = 'wrangler-run.mjs' in h2(cases[0][0])[1]
+        row('CL13', got13 == want13 and named, 'direct reads: %s against %s (list, get, tail, .cmd, hand-set log path, helper '
+            'list, helper tail, namespace list, ls); the refusal names the helper: %s' % (got13, want13, named))
     print('selftest: %s' % ('every row passes' if not failed else 'FAILED %s' % ', '.join(failed)))
     return 0 if not failed else 1
 
@@ -458,11 +491,15 @@ PLANTS = {
     'S-CL-MERGE': (['    "$CLAIM_PY" "$CLAIM" take merge --covers "pr:$PR" --until +10m; rc=$?\n',
                     '    rc=0  # SABOTAGE S-CL-MERGE\n'],
                    {'CL11'}),
-    'S-CL-HOOK': (["GATED = re.compile(r'\\bwrangler(?:\\.cmd)?\\s+(?:deploy\\b|secret\\s+(?:put|bulk)\\b|versions\\s+deploy\\b)')\n",
+    'S-CL-HOOK': (["GATED = re.compile(r'\\bwrangler(?:\\.cmd|-run(?:\\.mjs)?)?\\s+(?:deploy\\b|secret\\s+(?:put|bulk)\\b|versions\\s+deploy\\b)')\n",
                    "GATED = re.compile(r'(?!x)x')  # SABOTAGE S-CL-HOOK\n"],
                   {'CL12'}),
+    'S-CL-READ': (["DIRECT_READ = re.compile(r'\\bwrangler(?:\\.cmd)?\\s+(?:kv[:\\s]+key\\s+(?:list|get)\\b|tail\\b)')\n",
+                   "DIRECT_READ = re.compile(r'(?!x)x')  # SABOTAGE S-CL-READ\n"],
+                  {'CL13'}),
 }
-PLANT_FILE = {'S-CL-DEPLOY': 'proxy/scripts/deploy.sh', 'S-CL-MERGE': 'scripts/merge-by-rule.sh', 'S-CL-HOOK': 'scripts/claim-hook.py'}
+PLANT_FILE = {'S-CL-DEPLOY': 'proxy/scripts/deploy.sh', 'S-CL-MERGE': 'scripts/merge-by-rule.sh', 'S-CL-HOOK': 'scripts/claim-hook.py',
+              'S-CL-READ': 'scripts/claim-hook.py'}
 
 
 def find_bash():

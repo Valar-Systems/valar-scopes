@@ -18,7 +18,7 @@ The sections below are the original design and its records, and they keep the 30
 4. **The age is shown, and no planes are shown once the snapshot is more than 2 minutes old.**
 5. **Reads are cached for up to 10 s in the visitor's colo,** so a traffic spike can't flood the one instance.
 6. **The worst-case age stays under 90 s,** predicted in its typical and worst cases.
-7. **Centred on downtown Bend without publishing his tile.** When a device fetch covers downtown, the snapshot keeps only the planes inside a fixed **30 mi (48.28 km)** circle around 44.058 N, 121.315 W, and only when that whole circle lies inside the fetched area. Nothing about the device's tile, radius bucket or limit is ever stored or served.
+7. **Centred on downtown Bend without publishing his tile.** When a device fetch covers downtown, the snapshot keeps only the planes inside a fixed **30 mi (48.28 km)** circle around 44.06 N, 121.31 W, and only when that whole circle lies inside the fetched area. Nothing about the device's tile, radius bucket or limit is ever stored or served.
 8. **Predictions first, with a sabotage for each condition, and a reviewer approval.** Daniel does the deploy.
 
 This document freezes the design and the predictions **before any code**.
@@ -65,7 +65,7 @@ The site calls `await env.BLIPSCOPE_BEND.snapshot()`.
 **The response, v1:**
 ```json
 { "available": true, "v": 1,
-  "centre": { "lat": 44.058, "lon": -121.315 }, "radius_km": 48.28,
+  "centre": { "lat": 44.06, "lon": -121.31 }, "radius_km": 48.28,
   "t": 1761080000, "age_s": 23, "stale": false,
   "source": "adsb.fi", "attribution": "aircraft data: adsb.fi",
   "aircraft": [ { "hex": "a1b2c3", "cs": "ASA123", "lat": 44.1, "lon": -121.2,

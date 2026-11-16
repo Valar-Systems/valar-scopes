@@ -471,7 +471,7 @@ async function loadApFamily(
   let prior: Record<string, string> = {};
   try {
     const raw = execSync(
-      ["npx", "wrangler", "kv", "key", "get", q("meta:airports"),
+      ["node", "scripts/wrangler-run.mjs", "kv", "key", "get", q("meta:airports"),
        "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
       { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -512,7 +512,7 @@ async function loadApFamily(
       const path = join(tmp, `ap-${k}-${i}.json`);
       writeFileSync(path, JSON.stringify(chunk));
       execSync(
-        ["npx", "wrangler", "kv", "bulk", "put", q(path),
+        ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "put", q(path),
          "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
         { stdio: "inherit" },
       );
@@ -531,7 +531,7 @@ async function loadApFamily(
     JSON.stringify([{ key: `ap:${AP_SENTINEL}`, value: JSON.stringify([want.lat, want.lon, 0]) }]),
   );
   execSync(
-    ["npx", "wrangler", "kv", "bulk", "put", q(sentinelPath),
+    ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "put", q(sentinelPath),
      "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
     { stdio: "inherit" },
   );
@@ -617,7 +617,7 @@ async function sealApFamily(
   const path = join(tmp, "meta.json");
   writeFileSync(path, JSON.stringify([{ key: "meta:airports", value: JSON.stringify(meta) }]));
   execSync(
-    ["npx", "wrangler", "kv", "bulk", "put", q(path),
+    ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "put", q(path),
      "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(" "),
     { stdio: "inherit" },
   );
@@ -711,7 +711,7 @@ async function main(): Promise<void> {
     writeFileSync(path, JSON.stringify(chunk));
     console.log(`bulk put ${chunk.length} tiles (${i + chunk.length}/${rows.length}) ...`);
     execSync(
-      ["npx", "wrangler", "kv", "bulk", "put", q(path), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(
+      ["node", "scripts/wrangler-run.mjs", "kv", "bulk", "put", q(path), "--binding=ENRICH_KV", `--env=${args.env}`, "--remote"].join(
         " ",
       ),
       { stdio: "inherit" },

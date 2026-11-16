@@ -1,6 +1,20 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+// Wrangler's debug log (docs/wrangler-run.md). vitest-pool-workers loads wrangler's config to build miniflare. With no
+// WRANGLER_LOG_PATH, wrangler appends to ~/.wrangler/logs, so three test runs on 2026-11-13 left files there. Point it
+// at a temp dir made for THIS run and removed at exit, as scripts/wrangler-run.mjs does for every wrangler call. A
+// caller's own WRANGLER_LOG_PATH is respected.
+if (!process.env.WRANGLER_LOG_PATH) {
+  const wranglerLogDir = mkdtempSync(join(tmpdir(), "vitest-wrangler-log-"));
+  process.env.WRANGLER_LOG_PATH = join(wranglerLogDir, "wrangler.log");
+  process.on("exit", () => {
+    try { rmSync(wranglerLogDir, { recursive: true, force: true }); } catch { /* best effort: the OS clears tmp */ }
+  });
+}
 
 // BMPK fixtures are binary (docs/basemap-route.md, MV/ME/MG). A test imports one as a Uint8Array of the file's exact
 // bytes: read here, in Node, at transform time, so the bytes never pass through a text decoder. Tests only --
@@ -45,8 +59,23 @@ const wxIngestTomls = {
   },
 };
 
+// The one transcribed copy of OPERA_UA, tools/wx/opera_fixture.py, as its exact text, `import t from
+// "virtual:opera-fixture-py"` (docs/wx-opera-backup-fallback.md, UA3: the copy is held byte-equal to the constant).
+// Tests only, the same pattern as virtual:wx-ingest-tomls.
+const OPERA_FIXTURE_PY = fileURLToPath(new URL("../tools/wx/opera_fixture.py", import.meta.url));
+const operaFixturePy = {
+  name: "opera-fixture-py",
+  resolveId(source: string) {
+    return source === "virtual:opera-fixture-py" ? "\0virtual:opera-fixture-py" : null;
+  },
+  load(id: string) {
+    if (id !== "\0virtual:opera-fixture-py") return null;
+    return `export default ${JSON.stringify(readFileSync(OPERA_FIXTURE_PY, "utf8"))};\n`;
+  },
+};
+
 export default defineWorkersConfig({
-  plugins: [bmpkBytes, committedCredits, wxIngestTomls],
+  plugins: [bmpkBytes, committedCredits, wxIngestTomls, operaFixturePy],
   test: {
     poolOptions: {
       workers: {
