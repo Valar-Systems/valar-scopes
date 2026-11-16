@@ -2618,3 +2618,77 @@ Any of these means stop, report, and no fix before a ruling.
 
 **Delivery:** a PR from `weatherscope/pk-unknown-pairing` to main. I never merge my own PR. The reviewer gets one line
 with the sha.
+
+#### S4.30, 2026-11-16 16:4xZ: test_wx_basemap's typed counts become one checked table (registered before any code)
+
+**Why.** S4.29's registration said "16 plants", copied from the test header's stale "(16, …)". The driver has 17. #729
+merged as `425468f196b2`. The reviewer's ruling (15:4xZ): fix the stale counts in a separate PR. Derive each count from
+the code or drop the number, and where a count stays, check it red-first against its list.
+
+**Read first**, at main `425468f196b2`. The suite's own output was tallied by each row name's leading capitals: PK 32,
+TX 5, TR 5, FL 11, LN 9, BF 9, BK 7, BW 8, PE 12. That is 98 rows in 9 families.
+
+The typed counts in `test/host/test_wx_basemap.cpp`, against that tally:
+
+| where | typed | true | |
+|---|---|---|---|
+| line 3 | "98 named cases in 9 families" | 98, 9 | right |
+| line 4 | the per-family list | | **FL 7: STALE (11).** The rest are right. |
+| line 5 | "(16, each failing exactly its set)" | 17 device plants + 2 validator | **STALE**, predating S4.21's S-BRIDGE |
+| line 9 | "a case count other than 98" | 98 | right |
+| the nine section headers | "PK (32)" … "PE (12)" | | all right |
+| `kCases = 98` | | 98 | **enforced** every run (any other count exits 2) |
+
+Outside the test:
+- `sabotage_wx_basemap.py` has a docstring, "98 cases … (84, …)", beside `CASES = 98`. `CASES` is enforced: the driver
+  compares the run's count with it.
+- `sabotage_wx_themed_draw.py`'s `SUITES` entry is likewise enforced.
+- `run.sh` line 2270's running total ("…: 98") is prose only.
+
+**The change.** The test gets one table, checked every run. Every typed number leaves the comments.
+
+1. **`kFamilies`** = {PK 32, TX 5, TR 5, FL 11, LN 9, BF 9, BK 7, BW 8, PE 12}, in run order. Each entry's provenance
+   sits beside it as a comment naming the rulings (A10.11, A12.15, A12.53, S4.21, S4.29), with no number. `kCases`
+   stays the literal 98: S4.22's pin, which every reader greps.
+2. **`check()` tallies each row by its family**, the name's leading capitals. After the existing `kCases` test, `main`
+   adds three:
+   - each family's count must equal its `kFamilies` entry, checked in table order;
+   - a row whose family is not in the table is named;
+   - the table's sum must equal `kCases`.
+   - Each mismatch prints one `the RIG: …` line, and any mismatch exits 2, as the count test already does.
+3. **Every run prints the derived counts** on one line, `families: PK 32, TX 5, …`, before the `N checks, M failures`
+   line.
+   - The new line starts with neither `ok` nor `FAIL`, and the summary line keeps its exact format.
+   - So `sabotage_common`'s row count and both drivers' `^(\d+) checks, (\d+) failures$` read as today.
+4. **The numbers leave the comments:**
+   - lines 3-5 and 9 refer to `kCases` and `kFamilies` by name;
+   - line 5 says the driver prints how many plants it ran;
+   - the nine section headers lose their "(N)";
+   - the driver's docstring and `run.sh`'s running total refer to `kCases` and `kFamilies` by name, not a number.
+   - `CASES` and `SUITES` stay as they are: they are checks that run.
+
+**Why a checked table, not only deletion.** The per-family split is how rulings refer to rows ("PK 30 → 32"). Checked
+every run, the split stays and cannot drift. Deleting it would lose the reference that rulings use.
+
+**Red first.** Two one-off plants go into a COPY of the test file in WSL, with run.sh's flags. Each plant asserts that
+its anchor occurs exactly once and that the copy differs. Both plants run, and are read, BEFORE the real file's green is
+read.
+
+| run | the plant | predicted |
+|---|---|---|
+| P-STALE | `kFamilies`' FL 11 → 7 (the stale value) | 98 checks, 0 failures, **exit 2**. Exactly two RIG lines, in this order: FL ran 11 where the table says 7; then the table sums to 94, not kCases 98. |
+| P-STRAY | row PE8b's name → `ZZ8b` | 98 checks, 0 failures, **exit 2**. Exactly two RIG lines, in this order: PE ran 11 where the table says 12; then `ZZ8b`, whose family ZZ is not in the table. The sum is unchanged. |
+| the real file | none | 98 checks, 0 failures, exit 0, no RIG line, and `families: PK 32, TX 5, TR 5, FL 11, LN 9, BF 9, BK 7, BW 8, PE 12`. |
+| drivers, on the real file | | `sabotage_wx_basemap.py`: 17 device and 2 validator plants, ALL AS PREDICTED; `--control` 98/0; `--anchors` all present once. `sabotage_wx_themed_draw.py`: S-NL and S-KD as frozen. Each exits 0. |
+| gates, then CI | | all 0, then green |
+
+**Outside the set:** any other RIG line, a plant that reads green, a moved driver set, or a rig refusal. Any of these
+means stop, report, and no fix before a ruling.
+
+**Delivery:** a PR from `weatherscope/basemap-stale-counts` (branched at `425468f196b2`) to main. It merges on the
+reviewer's "approved to merge at <SHA>" after CI, by `merge-by-rule.sh`.
+
+**A correction to S4.29, written here because S4.29 is not edited.** S4.29's "Delivery" says "I never merge my own
+PR". That is wrong as written. The rule is that a PR merges only on the reviewer's "approved to merge at <SHA>", and
+each session runs `merge-by-rule.sh` on its own approved PR. #729 merged that way: I ran it at the reviewer's approval
+of `e58e061d67d7` and its relay at 16:33Z.
