@@ -5731,8 +5731,8 @@ int AircraftManager::LabelLayout(const TrackedAircraft& tracked, int x, int y,
         const char* FieldKey(int i) const { return AIRCRAFT_INFO_FIELDS[i].key; }
         bool On(int i) const { return (size_t)i < m.infoFieldEnabled.size() && m.infoFieldEnabled[(size_t)i]; }
         String Format(int i) const { return AIRCRAFT_INFO_FIELDS[i].format(t); }
-        int Width(const String& s) const { return (int)tft.textWidth(s); }
-        int LineHeight() const { return tft.fontHeight() + 1; }
+        int Width(const String& s) const { return (int)m.tft.textWidth(s); }
+        int LineHeight() const { return m.tft.fontHeight() + 1; }
         int Chord(int rowY, int lineH) const { return ChordWidthPx(rowY, lineH); }
         int Half() const { return SCREEN_SIZE_DIV_2; }
         void MakeKey(labelcache::KeyBuf& k) const { LabelKey(t, k); }
