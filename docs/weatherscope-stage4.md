@@ -2692,3 +2692,157 @@ reviewer's "approved to merge at <SHA>" after CI, by `merge-by-rule.sh`.
 PR". That is wrong as written. The rule is that a PR merges only on the reviewer's "approved to merge at <SHA>", and
 each session runs `merge-by-rule.sh` on its own approved PR. #729 merged that way: I ran it at the reviewer's approval
 of `e58e061d67d7` and its relay at 16:33Z.
+
+#### S4.31, 2026-11-16 20:3xZ: the owner's user path and personal address leave the tree (registered before any code)
+
+**Why.** The owner's word, relayed by the reviewer at 20:17Z: "Path and gmail: fix now. Use support@valarsystems.com
+(a role address) and 'the owner' in proxy/FEED-SOURCING.md; the path becomes a setting. History stays as is." #733
+(`8e83ec83a4ee`) already took the one path in `docs/prebuild-patches.md`. This PR takes the rest, as one PR from main
+`3741501b95d6`. Nothing is rewritten.
+
+**Read first**, at main `3741501b95d6`, read twice. I searched the whole tracked tree (2,321 files, from git rather
+than a checkout) for three patterns, in any case: the account name, its 8.3 short form, and `Users` + a separator + the
+first name. A binary-inclusive pass ran as well.
+
+| group | where | what is there |
+|---|---|---|
+| 5 | `proxy/FEED-SOURCING.md` 214, 307, 334 | email-draft signatures: the owner's full name and a personal gmail address |
+| 5 | `proxy/FEED-SOURCING.md` 193, 315 | email-draft intros, "I'm <full name>, building **Blipscope**" |
+| 5 | `proxy/FEED-SOURCING.md` 336-337 | the note under the drafts, which calls the address "the Gmail address above" and "a placeholder" |
+| 2 | `tools/wx/m_clock.py:26`, `s_clock.py:25`, `s_drive.py:22` | `SCRATCH = r"C:\Users\<account>\…\scratchpad"`: another session's scratch directory, hard-coded |
+| 3 | `proxy/test/shquote.test.ts` 28, 50 | the 8.3 short form, as the test's Windows path |
+| 3 | `proxy/test/shquote.test.ts` 71 | `C:/Users/<first name>/sd.tar.gz`, q()'s no-space case |
+| 4 | `docs/wx-opera-backup-fallback.md:290`, `proxy/scripts/sabotage-wx-opera-fallback.py:9`, `tools/weatherscope/nws/capture_nws.py:40` | the 8.3 short form, quoted in prose |
+
+**Flagged for the reviewer: three lines beyond the ones the ruling named.**
+- Line 71 matches the third pattern.
+- Lines 193 and 315 hold the full name, which the after-scan forbids.
+They are in this change.
+
+**Gmail addresses in the tree:**
+- The only ones in text are the three above.
+- Two photos also carry `gmail.com`: `proxy/photos/src/b350.jpg` and `tbm9.jpg`, each in its first few hundred bytes
+  (the metadata header).
+  - Neither address is the owner's, and the binary-inclusive scan finds the account name in no image.
+  - Third-party photo metadata stays, as the owner ruled on 11-14: it is edited only if it carries a location.
+  - Both are out of scope.
+
+**A second path, found before the change.** `tools/token_file_equiv.py` is #685's before/after proof, run locally.
+- It runs `m_clock.py` and `s_clock.py` with a fixed environment (`M_PROXY`, `PLAN_S_WANT`).
+- It requires each to reach its first network request.
+- Given a required setting it does not pass, both tools would refuse in the AFTER checkout, and the harness would read
+  them OFF.
+- So the harness gains the setting too.
+
+Other references:
+- Nothing pins these files by line: no `file:N` reference to any of them exists in the tree.
+- The five code files that name `wx-opera-backup-fallback.md` do so in comments only.
+
+**The change.** Nine files; history untouched.
+
+1. **`proxy/FEED-SOURCING.md`:**
+   - Lines 214, 307 and 334: the full name becomes `the owner`, and the gmail address becomes
+     `support@valarsystems.com`. Nothing else in those lines changes.
+   - Lines 193 and 315: `I'm <full name>,` becomes `I'm the owner,`.
+   - Lines 336-337: the note becomes "*(Fill in the company signature before sending. The address above is the support
+     role address, not a personal one.)*". The old note's "real sending address" and "a placeholder" stop being true
+     once the address is the support one.
+2. **`tools/wx/m_clock.py`, `s_clock.py`, `s_drive.py`:** the hard-coded line becomes the setting `PLAN_S_SCRATCH`,
+   named like their existing `PLAN_S_WANT`:
+   ```python
+   SCRATCH = os.environ.get("PLAN_S_SCRATCH", "")   # <what the directory holds>
+   if not SCRATCH:
+       raise SystemExit("REFUSED: PLAN_S_SCRATCH is unset -- set it to this run's scratch directory (no default is assumed)")
+   ```
+   - It sits where the old line was, before anything that uses it runs.
+   - There is no fallback to any path.
+   - Each docstring gains one line, after its usage block, naming the setting.
+3. **`tools/token_file_equiv.py`:** `"PLAN_S_SCRATCH": "OUT"` joins `m_clock`'s and `s_clock`'s env entries.
+4. **`proxy/test/shquote.test.ts`:** the same case, with a neutral account.
+   - Lines 28 and 50: `RUNNER~1`, the 8.3 form a GitHub Windows runner's TEMP carries.
+   - Line 71: `C:/Users/runneradmin/sd.tar.gz`.
+   - Line 27's comment says what the path is ("A real-shaped path …"), no longer "off this project".
+5. **The three prose lines:** the 8.3 form becomes `<USER~1>`.
+
+**Predictions, frozen here.**
+
+The diff: 9 files, +28 −19.
+
+| file | + | − |
+|---|---|---|
+| `proxy/FEED-SOURCING.md` | 7 | 7 |
+| `proxy/test/shquote.test.ts` | 4 | 4 |
+| `tools/wx/m_clock.py`, `s_clock.py`, `s_drive.py` | 4 each | 1 each |
+| `tools/token_file_equiv.py` | 2 | 2 |
+| the three prose files | 1 each | 1 each |
+
+**R1, the refusal, red first.**
+- Each tool runs with no arguments and a bare environment: PATH, SYSTEMROOT, TEMP and TMP only.
+- Nothing can reach a deploy. With no arguments, every tool stops at its argument parse at the latest.
+- Graded: exit 1 AND stderr exactly one line beginning `REFUSED: PLAN_S_SCRATCH`.
+
+| run | predicted |
+|---|---|
+| main's three tools | **red ×3**. `m_clock` exits 1 with a traceback ending `KeyError: 'M_PROXY'`. `s_clock` and `s_drive` exit 1 with `IndexError: list index out of range`. |
+| the branch's three tools | **green ×3**: exit 1, one stderr line, the refusal |
+| CONTROL: the branch's three, with `PLAN_S_SCRATCH` set to an empty temp dir | **not refused**. `m_clock` gives `KeyError: 'M_PROXY'`; the other two give `IndexError`. The temp dir is still empty afterwards. |
+
+**R2, the harness.**
+- A small driver loads the harness and restricts it to three tools: `m_clock`, `s_clock`, and `s_reads` as an
+  unchanged control.
+- BEFORE is a clean checkout at main `3741501b95d6`. AFTER is the branch.
+
+| run | predicted |
+|---|---|
+| main's harness, with no setting in its env | `3 tools, 1 as predicted, 2 off`, exit 1. `m_clock` and `s_clock` are OFF on E1 alone (BEFORE `CAPTURED`, AFTER `EXIT`). E2: both refuse. Every E3 reads `EXIT -> EXIT`. `s_reads` reads as predicted. |
+| the branch's harness | `3 tools, 3 as predicted, 0 off`, exit 0 |
+
+**R3, `shquote.test.ts` alone.**
+- It runs only after uk-data's W8 has ended (the one-vitest rule).
+- It runs at the PR head, in my clean checkout whose `node_modules` matches main's lockfile.
+- Predicted: 7 passed, 0 failed.
+
+**After-scan of the whole tree at the PR head:**
+- Text: the account name 0, the 8.3 form 0, `Users`+separator+first name 0, gmail addresses 0.
+- Binary-inclusive: the account name in 0 files; `gmail.com` in exactly the two photos above.
+- In `proxy/FEED-SOURCING.md`:
+  - the full name 0, from 5;
+  - the first and last name as words 0, from 10;
+  - `the owner` 5, from 0;
+  - `support@valarsystems.com` 3, from 0;
+  - the word gmail 0, from 4.
+- Personal names elsewhere stay for the after-v20 PR:
+  - the first name as a word, tree-wide: 1,010 → 998 (−5 FEED-SOURCING, −4 shquote, −3 prose);
+  - the last name: 5 → 0.
+
+**Gates:** all four exit 0. They run in the background, registered from the start.
+
+**CI, from the pull-request triggers and skus.yml at `3741501b95d6`: 37 check-runs.** This is not docs-only (proxy, a
+test and tools).
+
+| workflow | check-runs |
+|---|---|
+| the device-id workflow | 1 |
+| the traffic-capture workflow | 1 |
+| the firmware workflow | 32: 20 jobs, with host-tests ×2 and build ×12 |
+| the workers workflow | 3: `manifest-drift`, and `test` for proxy and for dashboard |
+
+- Conclusions: 35 success, 2 skipped (`version`, `promote`).
+- Path-filtered out: budget, print-cards, provisioner, web-renderer.
+- No pull-request trigger: photos, photo-drift, refresh-data, routes-refresh.
+
+**Outside the set:** any of these means stop, report, and no fix before a ruling:
+- any other R1 line;
+- a harness count other than the ones above;
+- a test count other than 7/0;
+- a non-zero after-scan count;
+- another diff shape;
+- another CI set.
+
+**Owners, told before the change:**
+- uk-data owns `tools/wx`'s three tools (#602) and the two OPERA-fallback files (#720).
+- `shquote.test.ts` came from #260, and `token_file_equiv.py` from #685.
+- `capture_nws.py` is mine (#591).
+
+**Delivery:** one PR from `weatherscope/user-path-setting`, branched at `3741501b95d6`. It merges on the reviewer's
+"approved to merge at <SHA>" after CI, by `merge-by-rule.sh`.
