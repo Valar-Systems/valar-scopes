@@ -843,3 +843,19 @@ it too, because the unmarked dots survive the restore there.
 - A full or partial count other than 14 and 586 is reported.
 - A plant off its set is reported, not re-predicted.
 - Anything else: stop.
+
+### 4n. P5 1c's host core, read (2026-11-16 06:24Z, WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`)
+
+Read against 4m's predictions, pushed at `1afb7f40877f` before the run. The code read is `bench/speed-p5` at
+`4f06c3a24f96`. **Every prediction held. Nothing is off the set.**
+- **test_p5_clear:** 4 ok, exit 0.
+  - MARK-COVER: 4,000 primitives wrote 392,624 pixels, and 0 lay outside their mark.
+  - SEQ2: 0 pixels off the layer after a Restore, 0 off the twin after a frame, with 14 full and 586 partial restores.
+  - IND-STOP: 39 stopped frames, 0 band pixels differ.
+- **sabotage_p5_clear.py:** each plant red on exactly its set, "P5 CLEAR PLANTS AS PREDICTED", exit 0.
+  - INDSKIP: SEQ2 and IND-STOP. ONEBUF: SEQ2. LAYERGEN: SEQ2. MARKSHORT: MARK-COVER and SEQ2.
+  - `--anchors`: 4 plants and 5 anchors, each present exactly once.
+  - `--control`: 4 ok.
+  - lint: 0 flagged.
+- **Ungraded reading:** a partial restore copied 10,469 pixels on average, against 57,600 for a full clear, for this
+  host scene of 40 primitives. It says nothing about the device's `under`, which the addendum predicts from A0a.
