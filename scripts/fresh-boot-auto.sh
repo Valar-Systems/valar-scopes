@@ -195,7 +195,9 @@ fi
 
 # ------------------------------------------------------------------------------------------------------- preflight
 say "PREFLIGHT (nothing on the board is touched yet; window: \"$WINDOW\")"
-"${PY[@]}" "$ROOT/scripts/fresh-boot-cadence.py" --candidate "$CAND" || die "the cadence check did not allow an automated run (above)" 2
+# The cadence check reads the repo from the current folder: run it from the tree, wherever the owner launched us
+# (2026-11-16: his terminal was outside the tree, and the check refused with INSTRUMENT: not a git repository).
+( cd "$ROOT" && "${PY[@]}" "$ROOT/scripts/fresh-boot-cadence.py" --candidate "$CAND" ) || die "the cadence check did not allow an automated run (above)" 2
 bash "$ROOT/scripts/fresh-boot-acceptance.sh" --selftest >/dev/null 2>&1 || die "the acceptance's own --selftest failed" 2
 "${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" --selftest >/dev/null 2>&1 || die "the form helper's --selftest failed" 2
 "${PY[@]}" "$ROOT/scripts/fresh-boot-wlan.py" --selftest >/dev/null 2>&1 || die "the adapter reader's --selftest failed" 2

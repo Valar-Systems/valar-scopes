@@ -340,3 +340,8 @@ called from the driver; step 5's own block (the background grade, the sleep, the
 
 **Launch** from inside the tree (`cd` into it first), until the cadence check stops taking the repo from the current
 folder.
+
+**Correction to the launch line above (2026-11-16 ~05:06Z):** the cwd defect is now structural. The driver runs the
+cadence check from its own tree (`( cd "$ROOT" && ... )`), so a launch from any folder works. Red first: from his home
+folder the old driver refused with INSTRUMENT (exit 2); the fix passed both from there and from inside the tree. A `cd`
+first is still harmless.
