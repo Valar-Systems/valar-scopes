@@ -19,10 +19,12 @@ the bootloader and the partition table are never written.
 
     app-only-write.py --port COMx --build-dir .pio/build/<env> [--before default-reset|no-reset] [--check-only]
     app-only-write.py --check-tool
+    app-only-write.py --read-mac --port COMx
     app-only-write.py --selftest
     app-only-write.py --sabotage
 --check-only stops after the checks: the two reads, nothing written, the chip left in the ROM (an esptool read-mac
-with a hard reset brings it back). --check-tool runs the tool guard on the configured esptool and asks it its version.
+with a hard reset brings it back: --read-mac). --check-tool runs the tool guard on the configured esptool and asks it its
+version. --read-mac is that recovery, through the same guard; it prints one line and never esptool's output (the MAC).
 --selftest runs a full write and a --check-only run against a fake esptool and checks every argv they build and every
 guard refusal; --sabotage plants faults into copies of this file and each must turn its own rows red.
 Exit: 0 written and verified (with --check-only: checked), 7 refused (nothing written), 8 write failed, 6 refused
@@ -405,9 +407,24 @@ def check_tool():
     return 0 if good else 1
 
 
+def read_mac(port):
+    """esptool read-mac with a hard reset: the recovery the bench windows fall back on to bring a board out of the ROM.
+    It goes through esptool(), so the guard runs inside it like every other call. It prints one line and never esptool's
+    output (which carries the MAC). Returns esptool's rc; a guard refusal exits 6 from inside esptool()."""
+    rc, out = esptool(port, 'default-reset', 'hard-reset', 'read-mac')
+    print(f'read-mac: rc {rc}; hard reset: {"Hard resetting" in out}')
+    return rc
+
+
 def main(argv):
     if '--check-tool' in argv:
         return check_tool()
+    if '--read-mac' in argv:
+        try:
+            return read_mac(argv[argv.index('--port') + 1])
+        except (ValueError, IndexError):
+            print(__doc__)
+            return 2
     if '--selftest' in argv:
         return selftest()
     if '--sabotage' in argv:
