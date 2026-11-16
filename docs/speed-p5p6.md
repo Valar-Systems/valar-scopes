@@ -1196,3 +1196,46 @@ Its deltas against B0, reported with the sections and NOT interpreted (as ruled)
 - **Proposed, NOT applied:** `m.tft.textWidth(s)` and `m.tft.fontHeight()`, through the adapter's existing
   `const AircraftManager& m`. It is the same object, so P6's behavior and 4s's predictions don't move.
 - **Asked:** may B3, B4, B6 and B7, which don't touch P6's tree, run while P6 waits?
+
+### 4v. B3, B4, B6 and B7 read; B2 and B5 wait for the owner (2026-11-16 13:36-13:51Z)
+
+The orchestrator approved running them: "a stop stops only its dependents". The P6 fix went to the owner, with the
+orchestrator recommending yes. All four COMPILED. Each build's directory was deleted only after a reparse scan read 0
+links, and bgcheck from the parent read PASS each time.
+
+| build | `.bin` | sha256 | `.iram0.text` | `.dram0.data` | `.dram0.bss` | `.flash.text` | `.flash.rodata` |
+|---|---|---|---|---|---|---|---|
+| B0 | 1,934,320 | `daffbe391966` | 79,887 | 36,400 | 38,584 | 1,286,624 | 529,908 |
+| B1 | 1,936,992 | `78c33676c242` | 79,887 | 37,008 | 42,464 | 1,288,172 | 530,432 |
+| B3 | 1,965,808 | `1358c324a42e` | 79,887 | 36,432 | 44,024 | 1,312,088 | 535,912 |
+| B4 | 1,971,520 | `a73de5971eb8` | 79,887 | 37,040 | 48,272 | 1,316,356 | 536,744 |
+| B6 | 1,733,392 | `dd80671aa0b6` | 79,795 | 24,176 | 66,472 | 1,224,544 | 403,376 |
+| B7 | 1,734,480 | `868903acd0af` | 79,795 | 24,176 | 66,472 | 1,225,504 | 403,504 |
+
+**The deltas against 4s's bands**, reported and not interpreted:
+
+| pair | `.bin` | `.iram0.text` | `.dram0.data` | `.dram0.bss` | `.flash.text` | `.flash.rodata` |
+|---|---|---|---|---|---|---|
+| B1 − B0 | +2,672: **outside (below)** | 0 ✓ | +608: **outside** | +3,880: **outside (below)** | +1,548 | +524 |
+| B4 − B3 | +5,712 ✓ | 0 ✓ | +608: **outside** | +4,248: **outside (below)** | +4,268 | +832 |
+| B7 − B6 | +1,088 ✓ | 0 ✓ | 0 ✓ | 0 ✓ (the exact one) | +960 | +128 |
+
+**I-4,** each image scanned by its own tree's script: B0, B1, B6 and B7 pass. B3 is refused naming exactly
+`[frame-bench]`, and B4 exactly `[frame-bench]` and `[speed-p5]`. All as predicted.
+
+**The negative checks,** by raw byte count:
+- `[speed-p5]` appears only in B4 (count 1), so nothing leaked into the shipping image B1.
+- `[speed-p6]` is 0 in all six. B5, where it is predicted, is not built yet.
+- `[frame-bench]` appears only in B3 and B4 (17 each).
+- The anchor `[build] env=` appears in all six, once each.
+- All as predicted.
+
+**The open merge condition** (4s): B7 − B6 `.bin` reads +1,088 B, so the marks do NOT compile to nothing in an edition
+that attaches no set. Before any merge, the condition stands: that, or a Missileer frame-time row.
+
+**Not graded:** B0 and B3 differ from p4's sizes (1,934,304 and 1,965,792) by +16 B each, because they were built in a
+different path.
+
+**Artifacts:** `scratchpad/art-p5p6-20261116` holds each build's `.bin`, `.elf`, `sections.txt` and log (B2's log
+included). The interim `manifest.txt` sha256 is `f0be96eacd3e…`, over six lines. It is frozen when B2 and B5 have run.
+`wt-build/.pio/libdeps` is kept for them, and removed at the end.
