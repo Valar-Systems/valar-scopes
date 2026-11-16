@@ -3456,6 +3456,37 @@ model of v19, not of v20.
   hold. The read prints the off and on p50 modes beside IL-a, so a grid flip shows as exactly one step. Outcome C still
   goes to the owner.
 
+#### THE READER, `fb_read_s2b.py`, written to R1-R7 and frozen by sha (2026-11-16T05:54:08Z)
+
+- **`fb_read_s2b.py` `7b673c32b8c3618988bde031bfabe32cfac10505223f60f5ea62fd7d295e7cb0`.** It is a byte copy of
+  `fb_read_rp5.py` `e15a94a8a8f6`, edited only for the registered changes. The diff is 274 changed lines, all of them in:
+  - the docstring;
+  - BOOT's banner;
+  - R1's two cost lines and image B's band;
+  - R2's `pres` share and presents count;
+  - the tag rows (TAG-AGREE, at most 1 rebuild, weather counted, the p95 without rebuild frames);
+  - R6's FIX-g band;
+  - R7's S2 reference (R-b, X̂, XA's interval, LIVE-OWN reported in place of XCHK);
+  - the two moved transcription paths;
+  - the selftest's trace and its synthetic S2 reference.
+- **Reader b is imported,** sha `b0dbd4ebc163` asserted, never copied. The 24 EXPECTED hashes are RP5's, unchanged (R4).
+- **The S2 reference** enters by `--s2 <file> <sha256>`, refused on a mismatch.
+- **Its selftest,** `--selftest <repo> 7d4009fdbc92`: **36 cases, PASSED** on its first run (output
+  `4c89e147413e4f4115b2fbf16d45a1f66d5dbf30c18663976353be523f08f378`; predictions frozen 05:51:00Z).
+  - RP5's 28 cases without XCHK (27), each giving its exit code, red set and its own reason's words as in RP5's table.
+  - Nine of S2b's own:
+    - COSTSTOP exit 2; NOCOST exit 2;
+    - PRES exit 2 (3.3 % `pres != 1`); PRESCOUNT exit 2;
+    - TAGDIS exit 2 (a tag without its rebuild record); TAG2 exit 2 STOP, X PARTIAL;
+    - FIXG exit 1; S2MISS exit 2; XAREF exit 1.
+  - COST now reads exit 1 at 8,000 ns (outside image B's band).
+  - The clean case reads "map rebuilds 1 (tagged 1, TAG-AGREE)", "weather-rebuilt frames 2" and "pres != 1 under 1 %".
+- **Proved able to fail** (`reader_reversal.py`, output `2b416b580c04c5189af8d84f4b6d1282fca1aa0ecb5ce07ee2dc30295be28191`).
+  Each plant loosens one rule in a temporary copy, and that copy's selftest FAILS on exactly its own case:
+  - FIX-g's lower edge at −2.0 fails exactly FIXG;
+  - a 5 % `pres` share fails exactly PRES;
+  - TAG-AGREE removed fails exactly TAGDIS.
+
 ### THE POST-v20 QUEUE: the ~200 ms full redraw (the owner's answer, 2026-11-15; queued, nothing before v20)
 
 - **The owner, verbatim:** "Sea: a. Queue the faster water fill for after v20, and with it, look at the ~200 ms full
