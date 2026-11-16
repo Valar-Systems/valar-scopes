@@ -17,21 +17,50 @@ only if esptool says "Hash of data verified."; one retry while the chip is still
 in the ROM; reset only after a verified write. Nothing is erased; NVS, otadata,
 the bootloader and the partition table are never written.
 
-    app-only-write.py --port COMx --build-dir .pio/build/<env> [--before default-reset|no-reset]
+    app-only-write.py --port COMx --build-dir .pio/build/<env> [--before default-reset|no-reset] [--check-only]
+    app-only-write.py --check-tool
+    app-only-write.py --read-mac --port COMx
     app-only-write.py --selftest
-Exit: 0 written and verified, 7 refused (nothing written), 8 write failed, 2 usage.
+    app-only-write.py --sabotage
+--check-only stops after the checks: the two reads, nothing written, the chip left in the ROM (an esptool read-mac
+with a hard reset brings it back: --read-mac). --check-tool runs the tool guard on the configured esptool and asks it its
+version. --read-mac is that recovery, through the same guard; it prints one line and never esptool's output (the MAC).
+--selftest runs a full write and a --check-only run against a fake esptool and checks every argv they build and every
+guard refusal; --sabotage plants faults into copies of this file and each must turn its own rows red.
+Exit: 0 written and verified (with --check-only: checked), 7 refused (nothing written), 8 write failed, 6 refused
+because the esptool is not the recorded one (nothing run), 2 usage (--sabotage: 2 when its anchor fails).
 """
+import hashlib
 import os
+import re
 import struct
 import subprocess
 import sys
 import tempfile
 import zlib
 
-PIO = os.path.join(os.path.expanduser('~'), '.platformio')
-PY = os.path.join(PIO, 'penv', 'Scripts', 'python.exe')
-ESPTOOL = os.path.join(PIO, 'packages', 'tool-esptoolpy', 'esptool.py')
+# The esptool this script runs is a PRIVATE copy, never the shared ~/.platformio one (the orchestrator's ruling,
+# 2026-11-16: the shared folder moved twice in one day, each time because another project built). It is a venv on
+# Python 3.13.7 at ~/.valar-bench/esptool-5.2.0 (override: env VALAR_ESPTOOL_DIR), holding the PyPI sdist's esptool/
+# module copied verbatim (sdist sha256 9c355b7d6331cc92979cc710ae5c41f59830d1ea29ec24c467c6005a092c06d6) and its 17
+# dependency wheels installed with --require-hashes --no-deps. It is run as `python -I -m esptool`.
+TOOL_DIR = os.environ.get('VALAR_ESPTOOL_DIR') or os.path.join(os.path.expanduser('~'), '.valar-bench', 'esptool-5.2.0')
+# What the install recorded, and what esptool() checks before EVERY call (any mismatch: exit 6, nothing run). Changing
+# any of these is a ruling, and needs its own proof read on the bench.
+ESPTOOL_VERSION = '5.2.0'
+ESPTOOL_TREE_SHA = '84c878702a70f290937b06a7c1bd49dbc50d2350f52454061b90d12b7d2c667e'  # tree_sha(site-packages)
+ESPTOOL_PY_VERSION = '3.13.7 (tags/v3.13.7:bcee1c3, Aug 14 2025, 14:15:11) [MSC v.1944 64 bit (AMD64)]'
 PT_OFFSET, PT_SIZE = 0x8000, 0xC00
+COMMANDS = ('read-flash', 'write-flash', 'read-mac')  # the esptool commands this script runs (the selftest reads them)
+# The flasher stub, PINNED on every call (the orchestrator's ruling, 2026-11-16). esptool 5.3.0 runs the new stub
+# (esp-flasher-stub) by default and 5.2.0 the legacy one (v1.11.1), and nothing in esptool's output says which ran. The
+# shared ~/.platformio went from 5.3.0 to 5.2.0 on 2026-11-16, and the otadata read below then stalled on the bench board
+# after its first 4 KiB block, twice; the same read completed under the new stub. THIS PINS THE WORKING PATH, NOT A
+# PROVEN CAUSE: the new stub also stays resident between the two reads, where the legacy one exits to the ROM and is
+# uploaded again, and which of those two differences matters is not known. The pin covers both. --stub-version is a
+# hidden esptool option outside its versioning policy: an esptool without it fails every call loudly ("No such
+# option"), never silently. Every call goes through esptool_argv, and the selftest checks every argv a run builds.
+STUB_VERSION = '2'
 T_APP, T_DATA, ST_OTA0, ST_OTADATA = 0x00, 0x01, 0x10, 0x00
 
 
@@ -65,9 +94,70 @@ def selected_slot(otadata, n_ota=2):
     return 0 if best is None else (best - 1) % n_ota
 
 
+def tool_python():
+    return os.path.join(TOOL_DIR, 'venv', 'Scripts', 'python.exe')
+
+
+def tool_site():
+    return os.path.join(TOOL_DIR, 'venv', 'Lib', 'site-packages')
+
+
+def tree_sha(root):
+    """sha256 over a tree: files in os.walk order with sorted directories (__pycache__ excluded) and sorted names, each
+    fed as its relative posix path + NUL + the sha256 of its bytes. The install recorded ESPTOOL_TREE_SHA this way."""
+    h = hashlib.sha256()
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d != '__pycache__')
+        for fn in sorted(filenames):
+            p = os.path.join(dirpath, fn)
+            with open(p, 'rb') as f:
+                data = f.read()
+            h.update(os.path.relpath(p, root).replace(os.sep, '/').encode('utf-8') + b'\0' + hashlib.sha256(data).digest())
+    return h.hexdigest()
+
+
+def esptool_version():
+    """__version__ of the private copy's esptool module; 'absent' when its python or the module is missing."""
+    init = os.path.join(tool_site(), 'esptool', '__init__.py')
+    if not (os.path.isfile(tool_python()) and os.path.isfile(init)):
+        return 'absent'
+    with open(init, encoding='utf-8', errors='replace') as f:
+        m = re.search(r'''^__version__\s*=\s*["']([^"']+)["']''', f.read(), re.M)
+    return m.group(1) if m else 'unreadable'
+
+
+def interpreter_version():
+    """sys.version as the private copy's own python reports it ('' when it cannot be run)."""
+    try:
+        r = subprocess.run([tool_python(), '-I', '-c', 'import sys; print(sys.version)'], capture_output=True, text=True,
+                           timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return ''
+    return r.stdout.strip() if r.returncode == 0 else ''
+
+
+def esptool_argv(port, before, after, *args):
+    """The ONE place an esptool argv is built: esptool() runs it, and the selftest checks every one a run builds."""
+    return [tool_python(), '-I', '-m', 'esptool', '--chip', 'esp32s3', '--port', port, '--before', before, '--after', after, '--stub-version', STUB_VERSION, *args]
+
+
+def refuse(why):
+    print(f'REFUSED: {why} (tool {TOOL_DIR}); nothing run')
+    raise SystemExit(6)
+
+
 def esptool(port, before, after, *args):
-    cmd = [PY, ESPTOOL, '--chip', 'esp32s3', '--port', port, '--before', before, '--after', after, *args]
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    # THE GUARD, before EVERY call: the recorded private copy, or nothing runs.
+    v = esptool_version()
+    if v != ESPTOOL_VERSION:
+        refuse(f'its esptool is {v}, not the recorded {ESPTOOL_VERSION}')
+    s = tree_sha(tool_site())
+    if s != ESPTOOL_TREE_SHA:
+        refuse(f'its site-packages tree is {s}, not the recorded {ESPTOOL_TREE_SHA}')
+    i = interpreter_version()
+    if i != ESPTOOL_PY_VERSION:
+        refuse(f'its interpreter reports {i!r}, not the recorded {ESPTOOL_PY_VERSION!r}')
+    r = subprocess.run(esptool_argv(port, before, after, *args), capture_output=True, text=True)
     return r.returncode, (r.stdout or '') + (r.stderr or '')
 
 
@@ -79,7 +169,7 @@ def read_flash(port, before, off, size, path):
         return f.read()
 
 
-def run(port, build, before):
+def run(port, build, before, check_only=False):
     img_path = os.path.join(build, 'firmware.bin')
     with open(os.path.join(build, 'partitions.bin'), 'rb') as f:
         want = parse_table(f.read())
@@ -108,6 +198,10 @@ def run(port, build, before):
         if slot != 0:
             print(f'REFUSED: the board boots ota_{slot}; writing ota_0 would be ignored.')
             return 7
+    if check_only:
+        print(f'checks ok: table matches ({len(want)} entries), board boots ota_0. --check-only: nothing written; '
+              'the chip is left in the ROM.')
+        return 0
     print(f'checks ok: table matches ({len(want)} entries), board boots ota_0, image {len(img)} B '
           f'fits ota_0 @ {hex(app_off)} ({app_size} B). Writing ota_0 only.')
     for attempt in (1, 2):
@@ -153,13 +247,188 @@ def selftest():
     ok(selected_slot(entry(1).ljust(0x1000, b'\xff') + entry(2).ljust(0x1000, b'\xff')) == 1, 'seq 2 boots ota_1')
     bad_crc = (struct.pack('<I', 2) + b'\xff' * 28).ljust(0x1000, b'\xff') + b'\xff' * 0x1000
     ok(selected_slot(bad_crc) == 0, 'CONTROL: a seq with a bad crc is ignored')
+
+    # A1-A4: run() itself, a full write and a --check-only run, against a fake subprocess.run that records every argv.
+    def word(cmd):
+        return next((i for i, a in enumerate(cmd) if a in COMMANDS), None)
+
+    def pinned(cmd):
+        w = word(cmd)
+        i = next((i for i, a in enumerate(cmd) if a == '--stub-version'), None)
+        return w is not None and i is not None and i < w and i + 1 < len(cmd) and cmd[i + 1] == '2'
+
+    def capture(check_only, version='5.2.0', with_python=True, tamper=False, interp=None, mode='run'):
+        """run() against the fake, with TOOL_DIR pointed at a STAND-IN private copy in the venv layout: python.exe
+        (unless with_python is False) and a site-packages holding esptool/__init__.py (the given __version__) and
+        esptool/loader.py. ESPTOOL_TREE_SHA is set to the stand-in's own tree sha, and THEN, with tamper, one byte of
+        loader.py changes. The fake answers the interpreter probe with ESPTOOL_PY_VERSION, or with interp; the probe is
+        not an esptool call and is not recorded."""
+        global TOOL_DIR, ESPTOOL_TREE_SHA
+        calls = []
+
+        def fake(cmd, **kw):
+            if '-c' in cmd:  # the interpreter probe
+                return subprocess.CompletedProcess(cmd, 0, (interp or ESPTOOL_PY_VERSION) + '\n', '')
+            calls.append(list(cmd))
+            out, w = '', word(cmd)
+            if w is not None and cmd[w] == 'read-flash':
+                off, size, path = int(cmd[-3], 16), int(cmd[-2], 16), cmd[-1]
+                with open(path, 'wb') as f:
+                    f.write(table(rows) if off == PT_OFFSET else b'\xff' * size)
+            elif w is not None and cmd[w] == 'write-flash':
+                out = 'Wrote 256 bytes at 0x00020000\nHash of data verified.\n'
+            return subprocess.CompletedProcess(cmd, 0, out, '')
+
+        real = (subprocess.run, TOOL_DIR, ESPTOOL_TREE_SHA)
+        with tempfile.TemporaryDirectory() as b:
+            with open(os.path.join(b, 'partitions.bin'), 'wb') as f:
+                f.write(table(rows))
+            with open(os.path.join(b, 'firmware.bin'), 'wb') as f:
+                f.write(b'\xe9' + b'\0' * 255)
+            tool = os.path.join(b, 'tool')
+            site = os.path.join(tool, 'venv', 'Lib', 'site-packages')
+            os.makedirs(os.path.join(site, 'esptool'))
+            os.makedirs(os.path.join(tool, 'venv', 'Scripts'))
+            with open(os.path.join(site, 'esptool', '__init__.py'), 'w', encoding='utf-8', newline='\n') as f:
+                f.write(f'__version__ = "{version}"\n')
+            with open(os.path.join(site, 'esptool', 'loader.py'), 'wb') as f:
+                f.write(b'# stand-in\n')
+            if with_python:
+                open(os.path.join(tool, 'venv', 'Scripts', 'python.exe'), 'wb').close()
+            subprocess.run, TOOL_DIR = fake, tool
+            ESPTOOL_TREE_SHA = tree_sha(site)
+            if tamper:
+                with open(os.path.join(site, 'esptool', 'loader.py'), 'wb') as f:
+                    f.write(b'# stand-iN\n')
+            try:
+                rc = read_mac('COMX') if mode == 'read-mac' else run('COMX', b, 'default-reset', check_only)
+            except SystemExit as e:  # a refusal is its exit code
+                rc = ('exit', e.code)
+            except BaseException as e:  # a run that raises is a failed row, not a crashed selftest
+                rc = f'raised {type(e).__name__}'
+            finally:
+                subprocess.run, TOOL_DIR, ESPTOOL_TREE_SHA = real
+        return rc, calls, [c[word(c)] if word(c) is not None else None for c in calls]
+
+    rc, calls, words = capture(False)
+    ok(rc == 0 and bool(calls) and all(pinned(c) for c in calls),
+       "A1 every call of a full run carries '--stub-version' '2', ahead of the command word")
+    ok(words == ['read-flash', 'read-flash', 'write-flash', 'read-mac'],
+       'A2 CONTROL: a full run makes exactly read-flash, read-flash, write-flash, read-mac')
+    rc, calls, words = capture(True)
+    ok(rc == 0 and words == ['read-flash', 'read-flash'], 'A3 check-only: exactly read-flash, read-flash, and no write-flash')
+    ok(rc == 0 and bool(calls) and all(pinned(c) for c in calls),
+       "A4 every call of a check-only run carries '--stub-version' '2', ahead of the command word")
+    # A5-A8: the tool guard. Anything but the recorded private copy is refused (exit 6) before a single esptool call.
+    rc, calls, words = capture(False, version='5.3.0')
+    ok(rc == ('exit', 6) and calls == [], 'A5 a stand-in whose esptool says 5.3.0: refused (exit 6) before any call')
+    rc, calls, words = capture(False, with_python=False)
+    ok(rc == ('exit', 6) and calls == [], 'A6 a stand-in with no python.exe (absent): refused (exit 6) before any call')
+    rc, calls, words = capture(False)
+    ok(rc == 0 and words == ['read-flash', 'read-flash', 'write-flash', 'read-mac'],
+       'A7c CONTROL: the same stand-in unmodified passes the guard and makes the full run')
+    rc, calls, words = capture(False, tamper=True)
+    ok(rc == ('exit', 6) and calls == [], 'A7 one byte of the stand-in changed after its sha was recorded: refused (exit 6)')
+    rc, calls, words = capture(False, interp='3.14.6 (another interpreter)')
+    ok(rc == ('exit', 6) and calls == [], 'A8 the interpreter reports another sys.version: refused (exit 6) before any call')
+    # A9: --read-mac, the recovery the bench windows fall back on, goes through the same guarded esptool().
+    def adj(cmd, a, b):
+        return any(cmd[k] == a and cmd[k + 1] == b for k in range(len(cmd) - 1))
+
+    rc, calls, words = capture(False, mode='read-mac')
+    rc2, calls2, _ = capture(False, version='5.3.0', mode='read-mac')
+    one = calls[0] if len(calls) == 1 else []
+    argv_ok = (words == ['read-mac'] and pinned(one) and adj(one, '--chip', 'esp32s3')
+               and adj(one, '--before', 'default-reset') and adj(one, '--after', 'hard-reset'))
+    ok(rc == 0 and argv_ok and rc2 == ('exit', 6) and calls2 == [],
+       'A9 --read-mac: exactly one call, --chip esp32s3 --before default-reset --after hard-reset --stub-version 2 '
+       'read-mac; a 5.3.0 stand-in: refused (exit 6), no call')
     print('SELFTEST PASSED' if not bad else f'SELFTEST FAILED ({bad})')
     return 1 if bad else 0
 
 
+# Each plant goes into a temp copy of this file, and the copy's --selftest must turn EXACTLY these rows red. The needles
+# are split across a '+' so that this table never matches itself (each must appear exactly once in the source).
+SABOTAGE = [
+    ('S-NOPIN', "'--after', after, '--stub-" + "version', STUB_VERSION, *args]", "'--after', after, *args]", {'A1', 'A4', 'A9'}),
+    ('S-PIN1', "STUB_VERSION" + " = '2'", "STUB_VERSION = '1'", {'A1', 'A4', 'A9'}),
+    ('S-CHECKONLY', "    if check" + "_only:\n", "    if False:\n", {'A3'}),
+    ('S-NOVERSION', "    if v != ESPTOOL" + "_VERSION:\n", "    if False:\n", {'A5', 'A6', 'A9'}),
+    ('S-NOSHA', "    if s != ESPTOOL" + "_TREE_SHA:\n", "    if False:\n", {'A7'}),
+    ('S-NOINTERP', "    if i != ESPTOOL" + "_PY_VERSION:\n", "    if False:\n", {'A8'}),
+    ('S-RMNOGUARD', "    rc, out = esptool(port, 'default-reset', 'hard-" + "reset', 'read-mac')\n",
+     "    r = subprocess.run(esptool_argv(port, 'default-reset', 'hard-reset', 'read-mac'), capture_output=True, text=True)\n"
+     "    rc, out = r.returncode, (r.stdout or '') + (r.stderr or '')\n", {'A9'}),
+]
+
+
+def sabotage():
+    with open(os.path.abspath(__file__), encoding='utf-8') as f:
+        src = f.read()
+
+    def red_rows(text):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'app-only-write.py')
+            with open(p, 'w', encoding='utf-8', newline='\n') as f:
+                f.write(text)
+            r = subprocess.run([sys.executable, p, '--selftest'], capture_output=True, text=True)
+        rows = {l.split()[1] for l in r.stdout.splitlines() if l.strip().startswith('FAIL') and len(l.split()) > 1}
+        return r.returncode, rows
+
+    rc, rows = red_rows(src)
+    if rc != 0 or rows:
+        print(f'SABOTAGE RIG: the unplanted copy does not pass its selftest (exit {rc}, red {sorted(rows)}); no plant run')
+        return 2
+    print('  ok    anchor: the unplanted copy passes its selftest')
+    bad = 0
+    for name, needle, repl, want in SABOTAGE:
+        n = src.count(needle)
+        planted = src.replace(needle, repl)
+        if n != 1 or planted == src:
+            print(f'  FAIL  {name}: the needle appears {n} times (must be once); not planted')
+            bad += 1
+            continue
+        rc, rows = red_rows(planted)
+        good = rc != 0 and rows == want
+        print(f"  {'ok  ' if good else 'FAIL'}  {name}: red {sorted(rows)}, want {sorted(want)}, exit {rc}")
+        bad += not good
+    print(f'SABOTAGE PASSED ({len(SABOTAGE)} of {len(SABOTAGE)})' if not bad else f'SABOTAGE FAILED ({bad})')
+    return 1 if bad else 0
+
+
+def check_tool():
+    """The guard on the configured private copy, then `version` through esptool() (the same path every real call takes).
+    Exit 0 only when it prints ESPTOOL_VERSION; a guard refusal exits 6 from inside esptool()."""
+    print(f'tool {TOOL_DIR}: esptool {esptool_version()}, tree {tree_sha(tool_site())} (recorded {ESPTOOL_TREE_SHA})')
+    rc, out = esptool('NONE', 'no-reset', 'no-reset', 'version')
+    print(out.strip())
+    good = rc == 0 and ESPTOOL_VERSION in out
+    print('CHECK-TOOL PASSED' if good else f'CHECK-TOOL FAILED (rc {rc})')
+    return 0 if good else 1
+
+
+def read_mac(port):
+    """esptool read-mac with a hard reset: the recovery the bench windows fall back on to bring a board out of the ROM.
+    It goes through esptool(), so the guard runs inside it like every other call. It prints one line and never esptool's
+    output (which carries the MAC). Returns esptool's rc; a guard refusal exits 6 from inside esptool()."""
+    rc, out = esptool(port, 'default-reset', 'hard-reset', 'read-mac')
+    print(f'read-mac: rc {rc}; hard reset: {"Hard resetting" in out}')
+    return rc
+
+
 def main(argv):
+    if '--check-tool' in argv:
+        return check_tool()
+    if '--read-mac' in argv:
+        try:
+            return read_mac(argv[argv.index('--port') + 1])
+        except (ValueError, IndexError):
+            print(__doc__)
+            return 2
     if '--selftest' in argv:
         return selftest()
+    if '--sabotage' in argv:
+        return sabotage()
     try:
         port = argv[argv.index('--port') + 1]
         build = argv[argv.index('--build-dir') + 1]
@@ -167,7 +436,7 @@ def main(argv):
         print(__doc__)
         return 2
     before = argv[argv.index('--before') + 1] if '--before' in argv else 'default-reset'
-    return run(port, build, before)
+    return run(port, build, before, '--check-only' in argv)
 
 
 if __name__ == '__main__':
