@@ -110,3 +110,46 @@ The count is derived from what CI expands (`skus.yml`'s rows and the workflow fi
 - **Predicted: 37 check-runs = 35 success + 2 skipped (promote, version) + 0 other.**
 - The proxy suite in the workers workflow runs the new file.
 - Any other total or split is a stop.
+
+## Record (2026-11-16), and the re-registrations it forced
+
+**Run 1, red-first at `30824fef` (21:10:51-21:10:53Z, `adsbdb-off.test.ts`, one vitest run): OFF. A MISS, recorded as
+read and not re-graded.** Five rows failed against the predicted four.
+- **AD1 to AD4 were red, each by exactly its registered mechanism:**
+  - AD1: `expected 'E75L' to be ''`, so the backfill ran with both variables absent;
+  - AD2: `expected 'ZRH' to be ''`, so the fallback ran;
+  - AD3: `expected 'true' to be 'false'`;
+  - AD4: `expected '' to be 'E75L'`, so no backfill ran under the route's `"false"`.
+- **AD5's own body passed.** Its log shows `adsbdb_route ... ok:true`. Its one failure is the shared `afterEach`
+  `fetchMock.assertNoPendingInterceptors()` reporting `GET .../v0/aircraft/ad0004` pending, which is AD4's mock.
+- **The cause is this registration's defect.** It predicted the rows as if they were isolated, but a red row that leaves
+  an interceptor unconsumed fails every LATER row's `afterEach`.
+- **The alternative, AD5's mechanism broken, is excluded:** its body's assertions passed, and a broken AD5 would fail on
+  `ZRH`/`JFK`, not on another row's hex.
+
+**The cascade, derived row by row (the reviewer's condition, before any later run).**
+- **Rows that register interceptors:** AD1 (feed, `/v0/aircraft`), AD2 (feed, routeset, `/v0/callsign`), AD4 (feed,
+  `/v0/aircraft`) and AD5 (feed, routeset, `/v0/callsign`). AD3 and AD6 register none.
+- **Which red rows leave a mock pending:**
+  - a RED AD1 or AD2 consumes its adsbdb mock, because the backfill or fallback ran, and fails before its own drain, so
+    nothing is left pending;
+  - a RED AD4 leaves `/v0/aircraft/ad0004` pending, because no backfill ran. It is the only cascading row;
+  - a RED AD6 uses no mocks.
+- **Unmatched requests cannot cascade.** With network connect disabled, an unmatched request throws inside the upstream
+  chain and is caught there. The `afterEach` checks only for pending mocks.
+- **File order** is AD1, AD2, AD3, AD4, AD5 at `30824fef`, and AD1, AD2, AD3, AD4, AD6, AD5 at `819a89e0` and
+  `93b65f0b`.
+
+**Re-registered, before each runs:**
+
+| run | at | predicted red | why |
+|---|---|---|---|
+| R1b, AD5 alone (`-t "AD5"`), a NEW run and not a re-grade | `30824fef` | **none**: AD5 green, nothing pending in its `afterEach` | AD5 runs alone, so nothing earlier can leave a mock |
+| R2, the AD6 addendum | `819a89e0` | **{AD6}** | the code is present, so AD4 is green and leaves nothing; AD6 uses no mocks |
+| R3, green | `93b65f0b`, `adsbdb-off`, `enrich` and `enrich-ttl` | **none** | nothing red, so nothing left pending |
+| P-ADC, the old coupling restored | `93b65f0b` plus the plant, `adsbdb-off` alone | **{AD1, AD4, AD6, AD5}** | AD1 and AD4 for their own reasons; AD6 and AD5 by the CASCADE from AD4's pending `ad0004` mock, their bodies green |
+| P-AD6, the entry removed | `93b65f0b` plus the plant, `adsbdb-off` alone | **{AD6}** | AD6 uses no mocks and AD4 is green, so no cascade |
+
+**Outside the set:** anything else is a stop. A second OFF on AD5's row goes to the owner. A cascade-proof `afterEach`
+(draining pending mocks after asserting) is deferred to a later PR with its own red-first, because changing it now
+would change the rows being read.
