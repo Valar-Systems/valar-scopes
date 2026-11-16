@@ -103,20 +103,27 @@ bmpk::Package Origin(uint32_t radiusMm)
 
 // S4.29 (docs/weatherscope-stage4.md): whether `got`'s known sections (types 1-7) are `ref`'s, byte for byte, and how
 // many known sections `got` has. PK-unknown and the two PK-pair3 rows all go through here.
+//
+// Paired by INDEX, after the two type sequences are required equal. TERRAIN repeats, one section per level, so a
+// first-of-type lookup (bmpk::Package::Find) pairs every level of `got` with `ref`'s FIRST level: on a 3-terrain pair
+// it reads identical packages as different and misses a change to level 2 (the owner's ruling of 2026-11-16 15:13Z).
+// PK-pair3-same and PK-pair3-lvl2 turn red if this goes back to a first-of-type lookup.
 bool SameKnownSections(const bmpk::Package& ref, const bmpk::Package& got, int* known)
 {
-    // STEP R: today's pairing, verbatim (each section against ref's FIRST of its type), so the new rows read red first.
-    bool same = true;
-    *known = 0;
-    for (int i = 0; same && i < got.nSections; ++i) {
-        const bmpk::Section& s = got.sections[i];
-        if (s.type < 1 || s.type > 7) continue;
-        const bmpk::Section* m = ref.Find(s.type);
-        same = m && m->count == s.count && m->length == s.length &&
-               std::memcmp(got.data + s.offset, ref.data + m->offset, s.length) == 0;
-        ++*known;
-    }
-    return same;
+    std::vector<const bmpk::Section*> a, b;
+    for (int i = 0; i < ref.nSections; ++i)
+        if (ref.sections[i].type >= 1 && ref.sections[i].type <= 7) a.push_back(&ref.sections[i]);
+    for (int i = 0; i < got.nSections; ++i)
+        if (got.sections[i].type >= 1 && got.sections[i].type <= 7) b.push_back(&got.sections[i]);
+    *known = (int)b.size();
+    if (a.size() != b.size()) return false;
+    for (size_t k = 0; k < a.size(); ++k)   // the type sequences, before anything is paired
+        if (a[k]->type != b[k]->type) return false;
+    for (size_t k = 0; k < a.size(); ++k)
+        if (a[k]->count != b[k]->count || a[k]->length != b[k]->length ||
+            std::memcmp(ref.data + a[k]->offset, got.data + b[k]->offset, b[k]->length) != 0)
+            return false;
+    return true;
 }
 
 // ------------------------------------------------------------------------------------------------ PK (32)
