@@ -235,7 +235,7 @@ export function feedHealth(env: Env): { id: string; enabled: boolean; state: "cl
     { id: ROUTE_BREAKER_ID, enabled: true, state: breakerState(ROUTE_BREAKER_ID) },
     {
       id: ADSBDB_BREAKER_ID,
-      enabled: env.ROUTE_ADSBDB_ENABLED !== "false",
+      enabled: env.ROUTE_ADSBDB_ENABLED === "true", // OFF unless exactly "true" (docs/adsbdb-off-by-default.md)
       state: breakerState(ADSBDB_BREAKER_ID),
     },
   ];
@@ -526,7 +526,12 @@ export async function fetchAircraftMetaAdsbdb(
   env: Env,
   hex: string,
 ): Promise<AircraftMetaBackfill | null> {
-  if (env.ROUTE_ADSBDB_ENABLED === "false") return null; // same master switch as the route source
+  // OFF unless TYPE_ADSBDB_ENABLED is exactly "true" -- its OWN switch, never the route source's. adsbdb's aircraft
+  // data is PlaneBase-derived; PlaneBase's terms are personal use only (commercial export needs their permission);
+  // the owner ruled it out on 2026-11-16 (docs/adsbdb-off-by-default.md). It once rode ROUTE_ADSBDB_ENABLED, which is
+  // how switching ROUTES off on 2026-08-26 silently switched this off too -- and how re-enabling routes would have
+  // silently brought unlicensed type data back. test/adsbdb-off.test.ts AD1/AD4 fail if either coupling returns.
+  if (env.TYPE_ADSBDB_ENABLED !== "true") return null;
   if (!breakerAllows(ADSBDB_AC_BREAKER_ID)) return null;
   const started = Date.now();
   try {
@@ -640,7 +645,9 @@ async function fetchRouteAdsbdb(env: Env, callsign: string): Promise<RouteResult
   // blackout read as "adsbdb is fine, nobody asked it": the tail showed adsb.lol
   // being tried and nothing at all about the fallback, which looks exactly like
   // a fallback that was never needed.
-  if (env.ROUTE_ADSBDB_ENABLED === "false") {
+  // OFF unless exactly "true": an environment without the variable no longer means ON
+  // (docs/adsbdb-off-by-default.md; test/adsbdb-off.test.ts AD2).
+  if (env.ROUTE_ADSBDB_ENABLED !== "true") {
     logSkip(ADSBDB_BREAKER_ID, "route", "disabled_by_config");
     return null;
   }
