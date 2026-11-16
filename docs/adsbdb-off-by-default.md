@@ -157,3 +157,16 @@ would change the rows being read.
 
 **Results, in run order:**
 - **R1b** (21:13:24-21:13:26Z, `30824fef`, AD5 alone): AS PREDICTED. 1 passed, 4 skipped, vitest exit 0; the background check and the process-group check both read 0 running.
+- **R2** (21:17:37-21:17:39Z, `819a89e0`, `adsbdb-off`): AS PREDICTED. Red exactly {AD6} (`expected [] to have a length of 1 but got +0`), with 5 passed. Both end checks read 0 running.
+- **R1c** (21:18:41-21:18:45Z, `d5822849`, `adsbdb-off`, `enrich` and `enrich-ttl`): AS PREDICTED. 53 of 53 passed: `adsbdb-off` 5 of 5, `enrich` 38 and `enrich-ttl` 10. Both end checks read 0 running.
+- **R3** (21:19:41-21:19:46Z, `93b65f0b`, the same three files): AS PREDICTED. 54 of 54 passed, with `adsbdb-off` 6 of 6. Both end checks read 0 running.
+- Every run also printed vitest-pool-workers' `EBUSY` warning for its 4 temporary storage dirs per test file. None of those dirs was left on disk afterwards.
+- **P-ADC** (21:20:48-21:20:50Z, `93b65f0b` plus the old coupling, `adsbdb-off`): AS PREDICTED by the cascade-inclusive set frozen at `d33b10c7`. Red exactly {AD1, AD4, AD6, AD5}, with 2 passed (AD2, AD3).
+  - AD1: `expected 'E75L' to be ''`;
+  - AD4: `expected '' to be 'E75L'`;
+  - AD4's own `afterEach`, AD6 and AD5: one grouped error, `1 interceptor is pending: GET .../v0/aircraft/ad0004`, AD4's mock.
+  - The plant was proven applied before the run (sha `92c1abc01ae2` -> `a172223ca856`). It was restored by bytes afterwards; the blob equals HEAD's, porcelain 0. Both end checks read 0 running.
+  - Instrument note: vitest-pool-workers' code frames point at the wrong source lines (AD1's at line 27, AD4's inside AD2's body). The rows are read from the test names and the assertion texts, never from the frames.
+- **P-AD6** (21:22:14-21:22:20Z, `93b65f0b` with the `adsbdb_ac` entry removed from `feedHealth()`, `adsbdb-off`): AS PREDICTED. Red exactly {AD6} (`expected [] to have a length of 1 but got +0`), with 5 passed and no pending interceptor. The plant was proven applied (`92c1abc01ae2` -> `1e44a709415b`, 6 lines removed) and restored by bytes; the blob equals HEAD's and porcelain is 0. Both end checks read 0 running.
+
+**Every registered run read as predicted.** The only miss was run 1, recorded above as read; its cause, the cascade, was observed directly in R1b and P-ADC.
