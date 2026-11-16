@@ -586,3 +586,41 @@ broken, and NOSHARE shows the sharing row can fail.
 - An entry size other than 336 is reported (it is a layout fact, not a grade).
 - A plant off its set is reported, not re-predicted.
 - Anything else: the instrument is not understood, so stop.
+
+### 4h. P6's first host run, read (2026-11-16 05:44Z, WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`)
+
+Read against 4g's predictions, pushed at `4239b4684ed6` before the run. The code read is `bench/speed-p6` at
+`1d692d7b772a` (pushed 05:46:53Z, the tree the run read).
+
+**As predicted:**
+- **test_p6_labels:** 6 ok, exit 0. The entry is 336 bytes.
+  - P6-COVER: 16 members, 136 text moves, 0 with the key unmoved, 0 silent.
+  - SEQ@20, @40, @60: 0 mismatches over 8,000, 16,000 and 24,000 contact-frames, with the control "yes" in each.
+    Uncached was 840 in each row (contacts 0 and 1).
+  - P6-SHARE: 46,740 frames whose box refreshed, 0 draw misses.
+- **sabotage_p6_labels.py:**
+  - NEVER, WIDTH and POS each red on exactly the three SEQ rows; NOSHARE red on exactly P6-SHARE;
+  - `--anchors`: 5 plants and 6 anchors, each present once;
+  - `--control`: 6 ok;
+  - lint: 0 flagged.
+- **check_frame_bench.py:** 15 rows, 0 failed, and its selftest PASSED. test_label_lines: "all good".
+
+**Off the predicted set, reported and not re-predicted:**
+- **P6-KEYDROP read red on P6-COVER only, not on the three SEQ rows.**
+- **Why: the sequence moves a float input on every frame.** Velocity changes by 0.37 m/s a frame, for example. So the
+  key changes every frame whatever the squawk does, and every frame's box refills.
+  - The visible sign is in the same readings: hits equal refills in every SEQ row. Each frame's one hit is the draw,
+    sharing the box's refill.
+  - So a key that leaves the squawk out never serves a stale text in SEQ.
+- **What each row can see, as built:**
+  - SEQ grades refills and placement: NEVER, WIDTH and POS each read red.
+  - COVER grades the key's coverage, and it caught the drop.
+  - SHARE grades sharing.
+  - No row here holds a key across frames.
+- **Proposed, not done, awaiting a ruling:** a SEQ variant where the numeric inputs HOLD between "merges", every few
+  frames, as on the device. Cross-frame hits then happen, and a key omission would show in SEQ as well as COVER.
+- **The device's LABELS_CHECK row already has that property,** because real values change only on merges.
+
+**My own rig miss, again:** one test_label_lines compile failed ("cannot open output file"), because WSL's `/tmp` had
+been cleared between calls, as in 4f. It was re-run with the directory made, and read "all good". From now on every
+WSL call makes its directory itself.
