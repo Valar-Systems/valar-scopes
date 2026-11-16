@@ -108,7 +108,12 @@ def form_pairs(html, form_id="cfg"):
 
 def checkbox_names(html, form_id="cfg"):
     """The page's submit JS appends cfg-toggles = every checkbox's name in the form, joined by ','. /save turns an
-    absent box OFF only when cfg-toggles declares it, so a body without it can never turn one off (2026-11-16)."""
+    absent box OFF only when cfg-toggles declares it, so a body without it can never turn one off (2026-11-16).
+
+    VALID ONLY WHILE THE PAGE BUILDS NO INPUTS IN JS. This reads the static HTML; the page's JS reads the live DOM.
+    They agree because src/ConfigurationWebServer.cpp creates only div, b, button and a elements (read 2026-11-16).
+    A page that adds a checkbox from JS (createElement('input'), or an innerHTML holding one) makes this list SHORT
+    by that box, and a restore would then leave it as it was. Re-read the page's JS whenever it adds an element."""
     p = _Form(form_id)
     p.feed(html)
     p.close()
