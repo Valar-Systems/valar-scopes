@@ -1114,3 +1114,52 @@ and before any build. It is frozen here with the additions below, before B0:
 - A section outside its band is reported with the section that moved. The images stay compile checks.
 - An I-4 result other than predicted stops.
 - A C: reading under 30.2 GiB stops before the next build.
+
+### 4t. B0 read; B1 failed to compile (4s's first OFF); the fix, for re-acceptance (2026-11-16 13:1x-13:2xZ)
+
+**B0** (`blipscope-s3-128` at the base `a0583e88b142`) read as predicted:
+- compiled in 204 s;
+- `.bin` 1,934,320 B, sha256 `daffbe391966…`;
+- `.iram0.text` 79,887; `.dram0.data` 36,400; `.dram0.bss` 38,584; `.flash.text` 1,286,624; `.flash.rodata` 529,908;
+- I-4 passed; the counts for `[speed-p5]`, `[speed-p6]` and `[frame-bench]` were 0, 0 and 0, and the anchor 1;
+- `.pio/build` deleted; bgcheck from the parent: PASS.
+- **B0 stands**, because the base tree is untouched. p4's 1,934,304 B was built in a different path, so the 16 B
+  difference is not graded.
+
+**B1** (`blipscope-s3-128` at P5 `9a531c0e5496`) **FAILED to compile.** That is 4s's first OFF, against "all 8
+compile".
+- The one error in the log: `src/AircraftManager.h:1400:30: error: 'SCREEN_SIZE' was not declared in this scope`, in
+  P5 1c's inline `WxDirty()`. Only `AircraftManager.cpp.o` failed.
+- The series STOPPED before B2.
+- **The cause, recorded as a lesson:** 1c's wiring was pushed uncompiled, and host tests cannot see a device header's
+  include set.
+- **My protocol slip:** the reparse scan before deleting the failed build's `.pio/build` did not run (wrong path), and
+  the delete did not wait on it. Only my own rebuildable objects were deleted. Now the delete waits on the scan's exit.
+
+**The fix (ruled):** `AircraftManager.h:1400` reads `s.Init(variant::SCREEN_SIZE, variant::SCREEN_SIZE)`.
+- `include/Layout.h:11` is `constexpr int SCREEN_SIZE = variant::SCREEN_SIZE;`, with no scaling and no offset, so the
+  value is the same.
+- **So no prediction in 4s moves:** not the `.bss` bands, not I-4, not the marker counts.
+- On the fixed tree, P5's host tests, its three drivers, check_p5_writes (14 / 20, 8 + 12 / 1, selftest PASSED) and
+  check_frame_bench (15/0) all re-ran as before. The four gates read 0.
+- **P5 is now `bench/speed-p5` at `73dc246b79cb`,** read back by ls-remote at 13:22:49Z.
+
+**The P6 read-only recheck** for the same class (an inline in a header using a name its own includes don't bring in).
+Every header P6 changed, with what its new code uses and where that comes from:
+- `include/FrameBench.h`: `InScene`, `S()`, `State` and `kScenes` from the same header; `Serial` from `<Arduino.h>`.
+- `include/LabelCache.h`: the fixed-width ints and `size_t` from `<cstdint>`/`<cstddef>`; `memcpy`/`strlen`/`memcmp`
+  from `<cstring>`; `is_trivially_copyable` from `<type_traits>`; `nothrow` and placement `new` from `<new>`;
+  `labellines::` from `LabelLines.h`; `heap_caps_*` from `<esp_heap_caps.h>`. It also compiled standalone on the host
+  under `-Werror`.
+- `src/AircraftInfoFields.h`: `labelcache::KeyBuf` from `LabelCache.h`; `TrackedAircraft` from
+  `models/TrackedAircraft.h`.
+- `src/AircraftManager.h`: `labelcache::Entry` through `models/TrackedAircraft.h`.
+- `src/models/TrackedAircraft.h`: `labelcache::Slot` from `LabelCache.h`.
+- **Found: none.** P6 is unchanged at `4050a5357d8c`.
+- **One related check:** `LabelCache.h` puts the entry in PSRAM only under `ESP_PLATFORM`. Without it the code would
+  compile and quietly use internal RAM. The flag is defined for these builds, in the Arduino-ESP32 libs'
+  `esp32s3/flags/defines` and in the platform's `builder/frameworks/_bare.py` CPPDEFINES.
+
+**For re-acceptance:** 4s at P5 `73dc246b79cb` and P6 `4050a5357d8c`, with the base unchanged. Nothing builds before
+then. The series restarts at B1, and B0 stands. A second compile failure in 4s goes to the orchestrator, then to the
+owner.
