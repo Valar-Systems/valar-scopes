@@ -423,6 +423,36 @@ tonight:** its pass needs "no torn frame on glass" (the owner's eyes and a video
 prerelease with the owner's OK, and its config-page save is the owner's browser save in the same window. It goes to
 the owner's morning list.
 
+**M3-9, P read BLIND, then the self-check RE-REGISTERED before any soak hour (2026-11-16).**
+- **P READ (04:59:52-05:09:52Z): BLIND, the registered stop branch.** With the plant's skipped write-back, the trace
+  read "[m3-bench] checks=450 bad_frames=0 bad_chunks=0 check_err=0", with pushes 13,500, sync_err 0, one boot banner
+  and no reset.
+- **THE CAUSE, read from the source:** IDF 5.5.4, `async_memcpy_gdma.c:379-386`. For an external-RAM source,
+  `esp_async_memcpy` msyncs C2M BEFORE its DMA reads, so the check wrote back the very lines it was hunting.
+- **The alternative, named and not excluded by the data:** natural eviction before the check, which ran after the 24 ms
+  push.
+- **THE FIX** (the orchestrator's ruling), M3 branch commit `9e5198a43d6d`, bench-only: every 30th push, AFTER the
+  push's write-back and BEFORE its DMA, each 3,200 B chunk (100 cache lines of 32 B; 36 chunks tile the frame) goes
+  through three steps:
+  1. it is copied through the cache to internal RAM;
+  2. its lines are invalidated (msync M2C, with no write-back);
+  3. it is read again from PSRAM, and the mismatched BYTES are counted.
+  - An msync error is `check_err`, never a check.
+  - A mismatched frame prints `[m3-bench] mismatch push= bytes= chunks=`.
+  - The report line gains `bad_bytes=` and `max_bytes=`.
+  - The boot line reads `self-check: cpu-vs-psram (msync M2C), chunk 3200 B internal ok, every 30 pushes`.
+- **THE IMAGES,** built from `9e5198a43d6d` with epoch 1762862445 and verified in the image itself:
+  - the plant, `fa29b8b4249a` (1,937,712 B), carries "PLANT";
+  - the soak (i), `4ac1b8019a58` (1,937,616 B), does not;
+  - both carry "cpu-vs-psram" and neither carries the old "async memcpy" string; both tables are `28f336fe57a9`.
+  - **The soak runs `4ac1b8019a58`, not `2ca8f914a729`, which carries the blind check.**
+- **PREDICTIONS, re-frozen before the re-run:**
+  - **PLANT:** `bad_frames` / `checks` at least 0.5, `check_err` 0, and the mismatched BYTES per checked frame reported.
+    A plant reading 0 again means STOP, and the soak is off tonight.
+  - **SOAK (i):** `bad_frames` 0 keeps (i); 1 or more sends it to (ii); `check_err` 0; one boot banner.
+  - **R:** as registered above.
+  - **Anything else:** stop.
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
