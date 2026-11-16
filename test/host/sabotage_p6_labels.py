@@ -29,14 +29,16 @@ FIELDS = "src/AircraftInfoFields.cpp"
 TEST = "test/host/test_p6_labels.cpp"
 
 SEQ = {"P6-SEQ@20", "P6-SEQ@40", "P6-SEQ@60"}
+SEQH = {"P6-SEQH@20", "P6-SEQH@40", "P6-SEQH@60"}   # amendment 4i: the inputs held across frames
 HIT = "    if (e.valid && e.enabled == mask && e.key == k) {\n"
+HIT_COUNTED = HIT + "        if (st) ++st->hits;\n"
 
 PLANTS = [
     # The cache never invalidated: a valid entry is a hit whatever changed.
-    ("P6-NEVER: never invalidated", [(CACHE, HIT, "    if (e.valid) {\n")], SEQ),
+    ("P6-NEVER: never invalidated", [(CACHE, HIT, "    if (e.valid) {\n")], SEQ | SEQH),
     # A stale width kept across a text change: each line measured once, the first time.
     ("P6-WIDTH: a stale width", [(CACHE, "        e.width[j] = (int16_t)f.Width(text);\n",
-                                  "        if (e.width[j] == 0) e.width[j] = (int16_t)f.Width(text);\n")], SEQ),
+                                  "        if (e.width[j] == 0) e.width[j] = (int16_t)f.Width(text);\n")], SEQ | SEQH),
     # The placement cached with the strings: the first frame's (x, y) reused while the inputs hold.
     ("P6-POS: the placement cached", [
         (CACHE, "    char text[kLines][kTextBytes] = {};\n};\n",
@@ -44,12 +46,31 @@ PLANTS = [
         (CACHE, "    const int lineHeight = f.LineHeight();\n    int placed = 0;\n    for (int k = 0; k < e.n; ++k) {\n",
          "    if (!e.placed) { Entry& m = const_cast<Entry&>(e); m.px = (int16_t)x; m.py = (int16_t)y; m.placed = true; }\n"
          "    x = e.px;\n    y = e.py;\n"
-         "    const int lineHeight = f.LineHeight();\n    int placed = 0;\n    for (int k = 0; k < e.n; ++k) {\n")], SEQ),
-    # An input dropped from the key, beside the formatters: the squawk.
+         "    const int lineHeight = f.LineHeight();\n    int placed = 0;\n    for (int k = 0; k < e.n; ++k) {\n")],
+     SEQ | SEQH),
+    # An input dropped from the key, beside the formatters: the squawk. SEQ moves a float every frame, so its key never
+    # holds and it cannot see this (4h's finding); SEQH changes one input at a time, so it can (4i).
     ("P6-KEYDROP: the squawk out of LabelKey", [(FIELDS, "    k.Str(t.state.squawk.c_str());\n", "")],
-     {"P6-COVER"} | SEQ),
-    # No sharing: every Refresh refills, so the draw never finds the box's entry (correct, and slow).
-    ("P6-NOSHARE: every lookup refills", [(CACHE, HIT, "    if (false) {\n")], {"P6-SHARE"}),
+     {"P6-COVER"} | SEQH),
+    # No sharing: every Refresh refills, so the draw never finds the box's entry (correct, and slow). SEQH's control
+    # requires keys held across frames, so it reads red too: with no hits, SEQH has exercised nothing it exists for.
+    ("P6-NOSHARE: every lookup refills", [(CACHE, HIT, "    if (false) {\n")], {"P6-SHARE"} | SEQH),
+    # The orchestrator's (4i): a hit returns the PREVIOUS fill's widths. SEQ's draw hits within each frame, so SEQ reads
+    # it too.
+    ("P6-HITWIDTH: a hit returns the previous fill's widths", [
+        (CACHE, "    int16_t width[kLines] = {};\n", "    int16_t width[kLines] = {};\n    int16_t prev[kLines] = {};\n"),
+        (CACHE, "        e.width[j] = (int16_t)f.Width(text);\n",
+         "        e.prev[j] = e.width[j];\n        e.width[j] = (int16_t)f.Width(text);\n"),
+        (CACHE, HIT_COUNTED, HIT_COUNTED + "        for (int j = 0; j < e.n; ++j) e.width[j] = e.prev[j];\n")],
+     SEQ | SEQH),
+    # Only a key held across frames can show this one: from the second CONSECUTIVE hit on, the widths drift. SEQ never
+    # hits twice in a row (each frame's box refills), so it must stay green.
+    ("P6-HELDHIT: widths drift from the second consecutive hit", [
+        (CACHE, "    int16_t width[kLines] = {};\n", "    int16_t width[kLines] = {};\n    uint8_t run = 0;\n"),
+        (CACHE, "    e.valid = true;\n", "    e.valid = true;\n    e.run = 0;\n"),
+        (CACHE, HIT_COUNTED,
+         HIT_COUNTED + "        if (++e.run >= 2) for (int j = 0; j < e.n; ++j) e.width[j] = (int16_t)(e.width[j] + 1);\n")],
+     SEQH),
 ]
 
 ROW = re.compile(r"^\s*FAIL\s+(P6-[A-Z]+(?:@\d+)?|CMP control)\s", re.M)
@@ -129,7 +150,7 @@ def anchor_entries():
 
 # --control: this driver's unplanted run alone, its suite against its own count. OK_COUNT is the one place the count
 # lives (lint_driver_counts.py): main()'s unplanted run reads it too.
-OK_COUNT = 6
+OK_COUNT = 9
 CONTROL_TABLE = {"test_p6_labels": ("ok", OK_COUNT)}
 
 

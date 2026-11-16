@@ -276,6 +276,107 @@ void Seq(int nc)
     Row(mismatches == 0 && control, "P6-SEQ@" + std::to_string(nc), what);
 }
 
+// P6-SEQH (amendment 4i): the inputs HELD across frames, as on the device, and changed by events, one input each, so
+// a key that misses an input serves a stale text. Contacts still move every frame. During a field's solo window,
+// every other event changes one of THAT field's inputs, so each input changes alone while its field is drawn.
+constexpr int kHeldMaskFrames = 40;
+constexpr int kInputs = 16;   // LabelKey's inputs, in its order
+
+int FieldOfInput(int in)   // the info field (AIRCRAFT_INFO_FIELDS' order) an input is drawn by
+{
+    if (in < 4) return in;     // callsign, type, operator, registration
+    if (in < 6) return 4;      // route origin and destination
+    return in - 1;             // icao, country, speed, vrate, baro, geo, heading, squawk, category, position source
+}
+
+void Event(TrackedAircraft& t, int c, int in, int n)
+{
+    const std::string tag = std::to_string(n);
+    const bool empty = n % 4 == 3;   // now and then a string goes empty (its field is skipped)
+    static const int cats[] = {0, 2, 4, 6, 8, 9, 13, 14, 20};
+    switch (in) {
+        case 0: t.state.callsign = empty ? "" : (n % 2 ? " CS" + tag + " " : "CS" + tag).c_str(); break;
+        case 1: t.typeCode = empty ? "" : ("T" + tag).c_str(); break;
+        case 2: t.operatorName = c == 1 ? (std::string(45, 'O') + tag).c_str() : ("Op " + tag).c_str(); break;
+        case 3: t.registration = empty ? "" : ("N" + tag + "X").c_str(); break;
+        case 4: t.routeOrigin = empty ? "" : ("O" + tag).c_str(); break;
+        case 5: t.routeDest = n % 3 == 2 ? t.routeOrigin : String(("D" + tag).c_str()); break;
+        case 6: t.state.icao24 = ("a" + tag).c_str(); break;
+        case 7: t.state.originCountry = c == 0 ? (std::string(170, 'C') + tag).c_str() : ("Land" + tag).c_str(); break;
+        case 8: t.state.velocity += 3.0f; break;
+        case 9: t.state.verticalRate += 1.0f; break;
+        case 10: t.state.baroAltitude += 10.0f; break;
+        case 11: t.state.geoAltitude += 10.0f; break;
+        case 12: t.state.trueTrack = (float)(((int)t.state.trueTrack + 7) % 360); break;
+        case 13: t.state.squawk = empty ? "" : ("7" + tag).c_str(); break;
+        case 14: t.state.category = cats[n % 9]; break;
+        default: t.state.positionSource = n % 5; break;   // 4 formats to ""
+    }
+}
+
+void SeqHeld(int nc)
+{
+    const auto masks = Masks();
+    const int frames = kHeldMaskFrames * (int)masks.size();
+    std::vector<TrackedAircraft> ts((size_t)nc);
+    std::vector<labelcache::Slot> slots((size_t)nc);
+    std::vector<int> px((size_t)nc), py((size_t)nc), vx((size_t)nc), vy((size_t)nc), events((size_t)nc, 0);
+    std::vector<long> changes((size_t)nc, 0);
+    for (int c = 0; c < nc; ++c) {
+        Set(ts[(size_t)c], c, 0);   // a full first fill, then events only
+        px[(size_t)c] = 12 + (c * 53) % 216;
+        py[(size_t)c] = 12 + (c * 97) % 216;
+        vx[(size_t)c] = (c % 5) - 2;
+        vy[(size_t)c] = ((c / 5) % 5) - 2;
+        if (!vx[(size_t)c] && !vy[(size_t)c]) vx[(size_t)c] = 1;
+    }
+    labelcache::Stats st;
+    long mismatches = 0, cfs = 0, boxHits = 0;
+    for (int f = 0; f < frames; ++f) {
+        const size_t mi = (size_t)(f / kHeldMaskFrames) % masks.size();
+        const std::vector<bool>& on = masks[mi];
+        const int solo = mi < AIRCRAFT_INFO_FIELD_COUNT ? (int)mi : -1;   // Masks() puts each field alone first
+        for (int c = 0; c < nc; ++c) {
+            TrackedAircraft& t = ts[(size_t)c];
+            const int period = 3 + c % 3;
+            if (f > 0 && f % period == 0) {   // an event: one input changes
+                const int k = events[(size_t)c]++;
+                int in = (k * 7 + c) % kInputs;
+                if (solo >= 0 && k % 2 == 0) {
+                    for (int j = 0; j < kInputs; ++j)
+                        if (FieldOfInput((k / 2 + j) % kInputs) == solo) { in = (k / 2 + j) % kInputs; break; }
+                }
+                const auto before = Texts(t);
+                Event(t, c, in, k);
+                if (Texts(t) != before) ++changes[(size_t)c];
+            }
+            int& x = px[(size_t)c];
+            int& y = py[(size_t)c];
+            x += vx[(size_t)c];
+            y += vy[(size_t)c];
+            if (x < 4 || x > 235) { vx[(size_t)c] = -vx[(size_t)c]; x += 2 * vx[(size_t)c]; }
+            if (y < 4 || y > 235) { vy[(size_t)c] = -vy[(size_t)c]; y += 2 * vy[(size_t)c]; }
+            const Fields fl{t, on};
+            const long h0 = st.hits;
+            Cached(fl, slots[(size_t)c], x, y, st, nullptr);   // the box: a hit here is a key held across frames
+            if (st.hits == h0 + 1) ++boxHits;
+            const Lay got = Cached(fl, slots[(size_t)c], x, y, st, nullptr);   // the draw
+            if (!Same(got, Today(fl, x, y))) ++mismatches;
+            ++cfs;
+        }
+    }
+    long minChanges = changes.empty() ? 0 : changes[0];
+    for (long v : changes) minChanges = v < minChanges ? v : minChanges;
+    const bool control = minChanges >= 1 && boxHits > 0 && st.refills > 0 && st.uncached > 0;
+    char what[512];
+    std::snprintf(what, sizeof what,
+                  "%ld mismatches over %ld contact-frames (want 0); box hits (keys held across frames) %ld, refills "
+                  "%ld, uncached %ld; fewest text changes of a contact %ld (control: >= 1, and box hits, refills and "
+                  "uncached all above 0: %s)",
+                  mismatches, cfs, boxHits, st.refills, st.uncached, minChanges, control ? "yes" : "NO");
+    Row(mismatches == 0 && control, "P6-SEQH@" + std::to_string(nc), what);
+}
+
 }  // namespace
 
 int main()
@@ -295,6 +396,7 @@ int main()
                 (unsigned)sizeof(labelcache::Entry), labelcache::kKeyBytes, labelcache::kTextBytes);
     Cover();
     for (int n : {20, 40, 60}) Seq(n);
+    for (int n : {20, 40, 60}) SeqHeld(n);
     Row(gShareMiss == 0 && gShareChecks > 0, "P6-SHARE",
         std::to_string(gShareChecks) + " frames whose box refreshed; the draw missed on " + std::to_string(gShareMiss) +
             " (want 0)");
