@@ -927,3 +927,18 @@ run.**
 - An unmarked write found on the wired tree is reported, and the wiring is fixed only after a ruling.
 - A plant off its row is reported.
 - Anything else: stop.
+
+**Two corrections and three counts, written after the code and BEFORE any run:**
+- **`BandCanvas` has 14 drawing methods, not 15.** The audit's message and the list above miscounted, and the 15th
+  was a setter. The 14: `fillScreen`, `drawString`, `drawLine`, `drawCircle`, `fillCircle`, `fillTriangle`,
+  `fillRect`, `drawRect`, `fillRoundRect`, `drawRoundRect`, `drawFastHLine`, `drawFastVLine`, `fillArc` and `drawArc`.
+- **`CheckLayerCopy` now takes the canvas and calls `DirtyAll()` itself.** With the `All()` in its caller, the static
+  row would have rested on a claim about another function. That is CLAUDE.md's "a justification is a claim about
+  code you are not editing".
+- **The predicted counts** (found by `grep`, not by running the check):
+  - `W-CANVAS`: 14 drawing methods, none unmarked.
+  - `W-DIRECT`: 20 sites, 8 in marking functions and 12 allowed, none unmarked.
+    - The 8 are `CheckLayerCopy` (2), `DrawWeatherUnder` (3), `DrawSweepOverWeather` (2) and the photo push (1).
+    - The 12 are the outline scratch's read, the photo sprite's 5 null tests, main.cpp's 3 reads (M3-9, /diag/fb
+      and M3-1b), and the boot and splash screens' 3 null tests.
+  - `W-GEN`: 1 function writes the layer (`RebuildWeatherLayer`), and it bumps.
