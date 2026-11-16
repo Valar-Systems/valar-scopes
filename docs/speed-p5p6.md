@@ -776,3 +776,70 @@ Read against 4k's predictions, pushed at `b8989f3dbcf0` before the run. The code
     each present exactly once.
   - test_p5_outline: all checks passed.
   - check_frame_bench.py: 15 rows, 0 failed, and its selftest PASSED.
+
+### 4m. P5 1c's host core: rows and plants, as built (2026-11-16, before any run)
+
+**Where:** `bench/speed-p5`, on top of 1b: `include/DirtyClear.h`, `test/host/test_p5_clear.cpp`,
+`test/host/sabotage_p5_clear.py`, and a `run.sh` block.
+
+**NOT in this step: the firmware wiring.** The dirty restore is exact only if every write over the layer either marks
+its box or forces a full restore. So wiring it means four things:
+- `BandCanvas` marks every primitive it forwards;
+- every direct buffer write adds its spans (the sweep's, and anything that draws through `canvas.sprite()`);
+- every full-restore event calls `All()`: a layer rebuild, the layer turning on or off, another face or a card, the
+  M3 test frame;
+- a device check scene compares the dirty restore with a full clear on every frame.
+
+The host cannot see whether that list is complete, and a missed path is a ghost on the glass. So the wiring waits for
+an audit of every write path in the radar frame, sent to the orchestrator for a ruling before any of it is written.
+
+**The design** (the header's comment has it in full):
+- Each buffer keeps a dirty set: per row, one span, the union of every mark since that buffer's last restore.
+- `Restore` copies those spans back from the layer, plus the indicator's band on every frame.
+- It is a FULL copy when the buffer is fresh or the layer's generation moved.
+- The marks are conservative boxes, one per LovyanGFX primitive.
+
+**The rows:**
+- `CMP control`: one changed pixel reads 1.
+- `MARK-COVER`: 4,000 primitives (triangles, lines, circles, discs, rects with negative sizes, fast hlines), on screen,
+  partly off and wholly off. Every pixel the ported raster writes must lie inside its mark.
+- `SEQ2`: 600 frames on two alternating buffers.
+  - Each frame draws 40 moving primitives through a marking canvas, then the indicator WITHOUT a mark (the worst
+    case).
+  - The layer is rebuilt every 97 frames.
+  - After every `Restore` the buffer must equal the layer, pixel for pixel; after the frame it must equal a
+    full-clear twin.
+  - The control: both full and partial restores happen.
+- `IND-STOP`: 200 frames, with every fifth frame from frame 5 stopped before the indicator, and primitives kept off the
+  band. On a stopped frame, the band's pixels must equal the full clear's.
+
+**The plants and their red sets:**
+
+| plant | planted in | red on exactly |
+|---|---|---|
+| P5-INDSKIP (section 1c's): the band left out of the restore | `DirtyClear.h` | `SEQ2`, `IND-STOP` |
+| P5-ONEBUF (section 1c's): one set for both buffers | SEQ2's wiring, in the test (the caller owns the sets) | `SEQ2` |
+| P5-LAYERGEN (new): a rebuilt layer not forcing a full restore | `DirtyClear.h` | `SEQ2` |
+| P5-MARKSHORT (new): a triangle's mark one column short | `DirtyClear.h` | `MARK-COVER`, `SEQ2` |
+
+Section 1c reads INDSKIP on "a frame stopped before DrawScreenIndicator still shows dots", which is IND-STOP. SEQ2 reads
+it too, because the unmarked dots survive the restore there.
+
+**Predictions for the first run** (WSL `Ubuntu-24.04`, g++ 13.3, run.sh's flags), frozen here:
+1. **test_p5_clear:** 4 ok, exit 0.
+   - MARK-COVER: 4,000 primitives, 0 pixels outside their mark.
+   - SEQ2: 0 pixels off the layer after Restore, and 0 off the twin. Full restores 14: both buffers' first use, plus
+     both buffers after each of the 6 rebuilds. Partial restores 586.
+   - IND-STOP: 39 stopped frames, 0 band pixels differ.
+2. **sabotage_p5_clear.py:**
+   - each plant red on exactly its set, exit 0;
+   - `--anchors`: 4 plants, 5 anchors (ONEBUF has two), each present exactly once;
+   - `--control`: 4 ok;
+   - lint: 0 flagged.
+
+**Outside the set:**
+- A pixel off in SEQ2 or IND-STOP, or one outside its mark, stops 1c. It is reported, and nothing is fixed before a
+  ruling.
+- A full or partial count other than 14 and 586 is reported.
+- A plant off its set is reported, not re-predicted.
+- Anything else: stop.
