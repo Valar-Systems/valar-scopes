@@ -2544,3 +2544,77 @@ reviewer's ruling.** What the ruling has in front of it:
 **The lesson, for every later CPU band:** freeze the statistic the bill is made of, which is the sum per invocation
 (Workers analytics' `cpuTimeUs` over requests). A median-weighted product of counts and medians is not a mean. On a
 right-skewed cost it reads low, and here that was enough to cross a band edge that the bill itself did not cross.
+
+#### S4.29, 2026-11-16 15:3xZ: PK-unknown pairs by index, red first (registered before any code)
+
+**Why.** At 15:13Z the owner ruled that every check comparing package layers "against the first of its kind" be
+listed: a package carries THREE terrain sections, and a first-of-type pairing compares the wrong ones. map-client's
+read-only sweep found one instance in this suite, and the reviewer routed it here as not a v20 blocker.
+- The instance: `test/host/test_wx_basemap.cpp:152`, `pm.Find(s.type)`, row PK-unknown (3.5b, #507), blob
+  `bae01a0d7824` on main `074863fc90c1`.
+- `bmpk::Package::Find` returns a type's FIRST section (`include/BasemapPackage.h:89-92`).
+- The validator refuses duplicates of types 1-5 and 7 only (line 348). So TERRAIN (6) is the one known type that
+  repeats: one section per level.
+
+**PK-unknown's recorded PASS stands.** Its inputs, read from the files' directories:
+- syn-min has 7 sections, 1 of them terrain.
+- syn-unknown has 8 sections, 1 of them terrain (plus type 9).
+- So the first match was the only match, and every pair was right.
+- Three repo fixtures carry 3 terrain sections each: bend, kjac and ksfo. bend's three levels are each 60,524 B
+  (N = 246), and no two are byte-identical.
+
+**What today's pairing does on a 3-terrain pair.** It fails in BOTH directions:
+- **A false RED on identical packages.** Level 1 is compared with level 0, and their bytes differ.
+- **A false GREEN whenever every terrain of `got` equals `ref`'s FIRST terrain,** whatever `ref`'s other levels hold.
+  This is the direction the reviewer named: a level-2 change it cannot see.
+
+**The change, test-only.** One helper in the test, `SameKnownSections(ref, got, &known)`:
+- It takes each package's known sections (types 1-7) in directory order.
+- It requires equal counts and an equal TYPE SEQUENCE.
+- It then pairs by INDEX, comparing count, length and bytes.
+- PK-unknown routes through it, and its condition is otherwise unchanged (`known == pm.nSections`).
+- `BasemapPackage.h` is not touched. `Find`'s production callers ask only for types 1-5, which the validator keeps
+  unique. Making `Find` refuse a repeatable type would change a firmware header, so it is a separate decision.
+
+**Two rows** (PK 30 → 32, the suite 96 → 98), both built from bend.bmpk in memory. No fixture file is added or changed.
+
+- **PK-pair3-same:** bend against itself must read SAME.
+  - The row also requires that bend validated and has exactly 3 terrain sections.
+- **PK-pair3-lvl2:** two packages that differ ONLY at terrain level 2 must read NOT SAME.
+  - Both are copies of bend's `Package` with directory entries aliased; no bytes change.
+  - `ref`'s levels are [L0, L0, L2] and `got`'s are [L0, L0, L0].
+  - The row also requires, by its own per-index compare, that levels 0 and 1 are equal and level 2 is not. That
+    proves the construction took, and that nothing else differs.
+
+**Red first.**
+- **Step R:** the helper holds TODAY's pairing VERBATIM (Find-first), with both rows added and every pin at 98. It is
+  committed.
+- **Step G:** the by-index pairing replaces it, and nothing else changes. It is committed.
+- Both commits are pushed together, so R stays in the history, and CI runs on G.
+- The two rows stay in the suite. A later revert to first-of-type pairing turns them red, so this is a guard that
+  runs, not a rule that has to be remembered.
+
+**The pins moved 96 → 98**, every reader, per S4.22:
+- `test_wx_basemap.cpp` lines 3, 9 and 36 (`kCases`);
+- `sabotage_wx_basemap.py` lines 12 and 30 (`CASES`);
+- `sabotage_wx_themed_draw.py` line 39 (`"basemap": ([WX], 96)`);
+- `run.sh` line 2270.
+
+The PK family count moves 30 → 32 at `test_wx_basemap.cpp` lines 4 and 103.
+
+**Predictions, frozen here** (WSL `Ubuntu-24.04`, g++ 13.3, run.sh's flags; the drivers with `CXX=g++`):
+
+| step | run | predicted |
+|---|---|---|
+| R | `test_wx_basemap` | 98 cases. FAIL exactly {PK-pair3-same, PK-pair3-lvl2}, exit 1. PK-same fails in the byte compare at level 1. PK-lvl2 fails because the helper reads SAME, the false green. PK-unknown is ok, with today's text ("syn-unknown: kOk; 7 known sections equal syn-min's"). |
+| G | `test_wx_basemap` | 98 cases, 0 failures, exit 0. PK-unknown's text is unchanged. |
+| G | `sabotage_wx_basemap.py` | The control reads 98 cases, 0 failures. All 16 plants each fail exactly their frozen set, unchanged; validate.py's own two read as today; exit 0. None of its three `BasemapPackage.h` plants (S-PKCRC, S-TCOUNT, S-PCOUNT) stops bend validating, so neither new row joins a set. |
+| G | `sabotage_wx_basemap.py --control` and `--anchors` | As today. |
+| G | `sabotage_wx_themed_draw.py` | basemap reads 98. S-NL and S-KD fail exactly their frozen sets (S-KD is a colour plant; the PK rows read no colour); exit 0. |
+| G | the four gates, then CI on the PR | All 0, then green. |
+
+**Outside the set:** any other row red at R or G, a count other than 98, any driver set that moves, or a rig refusal.
+Any of these means stop, report, and no fix before a ruling.
+
+**Delivery:** a PR from `weatherscope/pk-unknown-pairing` to main. I never merge my own PR. The reviewer gets one line
+with the sha.
