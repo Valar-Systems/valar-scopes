@@ -288,3 +288,55 @@ frozen, and RH0 gains one refusal (below).
   - The preflight refuses `keep` when a hash already exists, and `check` when none does.
   - In `fresh-boot-form.py`, H1-H5 cover it: equal, a changed value, an added field, refusing to overwrite, and a
     missing file not reading as equal. F7 also requires that the sentinel value is absent from the saved hash file.
+
+### Addendum 2 (2026-11-16 ~05:00Z): the first live runs, the fixes, and what the next sitting watches
+
+Nothing above is edited. The rows above graded the 2026-11-16 03:43-04:32Z attempts as follows. Before that night,
+no run had gone past the dry run's exit, so every board step was live for the first time.
+
+- **RH0:** the first start (03:52:12Z) was REFUSED with `INSTRUMENT: git show failed`. `fresh-boot-cadence.py` takes
+  the repo from the current folder, and his terminal was outside the tree. Nothing was touched. The second start,
+  from inside the tree, passed.
+- **RH1:** R0 read `000` at 03:54:55Z, and the "if not" column held: nothing was changed. `board-port.py --host`
+  already returns `<name>.local`, and the driver appended `.local` again. After the fix, R0 read 200 at 04:06:33Z
+  (57 fields, no masked secret).
+- **RH2 and RH3 passed:** K-guard 403, K-reset refused, the reset seen at 04:06:51Z, K-wifi held for 90 s, and
+  CONNECTED at 04:12:19Z.
+- **RH4 stopped:** step 2b's POST read `000`. The firmware restarts once after provisioning ("provisioned via the
+  portal -- restarting so the config server can bind :80"), and the driver had taken the CONNECTED before that
+  restart. Read afterwards, K-loc could not have passed either: it read saved-location slot 0 (`loc0-*`, empty after a
+  reset) and expected `47.4500`. `/location` writes `latitude`/`longitude`, as `CoordParse::Format`, which strips
+  trailing zeros: `47.45`.
+- **R1, run by hand from the snapshot:** the restore left the logbook ON ("57 of 58; differ: logbook"). `/save` turns
+  an absent box OFF only when the post carries `cfg-toggles`, which the page's own JS appends, and the form tool built
+  its bodies without it. Daniel unticked the logbook on his page, and E2:08 then read 57 of 57 against the kept hash
+  (04:31:54Z and 04:32:02Z).
+
+**The fixes**, each shown red before green, on `blipscope-5c/fresh-boot-auto` (local until pushed behind the guards):
+
+| commit | fix | the red-first proof |
+|---|---|---|
+| `9fd4a13b499d` | R0's host gets `.local` only when board-port's name lacks it | old line 000, new 200, old 000, back to back against the board |
+| `0f1620ace1ba` | `cfg-toggles` in every form body (compare ignores it; the hash never sees it) | CT1/CT2 red on the old code, F5/CT4 red on a half fix, 22 green |
+| `0f1620ace1ba` | step 2 waits for the CONNECTED after the provisioning restart, then for the page | replayed on that night's capture: old picks line 150, new picks 195; with no restart it keeps 150 |
+| `0f1620ace1ba` | an early stop removes `$WORK` (his pages) | old trap left 1 work dir, new 0 |
+| `74949590eb02` | K-loc reads `latitude`/`longitude` and expects `47.45` / `-122.31` | on a page built from the firmware's form lines: old STOPS, fields alone STOP, fix PASSES |
+
+**The next sitting's added predictions.** These are new rows. The rows above still stand, as does the escape row.
+
+| row | predicted | if not |
+|---|---|---|
+| **RH1-host** | R0 `GET /` by the single-`.local` name reads 200 | stop, nothing changed |
+| **RH3-restart** | step 2 takes the CONNECTED after the provisioning restart, and the page answers within 60 s | stop at step 2, naming which wait ran out |
+| **RH4-loc** | step 2b POST 200, and K-loc equal on `latitude`/`longitude` | stop |
+| **RH5-cut** | step 5 reads CLAIMED. The post-cut steps address the board by its PRE-cut IP: if the board takes a NEW DHCP lease after the cut, step 5 reads NOBACK and the run stops | NOBACK is an honest stop and a FINDING, never a pass and never re-run on the spot |
+| **RH5-off** | step 6's POST carries `cfg-toggles`, and `--grade-off` reads the logbook OFF | a red is a FINDING (as RH5) |
+| **RH7-clean** | R2 equal, with `cfg-toggles` ignored, and no `fba-*` work dir left in his config folder after any end, early or not | report the dir by name; never its contents |
+
+**Live for the first time at the next sitting (watch these):** R0's `check` branch; the R0 body carrying
+`cfg-toggles`; step 2's new waits; step 2b and K-loc; step 3's claim wait from the driver; steps 4-6 and the grades as
+called from the driver; step 5's own block (the background grade, the sleep, the switch); step 6's POST; R1 from a
+`cfg-toggles` snapshot; R2's compare; the EXIT trap's `$WORK` cleanup; both sabotage branches; `--drop-handback`.
+
+**Launch** from inside the tree (`cd` into it first), until the cadence check stops taking the repo from the current
+folder.
