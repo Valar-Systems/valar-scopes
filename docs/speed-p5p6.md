@@ -1593,3 +1593,70 @@ own. Nothing else in 4w moves, and 4s's grades are untouched.
 **Earliest start:** after #735 merges (its sha is then named here) AND the reviewer's acceptance of this section. The
 slot is the reviewer's to book, around E2:08's FT-HR (12:54Z), S2b (17:50Z) and the owner's sitting (22:00Z), with v19
 priority.
+
+### 5a. Each band's derivation, and a correction to section 5's H-P6 bands (2026-11-16 ~22:1xZ, before anything ran)
+
+**Why this section exists.** The reviewer accepted section 5 (`8b0f9cbc87d2`) except for one point: every band must be
+derivable as written. H-P5 checks out (−4,856 ± 2,048). But section 5's H-P6 `free8` band `[−2,216, +2,048]` is not
+C ± 2,048 for any C, and its `psram_free` band `[−24,576, −6,720]` adds its allowance on one side only.
+- **The cause was mine.** I put the allowance on −168 at one edge and on 0 at the other, and I bounded the entry count
+  instead of deriving it.
+- **The rule:** a band that cannot be derived is a band chosen after the fact.
+- **Nothing has run,** so this re-registers both. Section 5 stays as frozen; this section supersedes its two H-P6 bands
+  and adds one row (H-NOISE-PS). Every other row stands.
+
+**New readings from the frozen ELFs, read-only.** gdb, `xtensa-esp32s3-elf-gdb -batch -nx`, on 4s's archived files:
+- `sizeof(labelcache::Entry)` = **336** on the device (B5). This is the same as the host's figure.
+- `sizeof(labelcache::Slot)` = **4**.
+- `sizeof(TrackedAircraft)` = **1,036** in B3 and B4, and **1,040** in B5. P6 adds the 4-byte slot to every contact
+  record; P5 adds nothing.
+- `appManager.trackedAircraft` is a **`std::map<String, TrackedAircraft>`**: one heap node per contact, through
+  `std::allocator`.
+
+**The pricing rule** (the TLSF model, reproduced to the byte on every earlier Weatherscope reading). A block of n bytes
+costs `roundclass(n + 12) + 4` in a free-size delta, where the class width is `2^(floor(log2 m) - 5)` for m ≥ 128.
+- **One label-cache entry:** 336 + 12 = 348 rounds to 352 (width 8), plus 4, so **356 B**.
+- **One map node:** about 1,070 B, where the width is 32. A record 4 B larger therefore moves every node either **0 or
+  one 32-B class**, and all 40 nodes move the same way, because they are the same size. Either 0 or 40 × 32 = 1,280 B.
+- Whether the nodes sit in internal RAM or PSRAM depends on the malloc threshold, which is not read here. The bands
+  below cover both.
+
+**The two allowances, chosen BEFORE any reading.** No `[health]` series exists for these images.
+- **J = 2,048 B** for internal heap.
+- **J_ps = 4,096 B** for PSRAM, wider because the poll's JSON documents land there.
+- Each band is the derived expected value or range, widened by its allowance on BOTH sides.
+- **H-NOISE and the new H-NOISE-PS** check that each allowance is not smaller than the line-to-line noise.
+
+**The derivations.**
+
+| row | expected change (from which reading) | allowance | band |
+|---|---|---|---|
+| H-P5 `free8` and `heap free` (B4 − B3) | **−4,856**: 4y's section deltas, `.dram0.bss` +4,248 and `.dram0.data` +608, both carved out of internal DRAM before the heap starts. `TrackedAircraft` is unchanged (1,036). | ± 2,048 | **[−6,904, −2,808]**, unchanged from section 5 |
+| H-P5 `psram_free` (B4 − B3) | **0**: P5's sets are internal statics, and no record grows | ± 4,096 | **[−4,096, +4,096]**, unchanged |
+| H-P6 `free8` and `heap free` (B5 − B3) | **−8 to −1,288**. −8 is the statics (4x, B5 − B3 `.dram0.bss` +8). Down to −1,288 if the map nodes are internal and each steps one class. | ± 2,048 | **[−3,336, +2,040]**, SUPERSEDING `[−2,216, +2,048]` |
+| H-P6 `psram_free` (B5 − B3) | **−14,240 to −15,520**. −14,240 is 40 entries × 356 B: k = 40, the scene's level (`kLevel`), with every contact on screen and every key and line inside the cache's limits. Down to −15,520 if the nodes are in PSRAM and each steps one class. | ± 4,096 | **[−19,616, −10,144]**, SUPERSEDING `[−24,576, −6,720]` |
+
+**The two halves still discriminate.**
+- If the entries were INTERNAL, `free8` would move about −14,248 (below −3,336) and `psram_free` about 0 to −1,280
+  (above −10,144). Both bands fail.
+- If `free8` is in band and `psram_free` is out of band, the entries are in PSRAM but k ≠ 40. That is reported as
+  read. No band moves.
+
+**The other floors' derivations:**
+- **R-CLEAR and R-LABELS, n ≥ 100.** Each check scene runs 220 s (100 s settle + 120 s measure), and at any running
+  frame rate (≥ 1 fps) that gives ≥ 220. The floor only separates "ran" from "did not run". It is not a rate claim.
+- **H-TLS, `tlsOk=1`.** CanHandshake's trial allocation succeeds on v19's internal heap today. The largest internal
+  cost here is B4's −4,856 B.
+  - **What's missing:** no headroom figure is on record, so the prediction rests only on the handshake working today.
+  - **A `tlsOk=0` line is a finding** for the heap row, not an instrument failure.
+
+**One added row.** **H-NOISE-PS:** each image's `psram_free` max − min over its 10 graded lines is ≤ 4,096 B.
+Otherwise the `psram_free` halves of H-P5 and H-P6 read **UNTRUSTWORTHY at this scale** (no verdict, report,
+decide), exactly as H-NOISE does for `free8`.
+
+**Premise, stated:** arduino-esp32's `ESP.getFreeHeap()` returns internal free, so `heap free` shares `free8`'s center.
+If B3's `heap free` and `free8` differ by more than J, `heap free` is recorded, not graded.
+
+**Unchanged:** everything else in section 5. That covers the images and their shas, the table, the tools and STOP
+lines, the sequence and timeline, the hard end at start + 95, the seal (`trace_filter.py` `eb31148e50ec`), the
+restore, and the outside-the-set lines.
