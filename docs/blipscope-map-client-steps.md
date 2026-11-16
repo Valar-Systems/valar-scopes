@@ -3384,6 +3384,39 @@ graded figures. That is the measured cost of a fetch, the number (iii) asked for
 **This push's guards, in their corrected form.** The HEAD check and the previous run's completion are PowerShell
 statements that `throw`, run before the `&&` chain of process checks. They are not links in it.
 
+**The CI for `73351313` (docs only), as read** (finished about 07:50Z). Every item read as predicted:
+- 35 = 31 success / 4 skipped (`promote`, `publish`, `ship-alert`, `version`) / 0 failed;
+- every leg's checkout reads `2526eb2 Merge 73351313… into f3fee349…`;
+- `ota-identity`: the table equals the fleet;
+- both host legs: OTA identity 22 / 0, OTA model `9 rows; 18 checks, 0 failures`, OTA install 42 / 0; MapDraw 11 / 0,
+  MapPlaces 32 / 0, MapCompose 26 / 0; `40 driver(s): 39 run, 1 skipped`; lint 40 / 0 / 3; compose 15, draw 18 and
+  places 6 AS PREDICTED lines; `ALL HOST TESTS PASSED`;
+- the mapbench leg: the gate reads `found 0 1 PASS`, and the markers are as before.
+
+**A stale comment from the identity fix, corrected (the orchestrator's yes, 07:52:42Z).** Step C's sweep of the bare
+number 26 found `test/host/test_ota_identity.cpp`'s header still describing the old identity counts.
+- **My miss, from `935a2946`:** that commit moved the pins, but not this comment, which states them beside the pins.
+- **Comment only:** no reading moved, and CI was green throughout.
+- **What changed:**
+  - line 10: M1 `38 accepted, 26 refused` became `51 accepted, 30 refused`;
+  - line 11: M2 `78 of 78` became `90 of 90`;
+  - line 12: M3 `16 accepted, 48 refused, 22 of them cross-scope` became `23 accepted, 58 refused, 28`;
+  - lines 13-14: "the 8 built envs" became "the 9", with the mapbench env's arrival named.
+- **Line 8, found while editing:** R1's `8 envs x 3 scopes` became `9 envs x 3 scopes`. It is the same block and the
+  same miss, though the sweep for 26 could not see it, so it is included and named here.
+- **Where it goes:** it rides on #659's next push, and step C rebases onto it.
+
+**The CI for `aff4bede` (docs only), as read** (finished about 08:05Z). Every item read as predicted:
+- 35 = 31 / 4 / 0;
+- every leg's checkout reads `09ff5f4 Merge aff4bede… into f3fee349…`;
+- `ota-identity` green;
+- both host legs: OTA 22 / `9 rows; 18` / 42; MapDraw 11, MapPlaces 32, MapCompose 26; `40 driver(s): 39 run, 1
+  skipped`; lint 40 / 0 / 3; compose 15, draw 18 and places 6 AS PREDICTED lines; `ALL HOST TESTS PASSED`;
+- the mapbench leg: the gate reads PASS, and the markers are as before.
+
+**This push** (`b06f32b9`, the identity comment, and this record) is predicted to read the same: the comment changes no
+reading.
+
 ## Step C: the wedge's green added to the map (design, registered before code; 2026-11-12)
 
 **What is fixed already.**
