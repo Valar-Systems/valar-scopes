@@ -504,6 +504,54 @@ the owner's morning list.
   - M3-9's glass photos;
   - the bench self-check commit `9e5198a43d6d`, which is still to push to #687's branch.
 
+**THE 1 ms TICK IN THE PUSH TASK'S DMA WAIT (2026-11-16; observed by map-client; a note with a proposed fix, NO code
+change before the orchestrator's ruling).**
+- **THE OBSERVATION** (map-client, offline, the v20 sibling's B-image proof-window trace `cap10/trace-v20-P`, data in
+  its `s2b_port/p2p_grid.py`): 48% (plain S0) to 92% (push60) of `p2p` values sit EXACTLY on whole milliseconds, and
+  the rest one 10 µs unit below. Image A, the in-loop v19 push and the control, shows 0.9-1.6%.
+- **THE LIKELY MECHANISM, read in the code** (M3 branch `9e5198a43d6d`, `src/main.cpp:233`): the push task waits out
+  its DMA with `while (tft.dmaBusy()) vTaskDelay(1);`.
+  - It wakes only on the 1 ms FreeRTOS tick, so `FrameDone()`, which `p2p` is timed from, lands on a tick boundary.
+  - Each present can therefore come up to 1 ms after the DMA has actually finished; the mean is about 0.5 ms.
+- **A SUPPORTING NUMBER, consistent but not proof:** the panel's SPI clock is 40 MHz (`include/variants/s3_128.h:46`),
+  so one 115,200 B frame is 23.04 ms on the bus.
+  - The measured push, without the sync, is 23,674 µs in P1 (`push_avg_us` 24,143 − `sync_avg_us` 469) and 23,675 µs
+    in the soak.
+  - That leaves about 634 µs over the bus time: a mean half-tick (about 500 µs) plus the start and end overhead fits
+    it.
+- **THE ALTERNATIVES, named:**
+  - (a) **The queue wait at `:215`** (`xQueueReceive(..., portMAX_DELAY)`). It wakes on the loop's send, not on a tick,
+    so it would not quantize the present. Excluded by reading the code.
+  - (b) **The recorder's own timestamp resolution.** Image A goes through the same recorder and shows only 0.9-1.6%,
+    so the recorder cannot be the cause. Excluded by the control.
+  - (c) **The DMA completing on whole milliseconds by itself.** There is no mechanism for that, and A's push runs the
+    same bytes at the same clock without quantizing. Excluded by the control.
+  - (d) **Some other tick-driven wait between the DMA's end and `FrameDone()`.** None is in that span
+    (`endWrite`, `SetPhase`, `FrameDone`, all non-blocking). NOT excluded by data, only by reading the code.
+- **WHAT IT COSTS, predicted:**
+  - up to 1 ms (mean about 0.5 ms) of latency per present, and a ms-quantized `p2p` that makes `p2p` a coarser
+    instrument;
+  - **throughput is probably unchanged:** the buffer comes free at most 1 ms later, and the loop waits on it only
+    about 5 µs a frame (`loop_wait_avg_us`), except in push-bound scenes, where the present cadence itself is
+    quantized.
+- **THE OPTIONS, each with its prediction. NOTHING is changed before the ruling:**
+  - **(1) Do nothing, and record it.**
+    - Prediction: no change.
+    - The cost stays as above. The instrument consequence: graded `p2p` bands keep a 1 ms floor of quantization.
+  - **(2) A hardware completion wait.** The SPI transfer-done interrupt wakes the push task by a task notification,
+    instead of the poll.
+    - Prediction: the share of `p2p` on whole ms falls to A's level (about 1-2%); `push_avg_us` − `sync_avg_us` falls
+      by about 0.5 ms (towards 23.1-23.2 ms); `fr` and `p2p` p95 are unchanged within E in draw-bound scenes.
+    - **ASSUMED until read:** that LovyanGFX's ESP32-S3 `Bus_SPI` leaves the SPI peripheral's transfer-done interrupt
+      free to hook. It programs the peripheral itself, so this needs a code read before it is even a candidate.
+  - **(3) Sleep until about 2 ms before the predicted end, then poll without sleeping.**
+    - Prediction: the quantization goes, as in (2).
+    - BUT the push task, one priority above the loop on the loop's core, spins for up to about 2 ms a frame, so the
+      loop loses that CPU. `fr` rises by up to about 2 ms in draw-bound scenes: a measured trade, not a free fix.
+- **The recommendation:** (2) if the read shows the interrupt is free; otherwise (1), with this note. (3) only with a
+  measured `fr` cost the owner accepts.
+- **Whichever is chosen is registered with C1-style A/B/A bands before any code.**
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
