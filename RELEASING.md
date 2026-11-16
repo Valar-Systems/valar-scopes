@@ -170,9 +170,51 @@ are versioned and released **together** from a single commit, and each device se
    ten minutes of uptime — so a factory-fresh unit was invisible to its own page
    for exactly as long as a new owner would be staring at it.
 
+   **The one standing exception: a fix-only candidate (the owner, 2026-11-11).** In the owner's words: "skip the
+   fresh-boot test (step 4) if blipscope-5c shows, from the source diff between C and the new candidate, that only
+   the update-download code changed and nothing in setup, Wi-Fi, the logbook, claims or touch. If the diff touches
+   anything else, the test runs as before, with me. Make this the standing rule for future fix-only candidates."
+   - **Showing it is a check, not a judgment.** The allowed scope (files and functions) is frozen in the fix's
+     registration before the diff is read.
+   - **Both have to pass:** the source diff, and the built images, compared function by function.
+   - **A control must be shown failing:** a planted change outside the scope, which must read out of scope.
+   - **Anything out of scope, or an instrument that can't decide,** means this step runs as written.
+   - The first use is v19's head-read fix (`docs/ota-head-patience.md`, section 6).
+
+   **Without his hands, and the hands-on counter (the owner, 2026-11-12 16:57Z).** Step 0 can run without the owner's
+   hands, except his one claim tap, once the driver in `docs/fresh-boot-automation.md` exists. That run doesn't cover
+   the glass reset menu or the phone's QR setup. In the owner's words: "The glass reset and the phone's QR setup get
+   the hands-on test whenever their code changes, and at least every third release."
+
+   **THE COUNTER.** This one line is read and updated at every release. The driver parses it, and refuses when it is
+   missing or appears more than once:
+
+   `fresh-boot hands-on: last v19 (step 4', 2026-11-12)`
+
+   **The hands-on run is DUE when either holds:**
+   - **(a) the count:** the candidate's `FW_VERSION` is 3 or more above the counter's. After v19, v22 at the latest.
+   - **(b) the code:** any of these changed since the counter's release tag:
+     - the functions `DrawResetMenu`, `HandleResetMenuTap` and `CloseResetMenu` in `src/AircraftManager.cpp`
+       (`git log -L :<function>:src/AircraftManager.cpp v<last>..<candidate>`);
+     - `src/FactoryReset.cpp`, `include/FactoryReset.h`, `include/SetupQr.h`, `include/QrRender.h` and
+       `include/WiFiManagerHelpers.h`;
+     - the `tzapu/WiFiManager` line in `platformio.ini`.
+
+   **Enforced by the driver, not remembered.** `scripts/fresh-boot-auto.sh` reads the counter and the triggers. It
+   **refuses the automated run when the hands-on run is due**, and prints which condition holds. A hands-on run
+   updates the counter line in that release's record commit.
+
 1. **Bump the version:** edit `FW_VERSION` in `src/OtaUpdater.h` (one number, all SKUs).
    If this takes the number to 7 or above, the gate directly above applies.
 2. Commit + merge to `main`. **Tag from the merge commit, never before it.**
+
+   **Its one exception: v19 (the owner, 2026-11-11).** In the owner's words: "v19 may be tagged from a release branch:
+   C plus the fix only."
+   - The release branch `release/v19` starts at the merged candidate C (`3a322758eadc`).
+   - The fix goes in as a PR, with CI read twice, merged by the rule. The tag is made from that merge commit.
+   - The same patch goes to `main` for v20, with the check that proves it is identical (`docs/ota-head-patience.md`,
+     section 7).
+   - Every other release tags from `main`, as this step says.
 3. **Before pushing the tag, run the pre-tag check against that exact commit:**
 
    ```sh

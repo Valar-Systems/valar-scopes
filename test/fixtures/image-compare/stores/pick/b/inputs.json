@@ -1,0 +1,19 @@
+{
+ "inputs": [
+  {
+   "path": "src/main.c.o",
+   "sha256": "fe1f9e011770bda247123355d8730b837e8d98e4c73eab03dd0b2f59f3abaaa3",
+   "copy": "src/main.c.o"
+  },
+  {
+   "path": "src/pb.cpp.o",
+   "sha256": "b94afa7513c4ac10c176c750126d00972a34bf3b793d7ebd070c036eb2f91882",
+   "copy": "src/pb.cpp.o"
+  },
+  {
+   "path": "src/pa.cpp.o",
+   "sha256": "4d31c9404f46f2a920db0fc139dc292baa654303348a67a4f9bf18c589accdb6",
+   "copy": "src/pa.cpp.o"
+  }
+ ]
+}

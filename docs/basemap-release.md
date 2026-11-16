@@ -626,3 +626,118 @@ from the tile loop on. It bears on Q-W4's memory predictions under B.
 
 **Next:** CI at this head, then the orchestrator's review at an exact sha. The staging deploy waits on the merge, on blipscope-5c's
 `/healthz` fix being merged, and on its slot.
+
+## The staging-builder slot (2026-11-12): the record, written before `deploy.sh` runs
+
+**Granted** by the orchestrator at 15:17:23Z, under the owner's 15:07Z delegation, which now covers the basemap builder Worker. The
+condition held: uk-data's production deploy read green (`/healthz` e3c2508e, ok:true at 15:17:01Z), and `proxy:production` was released
+at 15:16:33Z. **No v19 bench flash while any deploy claim is held.** The orchestrator told blipscope-5c, and blipscope-5c confirmed it.
+
+**The pre-steps, read 15:18-15:20Z** (all read-only):
+
+| read | value |
+|---|---|
+| main | `f3fee349061afc346900a5f85a0eee2034791ce4`. Since last night only #662 has landed (src/weatherscope and tests), so proxy/ is unchanged since af871ecb67b6, whose push-event workers run finished green |
+| **the rollback target** (`wrangler deployments list --config basemap.wrangler.toml --env staging`, typed read-only, ruled (b)) | **`9512e266-951b-46fa-abed-d77a4c9b3d1c` at 100%**, the latest of 4 staging builder deployments, created 2026-11-07T18:13:13Z, stamped fdf62ada9f79. Exit 0, empty stderr |
+| `session-claim.py show` | deploy: free; merge: free |
+| the shell | no `CLOUDFLARE_API_TOKEN` (presence checked as a boolean) |
+| blipscope-5c | no objection: nothing in flight on staging, and no proxy or deploy claim |
+| weatherscope | no objection: nothing depends on the staging builder's current build |
+
+**The deploy, exactly**, in Git Bash, from a clean detached checkout of main's head (`proxy/` porcelain empty):
+1. `BLIPSCOPE_SESSION=map-server python scripts/session-claim.py take deploy --covers builder:staging --until +45m` (repo root);
+2. `BLIPSCOPE_SESSION=map-server bash scripts/deploy.sh --builder staging` (from `proxy/`). Inside, it runs
+   `npx wrangler deploy --config basemap.wrangler.toml --env staging --define BUILD_COMMIT:"<40-hex>"`. **No wrangler command that
+   changes anything is typed.**
+3. the SG requests with the builder's tail alongside (`wrangler tail blipscope-basemap-staging`, typed read-only, Q-RV4): `sg-request.sh`
+   (6e67ae96ee08, fx-request.sh with eps 201168 → 201169 and nothing else) at KLGA (40.78, -73.87), then KJFK (40.64, -73.78);
+4. **D3's binding test:** staging `/healthz` `basemap.commit` == the deployed stamp, and `basemap.store` == `4c0875738f38`;
+5. the claim released, and its time recorded.
+
+**What stops, and how:**
+- A prediction miss on a healthy builder (any SG row but SG-A, or D3 off): **stop**, report to the orchestrator, **no rollback**.
+- **A failed smoke or Worker errors: roll back FIRST, then report at once.** The rollback is **(R1)**, the 15:17:57Z ruling: a committed
+  script, never a typed wrangler command. A new version carries 9512e266's code and config, stamped `fdf62ada9f79`, from a clean
+  detached checkout of `fdf62ada9f795505daed3a38b69c596da43a2809` (on main's history; `proxy/basemap.wrangler.toml` has no diff from
+  main). It runs from that checkout's `proxy/`, **only while the builder:staging claim is held**, because that commit's `deploy.sh`
+  predates the claim guard and won't check it.
+  - **That `deploy.sh` touches only the staging builder.** l.37-41 parse `--builder` and `staging`. l.156-161 run one
+    `npx wrangler deploy --config basemap.wrangler.toml --env "$ENVIRONMENT"` and then `exit 0`, so it never reaches the proxy's secret
+    list (l.190), the proxy's own deploy (l.244) or confirm-deploy (l.269).
+  - **Its behind-main guard applies to `--builder` as well** (l.113-125). fdf62ada is **10** proxy/ commits behind main, so the ruled
+    line exits 1 unless it is given the guard's own escape, `ALLOW_BEHIND=1` ("knowing exactly what you are reverting"). **The line
+    with it is proposed and awaits the orchestrator's ruling. deploy.sh does not run until it is ruled.**
+  - After R1, the confirmation read is staging `/healthz` `basemap.commit` == `fdf62ada9f79` with the store binding unchanged; then
+    report at once. **If R1 itself fails, stop with staging as it stands and report. There is no typed fallback.**
+
+**RULED (15:19:37Z): the R1 line, for the rollback only:** from a clean detached checkout of fdf62ada9f79, run from its `proxy/` and
+only while builder:staging is held: `ALLOW_BEHIND=1 BLIPSCOPE_SESSION=map-server bash scripts/deploy.sh --builder staging`. The 10
+reverted commits it prints are recorded. **The forward deploy from main never sets ALLOW_BEHIND;** if main's deploy.sh refuses for any
+reason, stop and report. `proxy/package.json` and `package-lock.json` are identical between fdf62ada and main, so the installed modules
+serve both.
+
+**RE-ORDERED (15:23:09Z ruling), before the claim:** l.98's store read moves to D3's `/healthz` read, immediately after SG-A's
+first request, because `/healthz` carries no basemap block before a build in the isolate. At 15:22:34Z staging's `/healthz` read HTTP
+200, proxy e3c2508e, ok true, with `basemap.commit` and `basemap.store` both null. **After that first request, both are read:**
+`basemap.store` == `4c0875738f38` (otherwise **every SG row is VOID**: stop and report, no rollback), and `basemap.commit` == the deployed
+stamp, the full HEAD (otherwise D3's meaning, SG-F's: stop). **No further SG request goes out until both read as predicted.**
+**My miss, on record:** l.98 assumed `/healthz` carries the store before any build in the isolate.
+
+### The slot, run (15:24:28-15:26:14Z): the deploy and SG-A at KLGA AS PREDICTED; STOPPED before KJFK, because D3's read cannot follow a 422
+
+- **15:24:28Z: the claim** builder:staging was taken by map-server, until 16:09:28Z. Deploy and merge were free before it.
+- **15:24:42-47Z: `BLIPSCOPE_SESSION=map-server bash scripts/deploy.sh --builder staging`,** from a clean detached checkout of main at
+  `f3fee349061afc346900a5f85a0eee2034791ce4`: exit 0, empty stderr. **Current Version ID `fbc7da46-483e-4988-9177-f449eed238ad`,**
+  stamped `f3fee349061afc346900a5f85a0eee2034791ce4`. Its one binding is `env.STORE (blipscope-basemap)`.
+- **15:24:58Z: the tail** (`wrangler tail blipscope-basemap-staging --format json`, read-only). Its process tree was recorded at
+  launch.
+- **15:25:26-15:26:00Z: SG-A at KLGA** (`sg-request.sh` 6e67ae96ee08, the staging test identity): HTTP 202, 202, then
+  **422 `{"error":"too_large"}`**.
+- **The tail: ONE event.** Outcome **ok**, 0 exceptions, cpu 10,007 ms (staging's `cpu_ms` is 14,530), wall 22,048 ms. `bm_build` status
+  422, rung -1, ladder **249,684 / 205,868 / 186,014 / 41,061, which is RL2's KLGA ladder exactly.** **SG-A at KLGA: AS PREDICTED.**
+- **15:26:01-15:26:14Z: D3's read, moved here by the 15:23:09Z ruling,** read seven times: `basemap.commit` null, `basemap.store` null,
+  `rev` 1. **The cause, read in the source** (`proxy/src/basemap/handler.ts:95-104` on main): a builder 422 returns `too_large` BEFORE the
+  proxy reads `x-basemap-store` and `x-basemap-commit`, and `lastBuild`, which `/healthz` reports (`handler.ts:58`), is set only on a
+  builder 200. **Every SG row predicts a 422, so no SG request can fill that block.** By the ruling, no further SG request goes out until
+  both read, so **KJFK is not run.**
+- **My miss, on record:** D3's binding test "after the SG requests", and the 15:23Z re-order, both assumed a 422 build fills `/healthz`'s
+  basemap block. It cannot.
+- **No rollback.** The builder is healthy: no failed smoke and no Worker error. This is a stop, and it goes to the orchestrator.
+
+### D3 by one 200 (the 15:27:31Z ruling, (i), time-boxed: every step done and the claim released by 15:50:00Z), registered before the request
+
+- **The query:** KJAC, Jackson Hole airport, (43.61, -110.74), with `sg-request.sh` at ε 201,169 mm, the same script and the same
+  layers and levels as the SG rows.
+  - **It FITS:** this builder answered KJAC 200 at the client's ε in RV3 (`docs/basemap-dense.md:1375`, `b3f428e5860e`), and one
+    millimetre more makes no difference to it.
+  - **It is a guaranteed CACHE MISS:** the stored name and the Cache API key are the store id plus the query's keyed digest
+    (`handler.ts:14`, `:36-37`), and ε is part of the query. ε 201,169 has been registered only at KLGA and KJFK, and requested on
+    staging only at KLGA (SG-A, 15:25Z), so KJAC at 201,169 has never been built or stored.
+- **Predicted:**
+  - HTTP: zero to three 202s, then **200** with a BMPK package. A 404, 422 or 5xx is off;
+  - the tail: ONE `bm_build` with **status 200**, outcome ok. **Its rung is recorded, not predicted:** no record gives this builder's
+    KJAC rung at ε, so a number here would be a guess;
+  - then `/healthz`, read **eight times**.
+- **PASS:** at least one read with `basemap.store` == `4c0875738f38` **and** `basemap.commit` ==
+  `f3fee349061afc346900a5f85a0eee2034791ce4`, and **no** read showing any other non-null store or commit. Nulls from other isolates are
+  allowed and counted.
+- **A D3 failure** (another store, another commit, or no 200) is D3's second off reading, and goes to the owner. **No rollback unless
+  the builder errors.** If D3 passes and the time box allows, KJFK's SG request follows, as registered.
+- **Misses, both recorded:** mine, that D3 assumed a 422 fills `/healthz`; the orchestrator's, that the 15:23Z re-order did not check
+  it either.
+
+### D3 by one 200, then SG-A at KJFK (15:30:15-15:31:39Z): every row AS PREDICTED; the claim released at 15:31:39Z
+
+| row | read | |
+|---|---|---|
+| **D3's 200** at KJAC (43.61, -110.74), ε 201,169 | HTTP 202, then **200** with a BMPK package of 206,760 B. The tail: one `bm_build`, **status 200, rung 1** (recorded, not predicted), outcome ok, cpu 3,148 ms, wall 9,779 ms | as predicted |
+| **D3's binding read**, `/healthz` ×8 (15:30:34-15:30:40Z) | reads 3, 5 and 6: **store `4c0875738f38`, commit `f3fee349061afc346900a5f85a0eee2034791ce4`**. Reads 1, 2, 4, 7 and 8: null, other isolates. **No other value** | **PASS** |
+| **SG-A at KJFK** (40.64, -73.78), 15:30:52-15:31:11Z | HTTP 202, then **422 `too_large`**. The tail: one build, outcome ok, 0 exceptions, cpu 7,841 ms, wall 12,145 ms. `bm_build` 422, rung -1, ladder **238,584 / 196,364 / 176,124 / 40,366, RL2's KJFK ladder exactly** | **as predicted** |
+
+- **Neither query read SG-B to SG-F.** There was no Exceeded Memory or Exceeded CPU, no 200 at the SG ε, no stored 422 without a build,
+  and no ladder that differs from RL2's. **So workerd built the release variant inside 128 MB at KLGA and KJFK, with RL2's answers.**
+  The margin under 128 MB is not shown, as registered.
+- **The tail** was stopped by its own process tree only: the three processes started at 15:24:58Z, re-verified by start time and command
+  line before the stop. No tail process was left.
+- **The claim was released at 15:31:39Z** (deploy free, merge free), inside the 15:50:00Z time box.
+- **The staging builder stays at `fbc7da46`,** which is healthy. Its rollback target was not used: it is `9512e266`, and R1 is ruled for it.

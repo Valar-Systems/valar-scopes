@@ -5,14 +5,16 @@
 //
 // P1-P3   the real heads parse to their board and scope
 // P4-P12  one check per parse rule
-// R1      a request always names the device's own board: 9 envs x 3 scopes
+// R1      a request always names the device's own board: 10 envs x 3 scopes
 // M1      O1-b (i), the switch matrix: asking for the candidate's scope on one's own board
-//         accepts exactly the same-board pairs -- 51 accepted, 30 refused
-// M2      no scope at all makes a cross-board image acceptable: 90 of 90 refused
-// M3      O1-b (ii), asking for one's own scope: 23 accepted, 58 refused, 28 of them cross-scope
-// (over the 9 built envs with an OTA path: the s3-146 rows are retired, A12.105, A12.107; the wxlook bench
+//         accepts exactly the same-board pairs -- 66 accepted, 34 refused
+// M2      no scope at all makes a cross-board image acceptable: 102 of 102 refused
+// M3      O1-b (ii), asking for one's own scope: 32 accepted, 68 refused, 34 of them cross-scope
+// (over the 10 built envs with an OTA path: the s3-146 rows are retired, A12.105, A12.107; the wxlook bench
 // env joined 2026-11-06, the radar's identity, as joindiag's -- #445, docs/wx-device.md; the mapbench bench env
-// joined 2026-11-12, the radar's identity too -- docs/blipscope-map-client-steps.md, 935a2946)
+// joined 2026-11-12, the radar's identity too -- docs/blipscope-map-client-steps.md, 935a2946; and the cardbench
+// bench env joined 2026-11-12, the radar's identity again -- #670, docs/card-nophoto-fix.md. The two benches
+// joined on separate branches, each pinning 9; the merge that brought them together re-derived these for 10.)
 // O4-*    the same rule on the real heads: own (CONTROL), a same-board other-scope image both
 //         ways, the switch, cross-board both ways
 //
@@ -178,7 +180,7 @@ int main(int argc, char** argv)
         char buf[96];
         std::snprintf(buf, sizeof buf, "a request names the asker's own board: %d/%d (%u envs x %u scopes)", good, n,
                       (unsigned)envs.size(), (unsigned)scopes.size());
-        check(good == n && n == 27, "R1", buf);
+        check(good == n && n == 30, "R1", buf);
     }
     {
         int acc = 0, ref = 0, off = 0;
@@ -189,9 +191,9 @@ int main(int argc, char** argv)
                 off += a != (envs[i].board == envs[j].board);
             }
         char buf[128];
-        std::snprintf(buf, sizeof buf, "switch matrix: %d accepted, %d refused, %d off the rule (want 51, 30, 0)", acc,
+        std::snprintf(buf, sizeof buf, "switch matrix: %d accepted, %d refused, %d off the rule (want 66, 34, 0)", acc,
                       ref, off);
-        check(acc == 51 && ref == 30 && off == 0, "M1", buf);
+        check(acc == 66 && ref == 34 && off == 0, "M1", buf);
     }
     {
         int ref = 0, n = 0;
@@ -204,8 +206,8 @@ int main(int argc, char** argv)
                 }
             }
         char buf[128];
-        std::snprintf(buf, sizeof buf, "cross-board, every scope asked for: %d of %d refused (want 90 of 90)", ref, n);
-        check(ref == n && n == 90, "M2", buf);
+        std::snprintf(buf, sizeof buf, "cross-board, every scope asked for: %d of %d refused (want 102 of 102)", ref, n);
+        check(ref == n && n == 102, "M2", buf);
     }
     {
         int acc = 0, ref = 0, crossScope = 0, off = 0;
@@ -219,9 +221,9 @@ int main(int argc, char** argv)
             }
         char buf[160];
         std::snprintf(buf, sizeof buf,
-                      "own-scope matrix: %d accepted, %d refused (%d cross-scope), %d off the rule (want 23, 58 (28), 0)",
+                      "own-scope matrix: %d accepted, %d refused (%d cross-scope), %d off the rule (want 32, 68 (34), 0)",
                       acc, ref, crossScope, off);
-        check(acc == 23 && ref == 58 && crossScope == 28 && off == 0, "M3", buf);
+        check(acc == 32 && ref == 68 && crossScope == 34 && off == 0, "M3", buf);
     }
 
     // ---- O4 on the real heads

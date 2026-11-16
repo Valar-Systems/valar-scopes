@@ -1,0 +1,39 @@
+{
+ "inputs": [
+  {
+   "path": "src/main.c.o",
+   "sha256": "16292bdc8bec47706e09af948ca8f5aa81f18acc0c73d4f59f6a1f167a9d9aa2",
+   "copy": "src/main.c.o"
+  },
+  {
+   "path": "src/f.c.o",
+   "sha256": "3f055ab66be4cf8219d92db42094e1a4e9885d410e3c8a93e4d4dfd27a633914",
+   "copy": "src/f.c.o"
+  },
+  {
+   "path": "src/g.c.o",
+   "sha256": "bd09e75c60c7606a01512e4e18e056dddc20d9871a746d95494a5b55c08b126d",
+   "copy": "src/g.c.o"
+  },
+  {
+   "path": "src/ext.c.o",
+   "sha256": "fcc996104fe335d38e8e6dd7eb2ebb271ee695e0776bbe49ea574def0d056fc7",
+   "copy": "src/ext.c.o"
+  },
+  {
+   "path": "src/relax.c.o",
+   "sha256": "dc9b2809bd148f07a31e209af2dc7ef47dcf5f27e79421cbd7bc25c740a95622",
+   "copy": "src/relax.c.o"
+  },
+  {
+   "path": "src/hi.c.o",
+   "sha256": "dd1c95c3091080bc43f4aba32a12debe0031cae79aa5420c00ada5573b751f5c",
+   "copy": "src/hi.c.o"
+  },
+  {
+   "path": "src/libh.a",
+   "sha256": "8a734929e080fe70afaea44bcf1a0eec22139af9ff4779aa8bc6ec69b1607d29",
+   "copy": "src/libh.a"
+  }
+ ]
+}

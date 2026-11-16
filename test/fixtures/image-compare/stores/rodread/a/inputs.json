@@ -1,0 +1,19 @@
+{
+ "inputs": [
+  {
+   "path": "src/main.c.o",
+   "sha256": "e3ecfe2dd4c237b956bb1f160a4c0cd04b9b0e0d3dfb001eb180c6917ce0fde0",
+   "copy": "src/main.c.o"
+  },
+  {
+   "path": "src/rd.c.o",
+   "sha256": "2e112307d8c46888bc9fdf133a4c4fafee7eae3aa898396884bb81a56fc52516",
+   "copy": "src/rd.c.o"
+  },
+  {
+   "path": "src/rr.c.o",
+   "sha256": "4f20d45c2644438aaf5730fe674607e0dfdfeb34b43c59387b5264a6e6afecb7",
+   "copy": "src/rr.c.o"
+  }
+ ]
+}

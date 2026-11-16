@@ -1,0 +1,69 @@
+{
+ "v": 1,
+ "status": "ok",
+ "fetchedUtc": 1794353400,
+ "issuedUtc": 1794345164,
+ "offsetMin": -360,
+ "hourly": [
+  {
+   "startUtc": 1794355200,
+   "tempF": 71,
+   "hasTemp": true,
+   "pop": 13,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794358800,
+   "tempF": 70,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": false
+  },
+  {
+   "startUtc": 1794362400,
+   "tempF": 0,
+   "hasTemp": false,
+   "pop": 20,
+   "hasPop": true
+  },
+  {
+   "startUtc": 1794366000,
+   "tempF": 68,
+   "hasTemp": true,
+   "pop": 1,
+   "hasPop": true
+  }
+ ],
+ "periods": [
+  {
+   "name": "Tonight",
+   "startUtc": 1794355200,
+   "isDaytime": false,
+   "tempF": 52,
+   "hasTemp": true,
+   "pop": 40,
+   "hasPop": true,
+   "short": "Chance Showers And Thund"
+  },
+  {
+   "name": "Tuesday",
+   "startUtc": 1794398400,
+   "isDaytime": true,
+   "tempF": 64,
+   "hasTemp": true,
+   "pop": 0,
+   "hasPop": false,
+   "short": "Sunny"
+  },
+  {
+   "name": "Tuesday Night",
+   "startUtc": 1794441600,
+   "isDaytime": false,
+   "tempF": -3,
+   "hasTemp": true,
+   "pop": 3,
+   "hasPop": true,
+   "short": "Mostly Clear"
+  }
+ ]
+}

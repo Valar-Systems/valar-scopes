@@ -13,8 +13,10 @@ import urllib.request
 ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1"
 a, b = sys.argv[1], sys.argv[2]
 actions = sys.argv[3:] or ["ListObjects", "DeleteObject", "DeleteObjects", "PutObject"]
-tok = next(l.strip().split("=", 1)[1] for l in open(os.path.expanduser("~/.config/blipscope/tokens"), encoding="utf-8")
-           if l.startswith("analytics-read="))
+import importlib.util as _ilu   # the token-file helper, by path: python -I drops this folder from sys.path
+_tfs = _ilu.spec_from_file_location("token_file", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token_file.py"))
+TOKEN_FILE = _ilu.module_from_spec(_tfs); _tfs.loader.exec_module(TOKEN_FILE)   # docs/token-file-python.md
+tok = TOKEN_FILE.token("analytics-read")
 q = """query($acct: String!, $a: Time!, $b: Time!, $act: [string!]) { viewer { accounts(filter: {accountTag: $acct}) {
   r2OperationsAdaptiveGroups(limit: 1000, filter: {datetime_geq: $a, datetime_lt: $b, bucketName: "blipscope-wx",
                                                    actionType_in: $act}) {

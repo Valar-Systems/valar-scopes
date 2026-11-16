@@ -6,6 +6,7 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import tomls from "virtual:wx-ingest-tomls";
+import * as mrmsEntry from "../src/wx/ingest-mrms-worker";
 import * as operaEntry from "../src/wx/ingest-opera-worker";
 import * as crefEntry from "../src/wx/ingest-worker";
 import { PRODUCTS } from "../src/wx/products";
@@ -15,6 +16,7 @@ type Entry = { default: { scheduled(c: ScheduledController, e: never): Promise<v
 const ENTRIES: Record<string, Entry> = {
   "src/wx/ingest-worker.ts": crefEntry as unknown as Entry,
   "src/wx/ingest-opera-worker.ts": operaEntry as unknown as Entry,
+  "src/wx/ingest-mrms-worker.ts": mrmsEntry as unknown as Entry,   // W4: an MRMS product per Worker (shsr)
 };
 
 /** Run one entry's scheduled handler; return the lines it logged and how often bucket or fetch were touched. */
@@ -130,11 +132,16 @@ describe("one product per Worker", () => {
     expect(all.map(({ main: _m, ...t }) => t)).toEqual([
       { id: "wx-ingest.wrangler.toml:(top level)", name: "blipscope-wx-ingest", crons: ["* * * * *"], cpuMs: 12000,
         buckets: ["WX->blipscope-wx"], vars: {} },
+      // W4 (docs/weatherscope-stage4.md S4.12.3): shsr's Worker, on and inert, in cref's toml
+      { id: "wx-ingest.wrangler.toml:shsr", name: "blipscope-wx-ingest-shsr", crons: ["* * * * *"], cpuMs: 12000,
+        buckets: ["WX->blipscope-wx"], vars: { PRODUCT: "shsr", WX_INGEST: "on" } },
+      { id: "wx-ingest.wrangler.toml:shsr-inert", name: "blipscope-wx-ingest-shsr", crons: ["* * * * *"], cpuMs: 12000,
+        buckets: ["WX->blipscope-wx"], vars: { PRODUCT: "shsr", WX_INGEST: "off" } },
       { id: `${O}:(top level)`, name: "blipscope-wx-ingest-opera", crons: [], cpuMs: 12000, buckets: ["WX->blipscope-wx"],
         vars: { WX_INGEST: "off" } },
       ...OPERA_IDS.flatMap((id) => [env_(id, true), env_(id, false)]),
     ]);
-    expect(all).toHaveLength(22);
+    expect(all).toHaveLength(24);   // W4: + shsr and shsr-inert
     const checkedBy: Record<string, string[]> = {};
     for (const t of all) {
       const entry = ENTRIES[t.main ?? ""];

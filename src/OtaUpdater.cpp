@@ -185,10 +185,25 @@ void ScreenProgress(LGFX& tft, LGFX_Sprite& fb, int pct)
     Serial.printf("[ota] screen: progress %d\n", pct);
 }
 
-// ota::Install's source over the download stream.
+// ota::Install's source over the download stream. An empty read is waited out by ota::ReadSome through waitEmpty()
+// (docs/ota-head-patience.md): on this stream 0 means "nothing yet" as often as "the end".
 struct StreamSource {
     Stream& s;
-    size_t read(uint8_t* buf, size_t n) { return s.readBytes(buf, n); }
+    size_t read(uint8_t* buf, size_t n)
+    {
+#ifdef OTA_BENCH_HEAD_STALL
+        // Bench only (docs/ota-head-patience.md, B-STALL): every read comes back empty, so the head's bound is watched
+        // ending in refused-truncated, with no reboot. No env sets this; check-no-bench-hooks.sh refuses its marker in
+        // every shipping image.
+        static bool said = false;
+        if (!said) { said = true; Serial.println("[ota-bench] head stall: every read held empty"); }
+        (void)buf; (void)n;
+        return 0;
+#else
+        return s.readBytes(buf, n);
+#endif
+    }
+    void waitEmpty() { delay(ota::kEmptyWaitMs); }
 };
 
 // ota::Install's flash: a thin adapter over Update (A1.2).
@@ -237,19 +252,13 @@ public:
     {
         uint8_t buf[1024];
         size_t done = 0;
-        int empty = 0;
         while (done < n) {
-            const size_t got = src.read(buf, n - done < sizeof buf ? n - done : sizeof buf);
-            if (got == 0) {
-                if (++empty >= 300) {
-                    err_ = UPDATE_ERROR_STREAM;
-                    Update.abort();
-                    return done;
-                }
-                delay(100);
-                continue;
+            const size_t got = ota::ReadSome(src, buf, n - done < sizeof buf ? n - done : sizeof buf);
+            if (got == 0) {   // ota::kEmptyReads empty reads in a row: the stream has stalled
+                err_ = UPDATE_ERROR_STREAM;
+                Update.abort();
+                return done;
             }
-            empty = 0;
             if (write(buf, got) != got) return done;
             done += got;
         }
@@ -375,6 +384,7 @@ struct SerialBudget {
         pos += n;
         return n;
     }
+    void waitEmpty() { delay(ota::kEmptyWaitMs); }   // ota::ReadSome's wait (docs/ota-head-patience.md)
 };
 
 // sha256 of the inactive slot's first 64 KB, 12 hex: whether anything was written.

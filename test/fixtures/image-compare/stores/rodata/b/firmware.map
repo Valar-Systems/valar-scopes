@@ -1,0 +1,89 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 src/main.c.o
+ .data          0x00000000        0x0 src/main.c.o
+ .bss           0x00000000        0x0 src/main.c.o
+ .text          0x00000000        0x0 src/rod.c.o
+ .data          0x00000000        0x0 src/rod.c.o
+ .bss           0x00000000        0x0 src/rod.c.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD src/main.c.o
+LOAD src/rod.c.o
+
+.text_hi
+ *(.literal.hi_* .text.hi_*)
+
+.text_lo        0x40000000       0x76
+ *(.literal .literal.* .text .text.*)
+ .literal.use_cfg
+                0x40000000        0x4 src/main.c.o
+ .literal.entry
+                0x40000004        0x0 src/main.c.o
+                                  0x8 (size before relaxing)
+ .literal.f1    0x40000004        0x4 src/rod.c.o
+                                  0xc (size before relaxing)
+ .literal.f2    0x40000008        0x4 src/rod.c.o
+                                  0xc (size before relaxing)
+ .text.use_cfg  0x4000000c        0xa src/main.c.o
+                0x4000000c                use_cfg
+ *fill*         0x40000016        0x2 
+ .text.entry    0x40000018        0xb src/main.c.o
+                                 0x11 (size before relaxing)
+                0x40000018                entry
+ *fill*         0x40000023        0x1 
+ .text.f1       0x40000024       0x16 src/rod.c.o
+                                 0x1a (size before relaxing)
+                0x40000024                f1
+ *fill*         0x4000003a        0x2 
+ .text.f2       0x4000003c       0x16 src/rod.c.o
+                                 0x1a (size before relaxing)
+                0x4000003c                f2
+ *fill*         0x40000052        0x2 
+ .text.memcpy   0x40000054       0x22 src/main.c.o
+                0x40000054                memcpy
+ *fill*         0x40000076        0x0 
+ *fill*         0x40000076        0x0 
+ *fill*         0x40000076        0x0 
+
+.rodata         0x3f000000       0x40
+ *(.rodata .rodata.*)
+ .rodata        0x3f000000       0x40 src/rod.c.o
+
+.data
+ *(.data .data.*)
+
+.bss            0x3f000040        0x4
+ *(.bss .bss.* COMMON)
+ .bss.g_p       0x3f000040        0x4 src/main.c.o
+                0x3f000040                g_p
+
+.xt.lit         0x00000000       0x18
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/main.c.o
+                                 0x10 (size before relaxing)
+ .xt.lit        0x00000008       0x10 src/rod.c.o
+
+.xt.prop        0x00000000      0x108
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x9c src/main.c.o
+                                 0xa8 (size before relaxing)
+ .xt.prop       0x0000009c       0x6c src/rod.c.o
+                                 0x78 (size before relaxing)
+OUTPUT(firmware.elf elf32-xtensa-le)
+
+.comment        0x00000000       0x2f
+ .comment       0x00000000       0x2f src/main.c.o
+                                 0x30 (size before relaxing)
+ .comment       0x0000002f       0x30 src/rod.c.o
+
+.xtensa.info    0x00000000       0x38
+ .xtensa.info   0x00000000       0x38 src/main.c.o
+ .xtensa.info   0x00000038        0x0 src/rod.c.o

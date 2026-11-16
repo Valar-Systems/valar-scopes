@@ -9,7 +9,7 @@ Method, fixed before any run (A10.11, A12.39):
     plant goes into exactly one copy. (GCC resolves a quoted include from the including file's own directory first, so
     a lone shadowed header would be included twice under two paths.) Each plant asserts its anchor occurs exactly once
     and that the copy differs; the real files' hashes are compared before and after.
-  - The unmodified headers run first, as the control: 92 cases, 0 failures (84, and A12.53's BW 8).
+  - The unmodified headers run first, as the control: 96 cases, 0 failures (84, A12.53's BW 8, and S4.21's FL 4).
   - Each sabotage's failing lines are printed, so what a failing case saw can be read off the run.
 """
 import hashlib, importlib.util, os, re, subprocess, sys, tempfile
@@ -27,7 +27,7 @@ TEST = os.path.join(ROOT, "test", "host", "test_wx_basemap.cpp")
 WX = os.path.join(ROOT, "test", "fixtures", "wx")
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
-CASES = 92
+CASES = 96   # A10.11's 84, A12.53's BW 8, S4.21's FL7, FL7c, FL8, FL8c
 
 
 def block(src, start, end):
@@ -66,11 +66,18 @@ SABOTAGES = {
                [("        const double py = y + 0.5;\n", "        const double py = y;  // SABOTAGE: the corner\n"),
                 ("            int x0 = (int)ceil(cross[a] - 0.5), x1 = (int)ceil(cross[a + 1] - 0.5);\n",
                  "            int x0 = (int)ceil(cross[a]), x1 = (int)ceil(cross[a + 1]);  // SABOTAGE\n")],
-               {"FL1", "FL2", "FL3", "FL5b", "FL6"}),
+               {"FL1", "FL2", "FL3", "FL5b", "FL6", "FL7", "FL8"}),   # FL7/FL8 joined with S4.21 (docs/weatherscope-stage4.md)
     "S-UNION": ("WxBasemap.h",
                 [("                img[y * kSize + x] = value;\n",
                   "                img[y * kSize + x] = img[y * kSize + x] == value ? 0 : value;  // SABOTAGE: even-odd\n")],
                 {"FL6"}),
+    # S4.21: the crossing computed from the edge's FIRST endpoint again, as before the bridge fix. A zero-width bridge's two
+    # passes then straddle a pixel centre, and FL7/FL8 lose their bridge pixels. FL7c/FL8c use their own copy and stay green.
+    "S-BRIDGE": ("WxBasemap.h",
+                 [("            if ((ya > py) != (yb > py)) cross[m++] = (ya < yb) ? xa + (py - ya) * (xb - xa) / (yb - ya)\n"
+                   "                                                              : xb + (py - yb) * (xa - xb) / (ya - yb);\n",
+                   "            if ((ya > py) != (yb > py)) cross[m++] = xa + (py - ya) * (xb - xa) / (yb - ya);  // SABOTAGE\n")],
+                 {"FL7", "FL8"}),
     "S-SHIFT": ("WxBasemap.h",
                 [("        *x = wxraster::kC + (lon - v_.homeLon) / v_.rLon * wxraster::kC;\n"
                   "        *y = wxraster::kC - (lat - v_.homeLat) / v_.rLat * wxraster::kC;\n",

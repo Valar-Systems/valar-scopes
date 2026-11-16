@@ -86,6 +86,19 @@ export const PRODUCTS: readonly Product[] = [
   opera("opba", box(16.0, 53.5, 32.0, 63.0), { la1: 65.02, lo1: 13.98, ni: 1962, nj: 1316 }),               // baltic
   opera("opsw", box(4.0, 53.5, 16.0, 63.0), { la1: 65.02, lo1: 2.62, ni: 1541, nj: 1335 }),                 // scandisw
   opera("opsn", box(4.0, 63.0, 32.0, 71.3), { la1: 73.19, lo1: 5.16, ni: 2832, nj: 1222 }, { n: 54 }),       // scandin
+  // W4 (docs/weatherscope-stage4.md S4.12.3, S4.25; the owner's yes 2026-11-12): MRMS SeamlessHSR, Weatherscope's US
+  // radar. It publishes every 2 minutes like the composite, so cref's timing values. Served by itself (servedProduct
+  // dispatches only cref) and NOT in ROUTED. Appended after the OPERA rows: the region generator reads only OPERA rows,
+  // so the region table is byte-identical wherever an MRMS row sits.
+  {
+    id: "shsr",
+    source: "mrms",
+    noaaPrefix: "CONUS/SeamlessHSR_00.00",
+    noaaStem: "MRMS_SeamlessHSR_00.00",
+    cadenceS: 120,
+    maxAgeS: 600,
+    codeOf: codeOfComposite,
+  },
 ];
 
 export function productById(id: string): Product | null {

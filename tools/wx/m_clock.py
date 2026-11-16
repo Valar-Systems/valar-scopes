@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 
 SCRATCH = r"C:\Users\DanielFrenkel\AppData\Local\Temp\claude\c--Github-Blipscope\fb8462e7-ee3a-4757-8b09-2d0165eb9254\scratchpad"
 PROXY = os.environ["M_PROXY"]
-WRANGLER = os.path.join(PROXY, "node_modules", "wrangler", "bin", "wrangler.js")
+WRANGLER = os.path.join(PROXY, "scripts", "wrangler-run.mjs")   # every call through the helper (docs/wrangler-run.md)
 WANT = os.environ.get("PLAN_S_WANT", "")
 CFG = "wx-ingest-dev.wrangler.toml"
 ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1"
@@ -35,12 +35,11 @@ hms = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%H:%M:%S.%f")[
 say = lambda *a: print(datetime.now(timezone.utc).strftime("%H:%M:%S.%f")[:-3] + "Z", *a, flush=True)
 
 
+import importlib.util as _ilu   # the token-file helper, by path: python -I drops this folder from sys.path
+_tfs = _ilu.spec_from_file_location("token_file", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token_file.py"))
+TOKEN_FILE = _ilu.module_from_spec(_tfs); _tfs.loader.exec_module(TOKEN_FILE)   # docs/token-file-python.md
 def token():
-    for line in open(os.path.expanduser("~/.config/blipscope/tokens"), encoding="utf-8"):
-        k, _, v = line.strip().partition("=")
-        if k == "observability-read":
-            return v
-    raise SystemExit("no observability-read")
+    return TOKEN_FILE.token("observability-read")
 
 
 def invocations(a_s, b_s):
@@ -77,8 +76,7 @@ def invocations(a_s, b_s):
 
 def graphql_count(a_s, b_s):
     """R3-6's instrument: the dev script's invocations in [a, b), any status (no version filter)."""
-    tok = next(l.strip().partition("=")[2] for l in open(os.path.expanduser("~/.config/blipscope/tokens"), encoding="utf-8")
-               if l.strip().partition("=")[0] == "analytics-read")
+    tok = TOKEN_FILE.token("analytics-read")
     q = """query($acct: String!, $a: Time!, $b: Time!, $s: String!) { viewer { accounts(filter: {accountTag: $acct}) {
       workersInvocationsAdaptive(limit: 100, filter: {datetime_geq: $a, datetime_lt: $b, scriptName: $s}) { sum { requests } } } } }"""
     iso = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

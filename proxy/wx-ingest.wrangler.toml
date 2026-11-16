@@ -30,3 +30,56 @@ head_sampling_rate = 1
 [[r2_buckets]]
 binding = "WX"
 bucket_name = "blipscope-wx"
+
+# W4 (docs/weatherscope-stage4.md S4.12.3, S4.25): MRMS SeamlessHSR, Weatherscope's US radar, on a Worker of its own,
+# blipscope-wx-ingest-shsr, so its build never shares an invocation's CPU with cref's. Deployed only through
+# tools/wx/ingest_deploy.sh wx-ingest.wrangler.toml <env>, under the claim wx-ingest-shsr:production; [env.shsr-inert]
+# (the same Worker, ingest off) goes first, because a new Worker has nothing to roll back to. A deploy that forgets the
+# env reaches cref's top-level Worker, whose claim (wx-ingest:production) the shsr claim does not cover, so it is refused.
+# `name` is set in both envs: without it, wrangler would name the inert one blipscope-wx-ingest-shsr-inert. vars and
+# r2_buckets do not inherit, so each env carries its own.
+[env.shsr]
+name = "blipscope-wx-ingest-shsr"
+main = "src/wx/ingest-mrms-worker.ts"
+workers_dev = false
+
+[env.shsr.triggers]
+crons = ["* * * * *"]
+
+[env.shsr.limits]
+cpu_ms = 12000
+
+[env.shsr.observability]
+enabled = true
+head_sampling_rate = 1
+
+[env.shsr.vars]
+PRODUCT = "shsr"
+WX_INGEST = "on"
+
+[[env.shsr.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"
+
+[env.shsr-inert]
+name = "blipscope-wx-ingest-shsr"
+main = "src/wx/ingest-mrms-worker.ts"
+workers_dev = false
+
+[env.shsr-inert.triggers]
+crons = ["* * * * *"]
+
+[env.shsr-inert.limits]
+cpu_ms = 12000
+
+[env.shsr-inert.observability]
+enabled = true
+head_sampling_rate = 1
+
+[env.shsr-inert.vars]
+PRODUCT = "shsr"
+WX_INGEST = "off"
+
+[[env.shsr-inert.r2_buckets]]
+binding = "WX"
+bucket_name = "blipscope-wx"

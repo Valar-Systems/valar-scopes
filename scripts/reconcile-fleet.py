@@ -51,6 +51,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -77,11 +78,44 @@ def test_device_ids() -> set:
     path = os.environ.get("BLIPSCOPE_TOKEN_FILE", "").strip()
     if not path or not Path(path).is_file():
         return set()
+    # W6b (docs/route-weekly-code.md): the routes-refresh job's own identity, ci-test-device, enrols like a device and
+    # is left out the same way. The owner adds that line to the token file himself.
+    ids = set()
     for line in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
         key, eq, value = line.strip().partition("=")
-        if eq and key.strip() == "test-device" and ID_RE.match(value.strip()):
-            return {value.strip()}
-    return set()
+        if eq and key.strip() in ("test-device", "ci-test-device") and ID_RE.match(value.strip()):
+            ids.add(value.strip())
+    return ids
+
+
+def bench_device_ids() -> tuple:
+    """Bench boards, which are not fleet units (docs/fleet-bench-boards.md; the owner, 2026-11-12: the Pro 2.1 bench
+    board must not count in v19's week of readings). One id per line, # comments and blank lines allowed, from the file
+    BLIPSCOPE_BENCH_DEVICES names, else ~/.config/blipscope/bench-devices -- never the repo, never the token file (ids
+    only, no keys). Returns (ids, where). An absent file is no bench boards. A file inside a git working tree, or a
+    line that is not an id, is REFUSED (exit 2), never skipped: a skipped line is a board quietly counted as fleet.
+    Never printed."""
+    import os
+    path = Path(os.environ.get("BLIPSCOPE_BENCH_DEVICES", "").strip()
+                or (Path.home() / ".config" / "blipscope" / "bench-devices"))
+    if not path.is_file():
+        return set(), "none configured"
+    d = path.resolve().parent
+    while True:
+        if (d / ".git").exists():
+            die("the bench-devices file %s is inside a git working tree; ids never live in a repo" % path)
+        if d.parent == d:
+            break
+        d = d.parent
+    ids = set()
+    for n, line in enumerate(path.read_text(encoding="utf-8", errors="strict").splitlines(), 1):
+        s = line.split("#", 1)[0].strip()
+        if not s:
+            continue
+        if not ID_RE.match(s):
+            die("the bench-devices file %s, line %d, is not a device id (content not printed)" % (path, n))
+        ids.add(s)
+    return ids, "read from %s" % path
 
 
 def die(msg: str, code: int = 2) -> None:
@@ -89,14 +123,14 @@ def die(msg: str, code: int = 2) -> None:
     sys.exit(code)
 
 
-def npx() -> str:
-    """On Windows npx is npx.cmd, and CreateProcess will not find a bare "npx"
-    without a shell. Resolve it here rather than reaching for shell=True, which
-    would put every argument through cmd's quoting rules as well."""
-    p = shutil.which("npx") or shutil.which("npx.cmd")
+def wrangler() -> list[str]:
+    """Every wrangler call goes through proxy/scripts/wrangler-run.mjs (docs/wrangler-run.md): it moves wrangler's
+    debug log, which would otherwise keep every key name listed here, into a temp dir it removes. node is resolved
+    here rather than reaching for shell=True, which would put every argument through cmd's quoting rules."""
+    p = shutil.which("node") or shutil.which("node.exe")
     if not p:
-        die("npx not found on PATH -- cannot reach wrangler, so KV cannot be read")
-    return p
+        die("node not found on PATH -- cannot reach wrangler, so KV cannot be read")
+    return [p, str(PROXY / "scripts" / "wrangler-run.mjs")]
 
 
 def kv_list_names(prefix: str, env: str, errfile: Path) -> list[str]:
@@ -110,14 +144,16 @@ def kv_list_names(prefix: str, env: str, errfile: Path) -> list[str]:
     a 401. Knowing a result is untrustworthy is only half an answer; this is the
     other half.
     """
-    cmd = [npx(), "wrangler", "kv", "key", "list", "--binding", "ENRICH_KV",
+    cmd = [*wrangler(), "kv", "key", "list", "--binding", "ENRICH_KV",
            "--env", env, "--prefix", prefix, "--remote"]
     with errfile.open("w", encoding="utf-8") as ef:
+        # encoding="utf-8": wrangler prints UTF-8, and a cp1252 locale's default decode crashed the reader thread
+        # (v19's step 8, 2026-11-12). errors="strict": a byte that isn't UTF-8 is an error, never an invented char.
         r = subprocess.run(cmd, cwd=PROXY, stdout=subprocess.PIPE, stderr=ef,
-                           text=True, timeout=180)
+                           text=True, encoding="utf-8", errors="strict", timeout=180)
     err = errfile.read_text(encoding="utf-8", errors="replace").strip()
     if r.returncode != 0:
-        die("wrangler kv key list failed for prefix %s (exit %d).\n--- stderr ---\n%s"
+        die("the key list (wrangler-run.mjs) failed for prefix %s (exit %d).\n--- stderr ---\n%s"
             % (prefix, r.returncode, err or "(empty)"))
     try:
         rows = json.loads(r.stdout)
@@ -141,11 +177,11 @@ def kv_list(prefix: str, env: str, errfile: Path) -> list[str]:
 
 
 def kv_get(dev_id: str, env: str, errfile: Path) -> dict | None:
-    cmd = [npx(), "wrangler", "kv", "key", "get", "fw:" + dev_id, "--binding", "ENRICH_KV",
+    cmd = [*wrangler(), "kv", "key", "get", "fw:" + dev_id, "--binding", "ENRICH_KV",
            "--env", env, "--remote"]
     with errfile.open("w", encoding="utf-8") as ef:
         r = subprocess.run(cmd, cwd=PROXY, stdout=subprocess.PIPE, stderr=ef,
-                           text=True, timeout=120)
+                           text=True, encoding="utf-8", errors="strict", timeout=120)
     if r.returncode != 0:
         return None
     try:
@@ -155,11 +191,11 @@ def kv_get(dev_id: str, env: str, errfile: Path) -> dict | None:
 
 
 def kv_get_raw(key: str, env: str, errfile: Path) -> str | None:
-    cmd = [npx(), "wrangler", "kv", "key", "get", key, "--binding", "ENRICH_KV",
+    cmd = [*wrangler(), "kv", "key", "get", key, "--binding", "ENRICH_KV",
            "--env", env, "--remote"]
     with errfile.open("w", encoding="utf-8") as ef:
         r = subprocess.run(cmd, cwd=PROXY, stdout=subprocess.PIPE, stderr=ef,
-                           text=True, timeout=120)
+                           text=True, encoding="utf-8", errors="strict", timeout=120)
     return r.stdout.strip() if r.returncode == 0 else None
 
 
@@ -213,6 +249,7 @@ def ota_breakdown(published: int, rows: dict, points: list) -> dict:
         elif fw < published:
             behind.append(dev)
     buckets: dict = {}
+    ok_devs: list = []
     for dev in behind:
         if dev in newest:
             tok = newest[dev][0]
@@ -221,7 +258,9 @@ def ota_breakdown(published: int, rows: dict, points: list) -> dict:
         else:
             tok = NO_POINT
         buckets[tok] = buckets.get(tok, 0) + 1
-    return {"behind": len(behind), "total": len(rows), "unknown": unknown, "buckets": buckets}
+        if tok == "ok":
+            ok_devs.append(dev)
+    return {"behind": len(behind), "total": len(rows), "unknown": unknown, "buckets": buckets, "ok_devs": ok_devs}
 
 
 def ota_lines(published, rows: dict, points, why_unread: str = "") -> tuple:
@@ -264,7 +303,7 @@ def analytics_token() -> tuple:
     if not p.is_file():
         return None, "the token file does not exist"
     g = subprocess.run(["git", "-C", str(p.parent), "rev-parse", "--is-inside-work-tree"],
-                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, encoding="utf-8", errors="strict")
     if g.returncode == 0 and g.stdout.strip() == "true":
         return None, "the token file is inside a git working tree"
     found = []
@@ -313,6 +352,180 @@ def read_ota_points(env: str, token: str) -> tuple:
     return [(str(x.get("dev", "")), str(x.get("result", "")), str(x.get("t", ""))) for x in rows if x.get("dev")], ""
 
 
+# --- Were the behind-but-"ok" devices awake at their 03:00? (docs/ota-liveness-read.md) ------------------------------
+# v19's step 8 day 2: five devices behind version.txt with "ok" as their last OTA result did not take v19 overnight. This
+# line can EXCLUDE one cause per device -- off, or making no request, at the local 03:00 update check. Any 24 consecutive
+# whole UTC hours hold exactly one local 03:00 for every zone, so a device with a request in all 24 was awake at the last
+# 03:00 it faced. No zone is inferred, ever: a zone would come from a location. A gap is evidence of NO REQUEST, not of
+# power-off -- an OpenSky or local-feed device sends no /v1/blips and can be on and silent -- so the words are "present
+# every hour", "with gaps" and "no request", never "offline". Counts only: the ids never leave this block.
+LIVE_HOURS = 24
+LIVE_ROW_LIMIT = 10000
+
+
+def live_window(now: float) -> list:
+    """The LIVE_HOURS whole UTC hours before `now`, oldest first, as 'YYYY-MM-DD HH:00:00'."""
+    end = int(now // 3600) * 3600
+    return [time.strftime("%Y-%m-%d %H:00:00", time.gmtime(end - 3600 * k)) for k in range(LIVE_HOURS, 0, -1)]
+
+
+def _hour_key(h) -> str:
+    return str(h).replace("T", " ")[:13]  # 'YYYY-MM-DD HH', whatever separator and seconds come back
+
+
+def liveness_lines(ok_devs: list, rows, why: str, hours: list) -> tuple:
+    """(lines, warnings). rows: (device, hour, index1, sample interval) or None = unread."""
+    okset = set(ok_devs)
+    k = len(okset)
+    if k == 0:
+        return ["    of the 0 behind with last result ok: nothing to read"], []
+    if rows is None:
+        return (["    liveness unread: %s" % why],
+                ["the liveness of the behind-but-ok devices could not be read: %s" % why])
+    want = {_hour_key(h) for h in hours}
+    seen: dict = {d: set() for d in okset}
+    every: dict = {}  # ALL devices with request points in the window: the anchor, so "no request" can be believed
+    si: list = []
+    for dev, h, idx, s in rows:
+        hk = _hour_key(h)
+        # Request points only, selected positively by route: every routeTemplate value starts with "/". Boot, OTA,
+        # usage, error and gap points are not presence -- a boot row carries the device in blob5 too.
+        if hk in want and str(idx).startswith("/"):
+            every.setdefault(dev, set()).add(hk)
+            si.append(float(s))  # over ALL request rows, so "S none" cannot hide sampling
+            if dev in okset:
+                seen[dev].add(hk)
+    x = sum(1 for d in okset if len(seen[d]) == len(want))
+    z = sum(1 for d in okset if not seen[d])
+    y = k - x - z
+    s_txt = "%g" % max(si) if si else "none"
+    line = ("    of the %d behind with last result ok: present every hour of the last %d h %d, with gaps %d, no request %d"
+            " (AE sample interval max %s)" % (k, LIVE_HOURS, x, y, z, s_txt))
+    line += "; the query sees %d device(s) with requests in the window, %d in every hour" % (
+        len(every), sum(1 for v in every.values() if len(v) == len(want)))
+    warn = []
+    # Analytics Engine's adaptive sampling can only DROP points: it can turn presence into a gap, never invent presence.
+    if si and max(si) > 1:
+        warn.append("Analytics Engine sampled this window (interval up to %s): a gap may be sampling, not silence" % s_txt)
+    if not every:
+        warn.append('the liveness query saw no request in the window: "no request" proves nothing this run')
+    return [line], warn
+
+
+def liveness_report(ok_devs: list, fetch, hours: list) -> tuple:
+    """No query when no behind device has "ok"."""
+    if not ok_devs:
+        return liveness_lines([], None, "", hours)
+    rows, why = fetch()
+    return liveness_lines(ok_devs, rows, why, hours)
+
+
+def read_liveness_rows(env: str, token: str) -> tuple:
+    """(rows, "") or (None, reason): one row per (device, UTC hour, route) over the last LIVE_HOURS + 2 hours."""
+    sql = ("SELECT blob5 AS dev, toStartOfInterval(timestamp, INTERVAL '1' HOUR) AS h, index1 AS idx, "
+           "max(_sample_interval) AS si FROM %s WHERE timestamp > NOW() - INTERVAL '%d' HOUR AND blob5 != '' "
+           "GROUP BY dev, h, idx LIMIT %d"
+           % (DATASET.get(env, DATASET["production"]), LIVE_HOURS + 2, LIVE_ROW_LIMIT))
+    req = urllib.request.Request("https://api.cloudflare.com/client/v4/accounts/%s/analytics_engine/sql" % ACCOUNT,
+                                 data=sql.encode("utf-8"), method="POST", headers={"Authorization": "Bearer " + token})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            body = json.loads(r.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as e:
+        return None, "Analytics Engine refused the liveness query (%d): %s" % (e.code, e.read().decode("utf-8", "replace").strip()[:300])
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        return None, "Analytics Engine unreachable (%s)" % type(e).__name__
+    data = body.get("data")
+    if not isinstance(data, list):
+        return None, "Analytics Engine's answer has no data list"
+    if len(data) >= LIVE_ROW_LIMIT:
+        return None, "the %d-row cap was reached, so a device's hours may be cut" % LIVE_ROW_LIMIT
+    try:
+        return [(str(x.get("dev", "")), str(x.get("h", "")), str(x.get("idx", "")), float(x.get("si", 1)))
+                for x in data if x.get("dev")], ""
+    except (TypeError, ValueError):
+        return None, "Analytics Engine's answer has a sample interval that is not a number"
+
+
+# The rt: route mirror's age (docs/route-mirror-age.md), read from the Worker's own /healthz, where the limit lives too
+# (`maxAgeDays`). It sat 79 days old with nothing printing it; this tool is where every fleet question already looks.
+HEALTHZ_URL = {"production": "https://scopes.valarsystems.com/healthz",
+               "staging": "https://scopes-staging.valarsystems.com/healthz"}
+
+
+# Cloudflare's edge answers the default `Python-urllib/3.x` User-Agent with 403 before the Worker sees the request
+# (measured 2026-11-13, docs/reconcile-fleet-healthz-ua.md): without a User-Agent this block read nothing on every run.
+UA = "Blipscope-ReconcileFleet/1 (+https://github.com/Valar-Systems/valar-scopes; support@valarsystems.com)"
+
+
+def read_healthz(env: str) -> str | None:
+    req = urllib.request.Request(HEALTHZ_URL.get(env, HEALTHZ_URL["production"]), headers={"User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.read().decode("utf-8", "replace")
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def route_mirror_lines(body: str | None) -> tuple:
+    """(lines, warnings) for /healthz's `routes` field. Never a silent pass: an unreadable /healthz, a missing field and
+    a null age each warn, as a stale age does."""
+    if body is None:
+        return ["  Route mirror (rt:): could not read /healthz"], ["route mirror: could not read /healthz"]
+    try:
+        r = json.loads(body).get("routes")
+    except (ValueError, AttributeError):
+        r = None
+    if not isinstance(r, dict):
+        return (["  Route mirror (rt:): /healthz has no routes field"],
+                ["route mirror: /healthz has no routes field (a Worker before docs/route-mirror-age.md)"])
+    lim = r.get("maxAgeDays")
+    if r.get("ageDays") is None or r.get("builtAt") is None:
+        why = r.get("why") or "unknown"
+        return (["  Route mirror (rt:): no age (%s), limit %s d" % (why, lim)], ["route mirror: no age (%s)" % why])
+    line = "  Route mirror (rt:): built %s, %s d old, %s rows (limit %s d)" % (r["builtAt"], r["ageDays"], r.get("rows"), lim)
+    if r.get("stale") is not False:
+        return [line + "  <== STALE"], ["route mirror: %s d old, past its %s-day limit" % (r["ageDays"], lim)]
+    return [line], []
+
+
+def report_route_mirror(env: str) -> list:
+    lines, warn = route_mirror_lines(read_healthz(env))
+    for line in lines:
+        print(line)
+    print()
+    return warn
+
+
+def route_refresh_issue_lines(count) -> tuple:
+    """W6 (docs/route-weekly-code.md): (lines, warnings) for the open `route-refresh` issues a failed or refused weekly
+    run leaves (routes-notify.ts). A count only. A count that could not be read says so, and warns: never a silent 0."""
+    if count is None:
+        return ["  Route refresh: could not count route-refresh issues"], ["route refresh: could not count its issues"]
+    line = "  Route refresh: %d open route-refresh issue(s)" % count
+    if count > 0:
+        return [line + "  <== OPEN"], ["route refresh: %d open route-refresh issue(s)" % count]
+    return [line], []
+
+
+def count_route_refresh_issues():
+    """The number of open issues labelled route-refresh, from `gh api` (a count, never a title), or None."""
+    try:
+        out = subprocess.run(["gh", "api", "repos/Valar-Systems/valar-scopes/issues?labels=route-refresh&state=open&per_page=100",
+                              "--jq", "length"], capture_output=True, text=True, encoding="utf-8", errors="strict", timeout=60)
+        return int(out.stdout.strip()) if out.returncode == 0 else None
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+
+
+def report_route_refresh() -> list:
+    lines, warn = route_refresh_issue_lines(count_route_refresh_issues())
+    for line in lines:
+        print(line)
+    print()
+    return warn
+
+
 def report_ota_reader(env: str, detail: dict) -> list:
     published = read_published()
     token, why = analytics_token()
@@ -320,6 +533,11 @@ def report_ota_reader(env: str, detail: dict) -> list:
     if token and published is not None and detail:
         points, why = read_ota_points(env, token)
     lines, warn = ota_lines(published, detail, points, why)
+    if points is not None and published is not None and detail:
+        ok_devs = ota_breakdown(published, detail, points)["ok_devs"]
+        lv_lines, lv_warn = liveness_report(ok_devs, lambda: read_liveness_rows(env, token), live_window(time.time()))
+        lines[-1:-1] = lv_lines  # under "by last OTA result", before the coverage note
+        warn += lv_warn
     for line in lines:
         print(line)
     print()
@@ -482,6 +700,8 @@ def report_instruments(env: str, errfile: Path, detail: dict, days: int, alert: 
         print("                                    not for a non-empty array")
     print()
     warn += report_ota_reader(env, detail)
+    warn += report_route_mirror(env)
+    warn += report_route_refresh()
     return warn
 
 
@@ -560,8 +780,9 @@ def main() -> None:
             "        Refusing to judge: an empty listing cannot be told apart from a probe\n"
             "        that cannot read KV (wrong cwd, wrong namespace, expired token).\n"
             "        If the fleet is genuinely empty this is still the right answer --\n"
-            "        confirm by hand, from %s:\n"
-            "          npx wrangler kv key list --binding ENRICH_KV --env %s --prefix %s --remote\n"
+            "        confirm by hand, from %s, as a COUNT (device-prefix names never on screen):\n"
+            "          node scripts/wrangler-run.mjs kv key list --binding ENRICH_KV --env %s --prefix %s --remote"
+            " | python -c \"import json,sys; print(len(json.load(sys.stdin)))\"\n"
             "--- captured stderr ---\n%s"
             % (args.prefix, PROXY, args.env, args.prefix,
                errfile.read_text(encoding="utf-8", errors="replace").strip() or "(empty)"))
@@ -576,6 +797,12 @@ def main() -> None:
     print("  test identity: %s; %d row(s) left out as not a unit\n"
           % ("read from the token file" if test_ids else "none configured (BLIPSCOPE_TOKEN_FILE unset or no test-device)",
              left_out))
+    # Bench boards are not fleet units either (docs/fleet-bench-boards.md). Left out HERE, once: the KV-only reconcile
+    # below and A3.1's behind/current counts (built from `detail`, built from kv_ids) both take this list.
+    bench_ids, bench_where = bench_device_ids()
+    bench_out = sum(1 for d in kv_ids if d in bench_ids)
+    kv_ids = [d for d in kv_ids if d not in bench_ids]  # bench boards are not fleet units
+    print("  bench boards: %s; %d row(s) left out as bench, not fleet\n" % (bench_where, bench_out))
 
     detail = {}
     if not args.no_detail:

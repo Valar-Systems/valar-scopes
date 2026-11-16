@@ -1,0 +1,20 @@
+# scripts/wrangler-call-allow.txt -- lines scripts/check_wrangler_calls.py lets through, by path and the SHA-256 of
+# the stripped line (docs/wrangler-run.md). An entry whose line has changed or gone is STALE and refused, so each
+# one dies with the line it allows. The reason says when it goes: a PR-B or a clearance row is a migration owed.
+proxy/scripts/basemap/d1.ts	0f1207036112c5fb3ec0a5429278d3cd0e51bc0ad9d288cfd83b6ae4ad51ee99	migrates after the sea-path PR (map-server; v20's critical path)
+proxy/scripts/check-drift-workflow.mjs	206ac7a27bf8085be25b9bf01b31b4330a162511a8ef81ad107cb4b66782dcea	a test string: the drift check's own planted workflow edit
+proxy/scripts/smoke-prod.sh	9688b24ad0847787fd0cfbedd72cf10cbf9f6edf07cd1aadb9f1b2ec48d840d9	prose in a printed explanation, not a command
+proxy/scripts/token-file.ts	1038cfd507c6cf2e536b3c6a406ca60bcb61c5c2823c8b10d909b9da94b03e68	prose in an error message, not a command
+scripts/claim-hook.py	2e5eabdc0204ce347b2e83ce75c48bee6553d894f1c8e9b7d7a4f2f7ae6a1a30	prose in the hook's docstring and refusal message, not a command
+scripts/claim-hook.py	fab504418446a6cd9dc49582e505d04fdf40c3113c41d08f80a518630334e07a	prose in the hook's docstring and refusal message, not a command
+scripts/session-claim.py	a5651ef7b976c923004588956bce6186668beea3d00e59d6b14c01106b0f18ad	a test string: the claim hook's own test (CL12)
+scripts/session-claim.py	fb25687e793dcf03e86dfba3cd61877bc41e18c02b3b1d17a10d3c59d3c550d3	a test string: the claim hook's own test (CL12)
+scripts/session-claim.py	178e11cec154be09b39ef0d48690948c28c112b82f2b59cec83fb6ddd8049e8a	a test string: the claim hook's own test (CL12)
+scripts/session-claim.py	53e83bbe5923362c8e7b62200ea8bc739506faf9c69d73bc07319a09078f070e	a test string: the claim hook's own test (CL12)
+scripts/session-claim.py	b12dc6250bd514229355e33946acde297e9caec4ac66a2d6cd00a0ca80bec582	a test string: the claim hook's own test (CL12)
+scripts/session-claim.py	0ef19503c32bc5a52899f5c2a6038cd0b7e12939302968d33e9b0b46f2413453	a test string: the claim hook's own test (CL12)
+tools/wx/check_ingest_deploy.sh	1c4f510b2f0f5c48ddebd33039957bb8fd5e72a350e110d237e83728b124e803	a test string: the rig's fake wrangler, its expected calls (D1/D9/D11/D13) and the IDs-f plant
+tools/wx/check_ingest_deploy.sh	70a95982505c795828919939973eaadc6ef27d36ca464250cdc25d92320d3a68	a test string: the rig's fake wrangler, its expected calls (D1/D9/D11/D13) and the IDs-f plant
+tools/wx/check_ingest_deploy.sh	c32657c9593f908a5c54a0b90c0e00579ec3f7b52a08b77c9bdc73c16eea313b	a test string: the rig's fake wrangler, its expected calls (D1/D9/D11/D13) and the IDs-f plant
+tools/wx/check_ingest_deploy.sh	7f7151ef1e0739b01a3390d4b06cad4a781a1e249add6fc37d39683992d7340f	a test string: the rig's fake wrangler, its expected calls (D1/D9/D11/D13) and the IDs-f plant
+tools/wx/check_ingest_deploy.sh	c6b35b673cc86fc73e509d289be6b008cef344786847e2a6e0647226f731ea71	a test string: the rig's fake wrangler, its expected calls (D1/D9/D11/D13) and the IDs-f plant

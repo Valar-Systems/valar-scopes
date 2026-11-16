@@ -111,7 +111,7 @@ def anchor_entries():
 
 # --control (Q57, A12.61): both suites unplanted, each against its own count, nothing planted. run.sh runs it.
 IDENTITY_CHECKS = 22   # test_ota_identity's count, frozen in A12.104: the one place (A12.70)
-INSTALL_CHECKS = 36    # test_ota_install's count, frozen in A12.104
+INSTALL_CHECKS = 42    # test_ota_install's count, frozen in A12.104 (36), + HP1-HP6 (docs/ota-head-patience.md)
 CONTROL_TABLE = {"test_ota_identity": ("checks", IDENTITY_CHECKS), "test_ota_install": ("checks", INSTALL_CHECKS)}
 
 

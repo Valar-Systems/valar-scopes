@@ -1,0 +1,35 @@
+{
+ "properties": {
+  "timestamp": "2026-01-15T11:53:00+00:00",
+  "temperature": {
+   "unitCode": "wmoUnit:degC",
+   "value": -22.5
+  },
+  "windDirection": {
+   "value": 180.5
+  },
+  "windSpeed": {
+   "value": null
+  },
+  "windGust": {
+   "value": 25.0
+  },
+  "relativeHumidity": {
+   "value": null
+  },
+  "presentWeather": [
+   {
+    "rawString": "-SN"
+   },
+   {
+    "rawString": "FZFG"
+   },
+   {
+    "rawString": "NOT METAR"
+   },
+   {
+    "rawString": null
+   }
+  ]
+ }
+}

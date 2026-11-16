@@ -299,6 +299,28 @@ fi
 )
 note_block $? "FollowState + FollowGeometry"
 
+# --- the detail card's no-photo layout (#670, 2026-11-12) -------------------
+#
+# With no decoded photo and the Follow control offered, a 240 px card's slot
+# layout started its rows at y 162 against a floor of 166, so every row dropped
+# and the card showed only its callsign (v9 through v19). CL1 is that case;
+# CL2 (480 px) and CL3 (no Follow) are its controls (docs/card-nophoto-fix.md).
+# Its own block, OUTSIDE the FollowState subshell above: inside it, a red CL1
+# was reported as "FollowState + FollowGeometry" (read in WSL, 2026-11-12).
+# The subshell's exit is the binary's: 1 is a failure, anything but 0 or 1
+# (127: it did not run; 2: it did not compile) is the rig.
+echo
+echo "== card layout: the no-photo card's rows (#670) =="
+(
+if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_card_layout.cpp"       -o "$OUT/test_card_layout.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the card layout test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_card_layout.exe"
+)
+note_block $? "card layout: the no-photo card's rows (#670)"
+
 # --- what actually collides on the radar (2026-09-17) ----------------------
 #
 # The first version of this counter measured label boxes only. A frame saved
@@ -332,7 +354,7 @@ note_block $? "overlap count (labels AND badges)"
 #
 # Found by the fresh-boot acceptance stalling at step 2 on an iPhone: the lat/lon
 # boxes carried inputmode="decimal", whose keypad has no minus key -- and the
-# hint beneath them said "No minus key? Write 121.315 W", on a keypad with no W
+# hint beneath them said "No minus key? Write 121.31 W", on a keypad with no W
 # either. The advice was unreachable on the one device it addressed.
 #
 # ONE EXTRA -I, AND IT IS NOT ON $INCLUDES. include/CoordParse.h is the single
@@ -2245,7 +2267,7 @@ note_block $? "WxLayout"
 
 # Weatherscope 3.5b's device code (docs/weatherscope-stage3.md A10.11, as A12.39 restates it): the BMPK reader
 # (include/BasemapPackage.h), the basemap rasteriser (WxBasemap.h), the fold, the basemap key and the peaks -- 84 named
-# cases, and A12.53's 8 for the key's reason: 92. Its sabotages: python -I test/host/sabotage_wx_basemap.py
+# cases, and A12.53's 8 for the key's reason: 92, and S4.21's 4 for the bridge: 96. Its sabotages: python -I test/host/sabotage_wx_basemap.py
 echo
 echo "== WxBasemap =="
 (
@@ -2654,6 +2676,23 @@ if [ "$rc" -eq 2 ]; then echo "FAIL: R0b refused its fixtures (the rig)"; exit 2
   exit "$fail"
 )
 note_block $? "Weatherscope R0 and R0b (the reference's controls, A12.18)"
+
+echo
+echo "== image-compare (#656): the comparator's fixtures and refusals =="
+# docs/image-compare.md. The fixtures are committed stores (test/fixtures/image-compare); this needs pyelftools, and
+# not the cross-compiler. A missing pyelftools or a crash is the rig (exit 2), never a red.
+(
+if [ -z "$PY" ] || ! "$PY" -c "import elftools" >/dev/null 2>&1; then
+  echo "FAIL: no python with pyelftools; the image-compare selftest cannot run. This is the RIG, not the code."
+  exit 2
+fi
+"$PY" -B "$ROOT/scripts/image-compare.py" selftest
+rc=$?
+[ "$rc" -eq 0 ] && exit 0
+[ "$rc" -eq 1 ] && exit 1
+exit 2
+)
+note_block $? "image-compare selftest (#656)"
 
 echo
 if [ -n "$RIG_BLOCKS$FAILED_BLOCKS" ]; then

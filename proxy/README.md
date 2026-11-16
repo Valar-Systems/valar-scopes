@@ -456,14 +456,14 @@ entrypoint = "BendFeed"
 - **Whether adsb.fi's operator's permission for valarscopes.com covers app.valarscopes.com is not recorded here.** It is Daniel's to confirm.
 
 - **It isn't a route.** No public request can reach it, and it takes no device credentials.
-- **It never fetches an upstream.** Its data is a snapshot cut from fetches devices already made, kept only when a device's fetched area covers a fixed 30 mi circle around downtown (44.058, -121.315).
+- **It never fetches an upstream.** Its data is a snapshot cut from fetches devices already made, kept only when a device's fetched area covers a fixed 30 mi circle around downtown (44.06, -121.31).
 - **The snapshot carries nothing of the device:** no tile, no radius bucket, no limit.
 - **Writes:** at most once per 10 s (30 s until 2026-11-04), globally (`BendSnapshotDO`, one instance), in `waitUntil`, so they can never slow or fail a device.
 - **Reads:** cached 10 s per colo.
 
 **The response:**
 ```json
-{ "available": true, "v": 2, "centre": {"lat": 44.058, "lon": -121.315}, "radius_km": 48.28,
+{ "available": true, "v": 2, "centre": {"lat": 44.06, "lon": -121.31}, "radius_km": 48.28,
   "t": 1761080000, "age_s": 23, "stale": false, "source": "adsb.fi", "attribution": "aircraft data: adsb.fi", "attribution_url": "https://adsb.fi",
   "aircraft": [{"hex": "a1b2c3", "cs": "ASA123", "lat": 44.1, "lon": -121.2, "alt_ft": 31000, "gs_kt": 452,
                 "track_deg": 271, "vrate_fpm": 0, "category": 3, "seen_s": 2,

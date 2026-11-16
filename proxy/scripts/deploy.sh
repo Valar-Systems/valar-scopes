@@ -127,13 +127,32 @@ fi
 # So it is a check in the tool, not a line in a runbook: "which branch am I on"
 # is a PRODUCTION question here, not bookkeeping.
 #
-# Only blocks on commits that touch proxy/ -- firmware-only commits on main
-# cannot reach this bundle, and a guard that fires on unrelated work teaches
-# people to bypass it, which costs more than it saves.
+# PER TARGET since docs/deploy-behind-per-target.md (Q-DB1..Q-DB3, ruled 2026-11-06): it blocks only on commits
+# that touch what THIS target ships -- the bundler's own inputs (a dry-run's metafile), its wrangler config,
+# tsconfig and the package files, and the deploy machinery (this script, deploy-inputs.mjs, session-claim.py;
+# for the proxy also confirm-deploy.sh and healthz-commit.sh). deploy-inputs.mjs prints the set, the dry-run's
+# time and every commit behind with its verdict. A guard that fires on unrelated work teaches people to bypass
+# it, which costs more than it saves. If the bundler cannot answer, the script falls back to today's rule (all
+# of proxy/, plus the machinery); if the script itself fails (any exit but 0 or 1), the rule below is applied
+# here, so a broken probe costs a refusal, never a revert.
 git fetch -q origin main 2>/dev/null || true
+DI_TARGET=proxy; [ -n "$BUILDER" ] && DI_TARGET=builder
+node "$ROOT/proxy/scripts/deploy-inputs.mjs" check "$DI_TARGET" "$ENVIRONMENT"; DI_RC=$?
+if [ "$DI_RC" -eq 1 ]; then
+  if [ "${ALLOW_BEHIND:-}" != "1" ]; then
+    fatal "this tree is behind origin/main in what the $DI_TARGET ships (the commits listed above), and wrangler ships the WORKING TREE."
+    echo "" >&2
+    echo "  git merge origin/main    (then re-run)" >&2
+    echo "  or, knowing exactly what you are reverting:  ALLOW_BEHIND=1 $0 $ENVIRONMENT" >&2
+    exit 1
+  fi
+  echo "ALLOW_BEHIND=1 -- deploying a tree behind origin/main; the commits listed above are being REVERTED."
+  echo ""
+fi
 BEHIND_ALL="$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)"
 BEHIND_PROXY="$(git rev-list --count HEAD..origin/main -- proxy/ 2>/dev/null || echo 0)"
-if [ "${BEHIND_PROXY:-0}" -gt 0 ]; then
+[ "$DI_RC" -ne 0 ] && [ "$DI_RC" -ne 1 ] && echo "deploy-inputs.mjs exited $DI_RC: applying today's rule here (all of proxy/)." >&2
+if [ "$DI_RC" -ne 0 ] && [ "$DI_RC" -ne 1 ] && [ "${BEHIND_PROXY:-0}" -gt 0 ]; then
   if [ "${ALLOW_BEHIND:-}" != "1" ]; then
     fatal "this tree is $BEHIND_PROXY commit(s) behind origin/main in proxy/, and wrangler ships the WORKING TREE."
     echo "" >&2
@@ -147,8 +166,8 @@ if [ "${BEHIND_PROXY:-0}" -gt 0 ]; then
   echo "ALLOW_BEHIND=1 -- deploying a tree behind origin/main; these are being REVERTED:"
   git --no-pager log --oneline HEAD..origin/main -- proxy/
   echo ""
-elif [ "${BEHIND_ALL:-0}" -gt 0 ]; then
-  # Behind main only OUTSIDE proxy/, so it cannot reach the bundle: say it, do not block.
+elif [ "$DI_RC" -ne 0 ] && [ "$DI_RC" -ne 1 ] && [ "${BEHIND_ALL:-0}" -gt 0 ]; then
+  # (today's rule only) Behind main only OUTSIDE proxy/, so it cannot reach the bundle: say it, do not block.
   echo "note: $BEHIND_ALL commit(s) behind origin/main, none touching proxy/ (not bundled, not blocking)."
   echo ""
 fi
@@ -173,7 +192,7 @@ cd "$ROOT/proxy" || exit 1
 # lists -- is D2's ONLY confirmation, and it is the weak form. The proof is D3's binding test on staging: the proxy's
 # /healthz `basemap.commit`, read after one /basemap build, must equal the stamp above (docs/basemap-deploy.md, Q3).
 if [ -n "$BUILDER" ]; then
-  npx wrangler deploy --config basemap.wrangler.toml --env "$ENVIRONMENT" --define BUILD_COMMIT:"\"$SHA\"" || exit 1
+  node scripts/wrangler-run.mjs deploy --config basemap.wrangler.toml --env "$ENVIRONMENT" --define BUILD_COMMIT:"\"$SHA\"" || exit 1
   printf '\nbuilder deployed to %s, stamped %s.\n' "$ENVIRONMENT" "$SHA"
   printf 'NOT YET CONFIRMED: this output is the only evidence until a bound proxy reports this commit (D3).\n'
   exit 0
@@ -206,7 +225,7 @@ fi
 # the one thing this repo keeps learning not to do -- so it no longer decides.
 SECRET_ERR="$(mktemp)"
 SECRET_OUT_F="$(mktemp)"
-npx wrangler secret list --env "$ENVIRONMENT" >"$SECRET_OUT_F" 2>"$SECRET_ERR"
+node scripts/wrangler-run.mjs secret list --env "$ENVIRONMENT" >"$SECRET_OUT_F" 2>"$SECRET_ERR"
 SECRET_RC=$?
 SECRET_OUT="$(cat "$SECRET_OUT_F")"
 if [ $SECRET_RC -ne 0 ]; then
@@ -230,7 +249,7 @@ if [ $SECRET_RC -ne 0 ]; then
   if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
     echo "" >&2
     echo "  LIKELY CAUSE: CLOUDFLARE_API_TOKEN is set in this environment (present;" >&2
-    echo "  value not shown) and wrangler prefers it over your \`wrangler login\`" >&2
+    echo "  value not shown) and wrangler prefers it over your OAuth login" >&2
     echo "  session. If that token lacks Workers Scripts permission it fails exactly" >&2
     echo "  like a missing credential. Try:" >&2
     echo "" >&2
@@ -243,7 +262,7 @@ if [ $SECRET_RC -ne 0 ]; then
   else
     echo "" >&2
     echo "  CLOUDFLARE_API_TOKEN is NOT set here, so wrangler is using your login" >&2
-    echo "  session. Check \`npx wrangler whoami\` and that the account has Workers" >&2
+    echo "  session. Check \`node scripts/wrangler-run.mjs whoami\` (from proxy/) and that the account has Workers" >&2
     echo "  Scripts permission." >&2
   fi
   rm -f "$SECRET_ERR" "$SECRET_OUT_F"
@@ -253,14 +272,14 @@ rm -f "$SECRET_ERR" "$SECRET_OUT_F"
 if ! printf '%s' "$SECRET_OUT" | grep -q 'DEVICE_KEY_SECRET'; then
   echo "FATAL: DEVICE_KEY_SECRET is not set on $ENVIRONMENT." >&2
   echo "  Per-device keys are the only auth path, so deploying now 401s the whole fleet." >&2
-  echo "  Set it first:  npx wrangler secret put DEVICE_KEY_SECRET --env $ENVIRONMENT" >&2
+  echo "  Set it first (from proxy/):  node scripts/wrangler-run.mjs secret put DEVICE_KEY_SECRET --env $ENVIRONMENT" >&2
   echo "  Secrets present:" >&2
   printf '%s\n' "$SECRET_OUT" | sed 's/^/    /' >&2
   exit 1
 fi
 printf '  secrets  DEVICE_KEY_SECRET present on %s\n\n' "$ENVIRONMENT"
 
-npx wrangler deploy --env "$ENVIRONMENT" --define BUILD_COMMIT:"\"$SHA\"" || exit 1
+node scripts/wrangler-run.mjs deploy --env "$ENVIRONMENT" --define BUILD_COMMIT:"\"$SHA\"" || exit 1   # docs/wrangler-run.md
 
 # ---- 4. prove it, rather than assuming the upload implies it ----------------
 # Edge isolates drain for a few minutes after a deploy, so an immediate check can

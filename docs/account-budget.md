@@ -1,0 +1,810 @@
+# The account budget: every product's share of every Cloudflare allowance (registration, predictions first, 2026-11-12)
+
+**For:** the reviewer. **Status:** the design and its predictions, frozen before the data file, the checker or any
+read for it exists. The build lands as a further commit to this PR, with its readings.
+
+## 0. The ruling
+
+The owner, 2026-11-12 17:19Z, relayed by the reviewer at 17:19:58Z: "Missileer's stream: no change, and the US-ingest
+change stays shelved. The whole-account rule stands, made checkable." His four points, verbatim:
+
+> 1. One account-wide budget file lists each product's measured share of every free allowance (R2 writes and reads,
+>    KV reads and writes, Workers CPU and requests).
+> 2. Every cost estimate adds its line there and states the account total.
+> 3. The digest flags any allowance over 80% (today: R2 reads, 9.4 M of 10 M with OPERA and US radar).
+> 4. When convenient, read-only: how often anyone listens to 'Listen live' (playlist requests per hour), so on-demand
+>    streaming can be judged with numbers later.
+
+**Why it exists.** Two repos each budgeted the same per-account free tier as their own. valar-eam-feed's
+`station/live/README.md` counted Missileer at 81.2% of R2's free 1 M Class A, and says "Other Class A users on the
+account that this repo cannot see (for example the Blipscope Worker) are not counted." Weather was budgeted the same way
+from this side. Together they cross the 1 M, which Cloudflare bills as a whole second million ("Billable unit
+rounding", R2's pricing page).
+
+## 1. What gets built (the next commit)
+
+| file | what |
+|---|---|
+| `docs/account-budget.json` | the data: allowances, reads, products, rows, scenarios (section 2) |
+| `scripts/account_budget.py` | the checker (section 3). `--selftest` runs its controls (section 4). `--render` writes section 6's table, and `--render-check` refuses a stale one |
+| `tools/budget/budget_read.py` | the read: one window, every billed line, attributed to products (section 2). Read-only, counts only, token from the token file, never printed |
+| `tools/budget/build_budget.py` | assembles the data file from the reads of section 5.1, the ten's derived running rows, `shsr`'s projected rows and the derived Logs rows |
+| `tools/budget/sabotage_account_budget.py` | red first: plants S1-S6 in a copy of the checker, each asserted to apply, and requires each control to fail with exactly its predicted set |
+| `.github/workflows/account-budget.yml` | CI on any change to the paths above: `--selftest`, the sabotage driver, then the checker (it prints the flags into the log), then `--render-check` |
+| this doc | section 6 gains the rendered table and the readings |
+
+## 2. The data
+
+**Allowances** (Workers Paid; the prices are `tools/wx/account_cost_read.py`'s `PRICE`, from Cloudflare's docs, read
+2026-11-11):
+- **Required by the ruling:** R2 Class A (writes), R2 Class B (reads), KV reads, KV writes, Workers CPU, Workers requests.
+- **Also carried, since they are billed:** Workers Logs events, R2 storage, KV list and delete, Durable Object
+  requests and GB-s.
+- Each allowance carries its included amount, its price, and whether it rounds up to a whole unit (Read A: R2 and DO,
+  as published).
+
+**Products,** each with its source in the account's analytics:
+
+| product | Workers script(s) | R2 bucket(s) | KV namespace |
+|---|---|---|---|
+| Missileer live stream | (none: an external S3 client, the station) | `missileer-live` | |
+| Missileer clips and public export | (none) | `missileer-clips` | |
+| Blipscope proxy | `blipscope-proxy` | its reads of `blipscope-wx` (see below), `blipscope-basemap` | production `ENRICH_KV` |
+| proxy staging | `blipscope-proxy-staging` | | staging's namespace |
+| US radar ingest (`cref`) | `blipscope-wx-ingest` | its share of `blipscope-wx` | |
+| Europe radar ingests (the ten) | `blipscope-wx-ingest-op*` | their share of `blipscope-wx` | |
+| basemap builder (staging) | `blipscope-basemap-staging` | `blipscope-basemap-pkg-staging` | |
+| dev ingest (parked) | `blipscope-wx-ingest-dev` | `blipscope-wx-dev` | |
+| kiosk site and app | `valarscopes-app`, `valarscopes-site` | | |
+| US radar SeamlessHSR (`shsr`) | when built (projected until then) | its share of `blipscope-wx` | |
+| anything else | every script, bucket or namespace the read finds that no row above names | | |
+
+**`blipscope-wx` is shared by three writers and readers.** R2's analytics give it by bucket and operation type, not
+by caller. The split is by hour:
+- In OPERA's silence the bucket's Class A is the US ingest's alone (the proxy never writes it).
+- With OPERA running, the extra is the ten's.
+- Class B (reads) in silence is the US ingest plus the proxy's `/wx` serving, which R2's analytics cannot separate. That
+  row is named for both, never assigned to one.
+
+**States and scenarios.** Most products have one state ("now"). The ten have `silent` and `running`; `shsr` has
+`absent` and `built`. A scenario picks one state for each:
+- "today": the ten silent, `shsr` absent;
+- "OPERA running": the ten running, `shsr` absent;
+- "OPERA running + shsr": the ten running, `shsr` built.
+
+**Rows:** product, state, allowance, value a month, `basis` (measured, derived or projected), and the read it came
+from. **Reads:** each names its tool, its window, and the account's own total for every allowance in that window.
+
+## 3. The checker
+
+For each scenario and each allowance, it prints:
+- the sum and the included amount, and the percentage;
+- the cost under Read A;
+- **`FLAG`** at 80% or more, and **`OVER`** past 100%;
+- each scenario's total monthly overage.
+
+**The anchor:** for every read, the rows taken from it must sum to that read's account total for each allowance,
+within 1%. A product missing from the attribution, or one counted twice, fails it.
+
+**Exit codes:**
+- 0: the file is valid, and the flags are printed (a flag is the digest's input, not a CI failure);
+- 2: a malformed file (an unknown allowance or product, a row without its read, a duplicate) or a failed anchor;
+- 1: a failed `--selftest` control, or a stale render.
+
+## 4. Its controls (`--selftest`), each required to behave before the real file is believed
+
+| control | planted | must |
+|---|---|---|
+| P1 | a row adding 1.0 M KV reads to "today" (72% to about 82%) | print `FLAG` on KV reads |
+| P2 | every row scaled to a third | print no `FLAG` anywhere, so the flag is not always on |
+| P3 | a row naming an allowance that does not exist | exit 2 |
+| P4 | the Missileer live stream's rows removed | exit 2 on the anchor (Class A and Class B) |
+| P5 | section 6's table edited by one digit | `--render-check` exits 1 |
+
+## 5. Predictions for the real file (frozen now, before `budget_read.py` exists or has run)
+
+**The window for "today":** 24 hours wholly inside OPERA's silence, ending at a whole hour after 21:00Z on 11-12, x 30.
+The ten's `running` rows come from 2026-11-11 17:00-20:00Z, the only whole hours they all ran. `shsr`'s rows are
+`cref`'s measured rows, labelled projected.
+
+| allowance | today | OPERA running | OPERA running + shsr |
+|---|---|---|---|
+| Workers CPU (30 M) | **FLAG, OVER**: 105-135% | **FLAG, OVER**: 210-245% | **FLAG, OVER**: 280-335% |
+| R2 Class A (1 M) | **FLAG**: 88-97% | **FLAG, OVER**: 105-115% (Read A $4.50) | **FLAG, OVER**: 118-128% (Read A $4.50) |
+| R2 Class B (10 M) | 30-50% | **FLAG**: 85-99% | **FLAG**: 89-103%. Past 10 M is Read A $0.36 |
+| KV reads (10 M) | 60-80% (no flag; at 72% on 11-12's 7-day read) | same | same |
+| KV writes (1 M) | 50-70% | same | same |
+| requests (10 M) | 20-35% | same | same |
+| Logs events (20 M) | 30-50% | same | same |
+| R2 storage, DO | under 50% each | same | same |
+
+- **The total overage under Read A:** today $0.05-$0.40, which is CPU only; OPERA running $5.15-$5.80; OPERA running +
+  `shsr` $5.55-$6.40. All of these are inside the $10 allowance. "With OPERA and US radar" in the owner's point 3 is the
+  third column.
+- **The anchor:** "today"'s rows sum to the read's account totals within 1% on every allowance.
+- **The Class B note:** a first look (11-12, 17-20Z against 00-16Z) suggests that the ten's running Class B is larger
+  than M6's projected 4.30 M. That is why the running column's Class B band is wide.
+- **Outside this table, which stops and is reported:**
+  - a scenario's flags differ from the bold cells;
+  - the anchor fails;
+  - a script, bucket or namespace appears that section 2 does not name;
+  - any control in section 4 does not behave.
+
+### 5.1 The window, changed before the graded read (ruled 2026-11-12 17:38:35Z)
+
+**What prompted it: an ungraded dry run.** `budget_read.py` was run on the 24 hours ending 17:00Z on 11-12, to test
+its mechanics, not to grade. That window still held OPERA's last running hours. It showed that a 24-hour window
+misreads bursty lines:
+- **KV writes:** 50,250 a month at that day's rate, against 608,177 on the 7-day read. A weekly or occasional job
+  dominates them.
+- **KV reads:** 8.37 M a month (84%) at that day's rate, against 7.16 M (72%) on the 7-day read.
+
+**The ruling, as registered here:**
+- **"today" is the 7-day run rate (x 30/7),** the basis of the monthly bill and of `tools/wx/account_cost_read.py`.
+- **Only the OPERA-dependent rows** (the ten's scripts, and `blipscope-wx`'s Class A and B) come from the silent hours
+  inside it, from 2026-11-11 21:00Z. That is a separate read, anchored on its own.
+- **In each read, the groups the other read supplies are kept as rows in state `excluded`,** which no scenario sums. So
+  each read still anchors against its own independent totals.
+- **The section 5 bands stay frozen exactly as written,** and are graded on this window. Any miss is recorded as mine.
+- **The 24-hour rate is printed beside every allowance,** labelled "24 h rate (observation, not graded)". It comes from
+  a read of the 24 hours ending at the graded read's hour, and is stored as totals only, so no scenario can sum it. The
+  burstiness stays visible instead of being averaged away.
+- **One control is added, P6:** a row in state `excluded`, and an observation read with totals far past every
+  allowance, change no flag and no sum.
+- **The anchor's totals come from separate ungrouped queries** (no script, bucket or namespace dimension). The rows
+  therefore cannot vouch for themselves: a truncated grouped query, or a group the mapping skipped, shows as a gap. The
+  dry run matched them to 0.000% on all seven anchored allowances. Storage and DO have no coarser total and are not
+  anchored.
+
+### 5.2 December's Workers Logs: bytes per event (registered 2026-11-12 ~18:15Z, before its read)
+
+**Why.** From 2026-12-01, Workers Logs is billed by the gigabyte: ingest (50 GB a month included, then $0.25 a GB) and
+storage (10 GB included, then $0.10). That replaces November's price per event. So the Logs line needs bytes per event.
+`docs/wx-account-cost.md` measured it from the telemetry API's JSON per event, one hour each: **1,714 B on 11-11 and
+1,650 B on 11-12.**
+
+**What this read adds:**
+- **Three whole hours at different times of day.** Each must come back unsampled (ABR 1), or it is refused, never
+  graded. They are the 21:00Z, 03:00Z and 09:00Z hours after this registration.
+- **Per service:** events per invocation, and bytes per event.
+- **The tool:** `tools/budget/logs_bytes.py`. It is read-only, counts and sizes only, never prints an event, and reads
+  its token from the token file.
+
+**What it cannot see, stated now.** Cloudflare bills "the event body, the default enriched attributes, and custom
+attributes, pre-compression". The API's JSON is the closest available measure: it carries `$metadata` keys and JSON
+punctuation, which may not match the billed bytes. Only December's dashboard or invoice can settle that. The figures
+below are labelled "API bytes".
+
+**Predictions:**
+- **Bytes per event, overall, in each of the three hours:** 1,500-1,850.
+- **The proxy's:** 1,500-1,900.
+- **The ingests':** 800-2,500, since no per-service read exists.
+- **Events per invocation:** the proxy 2.9-3.4; the ingests 2.5-3.5 (11-11 read 3.12 and 3.00).
+- **December's Logs at today's fleet,** with events from the budget's "today" (about 8.3 M a month):
+  - ingest **12-16 GB** a month (24-32% of 50), no flag;
+  - storage, at 7 days' retention (x 7/30), **2.8-3.7 GB** (28-37% of 10), no flag;
+  - **$0** in every scenario.
+- **Outside these bands:** stop and report. A sampled hour is refused and replaced by the next hour of the same
+  time-of-day slot.
+- **The checker is not changed by this.** December's GB allowances join the data file in their own change, registered
+  before 12-01.
+
+### 5.3 The three hours, read: stopped at the third, one figure outside its band
+
+`tools/budget/logs_bytes.py`, the 21:00Z, 03:00Z and 09:00Z hours, each read at five past the next hour.
+
+| hour (Z) | ABR | pages | proxy B/event | ingests B/event | overall B/event | events/inv, proxy | events/inv, ingests | ingests' share of events |
+|---|---|---|---|---|---|---|---|---|
+| 11-12 21:00 | 1 | 9 | 1,744.9 | 818.2 | 1,638.9 | 3.25 | 3.03 | 11.44% |
+| 11-13 03:00 | 1 | 6 | 1,765.9 | 814.0 | 1,587.0 | 3.13 | 3.01 | 18.79% |
+| 11-13 09:00 | 1 | 5 | 1,717.0 | 826.2 | **1,496.0: OFF** | 3.29 | 3.01 | 24.81% |
+| band (5.2) | 1 | | 1,500-1,900 | 800-2,500 | 1,500-1,850 | 2.9-3.4 | 2.5-3.5 | not registered |
+
+Hour 3's overall figure is 4.0 B per event under the band's foot. Every other figure in all three hours is inside its
+band. As 5.2 requires, the read stopped there and was reported. December's projection has not been computed.
+
+**Cause: the mix of the two services, which the overall band did not model.** The overall figure is the
+event-weighted mean of two services whose bytes per event differ by about a factor of two. The ingests run on a
+schedule, so their events per hour hardly move (1,978, 2,160, 2,160). The proxy's events follow the fleet's traffic
+(15,305, 9,334, 6,545). At 09Z the ingests are 24.81% of events. At that hour's per-service figures, the overall
+figure drops below 1,500 once their share passes 24.36%. The band came from two single hours of the overall figure
+(1,714 and 1,650), with no share attached.
+
+**The alternatives, and what excludes each:**
+- **The proxy's events got smaller.** Excluded: 1,717.0 is inside its band and within 2.8% of the other two hours.
+- **The read lost pages.** Excluded on three counts:
+  - In every hour the page count fits the event count at 2,000 a page (9, 6, 5).
+  - Every hour is unsampled.
+  - Events per invocation, which checks events against an independent count (the analytics API's invocations), is
+    in band for both services. A lost page would lower it, and the proxy's 3.29 is the highest of the three hours.
+- **A third script pulled the figure down.** Hour 3's "all" row has 2 events and 1 invocation more than the proxy
+  and the ingests together. They come from a script that is neither. The tool prints groups, not scripts, so it is
+  not named here; naming it means re-reading the hour, which waits for the ruling. Excluded as the cause: the proxy
+  and the ingests alone give 1,495.96.
+
+**Proposed fix, for the ruling.** Grade hours by service, and drop the per-hour overall band. The per-service bands
+held in all three hours. The overall figure moves with the time of day by construction. The projection needs the
+month's mix, not an hour's: today's budget has the ingests at 18.14% of the month's events (cref, the ten silent,
+wx-dev: 1,518,231 of 8,368,065) and the proxy at 78.42%. The other 3.44% (kiosk, proxy staging, basemap staging:
+287,763) is on scripts that none of the three hours measured.
+
+**Ruled by the reviewer, 2026-11-13 (after 10:12Z):**
+- Hour 3's overall figure stays **OFF on the record** (1,496.0 against 1,500-1,850). It is not re-graded.
+- **From now on, Logs-bytes hours are graded by service:** the proxy's and the ingests' bytes per event and events per
+  invocation, each against its own band. The per-hour overall band is dropped, because it assumed a mix that an hour
+  cannot hold.
+- The third script is not named. Its 2 events do not move the verdict, and a re-read just to name it is not worth it.
+
+### 5.4 December's projection: the method, frozen before its arithmetic (frozen in 8cfc6477 before any figure; approved by the reviewer 2026-11-13)
+
+Both methods are computed and reported. Neither is picked after the figures are seen.
+- **A, as 5.2 reads:** the mean of the three hours' overall bytes per event x 8,368,065 events a month.
+- **B, by service:** three products, each from its own measured mean:
+  - the proxy's three-hour mean x 6,562,071;
+  - the ingests' three-hour mean x 1,518,231;
+  - the 287,763 unmeasured events at the proxy's mean. That is the larger of the two figures, so the error is on the
+    high side.
+- **The figure quoted as December's estimate is B,** because it follows the month's mix and not three hours' mix.
+  This choice is frozen here, before either figure exists.
+- **Units and scenarios:**
+  - GB means 10^9 bytes, the unit 5.2's own band arithmetic uses (8.3 M x 1,500-1,850 B = 12.5-15.4 GB).
+  - Storage is ingest x 7/30.
+  - The OPERA-running and OPERA + shsr scenarios use the same method on their own events.
+- **Bands, unchanged from 5.2:** ingest 12-16 GB and storage 2.8-3.7 GB at today's fleet; $0 in every scenario.
+
+**Outcomes:**
+
+| outcome | meaning |
+|---|---|
+| A and B both inside both bands, $0 everywhere | as predicted |
+| one of A and B inside, the other outside | both are reported, then stop |
+| either one outside a band, or any scenario not $0 | stop and report |
+| none of the above (for example, the budget's events change before the arithmetic) | the inputs moved; stop and decide |
+
+### 5.5 December's projection, computed: as predicted
+
+**Means of the three hours:** overall 1,573.97 B per event (A); proxy 1,742.60 and ingests 819.47 (B).
+
+**Events:** from `docs/account-budget.json` at main b7184243, the same 8,368,065 that 5.4 froze. shsr runs as
+`blipscope-wx-ingest-shsr`, one of the ingests, so in B its 137,106 events take the ingests' mean.
+
+| scenario | events a month | of them, ingests | A: ingest GB | A: storage GB | **B: ingest GB** | **B: storage GB** | $ |
+|---|---|---|---|---|---|---|---|
+| today (the ten silent) | 8,368,065 | 1,518,231 | 13.17 | 3.07 | **13.18** (26.4% of 50) | **3.08** (30.8% of 10) | 0 |
+| OPERA running | 8,358,635 | 1,508,801 | 13.16 | 3.07 | **13.17** (26.3% of 50) | **3.07** (30.7% of 10) | 0 |
+| OPERA running + shsr | 8,495,741 | 1,645,907 | 13.37 | 3.12 | **13.29** (26.6% of 50) | **3.10** (31.0% of 10) | 0 |
+
+**Outcome: the first row of 5.4, as predicted.**
+- At today's fleet, A and B are both inside both bands: ingest 12-16 GB, storage 2.8-3.7 GB.
+- Every scenario costs $0.
+- A and B differ by at most 0.09 GB, because the month's ingest share (18.14%) sits close to the three hours' average.
+
+**December's estimate (B): 13.2 GB ingested and 3.1 GB stored a month at today's fleet, $0.**
+
+**What this still cannot see (from 5.2).** These are API bytes. The billed bytes may differ, and only December's
+dashboard or invoice settles that. December's GB allowances join `docs/account-budget.json` in their own change,
+registered before 12-01.
+
+## 6. The table (rendered by the checker, from the next commit)
+
+<!-- account-budget:begin (rendered by scripts/account_budget.py --render; do not edit) -->
+**30-day figures** (a steady row as read; a one-off at 2026-12's events)
+
+| allowance | included | before shsr | today | OPERA running | OPERA running + shsr | 24 h rate (observation, not graded) |
+|---|---|---|---|---|---|---|
+| R2 Class A (writes) | 1.000 M | 0.888 M (89%) **FLAG** | 1.009 M (101%) **OVER**, $4.50 | 1.061 M (106%) **OVER**, $4.50 | 1.182 M (118%) **OVER**, $4.50 | 0.931 M (93%) |
+| R2 Class B (reads) | 10.000 M | 4.750 M (48%) | 5.182 M (52%) | 10.120 M (101%) **OVER**, $0.36 | 10.552 M (106%) **OVER**, $0.36 | 4.474 M (45%) |
+| R2 storage (GB-month) | 10.00 | 3.46 (35%) | 3.86 (39%) | 3.46 (35%) | 3.86 (39%) | not read |
+| KV reads | 10.000 M | 7.020 M (70%) | 7.020 M (70%) | 7.020 M (70%) | 7.020 M (70%) | 8.295 M (83%) |
+| KV writes | 1.000 M | 0.577 M (58%) | 0.577 M (58%) | 0.577 M (58%) | 0.577 M (58%) | 0.047 M (5%) |
+| KV lists | 1.000 M | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.006 M (1%) |
+| KV deletes | 1.000 M | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | not read |
+| Workers CPU (ms) | 30.000 M | 37.996 M (127%) **OVER**, $0.16 | 60.388 M (201%) **OVER**, $0.61 | 69.030 M (230%) **OVER**, $0.78 | 91.423 M (305%) **OVER**, $1.23 | 32.797 M (109%) |
+| Workers requests | 10.000 M | 2.194 M (22%) | 2.237 M (22%) | 2.519 M (25%) | 2.562 M (26%) | 2.805 M (28%) |
+| Workers Logs events (November prices) | 20.000 M | 6.966 M (35%) | 7.102 M (36%) | 7.997 M (40%) | 8.134 M (41%) | not read |
+| Durable Object requests | 1.000 M | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | not read |
+| Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | not read |
+| **overage a month (Read A)** | | **$0.16** | **$5.11** | **$5.64** | **$6.09** | |
+
+**2026-11, calendar month (30 days)**
+
+| allowance | included | Nov none | Nov none + weather | Nov none + Missileer | Nov fallback | Nov fallback + weather | Nov fallback + Missileer |
+|---|---|---|---|---|---|---|---|
+| R2 Class A (writes) | 1.000 M | 0.960 M (96%) **FLAG** | 0.940 M (94%) **FLAG** | 0.843 M (84%) **FLAG** | 1.040 M (104%) **OVER**, $4.50 | 1.020 M (102%) **OVER**, $4.50 | 0.924 M (92%) **FLAG** |
+| R2 Class B (reads) | 10.000 M | 5.006 M (50%) | 5.006 M (50%) | 5.006 M (50%) | 7.512 M (75%) | 7.512 M (75%) | 7.512 M (75%) |
+| R2 storage (GB-month) | 10.00 | 3.70 (37%) | 3.70 (37%) | 3.70 (37%) | 3.70 (37%) | 3.70 (37%) | 3.70 (37%) |
+| KV reads | 10.000 M | 7.020 M (70%) | 7.020 M (70%) | 7.020 M (70%) | 7.020 M (70%) | 7.020 M (70%) | 7.020 M (70%) |
+| KV writes | 1.000 M | 1.911 M (191%) **OVER**, $4.56 | 1.911 M (191%) **OVER**, $4.56 | 1.911 M (191%) **OVER**, $4.56 | 1.911 M (191%) **OVER**, $4.56 | 1.911 M (191%) **OVER**, $4.56 | 1.911 M (191%) **OVER**, $4.56 |
+| KV lists | 1.000 M | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) |
+| KV deletes | 1.000 M | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) |
+| Workers CPU (ms) | 30.000 M | 51.236 M (171%) **OVER**, $0.42 | 51.236 M (171%) **OVER**, $0.42 | 51.236 M (171%) **OVER**, $0.42 | 65.719 M (219%) **OVER**, $0.71 | 65.719 M (219%) **OVER**, $0.71 | 65.719 M (219%) **OVER**, $0.71 |
+| Workers requests | 10.000 M | 2.219 M (22%) | 2.219 M (22%) | 2.219 M (22%) | 2.371 M (24%) | 2.371 M (24%) | 2.371 M (24%) |
+| Workers Logs events (November prices) | 20.000 M | 7.046 M (35%) | 7.046 M (35%) | 7.046 M (35%) | 7.528 M (38%) | 7.528 M (38%) | 7.528 M (38%) |
+| Durable Object requests | 1.000 M | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) |
+| Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) |
+| **overage a month (Read A)** | | **$4.98** | **$4.98** | **$4.98** | **$9.77** | **$9.77** | **$5.27** |
+
+**2026-12, calendar month (31 days)**
+
+| allowance | included | Dec none | Dec none + weather | Dec none + Missileer | Dec fallback | Dec fallback + weather | Dec fallback + Missileer |
+|---|---|---|---|---|---|---|---|
+| R2 Class A (writes) | 1.000 M | 1.043 M (104%) **OVER**, $4.50 | 0.998 M (100%) **FLAG** | 0.784 M (78%) | 1.221 M (122%) **OVER**, $4.50 | 1.177 M (118%) **OVER**, $4.50 | 0.963 M (96%) **FLAG** |
+| R2 Class B (reads) | 10.000 M | 5.355 M (54%) | 5.355 M (54%) | 5.355 M (54%) | 10.904 M (109%) **OVER**, $0.36 | 10.904 M (109%) **OVER**, $0.36 | 10.904 M (109%) **OVER**, $0.36 |
+| R2 storage (GB-month) | 10.00 | 3.99 (40%) | 3.99 (40%) | 3.99 (40%) | 3.99 (40%) | 3.99 (40%) | 3.99 (40%) |
+| KV reads | 10.000 M | 7.254 M (73%) | 7.254 M (73%) | 7.254 M (73%) | 7.254 M (73%) | 7.254 M (73%) | 7.254 M (73%) |
+| KV writes | 1.000 M | 0.579 M (58%) | 0.579 M (58%) | 0.579 M (58%) | 0.579 M (58%) | 0.579 M (58%) | 0.579 M (58%) |
+| KV lists | 1.000 M | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) |
+| KV deletes | 1.000 M | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) |
+| Workers CPU (ms) | 30.000 M | 62.401 M (208%) **OVER**, $0.65 | 62.401 M (208%) **OVER**, $0.65 | 62.401 M (208%) **OVER**, $0.65 | 94.471 M (315%) **OVER**, $1.29 | 94.471 M (315%) **OVER**, $1.29 | 94.471 M (315%) **OVER**, $1.29 |
+| Workers requests | 10.000 M | 2.311 M (23%) | 2.311 M (23%) | 2.311 M (23%) | 2.647 M (26%) | 2.647 M (26%) | 2.647 M (26%) |
+| Workers Logs events (November prices) | 20.000 M | 7.339 M (37%) | 7.339 M (37%) | 7.339 M (37%) | 8.405 M (42%) | 8.405 M (42%) | 8.405 M (42%) |
+| Durable Object requests | 1.000 M | 0.318 M (32%) | 0.318 M (32%) | 0.318 M (32%) | 0.318 M (32%) | 0.318 M (32%) | 0.318 M (32%) |
+| Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) |
+| **overage a month (Read A)** | | **$5.15** | **$0.65** | **$0.65** | **$6.15** | **$6.15** | **$1.65** |
+
+**One-off rows**
+
+| product | state | allowance | per_event x events[2026-12] = value | events by month | reader's 30-day figure |
+|---|---|---|---|---|---|
+| proxy | now | KV writes | 0.067 M x 4 = 0.269 M | 2026-11: 5, 2026-12: 4 | not read |
+| proxy | now | KV writes | 0.002 M x 0 = 0.000 M | 2026-11: 1, 2026-12: 0 | not read |
+| proxy | now | KV writes | 0.571 M x 0 = 0.000 M | 2026-11: 1, 2026-12: 0 | not read |
+| proxy-staging | now | KV writes | 0.066 M x 4 = 0.263 M | 2026-11: 5, 2026-12: 4 | not read |
+| proxy-staging | now | KV writes | 0.629 M x 0 = 0.000 M | 2026-11: 1, 2026-12: 0 | not read |
+| proxy-staging | now | KV writes | 0.000 M x 0 = 0.000 M | 2026-11: 1, 2026-12: 0 | not read |
+<!-- account-budget:end -->
+
+### 6.1 The graded read (2026-11-12, window ending 21:00:00Z, run 21:05:12-27Z)
+
+**The reads, as section 5.1 registered them:**
+- `r-7d` (2026-11-05 21:00Z to 11-12 21:00Z, take "rest");
+- `r-silent` (2026-11-11 21:00Z to 11-12 21:00Z, take "opera");
+- `r-run` (2026-11-11 17:00-20:00Z; the ten's running rows derived);
+- `r-24h`, the observation (the same 24 hours as `r-silent`).
+
+`build_budget.py` wrote 93 rows from them. No unattributed script, bucket or namespace appeared. **Both anchored reads
+held,** so the checker exited 0.
+
+**Graded against section 5, frozen before any read:**
+
+| allowance | today | OPERA running | OPERA running + shsr |
+|---|---|---|---|
+| Workers CPU | 120% OVER, in 105-135: **as predicted** | 227% OVER, in 210-245: **as predicted** | 315% OVER, in 280-335: **as predicted** |
+| R2 Class A | FLAG as predicted, but **85.4%, under 88-97: OFF** | OVER as predicted, but **102.7%, under 105-115: OFF** | OVER as predicted, but **115.9%, under 118-128: OFF** |
+| R2 Class B | 41%, in 30-50: **as predicted** | 94.9% FLAG, in 85-99: **as predicted** | 99.2% FLAG, in 89-103: **as predicted** |
+| KV reads / KV writes | 72% / 61%, in 60-80 / 50-70: **as predicted** | same | same |
+| requests / Logs | 26% / 42%, in 20-35 / 30-50: **as predicted** | same | same |
+| R2 storage, DO | 35% / 40%, under 50: **as predicted** | same | 39% / 40%: **as predicted** |
+| overage (Read A) | $0.12, in $0.05-$0.40: **as predicted** | $5.26, in $5.15-$5.80: **as predicted** | $5.79, in $5.55-$6.40: **as predicted** |
+
+- **The flags are exactly the predicted set in every scenario,** and the overage is inside its band in every scenario.
+- **The three misses are mine, and they share one cause.** Class A's bands were built from S3-7's 24 hours ending
+  16:24Z, while the ruled window is 7 days. Those 7 days hold Missileer's dip on 11-08 to 11-10 (15,409, 22,878 and
+  22,974 a day, against about 26,000 otherwise). That lowers `missileer-live`'s 7-day rate, and with it every
+  scenario's Class A, by about 2 points.
+  - The 24-hour observation reads Class A at 93%, inside the "today" band, which is consistent with that cause.
+  - The ungraded dry run at 17:00Z had already shown it, and it was reported then. The bands stayed frozen, as ruled.
+- **What the 24-hour observation shows that the graded columns average away:** KV reads at **83%** on the last day,
+  against 72% over the week; KV writes at 5% on the day, against 61% over the week; Class A at 93% against 85%.
+- **For the digest,** the checker's own line:
+  `FLAGS (80% or more): today: cpu_ms OVER, r2_class_a FLAG; OPERA running: cpu_ms OVER, r2_class_a OVER, r2_class_b FLAG; OPERA running + shsr: cpu_ms OVER, r2_class_a OVER, r2_class_b FLAG`
+
+## 7. Point 4, the listener read (after the budget file)
+
+Read-only, when convenient. The measure is requests per hour for `kph/live.m3u8`, the playlist every listener reloads
+about every 10 s. That needs per-object or per-path counts. R2's analytics, as read so far, give bucket and operation
+type only, and the edge caches the playlist for 2 s (`public, max-age=2`), so R2 sees at most one fetch per data
+centre every 2 s, however many listen. The read will say plainly what it cannot see; a zone's HTTP analytics for
+`live.missileer.watch`, if the token can read them, is the first candidate.
+
+### 7.1 Registered 2026-11-12 ~21:55Z, before any of it is read
+
+**What changed since section 7 was written.** A schema check (an introspection query, which reads no data) shows that
+R2's analytics DO carry `objectName`, as a dimension and as a filter (`objectName_ilike`), and also `eyeballRegion`.
+So per-object counts of what reaches R2 are readable. The zone's HTTP analytics are not needed for a first answer.
+
+**Which object measures what,** from valar-eam-feed's `station/live/README.md` (read-only, at `cff6c038`):
+
+| object | Cache-Control | who fetches it | so R2's count measures |
+|---|---|---|---|
+| `kph/state.json` | `no-cache, max-age=0` | the site, for every visitor (the switch); the streamer, once a segment | visitors' polls plus the streamer's 360 an hour: **not listeners** |
+| `kph/voice.json` | `max-age=2` | the site, for every visitor (the voice indicator) | visitors: **not listeners** |
+| `kph/live.m3u8` | `max-age=2` | every visitor's waterfall (it names the `.wf` files) and every player | visitors: **not listeners** |
+| `kph/<seg>.wf` | immutable, a year | the site's waterfall, "for every visitor" | visitors, once per data centre: **not listeners** |
+| `kph/<seg>.ts` | immutable, a year | **only a playing listener** | **active listener data centres:** each fetches each 10 s segment once, so up to 360 an hour per data centre |
+
+**The measure, then: `.ts` GETs per hour, divided by 360, is the number of data centres with at least one listener
+in that hour.** It is a lower bound on listeners, with three things it cannot see, stated now:
+- several listeners served by one data centre count once;
+- if Cloudflare's tiered cache is on for that zone, an upper tier can serve several data centres with one R2 fetch, so
+  even data centres are undercounted (whether it is on is not readable with this token);
+- a listener who joins mid-hour counts as a fraction of an hour.
+
+`eyeballRegion` per hour adds a count of distinct regions with a listener.
+
+**The tool:** `tools/budget/live_listeners.py`. Read-only, counts only. Per hour for 7 days, the `missileer-live`
+GetObject counts split by object class (`.ts`, `.wf`, `live.m3u8`, `voice.json`, `state.json`, other), plus the
+`.ts` regions. Its control: the classes must sum to the bucket's own GetObject count for each hour, within 1%, read by
+a separate query with no `objectName` dimension. Otherwise it exits 2.
+
+**Outcomes, registered before the read:**
+
+| outcome | what the `.ts` hours show | meaning for on-demand streaming (M1) |
+|---|---|---|
+| **L0** | `.ts` GETs are 0 in at least 80% of hours | nobody listens most of the time: M1 would save most of the 0.778 M |
+| **L1** | `.ts` GETs are above 0 in at least 80% of hours | someone listens nearly always: M1 would save little |
+| **L2** | anything between: sporadic listening | M1 saves about the listener-free share of hours, which is reported |
+| **L3** | the control fails, or `objectName` returns no `.ts` rows while the bucket's GetObject count is non-zero | the instrument cannot see per-object counts here: stop and report |
+
+**My prediction: L2.** The basis: the bucket's non-streamer GETs average about 3,500-3,900 an hour, but the visitor
+objects above can account for all of that, so the bucket total does not separate the outcomes. I hold L2 at low
+confidence; L0 and L1 are both live.
+
+**CI for this registration (predicted before the push):** it changes `docs/account-budget.md`, which is in
+`account-budget.yml`'s path filter, and leaves section 6's table alone, so `--render-check` stays current. Main is
+`f3dd6b62`. **Predicted: 33 = 31/2/0.**
+
+### 7.2 Read 2026-11-12 21:54:57Z: the 7 days ending 21:00Z. Outcome L1, against my L2
+
+`python3 -I tools/budget/live_listeners.py 2026-11-12T21:00:00Z 7` (one query per day and per class).
+
+**The control held in all 168 hours:** the six classes, each counted by its own filter, `other` included (an AND of
+`objectName_notlike`), summed to the bucket's unfiltered GetObject count within 1% every hour.
+
+**L1 (registered: `.ts` above 0 in at least 80% of hours): `.ts` reached R2 in 151 of 168 hours (90%).** My
+prediction was L2, so the prediction is OFF. Its stated basis, that the bucket total could not separate the outcomes,
+held; the outcome simply fell on L1.
+
+| reading | value |
+|---|---|
+| listener data-centre-hours | 148.8 in 7 days, 21.3 a day |
+| by UTC day | 11-05 1.6 (the window starts at 21:00Z), 11-06 30.9, 11-07 33.0, 11-08 17.0, 11-09 17.3, 11-10 11.0, 11-11 9.8, 11-12 28.1 |
+| `.ts` an hour | min 0, median 362, max 724 |
+| hours with 0 / 1-179 / 180-359 / 360-379 / 380-719 / 720 or more | 17 / 39 / 18 / 26 / 56 / 12 |
+| mean `.ts` by UTC hour | 207-471, highest around 08-12Z and 19-20Z |
+| eyeball regions with a `.ts` fetch, per hour | **always exactly one region.** No hour shows two |
+
+**What it means, and the alternative it cannot exclude:**
+- **Something fetches the live audio nearly every hour, always from one region.** In 40% of hours there is more than
+  one data centre's worth (over 380 an hour), which means a second cache or player in the same region.
+- **The alternative is an automated fetcher in that region,** such as a monitor, a kiosk, or something on the
+  station's own side that plays or checks the stream. R2's analytics cannot exclude it. The day-to-day spread (9.8 to
+  33 data-centre-hours) argues against one constant fetcher being all of it. A constant fetcher plus some people fits
+  the data as well as people alone.
+- **What would separate them:**
+  - the zone's HTTP analytics for `live.missileer.watch` (clients and user agents, by count), which needs a zone-read
+    token this machine does not hold;
+  - or a site-side "playing" beacon, which is not read-only;
+  - or the owner, who may simply know whether anything of his plays the stream continuously.
+- **For on-demand streaming (M1):**
+  - if these fetches are real listeners, M1 saves at most the listener-free share, about 10% of hours, roughly 0.08 M
+    Class A a month;
+  - if most are an automated fetcher that could be stopped, it saves far more.
+  - The region's name is not printed here, by the location rule.
+
+## 8. CI for this registration (predicted before the push)
+
+**Predicted: 32 check runs: 29 success, 3 skipped, 0 failed.**
+- It changes this doc only, which is in no workflow's path filter.
+- **The baseline** is #667's head run (docs only): 32 = 29/3/0.
+- **The build commit adds `account-budget.yml`,** whose one job runs when its paths change. That commit is predicted at
+  **33 = 30/3/0**, registered again before its push.
+- **Re-predicted 2026-11-12 19:07Z, before the build's push, for a job-set change on main:** #675 (main `099f1946`)
+  makes `ship-alert` run report-only on every PR. A docs-only PR is now **32 = 30/2/0** (the reviewer's announcement,
+  19:06:30Z). So:
+  - **the build commit: 33 = 31/2/0;**
+  - every head already pushed (`86a7930b` to `6dca0e6d`) finished under the old set at 32 = 29/3/0, as predicted then.
+
+## 9. The one-off basis, and the 2026-11-14 update (registered 09:24Z, before any code or read)
+
+**Why.** `budget_read.py` scales every row linearly to 30 days. That is right for a steady line and wrong for an event:
+- the 7-day read behind today's KV writes (0.608 M) holds ONE refresh-data Monday, scaled x 4.29;
+- on 2026-11-14 a 30-day run rate was sent as "the month" and had to be corrected by calendar month
+  (`docs/wx-opera-backup-fallback.md` 5a).
+
+A one-off scaled as if steady is a plausible number of the wrong kind: "a truncated row is a lie", one level up.
+
+**9.1 The data change.**
+- Every row gains `cadence`: `"steady"` or `"one-off"`.
+- **A one-off row also carries `per_event` (one event, measured) and `events` (a whole number: how many fall in the
+  modelled month), and its `value` must equal `per_event x events` exactly.**
+- Any row may carry `reader_30d`, the reader's linear 30-day figure, shown beside it.
+- The file gains `month`, the calendar month the one-offs are counted for. Here it is **`2026-12`**: the next whole month,
+  and the month of the owner's open bill question.
+
+**9.2 The checker (`scripts/account_budget.py`).** Exit 2 (malformed) when:
+- a row has no `cadence`, or one outside the two;
+- a one-off row lacks `per_event` or `events`, or `events` is not a non-negative integer;
+- a one-off row's `value` differs from `per_event x events` (relative 1e-9);
+- a steady row carries `per_event` or `events`;
+- the file has no `month`.
+
+The rendered table gains one line per one-off row, beneath it: product, allowance, `per_event x events = value`, and the
+reader's 30-day figure beside it. "Each line marked steady or one-off beside the reader's 30-day figure."
+
+**9.3 Controls (`--selftest`), red-first against today's checker:**
+- **P-ONE (the registered sabotage):** a one-off row whose value is scaled x 30 (`per_event x events x 30`) must exit 2.
+  Today it reads clean, because there is no cadence, so it is red.
+- **P-ONE-ctl:** the same row unscaled reads clean, before and after.
+- **P-ONE-steady:** a steady row carrying `per_event` must exit 2. Red today.
+- **P-ONE-none:** a row with no `cadence` must exit 2. Red today.
+- **The sabotage driver** (`tools/budget/sabotage_account_budget.py`) gains **S-ONE**: the value-equals-product check
+  disabled. It turns exactly {P-ONE} green.
+
+**9.4 The rows, and the one read they need.**
+- **shsr, from X10 as measured** (weatherscope S4.28b, `9d8ed07d`): `cpu_ms` 22,392,657 (520.2 ms x 43,050
+  invocations), `r2_class_a` 120,780 (± 13k), `requests` 43,050.
+  - New read `x10`. It anchors on its own figures.
+  - It REPLACES `proj-shsr`'s three rows of those allowances. Class B, storage and Logs stay projected, because X10
+    did not measure them. Said so in their `how`.
+- **KV writes, by event, from the per-day reader.** The reader joins `tools/budget/` as `kv_by_day.py`: counts per UTC
+  day, by action and namespace, analytics token from the token file; logic unchanged from the 2026-11-14 read.
+  - **ONE registered read:** `kv-days`, 2026-11-01T00:00:00Z to 2026-11-15T00:00:00Z, whole days.
+  - **Events by date, named before the read:** refresh-data Mondays 11-02 and 11-09; the (A) route refresh 11-13.
+    Background is the median of the other days.
+  - **Rows:**
+    - background, steady (median day x 31);
+    - the refresh-data Monday, one-off (`per_event` = the mean of 11-02 and 11-09; `events` 4: December 2026 has four
+      Mondays);
+    - the (A) refresh, one-off (`per_event` measured; `events` 0 in December).
+    - Each row per namespace (proxy, proxy-staging).
+  - **The r-7d `kv_write` rows move to state `excluded`,** as section 5.1 provides, so r-7d still anchors on its own
+    totals.
+  - **Predicted bands,** from the 2026-11-14 06:48Z read of the same instrument: a Monday 120-146k across both
+    namespaces; background 1.35-1.65k a day; (A) 1.08-1.32 M. **Outside a band: STOP before any row is written.**
+- **`budget_read.py` maps shsr:** `SCRIPT["blipscope-wx-ingest-shsr"] = "shsr"`, written in state `built` (its
+  product's state), so the next read attributes it rather than calling it unattributed.
+- **Read A cited where the doc states it:** developers.cloudflare.com/r2/pricing, "Billable unit rounding".
+
+**9.4a The kv-days read (2026-11-15): (A)'s band is a MISS, recorded and not graded.**
+- **Read 1** (04:03:33Z) and **read 2** (04:05:44Z, 131 s later) are byte-identical (sha256 `1e8287009e63`): 14 of 14
+  days, no writes in an unnamed namespace, no GraphQL errors.
+- **In band:** the Mondays, 132,762 (11-02) and 132,979 (11-09); the background median, 1,552.
+- **The MISS:** (A) on 11-13 read 630,612 against 1.08-1.32 M. 11-14, registered as background, read 570,547.
+  - **The cause:** (A) crossed UTC midnight. Staging ran 2026-11-13 17:25-17:44Z, production 2026-11-14 01:37-01:52Z
+    (`docs/route-refresh-2026-11.md`). The instrument splits by UTC day, and the predicted set gave that no meaning.
+  - **Refused:** re-registering the band after the read. A band written after the data cannot fail, so it would be a
+    re-grade. The miss stays a miss.
+  - **The data stand on records that are not this instrument.** 11-13's staging count, 628,713, equals S5's run-window
+    read exactly, which excludes an undercount. 567,930 of 11-14's 570,544 production writes sit inside P5's run
+    window. The other 2,614 are unattributed and not graded (about $0.01).
+- **The rows (ruled 2026-11-15, B2):** (A) has a one-off row per UTC day per namespace, 11-13 and 11-14, and the
+  background rows are the median of the other 10 days. Leaving 11-14 out (B1) would have dropped 567,930 writes that P5
+  saw happen, about $2.84 off November.
+- **For every registered event from now on:** date it by the instrument's own UTC-day split, and give an event that
+  crosses UTC midnight a row per day.
+
+**9.5 Predictions for the rendered table after 9.4, by arithmetic, frozen now:**
+- "OPERA running + shsr":
+  - Class A 1.159 M - 132,450 + 120,780 = **1.147 M (OVER, $4.50)**, unchanged at Read A;
+  - CPU 94.564 M - 26.406 M + 22.393 M = **90.551 M, $1.21** (from $1.29);
+  - requests within 0.001 M.
+- "today" and "OPERA running": unchanged except KV writes.
+- **KV writes, every scenario:** about **0.58 M** (background about 46k + 4 Mondays of about 133k), against 0.608 M
+  now. The exact figure is the read's. Under 1 M: $0.
+- **Totals (Read A):** today $0.12; OPERA running $5.26; OPERA running + shsr **$5.71**.
+- **Outside these:** stop.
+
+**9.6 Asked, then RULED (the reviewer, 2026-11-14 ~09:26Z): relabel, in this PR.** A scenario called "today" that
+leaves out a line live since 2026-11-13 is a false label. **"today" becomes opera-ten silent + shsr `built` (as
+measured).** The old one is kept, renamed **"before shsr"**, because 9.5's comparison needs it.
+- **Predicted, "today" as relabelled:** the old "today" plus X10's rows, by arithmetic.
+  - Class A 0.854 M + 120,780 = **0.975 M (97%, FLAG, under 1 M by about 25k: $0)**, which is about twice shsr's ±13k
+    from the line;
+  - CPU 35.917 M + 22.393 M = **58.310 M, $0.57**;
+  - Class B 4.118 M + 0.432 M (shsr projected) = 4.550 M;
+  - **total $0.57 at Read A.**
+- **"before shsr":** today's old figures, $0.12.
+- **CONDITIONAL on 9.8(v), noted 2026-11-14 09:30Z before any acceptance or run.** The figures above use the 11-12 base.
+  If 9.8(v) moves the base to the MTD read, they are superseded. "today" on that base is the 30-day MTD figures with
+  shsr from X10: Class A 1.009 M (OVER by about 9k: $4.50 at Read A), CPU 60.4 M ($0.61), KV by event ($0), total
+  about $5.11. That is the line the owner was already shown at 06:48Z, and it is a coin flip within shsr's ±13k. A
+  scenario without `month` takes its one-offs at the file's default month, 2026-12.
+- **SUPERSEDED (2026-11-15): 9.6's figures above, on the 11-12 base.** 9.8(v) moved the base to the MTD read, as
+  built (9.12). "today" now renders $5.11 in the table this file carries. 9.6's ruling, the relabel, stands; its
+  figures do not.
+
+**9.8 THE STRUCTURAL RULE (the reviewer, 2026-11-14 ~09:28Z) and its scenarios. Registered before code; the design
+choices below are PROPOSED for the reviewer's acceptance.** Three wrong cost figures reached the owner in one day:
+- the 30-day run rate sent as "the month";
+- #720 5a's CPU (stage 3's "a product" read as the ten's total, 10x low);
+- 5a's Class B, never priced, which crosses 10 M with OPERA back.
+
+5a was a hand-built table outside this checker, a second path round the guard. **Rule: every cost figure that goes to
+the owner comes from this file's rendered output.** So the calendar-month table the owner is deciding on becomes
+checked scenarios here, and #720's 5a points at them.
+- **(i) `month` moves onto the scenario** (`"2026-11"`, `"2026-12"`; absent = the 30-day figures, as today). A steady
+  row in a month scenario renders as its 30-day value x (days in effect / 30).
+- **(ii) A product's state in a scenario may start mid-month:** `{"state": s, "from": "<ISO UTC>", "before": s0}`. The
+  steady rows of `s` count from `from` to the month's end, and `s0`'s for the rest.
+  - **shsr** is `built` from 2026-11-13T06:16:00Z, at X10's measured rate. (The corrected 5a used shsr's actual first
+    day, about 2x its X10 rate. This renders about 3.7k Class A lower in November; predicted and named here.)
+  - **The fallback** is opera-ten `running` from 2026-11-17T00:00:00Z.
+- **(iii) One-off rows count `events` per month:** `events: {"2026-11": n, "2026-12": m}`, and `value` = `per_event x
+  events[month]`. 9.1's single `events` becomes this map.
+- **(iv) The levers are product states**, with their own rows and basis `projected`:
+  - weather: shsr `built-no-list`, its Class A less one ListObjects per invocation (43,050 a month);
+  - Missileer: missileer-live `cut`, its Class A less 250,000 a month, as sent to the owner.
+  - Each `from` 2026-11-17 in November.
+- **(v) The base read for every scenario becomes the 2026-11-14 MTD read** (`budget_read.py`, 2026-11-01T00:00Z to
+  11-14T06:00Z, 318 h, `read MTD-1114`): the corrected 5a's base, newer and longer than the 11-12 reads.
+  - The 11-12 reads' rows move to `excluded`, so each still anchors on its own totals (5.1).
+  - The ten's `running` rows stay the measured r-run rows. shsr is X10. KV writes go by event (9.4).
+  - **This changes the three existing scenarios' figures too; predicted below.**
+  - A known small double count, named: opuk ran in production 11-06 to 11-11, inside the MTD window. So "fallback"
+    adds about 0.2 x one-tenth of the ten on top of it (under 4k Class A).
+- **The 12 calendar scenarios:** {no fallback, fallback from Nov 17} x {no lever, weather from Nov 17, Missileer from
+  Nov 17} x {2026-11, 2026-12}, rendered beside the three 30-day ones.
+- **Their predictions are the corrected 5a's,** as accepted (2026-11-14 ~09:28Z), within the two named differences
+  above:
+  - November: $4.95 / $9.77 / $5.27 for none / fallback / fallback + Missileer;
+  - December: $5.11 / $6.14 / $1.64;
+  - **every rendered total within $0.05 of these, and every Read A step (Class A or B crossing a whole million) the
+    same.** A step that differs is outside the set: stop.
+  - **ACCEPTED (the reviewer, 2026-11-14 by 09:31Z), with this escape hatch.** A total off by more than $0.05 that the
+    two named differences do not account for, or anything else outside the set, means STOP: "the instrument and the
+    hand table disagree; decide". 9.6's 11-12-base figures are marked SUPERSEDED once (v) lands.
+- **5a in #720** then carries no table: a pointer to these rows, its v1 kept and marked superseded with the cause.
+
+**9.9 Two details 9.8 needs, registered 2026-11-14 09:54Z before any code: proposed for acceptance.**
+- **(a) Segments, not one `from`.** The weather lever changes shsr's state twice in November: `absent`, then `built`
+  from 2026-11-13T06:16Z, then `built-no-list` from 11-17. So a product's state in a month scenario is an ordered list
+  `[{state}, {state, from}, ...]`, where the first segment has no `from`. 9.8(ii)'s `{state, from, before}` is the
+  two-segment case. The checker refuses: an empty list, a first segment with a `from`, unsorted or out-of-month `from`s,
+  and segments in a 30-day scenario. A one-off row's product may not change state inside a month scenario (refused).
+- **(b) shsr's first day is inside the MTD base, and is split out from sourced figures before X10 replaces it.** shsr
+  went live 2026-11-13 ~06:16Z, about 24 h inside the MTD window, and the base counts that day at the window's linear
+  x 2.264.
+  - **CPU and requests:** by script. `budget_read.py`'s new mapping (9.4) attributes them to shsr, which the MTD read,
+    taken before the mapping, filed as `unattributed`. In the rebuilt file, shsr's MTD rows go to `excluded` (so the read
+    still anchors), and X10's rows stand in `built`.
+  - **Class A:** the blipscope-wx bucket's row (filed as cref) holds cref and shsr's day together, and R2 cannot
+    separate them by bucket. **cref's share is X10's own anchor, cref at 181.3 an hour** (weatherscope S4.28b), x 720:
+    130,536 a month. The rest is shsr's day, in `excluded`. Arithmetic, frozen now: the bucket's 147,926 a month is
+    65,334 raw over 318 h; the anchor x 318 h is 57,653; shsr's day is 7,681 raw, 17,390 scaled. **December
+    none/none's Class A then renders 1,009,156**, against the corrected 5a's 1,009,181: a rounding difference.
+    **ACCEPTED (the reviewer, 2026-11-14 by 09:56Z), with a stated tolerance: ±100 Class A.** A rendering of that line
+    outside 1,009,056-1,009,256 is a STOP.
+  - **Class B:** the blipscope-wx-reads row holds the proxy's /wx serving and the ingests' reads. shsr's day there is
+    estimated from its design projection: 432,000 a month x 23.7/720 h, about 14,200 raw. Basis `derived`, in
+    `excluded`, and the rest stays.
+  - **This is why the corrected 5a subtracted 17,366** (Class A) and 1,667,164 (CPU) from the MTD totals. Those
+    figures are now derived in the builder, from stated sources, rather than by hand.
+
+**9.7 CI for this registration (docs only):** predicted **33 = 31 success + 2 skipped + 0 other.** The anchor is
+#714's and #718's docs-only heads (both 33 = 31/2/0), with no workflow change on main since. **Outside the set:** stop.
+
+**9.10 RE-REGISTERED (2026-11-14 10:07:36Z, before any build or read; the reviewer's ruling of the same morning).**
+A re-derivation by plain arithmetic, independent of the checker (the saved MTD-1114 read plus this file's r-run rows),
+found that the accepted predictions in 9.8 and 9.9(b) contradict 9.8(i):
+- **The December predictions were 30-day figures.** The corrected 5a's December, and 9.9(b)'s 1,009,156, used the
+  30-day steady values (no x 31/30). 9.8(i) renders a month scenario's steady row x days/30, and 9.4 already writes the
+  KV background as "median day x 31". **RULED: 9.8(i) as written.** A "whole month" that is a 30-day figure is the 5a
+  error again, so the design wins over the prediction.
+- **A third named difference.** The ten's own scripts in the MTD window (opuk 11-06 to 11-11, plus the three hours
+  all ten ran: 2,410,422 CPU ms a month) are filed as opera-ten `silent`. So under a segment they stop counting while
+  the ten run, and 9.8(v)'s double count goes away for CPU. Effect: about -$0.022 in November with the fallback,
+  -$0.048 in December (at 30 days).
+
+Each December convention fails one of the old checks: at x 31/30, Class A renders 1,042,796 (outside 9.9(b)'s ±100);
+at x 30/30, the December fallback is -$0.052 against the corrected 5a. So the predictions are re-registered:
+- **December none/none, Class A: 1,042,796 ±100.** A rendering outside 1,042,696-1,042,896 is a STOP.
+- **Totals (Read A), with KV at the corrected 5a's inputs** until the kv-days read replaces them, within its bands
+  (9.4). Every total must land within $0.05 of these:
+
+  | | none | fallback from Nov 17 | fallback + Missileer from Nov 17 |
+  |---|---|---|---|
+  | November, no lever | $4.95 | $9.74 | $5.24 |
+  | November, weather lever | $4.95 | $9.74 | |
+  | December, no lever | $5.15 | $6.15 | $1.65 |
+  | December, weather lever | $0.65 | $6.15 | |
+
+  The Missileer lever without the fallback renders $4.95 in November and $0.65 in December.
+- **Every Read A step is the same as the corrected 5a's.** Class A is over 1 M in: November with the fallback (no lever
+  and weather); December none (no lever); December with the fallback (no lever and weather). Class B is over 10 M in
+  December with the fallback (all three). No other step.
+- **The 30-day scenarios** (one-offs at 2026-12): before shsr $0.16; today $5.11; OPERA running $5.64 (Class B 10.120 M,
+  over by 0.12 M); OPERA running + shsr $6.09.
+- **Every allowance the corrected 5a never priced stays under, in every scenario:** R2 storage at most 3.5 GB of 10,
+  KV reads at most 7.25 M, requests at most 2.76 M, Logs events at most 8.75 M, Durable Object requests at most 0.32 M.
+- **Outside the set: STOP,** with "the instrument and the arithmetic disagree; decide".
+- **Named for the owner's question** (a prediction; his figures come from the rendered file): at 31 days, the weather
+  lever leaves December's Class A at about 998,300, under 1 M by about 1.7k, against X10's ±13k for shsr. So December
+  none with the weather lever is a coin flip between about $0.65 and $5.15. The corrected 5a's 30 days had about 34k of
+  margin. The Missileer lever (about 784k) is not marginal.
+- **A small difference, absorbed:** the MTD read's shsr script CPU is 1,678,769 against the 1,667,164 the corrected 5a
+  subtracted (11.6k ms, $0.0002).
+- **When the kv-days read can run.** 9.4's window ends 2026-11-15T00:00:00Z, so the read waits for that day to end.
+  `kv_by_day.py` refuses a window that has not ended, and one that is not whole days, because a partial day reads
+  exactly like a quiet one. The build waits on it.
+
+**9.11 The builder change, and the build run's predictions (registered 2026-11-15 04:16:08Z, before the build run).**
+- **`build_budget.py --miss a`** (ruled 2026-11-15):
+  - it prints (A)'s band as "MISS (recorded, not graded)" and writes the miss and its S5/P5 cross-check into the (A)
+    reads' notes;
+  - it is refused (exit 3) when (A) is inside its band, when any other band is outside, or when the S5/P5 records do not
+    hold in the data (11-13 staging exactly 628,713; 11-14 production at least 567,930);
+  - without it, a band outside still stops (exit 3), and any other argument is refused (exit 2).
+  - The bands are graded as registered: (A) on 11-13 alone, the background over 11 days. Only the rows follow B2.
+- **A finding, fixed:** every refusal the builder documented as exit 3, 4 or 5 exited 1. `raise SystemExit(3, msg)`
+  makes the tuple the exit code, which Python prints and then exits 1 on. The builder now refuses through `stop()`,
+  which prints the message and exits with the code. K6 runs the builder as a process and requires exit 3.
+- **Controls:** `build_budget.py --selftest` has 15 rows (K0-K10), on synthetic kv-days files, with no network. The
+  sabotage driver plants each refusal and each B2 rule out once (11 plants and an anchor). All 22 plants, these 12 and
+  the checker's 10, read as predicted.
+- **The build run's predictions, by arithmetic from the kv-days read under B2:**
+  - **Printed bands:** background 1,552 in; Mondays 132,762 and 132,979 in; Monday mean 132,870 in (132,870.5, printed
+    to the unit); (A) 2026-11-13 630,612 "MISS (recorded, not graded)". Exit 0.
+  - **KV rows:** 8 (each namespace: background, Monday and two (A) days) and 4 kv-days reads.
+    - Background: 45,630 (proxy, 1,521 x 30) and 0 (staging).
+    - Monday per_event: 67,197 (proxy) and 65,673.5 (staging).
+    - (A) per_event: proxy 1,899 (11-13) and 570,544 (11-14); staging 628,713 (11-13) and 3 (11-14). The (A) total is
+      1,201,159.
+  - **KV writes by scenario:**
+    - November: 1,911,141.5 (45,630 + 5 x 132,870.5 + 1,201,159). KV is $4.56, against the corrected 5a's $4.53
+      (1,906,000): +$0.026.
+    - December: 578,633 (45,630 x 31/30 + 4 x 132,870.5). The 30-day scenarios: 577,112. Both under 1 M, so $0, as
+      before.
+  - **9.10's totals:** every one is graded at its registered ±$0.05, unchanged. B2 moves only November's, by +$0.026;
+    December's and the 30-day scenarios' do not move. So a November total lands inside ±$0.05 only if the rest of the
+    build lands within -$0.076 to +$0.024 of 9.10's arithmetic. **Any total outside ±$0.05: STOP to the reviewer, not a
+    fix.**
+  - **The MTD-1114 read's totals** equal the saved read's (`budget-mtd-1114.json`; the window is closed). If they
+    differ, the instrument has moved: STOP.
+  - **Outside the set** (an UNATTRIBUTED line, an exit but 0, or anything above not as stated): STOP, with "the
+    instrument and the arithmetic disagree; decide".
+- **Write size:** one output JSON (under about 100 KB), and five reads in a temporary directory removed on exit.
+
+**9.12 The first build's instrument failure, and the anchor's rounding allowance (registered 2026-11-15 04:24:48Z,
+before the second build).**
+- **The first build (04:18Z) ran as 9.11 predicted:** exit 0; every KV row and read as stated; the (A) total 1,201,159;
+  the MTD-1114 totals equal to the saved read's (8 keys, 0 differing).
+- **The checker refused it (exit 2):** "ANCHOR FAILED ... read MTD-1114, kv_delete: rows sum to 4, the account read 5".
+  It is recorded as an INSTRUMENT failure, the checker's first, not as a red on the budget.
+  - **The cause, in the code:** `budget_read.py` rounds each row on its own, and each total on the raw sum. MTD-1114
+    holds 2 raw deletes at k = 720/318 = 2.2642: two rows of round(2.26) = 2, against a total of round(4.53) = 5. The
+    saved read carries the same 2 + 2 against 5.
+  - **Excluded:** a missed namespace (kv-days reads "other" 0, and S5 and P5 each name one delete); a double count (the
+    rows are below the total). $0 either way.
+- **Ruled R1, tightened (2026-11-15):**
+  - the anchor allows max(1% x total, 0.5 x (rows + 1)), and only for a read with k != 1;
+  - a read with k = 1 keeps the 1% rule, so a missing count of 1 at a small total still fails;
+  - a read with totals and no k is refused.
+  - `budget_read.py` now writes `k` into its read, and the builder writes `k: 1` for X10. The premise is stated at
+    `budget_read.py`'s rounding lines. R2 (unrounded output) was refused.
+- **Two premises, each erring toward a refusal, never a pass:**
+  - `cpu_ms` is fractional (microseconds / 1000) even at k = 1, so "k = 1 rounds exactly" holds for counts, not for CPU.
+    A k = 1 CPU total under about 50 x (rows + 1) ms could fail spuriously; every CPU total here is millions of ms.
+  - The builder merges excluded rows per key (`excluded()`), so one written row can carry more than one rounding. The
+    bound counts written rows, so there it is tighter than the true rounding, not looser.
+- **Controls, red first:**
+  - P7, the control: k 2.2642, rows 2 + 2 against a total of 5, anchors.
+  - P7g: the same read with rows 2 + 1, a gap of 2 past the bound of 1.5, fails.
+  - P7k: k = 1, rows 2 + 2 against 5, fails.
+  - P7n: totals and no k, refused.
+  - The driver plants S7a {P7k}, S7b {P7}, S7c {P7g} and S7d {P7n}. S4 is now {P4, P7g, P7k}: an unbounded tolerance
+    passes those two gaps too.
+- **The second build's predictions:**
+  - Its json, parsed, equals the first build's (`f578fef00a79`), except a `k` in exactly five reads: r-7d 4.2857
+    (720/168), r-silent 30, r-24h 30, MTD-1114 2.2642 (720/318), and x10 1.
+  - The MTD-1114 totals equal the saved read's again.
+  - Validation passes; the MTD-1114 kv_delete anchor reads 4 against 5, inside 1.5.
+  - The render is then graded against 9.10, with 9.11's KV predictions unchanged.
+  - **Outside the set: STOP.**
+- **The second build (04:25Z), as predicted:**
+  - its json equals the first build's plus `k` in the five reads, and validation exits 0;
+  - all 16 totals are inside ±$0.05: November is 9.10's plus $0.03 (9.11's KV shift), and December and the 30-day
+    scenarios are exactly 9.10's;
+  - KV writes, December none's Class A (1,042,794.5) and the Read A steps read as predicted.
+- **Two MISSes, both registration errors (ruled 2026-11-15: no code change, no re-grade):**
+  - 9.10's "R2 storage at most 3.5 GB" left out shsr's own registered 0.4 GB projection and December's 31/30.
+    "today" renders 3.863 (3.463 + 0.4), and December 3.992.
+  - 9.10's "KV reads at most 7.25 M" missed 9.8(i)'s 31/30. December renders 7,254,298, which is 7,020,288 x 31/30.
+  - Both are $0, under their allowances with room: 3.99 of 10 GB, and 7.25 of 10 M.
+- **Queued, not in this PR:** R2 storage is billed per GB-month, so scaling it by 31/30 overstates December (3.86 to
+  3.99). Immaterial here.
+- **The device-id guard refused the second build's commit, correctly.** MTD-1114's k, 720/318 written in full, has 16
+  digits after the point: the shape of a device id. Rather than pass the guard, `budget_read.py`
+  now writes k to six places, since the anchor only asks whether k is 1. **A third build is predicted** to equal the
+  second exactly, except k: r-7d 4.285714 and MTD-1114 2.264151, with r-silent, r-24h and x10 unchanged. Validation
+  passes, and the rendered table does not change (k is not rendered). Outside that: STOP.

@@ -16,11 +16,10 @@ ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1"
 BUCKET = "blipscope-wx"
 HOST = f"{ACCOUNT}.r2.cloudflarestorage.com"
 PREFIX = "wx/opuk/frames/"
-T = {}
-for line in open(os.path.expanduser("~/.config/blipscope/tokens"), encoding="utf-8"):
-    k, _, v = line.strip().partition("=")
-    if k and v:
-        T[k] = v
+import importlib.util as _ilu   # the token-file helper, by path: python -I drops this folder from sys.path
+_tfs = _ilu.spec_from_file_location("token_file", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token_file.py"))
+TOKEN_FILE = _ilu.module_from_spec(_tfs); _tfs.loader.exec_module(TOKEN_FILE)   # docs/token-file-python.md
+T = TOKEN_FILE.tokens("r2-wx-read-id", "r2-wx-read-secret")
 
 
 def s3_get(path, q=None):

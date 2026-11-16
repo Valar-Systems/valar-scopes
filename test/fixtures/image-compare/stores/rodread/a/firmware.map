@@ -1,0 +1,84 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 src/main.c.o
+ .data          0x00000000        0x0 src/main.c.o
+ .bss           0x00000000        0x0 src/main.c.o
+ .text          0x00000000        0x0 src/rd.c.o
+ .data          0x00000000        0x0 src/rd.c.o
+ .bss           0x00000000        0x0 src/rd.c.o
+ .text          0x00000000        0x0 src/rr.c.o
+ .data          0x00000000        0x0 src/rr.c.o
+ .bss           0x00000000        0x0 src/rr.c.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD src/main.c.o
+LOAD src/rd.c.o
+LOAD src/rr.c.o
+
+.text_hi
+ *(.literal.hi_* .text.hi_*)
+
+.text_lo        0x40000000       0x64
+ *(.literal .literal.* .text .text.*)
+ .literal.entry
+                0x40000000        0x4 src/main.c.o
+                                 0x10 (size before relaxing)
+ .literal.rd    0x40000004        0x4 src/rd.c.o
+ .literal.rk    0x40000008        0x4 src/rd.c.o
+ .literal.rl    0x4000000c        0x4 src/rr.c.o
+ .text.entry    0x40000010       0x24 src/main.c.o
+                                 0x2c (size before relaxing)
+                0x40000010                entry
+ .text.rd       0x40000034       0x10 src/rd.c.o
+                0x40000034                rd
+ .text.rk       0x40000044       0x10 src/rd.c.o
+                0x40000044                rk
+ .text.rl       0x40000054       0x10 src/rr.c.o
+                0x40000054                rl
+
+.rodata         0x3f000000       0x30
+ *(.rodata .rodata.*)
+ .rodata.ltbl   0x3f000000       0x10 src/rr.c.o
+ .rodata.ktbl   0x3f000010       0x10 src/rr.c.o
+                0x3f000010                ktbl
+ .rodata.tbl    0x3f000020       0x10 src/rr.c.o
+                0x3f000020                tbl
+
+.data
+ *(.data .data.*)
+
+.bss            0x3f000030        0x4
+ *(.bss .bss.* COMMON)
+ .bss.g_out     0x3f000030        0x4 src/main.c.o
+                0x3f000030                g_out
+
+.xt.lit         0x00000000       0x20
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/main.c.o
+ .xt.lit        0x00000008       0x10 src/rd.c.o
+ .xt.lit        0x00000018        0x8 src/rr.c.o
+
+.xt.prop        0x00000000       0xf0
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x3c src/main.c.o
+ .xt.prop       0x0000003c       0x60 src/rd.c.o
+ .xt.prop       0x0000009c       0x54 src/rr.c.o
+OUTPUT(firmware.elf elf32-xtensa-le)
+
+.comment        0x00000000       0x2f
+ .comment       0x00000000       0x2f src/main.c.o
+                                 0x30 (size before relaxing)
+ .comment       0x0000002f       0x30 src/rd.c.o
+ .comment       0x0000002f       0x30 src/rr.c.o
+
+.xtensa.info    0x00000000       0x38
+ .xtensa.info   0x00000000       0x38 src/main.c.o
+ .xtensa.info   0x00000038        0x0 src/rd.c.o
+ .xtensa.info   0x00000038        0x0 src/rr.c.o

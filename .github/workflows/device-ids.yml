@@ -22,6 +22,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Two commits, so the coordinate gate's --diff HEAD^1 has its base: on a pull_request run HEAD is the merge
+          # commit and HEAD^1 the base branch tip; on a push, HEAD^1 is the previous main. Every other step reads HEAD.
+          # A push of SEVERAL commits is diffed against its last parent only, so --diff alone would miss a coordinate
+          # added in an earlier commit of that push. The whole-tree ratchet (a count above the baseline fails) is what
+          # catches it: keep that refusal, it is not redundant with --diff.
+          fetch-depth: 2
       # No committed file names the bench network: a network name in an association or ssid context, a
       # BSSID, a private LAN address (docs/wifi-scrub.md; it absorbed check_bssid.py). And the recorders'
       # two redaction implementations agree. pwsh is on the ubuntu image.
@@ -46,11 +53,28 @@ jobs:
       # would be permanently red, and a control that can never pass is a control
       # somebody disables. See scripts/check_device_ids.py.
       - run: python3 scripts/check_device_ids.py
+      # No new coordinate near Bend past 2 dp, and the tree's count of them only falls (scripts/check_precise_coords.py,
+      # the owner's rule of 2026-11-13; clock times and .step/.stp are the ruled exemptions, 2026-11-14). The selftest's
+      # rows use values generated at run time, each sabotage must turn exactly its rows red, then the tree against its
+      # baseline and every line added since HEAD^1. Findings print as path:line only.
+      - run: python3 scripts/check_precise_coords.py --selftest
+      - run: python3 scripts/check_precise_coords.py --sabotage
+      - run: python3 scripts/check_precise_coords.py --diff HEAD^1
+      # The routes-refresh workflow keeps the owner's conditions (scripts/check_routes_workflow.py, W10): SC1 no PR or
+      # fork trigger and no other workflow on its environment, SC3 nothing echoes a secret, SC5 only ROUTES_* secrets,
+      # PIN1 every action by full sha, NPM1 only npm ci. The selftest plants each, and each sabotage turns its own green.
+      - run: python3 scripts/check_routes_workflow.py
+      - run: python3 scripts/check_routes_workflow.py --selftest
       # No committed file names a board's MAC, whole or by its device name (scripts/check_macs.py; it needs no registry).
       # The selftest plants one twin of each form, and each sabotage must turn exactly its rows red.
       - run: python3 scripts/check_macs.py
       - run: python3 scripts/check_macs.py --selftest
       - run: python3 scripts/check_macs.py --sabotage
+      # The frame bench's step-C exemption (BLIPSCOPE_MAP_REFUSAL_BENCH_EXEMPT) lives on bench/frame-bench-c1 ONLY: a PR
+      # carrying it would disarm the step-C refusal in src/AircraftManager.h (docs/frame-time-bench.md, "C1's bench").
+      # The selftest plants each form it can take, and the refusal's own absence.
+      - run: python3 scripts/check_no_bench_exemption.py
+      - run: python3 scripts/check_no_bench_exemption.py --selftest
       # Session claims (docs/session-claims.md): CL1-CL12, then each plant must turn exactly its rows red.
       - run: python3 scripts/session-claim.py --selftest
       - run: python3 scripts/session-claim.py --sabotage
@@ -65,3 +89,15 @@ jobs:
       # which OPERA product answers is the server's choice alone. The sabotage plants a second product and a latitude test.
       - run: python3 scripts/check_wx_device_cref.py
       - run: python3 scripts/check_wx_device_cref.py --sabotage
+      # The token-file readers (docs/token-file-python.md): the helper's T1-T10 (T4, the POSIX permission refusal,
+      # runs here on Linux), each plant turning exactly its control red, then the guard's plant, then the guard: no
+      # tracked .py opens the token file directly, so every reader goes through BLIPSCOPE_TOKEN_FILE and its refusals.
+      - run: python3 tools/token_file.py --selftest
+      - run: python3 tools/token_file_sabotage.py
+      - run: python3 scripts/check_token_file_readers.py --selftest
+      - run: python3 scripts/check_token_file_readers.py
+      # Every in-tree wrangler call goes through proxy/scripts/wrangler-run.mjs (docs/wrangler-run.md): the check, its
+      # planted shapes, and the helper's own selftest against a stand-in wrangler (no network, no account).
+      - run: python3 scripts/check_wrangler_calls.py --selftest
+      - run: python3 scripts/check_wrangler_calls.py
+      - run: node proxy/scripts/wrangler-run.mjs --selftest

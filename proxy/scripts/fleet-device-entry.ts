@@ -50,7 +50,8 @@ try {
 if (!ID16.test(id!)) stop(2, "the feeder-device line is not a 16-hex device id");
 
 function wrangler(args: string[]): string {
-  const r = spawnSync(["npx", "wrangler", ...args].join(" "), { cwd: PROXY_DIR, shell: true, encoding: "utf8" });
+  // through the helper (docs/wrangler-run.md): wrangler's debug log would otherwise keep the key names listed here
+  const r = spawnSync(["node", "scripts/wrangler-run.mjs", ...args].join(" "), { cwd: PROXY_DIR, shell: true, encoding: "utf8" });
   if (r.status !== 0) {
     stop(1, `wrangler ${args.slice(0, 3).join(" ")} failed (exit ${r.status}):\n` +
       String(r.stderr ?? "").replace(/[0-9a-f]{16}/gi, "<id>").slice(-600));

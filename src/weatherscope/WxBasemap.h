@@ -95,7 +95,8 @@ inline int FillRing(const double* xs, const double* ys, int n, double* cross, ui
         for (int k = 0; k < n; ++k) {
             const int k2 = (k + 1) % n;
             const double xa = xs[k], ya = ys[k], xb = xs[k2], yb = ys[k2];
-            if ((ya > py) != (yb > py)) cross[m++] = xa + (py - ya) * (xb - xa) / (yb - ya);
+            if ((ya > py) != (yb > py)) cross[m++] = (ya < yb) ? xa + (py - ya) * (xb - xa) / (yb - ya)
+                                                              : xb + (py - yb) * (xa - xb) / (ya - yb);
         }
         for (int a = 1; a < m; ++a) {   // insertion sort: a scanline meets few edges
             const double t = cross[a];
