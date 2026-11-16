@@ -692,3 +692,67 @@ Read against 4i's predictions, pushed at `ec8f5833c887` before the run. The code
   - `--control`: 9 ok.
   - lint: 0 flagged.
 - **So the cache's held-key hit path, the one the device lives on, is now graded on the host.**
+
+### 4k. P5 1b's host rows and plants, as built (2026-11-16, before any run)
+
+**Where:** `bench/speed-p5`, on top of 1a.
+- **The host side:** `include/WxSweepLut.h`, `test/host/test_p5_blend.cpp`, `test/host/sabotage_p5_blend.py`, and a
+  `run.sh` block.
+- **The firmware call site,** not yet compiled (4d): `DrawSweepOverWeather` blends through the table. Today's
+  `wxsweep::Blend` runs only in a FRAME_BENCH region, behind the new kind `SWEEP_OLD`. `SWEEP_LUT` is the table. Both
+  are in `SPEED_P5_BENCH`'s image B list after 1a's scenes, and the addendum re-states that list, with section 1b's
+  dry layer, before any reading.
+
+**The design: exact by construction.**
+- A wedge pixel's colour is `Lit565(code, pct, SliceLevel(mark))`. Its inputs:
+  - `mark` is 1..18, because Rasterise writes nothing else;
+  - `pct` is fixed for the frame;
+  - `code` is the layer's, 0-15 plus `wxlayer::kOffDisc`, which is 255.
+- **The table** holds `Lit565` itself for every mark and every code 0-15: 19 × 16 × 2 B = 608 B, built by the same two
+  functions. It is rebuilt only when `pct` changes (`For`).
+- **The guard:** a code past the table, or a mark past 18, takes `Lit565` directly. That is exact, never masked into
+  range.
+- **Why a separate header:** `include/WxSweep.h` is untouched. Its `Blend` is the reference and the bench's OLD path,
+  and `sabotage_wx_sweep.py`'s plants and its span-loop anchor live there. A W5c row inside `test_wx_sweep.cpp` would
+  turn red under that driver's S-w, because S-w is planted in `BlendOne`, which the table does not use. That would
+  break its exact sets.
+
+**The rows** (section 1b's "W5a's comparison ... the new blend against the old one, byte for byte"):
+- `CMP control`: one changed pixel reads a difference.
+- `W5c@A` and `W5c@B`: each look. At all 3,600 angles, the table blend against `wxsweep::Blend`: the same frame, count
+  and cleared slice.
+  - The frame uses varied pixels, codes 0-39, and kOffDisc (255) on a diagonal lattice, so both the table and its
+    direct path run.
+  - The control: both of those paths blend more than 0 pixels.
+- `W5c-PCT`: ONE table across 360 frames whose look alternates A, B, A, … every third frame. A table built for the
+  wrong percent would show here.
+
+**The plants and their red sets:**
+
+| plant | planted in `WxSweepLut.h` | red on exactly |
+|---|---|---|
+| P5-ROUND (section 1b's): one rounding step changed | the table's level rounded, not truncated | `W5c@A`, `W5c@B`, `W5c-PCT` |
+| P5-CODEGUARD (new): the guard off | a code masked into the table (`& 15`) | `W5c@A`, `W5c@B`, `W5c-PCT` |
+| P5-STALE (new): the table never rebuilt | `For` builds only once | `W5c-PCT` |
+
+Section 1b names the row that must read red under P5-ROUND as W5a. Here that comparison is W5c, because W5a itself
+compares `Blend` with `BlendRows`, and the table touches neither.
+
+**Predictions for the first run** (WSL `Ubuntu-24.04`, g++ 13.3, run.sh's flags), frozen here:
+1. **test_p5_blend:** 4 ok, exit 0.
+   - W5c@A and W5c@B: 0 of 3,600 angles differ, with the control "yes".
+   - W5c-PCT: 0 of 360 frames differ.
+2. **sabotage_p5_blend.py:**
+   - each plant red on exactly its set, exit 0;
+   - `--anchors`: 3 plants, 3 anchors, each present exactly once;
+   - `--control`: 4 ok;
+   - lint: 0 flagged.
+3. **Unchanged:**
+   - test_wx_sweep: 5 ok, and sabotage_wx_sweep as predicted, with its anchors present (WxSweep.h is untouched);
+   - test_p5_outline: 8 ok;
+   - check_frame_bench.py on `bench/speed-p5`: 15 rows, 0 failed, and its selftest PASSED.
+
+**Outside the set:**
+- A W5c difference stops 1b. It is reported, and nothing is fixed before a ruling.
+- A plant off its set is reported, not re-predicted.
+- Anything else: stop.
