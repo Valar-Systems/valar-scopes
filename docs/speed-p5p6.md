@@ -1072,6 +1072,31 @@ are read with `xtensa-esp32s3-elf-size -A`.
     requires its marker present AND every other marker absent, and B4 also carries `[frame-bench]`, so it would exit 1
     on a correct image. Found by reading the script at 13:0xZ, before acceptance and before any build.
 
+**ACCEPTED** (the orchestrator, at `5bd088f82737`). The I-4 correction above landed after that sha, at `a42131fd8256`,
+and before any build. It is frozen here with the additions below, before B0:
+1. **Negative marker checks.** They are read as raw byte counts in each `.bin` (`grep -c -a -F`), independent of any
+   script's marker list.
+   - `[speed-p5]` is absent from B0, B1, B2, B3, B5, B6 and B7, and present only in B4.
+   - `[speed-p6]` is absent from all but B5.
+   - `[frame-bench]` is present only in B3, B4 and B5.
+   - The anchor `[build] env=` is present in all eight; if it is missing, that image reads BLIND.
+   - **A bench marker in a shipping image (B1 or B2) is a STOP.**
+2. **bgcheck runs from the PARENT,** after each build's root has ended, never inside the registered shell.
+3. **A section outside its band is REPORTED** with the section, not interpreted, and the remaining builds finish. No
+   image goes near a board.
+4. **No per-function size reading from these ELFs.** Function sizes jitter with link-time relaxation. Any
+   function-level claim needs an object-level (`.o`) compare.
+
+**The rulings on my three points:**
+- The sizes are section-level bands, read as readings, not gates.
+- **The ~4.5 KB of new internal `.bss` stays internal for now.** The marks run per draw call, and PSRAM would charge
+  frame time. The deciding instrument is the device's heap row: internal free, the largest block, and the
+  handshake's trial-alloc margin, registered in the board addendum. The sets move to PSRAM only if that row crosses its
+  floor, and then as their own A/B with frame time.
+- **Open merge condition, for BandCanvas.h's marks in every edition.** Before any merge, one of two must hold:
+  - the marks compile to nothing in editions that attach no dirty set (B7 − B6 `.bin` ≈ 0); or
+  - a Missileer frame-time row.
+
 **What the builds show, and what they do NOT:**
 - **They show:** every firmware call site written tonight compiles, in the shipping shape and with the bench regions.
   They also show what each step costs in each section, and that the bench markers are present only where they belong.
