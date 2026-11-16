@@ -139,7 +139,22 @@ def esptool_argv(port, before, after, *args):
     return [tool_python(), '-I', '-m', 'esptool', '--chip', 'esp32s3', '--port', port, '--before', before, '--after', after, '--stub-version', STUB_VERSION, *args]
 
 
+def refuse(why):
+    print(f'REFUSED: {why} (tool {TOOL_DIR}); nothing run')
+    raise SystemExit(6)
+
+
 def esptool(port, before, after, *args):
+    # THE GUARD, before EVERY call: the recorded private copy, or nothing runs.
+    v = esptool_version()
+    if v != ESPTOOL_VERSION:
+        refuse(f'its esptool is {v}, not the recorded {ESPTOOL_VERSION}')
+    s = tree_sha(tool_site())
+    if s != ESPTOOL_TREE_SHA:
+        refuse(f'its site-packages tree is {s}, not the recorded {ESPTOOL_TREE_SHA}')
+    i = interpreter_version()
+    if i != ESPTOOL_PY_VERSION:
+        refuse(f'its interpreter reports {i!r}, not the recorded {ESPTOOL_PY_VERSION!r}')
     r = subprocess.run(esptool_argv(port, before, after, *args), capture_output=True, text=True)
     return r.returncode, (r.stdout or '') + (r.stderr or '')
 
