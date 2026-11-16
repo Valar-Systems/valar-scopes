@@ -1491,6 +1491,29 @@ displayFade`), so DRAWN's horizon starts one sweep period (5 s) before each poll
 - **When:** the recordings' UTC band (00:00-02:00Z), so that LIVE-APT sees the airports at the same hour of the day.
   About 100 min in all.
 
+#### THE PRE FIX (2026-11-16, found before the rehearsal, not by it; the orchestrator's (a), re-acked 05:29Z)
+
+- **The defect.** PRE's line in `win_rp5.ps1` (`227c182d6c82`, :99) read
+  `$ipNow = if ($cfg.Count -eq 1) { @(...IPAddress }) } else { @() }`. A PowerShell `if` that returns a one-element
+  array unrolls it to a bare string. So `$ipNow.Count` was still 1, but `$ipNow[0]` was the address's FIRST CHARACTER,
+  and PRE asked whether the replay ELF holds "<one character>:8088". On the real, correct replay image it read
+  **False**: the window would have stopped at PRE (exit 7) with nothing wrong, and the rehearsal, a verbatim copy, would
+  have read PRE off.
+- **The giveaway.** S2b's post-build reader carried the same line. It reported "the address in build.log: 457 lines":
+  a single digit matches everywhere.
+- **The proof, read-only, no address printed** (`unroll_check.ps1`, 2026-11-16T05:25:32Z):
+  - a dummy address through the same form gives `String`, and `[0]` is one character;
+  - the fixed form, `@(if ...)`, gives `Object[]`, and `[0]` is the whole value;
+  - on `art/rp5-replay`'s ELF, the frozen expression reads False and the fixed one True.
+  So the image was right all along: each build script takes the address with a direct `@()`.
+- **The fix:** that one token on `win_rp5.ps1:99` (now `d4fafade5397`), `win_rp5_body.ps1:12` (`134f7aaf6bd6`) and
+  `rehearse_rp5.ps1` (`1fb6d6549480`, with its R-SRC pin moved), nothing else.
+  - The verbatim check reads 19 of 19, with the old line proven absent. The parser reads 0 errors on each.
+  - The launcher, the manifest and the feed are unchanged.
+  - The rehearsal's predictions are `7143c7700cd7`. The 09:00Z rehearsal is the fix's first live test, and any PRE
+    reading but True is a STOP.
+  - Every other b1 script was grepped for the form, FT-HR's included, and none carries it.
+
 ## C1's bench: p4's M3-3 single scene on the M3 tree, registered before its images (2026-11-13)
 
 **What it is for.** C1 (docs/speed-plan.md 2b, the owner's meanings) reads M3's cut on ONE scene, fixed by M3-3's
@@ -3314,6 +3337,35 @@ cross-check of the transcriptions' v19-to-v20 differences against a real v19 run
   (TAG-SET, FB-REC), the one moved loop plant (M3-L), and the one push plant site (M3-3P), and never adds a second.
   Where a row counts a call that S2b's `#if` duplicates in text, the row is scoped to the non-S2B branch, and that
   scoping is named in the row's commit.
+
+#### THE PORT, as committed and pushed (2026-11-16, `bench/frame-bench-v20` `8fb80fef41d1` -> `7d4009fdbc92`)
+
+- **`43663c6cda26`, P1-P8:** FrameBenchS2b.h (RP5's table and constants), the S2b branches in FrameBench.h and in
+  AircraftManager.cpp's regions, the env, and `framebench_host.py` and `framebench_rec.py` copied from `b417d80cd4c5`.
+  - No row needed scoping: each counting row kept its count. At the cloud-poll site the existing call stays first, in
+    `#if !defined(FRAME_BENCH_S2B)`, and S2b's call goes in its `#else`, so C1-A's eight-line rule holds unchanged.
+  - **The static set:** check_frame_bench 26 rows, 0 failed, FB-REC `425040a3999d`; the selftest 39 plants, PASSED;
+    draw_pin UNCHANGED, exit 0.
+  - **The first device compile** (env `blipscope-s3-128-framebench-v20-s2b`, the pinned recordings, REC_B 5, this PC's
+    host; the clean child): pio exit 0, firmware.bin 2,106,944 B, `762564fb1650`. The ELF's discriminators read as
+    predicted:
+    - S2b's seven strings present (the announce, `served A`, `keep defaults`, `drawing`, `enrich`, `override cost`,
+      `record cost`);
+    - C1's `table served`, `wx served` and C1 announce absent;
+    - the host carried, and in no log.
+  - **The build's guard threw "the build dirtied the tree".** The alternative, the build writing into the tree, is
+    excluded. `git status` showed only `test/host/check_frame_bench.py`, which I was editing during the build (mtime
+    inside it), and the build never writes it. `src/` and `include/` were unchanged throughout.
+  - The build output was 0.160 GiB; C: read 31.12 GiB before and 31.34 after its deletion.
+- **`7d4009fdbc92`, the check rows:** RP5's FB-R3 to FB-R11, re-pointed at FrameBenchS2b.h and OnCloudPollS2b, plus
+  **S2B-SCOPE.** S2B-SCOPE requires every line naming an S2b-only identifier to lie inside an S2b preprocessor branch:
+  the text-level half of S2B-ISO.
+  - 36 rows, 0 failed; the 26 earlier rows byte-identical to the 05:16Z run.
+  - The selftest: 53 plants (39 + 14), each reading exactly its own row red; FB-R3's control reads none.
+- **The standing rule's drivers** (WSL, g++ 13.3): `--anchors` 42 drivers, every anchor exactly once, its control red
+  when mangled; `sabotage_map_draw` 18 + 3, `sabotage_map_fetch` 23, `sabotage_wx_outline` 2, all AS PREDICTED.
+- **The push:** prepush_frame, every guard ok (`skus --validate` included, with the new env).
+- **Next:** the reader `fb_read_s2b.py` (registered as a delta from `e15a94a8a8f6`), then S2B-ISO's three build pairs.
 
 ### THE POST-v20 QUEUE: the ~200 ms full redraw (the owner's answer, 2026-11-15; queued, nothing before v20)
 
