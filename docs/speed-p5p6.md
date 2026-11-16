@@ -1274,3 +1274,86 @@ it gets diffed by symbol the same way.
 
 Either way the 612 B stays in internal DRAM. Option (b) only moves it between sections, and it removes the 612 B
 initializer copy from the flash image.
+
+### 4x. The P6 fix, B2 and B5 read, the manifest frozen, and a correction to 4w (2026-11-16 15:02-15:20Z)
+
+**The P6 fix.** The owner's word came at 15:02Z, relayed by the orchestrator: "weatherscope: fix and continue".
+- `bench/speed-p6` is at **`139670a097798690fefa7fb1bfa682d54b29f15b`**, one commit on `4050a5357d8c`. It touches one
+  file and two lines: `AircraftManager.cpp:5734-5735` now call `m.tft.textWidth(s)` and `m.tft.fontHeight()` through
+  the adapter's `const AircraftManager& m`.
+- Before editing, I read B2's first log whole. It held exactly 2 errors, both on these two lines.
+- That build had compiled all five TUs that include a P6 header. The link was not ruled out, because the build never
+  reached it.
+- **Compile proof** (the orchestrator's 13:34Z rule): `blipscope-s3-128` at `139670a09779` exited 0, LINKED, with 0
+  error lines. It ran in the background, registered, and the parent bgcheck read PASS.
+  - Its image is not B2: it is not archived, not in the manifest and not graded. Its log is
+    `compile-proof/P6FIX.log`.
+- **Host:** WSL, g++ 13.3, run.sh's staged build. `test_p6_labels` read 9 ok, exit 0, and `sabotage_p6_labels.py` read
+  all 7 plants red on exactly their sets, as in 4j.
+  - One rig miss: the first `wsl` call had its `/mnt` path rewritten by Git Bash and ran nothing. It was re-run with
+    `MSYS_NO_PATHCONV=1`.
+- The four gates exited 0 and the push went through. The orchestrator **RE-ACCEPTED 4s** at base `a0583e88b142`, P5
+  `73dc246b79cb` and P6 `139670a09779`, before B2.
+- **Disclosed before B2 ran:** I had seen the compile proof's `.bin` size (1,935,792 B). 4s's predictions for B2 and B5
+  were frozen long before that and are unchanged.
+- B2's first failure log is preserved as `logs/B2-fail-4050a5357d8c.log`, with the same sha256 as the original,
+  because `build_one.sh` truncates `logs/B2.log`.
+
+**B2 and B5**, both compiled. Each build directory was deleted after a reparse scan read 0 links, and the parent
+bgcheck read PASS after each.
+
+| build | `.bin` | sha256 | `.iram0.text` | `.dram0.data` | `.dram0.bss` | `.flash.text` | `.flash.rodata` |
+|---|---|---|---|---|---|---|---|
+| B2 | 1,935,792 | `7d4421abf912` | 79,887 | 36,400 | 38,584 | 1,287,936 | 530,076 |
+| B5 | 1,967,808 | `b0e14e261583` | 79,887 | 36,432 | 44,032 | 1,313,796 | 536,204 |
+
+| pair | `.bin` | `.iram0.text` | `.dram0.data` | `.dram0.bss` | `.flash.text` | `.flash.rodata` |
+|---|---|---|---|---|---|---|
+| B2 − B0 | +1,472: **outside (below** +2 KiB) | 0 ✓ | 0 ✓ | 0 ✓ (−16..+16) | +1,312 | +168 |
+| B5 − B3 | +2,000: **outside (below** +2 KiB) | 0 ✓ | 0 ✓ | +8 ✓ (−16..+24) | +1,708 | +292 |
+
+Both outside readings are reported with their section and not interpreted, under addition 3.
+
+- **I-4:** B2 passes. B5 is refused naming exactly `[frame-bench]` and `[speed-p6]`, so the extra flag reached that
+  image. Both as predicted.
+- **Not graded:** the compile proof and B2 share a size but not a sha256 (`03e94c663f86` and `7d4421abf912`). The proof
+  image was not kept, so the differing bytes cannot be accounted for and nothing is claimed about them.
+
+**The negative checks over all eight images** (raw byte counts, addition 1) all held:
+- `[speed-p5]` appears only in B4.
+- `[speed-p6]` appears only in B5.
+- `[frame-bench]` appears only in B3, B4 and B5.
+- The anchor `[build] env=` appears once in each of the eight, so none reads BLIND.
+- B1 and B2, the shipping images, carry no bench marker: no STOP.
+
+**4s is complete.** Every build compiled, after the two compile failures recorded in 4t and 4u.
+
+**Readings outside their bands, all reported and not interpreted:**
+- B1 − B0: `.bin`, `.data`, `.bss`.
+- B4 − B3: `.data`, `.bss`.
+- B2 − B0: `.bin`.
+- B5 − B3: `.bin`.
+
+**The merge condition** stands (4v): B7 − B6 is +1,088 B.
+
+**The manifest is FROZEN** at 8 lines, in append order B0, B1, B3, B4, B6, B7, B2, B5.
+- Its sha256 is `f95ca6a59a190ac7839d5babe84e0e26e9c2dd11e27622eb4d055a8254947418`. 4v's interim six-line sha is
+  superseded.
+- `art-p5p6-20261116/SHA256SUMS` lists all 35 files in the art dir: 8 × `.bin`/`.elf`/`sections.txt`, 9 logs, the
+  manifest and the compile proof's log. It verified OK, and its sha256 is
+  `bc134065ec32f78e0b5aa5b970c70c9e4de7aabc18981306a020f372639e67c8`.
+- `wt-build/.pio/libdeps` was deleted after a reparse scan read 0 links. C: was at 33.83 GiB afterwards.
+
+**A correction to 4w, written here because 4w is never edited.** 4w says:
+
+> 3,880 + 612 = **4,492 B**, which is exactly the lower edge of 4s's `.bss` band (+4,492..+5,208).
+
+That cites the wrong band:
+- +4,492..+5,208 is **B4 − B3's** band.
+- **B1 − B0's** band, which is the pair 4w's diff covers, is +4,484..+5,200 (4s, above).
+- So 4,492 sits **inside** B1 − B0's band, 8 B above its lower edge.
+- The section-level sum, `.bss` +3,880 plus `.data` +608 = 4,488, is inside too, as the orchestrator's 13:3xZ
+  observation said.
+
+The error was mine. The orchestrator's 14:0xZ reply repeated it without checking which band, and recorded that as its
+own. Nothing else in 4w moves, and 4s's grades are untouched.
