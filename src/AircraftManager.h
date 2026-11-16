@@ -1397,7 +1397,9 @@ public:
     dirtyclear::Set* WxDirty(int i)
     {
         dirtyclear::Set& s = wxDirty[i & 1];
-        if (s.w == 0) s.Init(SCREEN_SIZE, SCREEN_SIZE);
+        // variant::SCREEN_SIZE: this header does not include Layout.h, whose SCREEN_SIZE binds exactly this
+        // (include/Layout.h:11). 4s's B1 failed to compile on the bare name.
+        if (s.w == 0) s.Init(variant::SCREEN_SIZE, variant::SCREEN_SIZE);
         return &s;
     }
     // The sweep over the weather (docs/wx-device.md, WD6): main.cpp calls this in place of DrawRadarSweep. Over a
