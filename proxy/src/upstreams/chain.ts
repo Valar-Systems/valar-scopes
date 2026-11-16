@@ -220,7 +220,7 @@ export function enabledFeeds(env: Env): UpstreamAircraftFeed[] {
   return FEEDS.filter((f) => f.enabled(env));
 }
 
-export function feedHealth(env: Env): { id: string; enabled: boolean; state: "closed" | "open" }[] {
+export function feedHealth(env: Env): { id: string; enabled: boolean; state: "closed" | "open"; reason?: string }[] {
   // THE ROUTE SOURCES BELONG HERE TOO. /healthz listed the four AIRCRAFT feeds
   // and nothing else, so during a five-day fleet-wide route blackout it read
   // `"ok":true` with every upstream `"closed"` -- accurately, about a subsystem
@@ -237,6 +237,16 @@ export function feedHealth(env: Env): { id: string; enabled: boolean; state: "cl
       id: ADSBDB_BREAKER_ID,
       enabled: env.ROUTE_ADSBDB_ENABLED === "true", // OFF unless exactly "true" (docs/adsbdb-off-by-default.md)
       state: breakerState(ADSBDB_BREAKER_ID),
+    },
+    // THE TYPE BACKFILL BELONGS HERE TOO, for the same reason the route sources do. It was switched off for about three
+    // months with no instrument able to say so, while this block showed the route breakers green beside it. Its reason
+    // is stated where a person already looks: adsbdb's aircraft data is PlaneBase-derived, personal use only, ruled out
+    // by the owner on 2026-11-16 (docs/adsbdb-off-by-default.md; test/adsbdb-off.test.ts AD6). One entry, no log volume.
+    {
+      id: ADSBDB_AC_BREAKER_ID,
+      enabled: env.TYPE_ADSBDB_ENABLED === "true",
+      state: breakerState(ADSBDB_AC_BREAKER_ID),
+      ...(env.TYPE_ADSBDB_ENABLED === "true" ? {} : { reason: "licence" }),
     },
   ];
 }
