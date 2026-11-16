@@ -2621,6 +2621,27 @@ exit "$rc"
 )
 note_block $? "P5 1b: the table blend against wxsweep::Blend"
 
+# P5 1c (docs/speed-p5p6.md): the dirty-region restore (include/DirtyClear.h) against a full clear, two buffers, with
+# LovyanGFX's raster ported (test/host/LgfxPort.h). Its plants (test/host/sabotage_p5_clear.py) run in the drivers'
+# passes above.
+echo
+echo "== P5 1c: the dirty-region restore against a full clear =="
+(
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/test/host" "$ROOT/test/host/test_p5_clear.cpp" -o "$OUT/test_p5_clear.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the P5 clear test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_p5_clear.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the P5 clear test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "P5 1c: the dirty-region restore against a full clear"
+
 echo
 if [ -n "$RIG_BLOCKS$FAILED_BLOCKS" ]; then
   echo "FAILED BLOCKS:"
