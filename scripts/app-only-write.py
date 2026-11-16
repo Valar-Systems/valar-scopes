@@ -255,7 +255,7 @@ def selftest():
         i = next((i for i, a in enumerate(cmd) if a == '--stub-version'), None)
         return w is not None and i is not None and i < w and i + 1 < len(cmd) and cmd[i + 1] == '2'
 
-    def capture(check_only, version='5.2.0', with_python=True, tamper=False, interp=None):
+    def capture(check_only, version='5.2.0', with_python=True, tamper=False, interp=None, mode='run'):
         """run() against the fake, with TOOL_DIR pointed at a STAND-IN private copy in the venv layout: python.exe
         (unless with_python is False) and a site-packages holding esptool/__init__.py (the given __version__) and
         esptool/loader.py. ESPTOOL_TREE_SHA is set to the stand-in's own tree sha, and THEN, with tamper, one byte of
@@ -299,7 +299,7 @@ def selftest():
                 with open(os.path.join(site, 'esptool', 'loader.py'), 'wb') as f:
                     f.write(b'# stand-iN\n')
             try:
-                rc = run('COMX', b, 'default-reset', check_only)
+                rc = read_mac('COMX') if mode == 'read-mac' else run('COMX', b, 'default-reset', check_only)
             except SystemExit as e:  # a refusal is its exit code
                 rc = ('exit', e.code)
             except BaseException as e:  # a run that raises is a failed row, not a crashed selftest
@@ -329,6 +329,18 @@ def selftest():
     ok(rc == ('exit', 6) and calls == [], 'A7 one byte of the stand-in changed after its sha was recorded: refused (exit 6)')
     rc, calls, words = capture(False, interp='3.14.6 (another interpreter)')
     ok(rc == ('exit', 6) and calls == [], 'A8 the interpreter reports another sys.version: refused (exit 6) before any call')
+    # A9: --read-mac, the recovery the bench windows fall back on, goes through the same guarded esptool().
+    def adj(cmd, a, b):
+        return any(cmd[k] == a and cmd[k + 1] == b for k in range(len(cmd) - 1))
+
+    rc, calls, words = capture(False, mode='read-mac')
+    rc2, calls2, _ = capture(False, version='5.3.0', mode='read-mac')
+    one = calls[0] if len(calls) == 1 else []
+    argv_ok = (words == ['read-mac'] and pinned(one) and adj(one, '--chip', 'esp32s3')
+               and adj(one, '--before', 'default-reset') and adj(one, '--after', 'hard-reset'))
+    ok(rc == 0 and argv_ok and rc2 == ('exit', 6) and calls2 == [],
+       'A9 --read-mac: exactly one call, --chip esp32s3 --before default-reset --after hard-reset --stub-version 2 '
+       'read-mac; a 5.3.0 stand-in: refused (exit 6), no call')
     print('SELFTEST PASSED' if not bad else f'SELFTEST FAILED ({bad})')
     return 1 if bad else 0
 
@@ -336,12 +348,15 @@ def selftest():
 # Each plant goes into a temp copy of this file, and the copy's --selftest must turn EXACTLY these rows red. The needles
 # are split across a '+' so that this table never matches itself (each must appear exactly once in the source).
 SABOTAGE = [
-    ('S-NOPIN', "'--after', after, '--stub-" + "version', STUB_VERSION, *args]", "'--after', after, *args]", {'A1', 'A4'}),
-    ('S-PIN1', "STUB_VERSION" + " = '2'", "STUB_VERSION = '1'", {'A1', 'A4'}),
+    ('S-NOPIN', "'--after', after, '--stub-" + "version', STUB_VERSION, *args]", "'--after', after, *args]", {'A1', 'A4', 'A9'}),
+    ('S-PIN1', "STUB_VERSION" + " = '2'", "STUB_VERSION = '1'", {'A1', 'A4', 'A9'}),
     ('S-CHECKONLY', "    if check" + "_only:\n", "    if False:\n", {'A3'}),
-    ('S-NOVERSION', "    if v != ESPTOOL" + "_VERSION:\n", "    if False:\n", {'A5', 'A6'}),
+    ('S-NOVERSION', "    if v != ESPTOOL" + "_VERSION:\n", "    if False:\n", {'A5', 'A6', 'A9'}),
     ('S-NOSHA', "    if s != ESPTOOL" + "_TREE_SHA:\n", "    if False:\n", {'A7'}),
     ('S-NOINTERP', "    if i != ESPTOOL" + "_PY_VERSION:\n", "    if False:\n", {'A8'}),
+    ('S-RMNOGUARD', "    rc, out = esptool(port, 'default-reset', 'hard-" + "reset', 'read-mac')\n",
+     "    r = subprocess.run(esptool_argv(port, 'default-reset', 'hard-reset', 'read-mac'), capture_output=True, text=True)\n"
+     "    rc, out = r.returncode, (r.stdout or '') + (r.stderr or '')\n", {'A9'}),
 ]
 
 
