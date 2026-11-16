@@ -624,3 +624,54 @@ Read against 4g's predictions, pushed at `4239b4684ed6` before the run. The code
 **My own rig miss, again:** one test_label_lines compile failed ("cannot open output file"), because WSL's `/tmp` had
 been cleared between calls, as in 4f. It was re-run with the directory made, and read "all good". From now on every
 WSL call makes its directory itself.
+
+### 4i. P6-SEQH: the inputs held across frames (ruled 2026-11-16 after 05:48Z, before any run)
+
+**The ruling** (the orchestrator): "YES to SEQH ... SEQ has NEVER exercised a cache HIT. A bug that returns stale
+widths ON A HIT, which is the path the device actually lives on, is invisible to SEQ today." It asked for rows with
+inputs held and changed occasionally, registered first; KEYDROP predicted red there; and a new plant, a hit that
+returns the previous entry's width.
+
+**One correction, stated so the red sets below follow from it.** SEQ does exercise hits, but only WITHIN a frame:
+the draw's lookup after the box's refill, which is P6-SHARE's count. What SEQ never exercises is a key held ACROSS
+frames, the path the device lives on. So:
+- the orchestrator's plant (HITWIDTH) reads red on SEQ too;
+- a second new plant (HELDHIT) is a bug only a key held across frames can show, and it must stay green on SEQ.
+
+**The rows: `P6-SEQH@20`, `@40` and `@60`.** Each is 800 frames: 20 masks of 40 frames each.
+- **Every contact gets a full first fill.** After that, only events change it: one per 3 to 5 frames, and each event
+  changes exactly ONE input.
+- **During a field's solo window,** every other event changes one of that field's own inputs. So every input changes
+  alone while its field is drawn.
+- **Contacts move every frame,** so a hit's placement is recomputed at a new (x, y).
+- **Contact 0 overflows the key, and contact 1's operator overflows a line,** as in SEQ.
+- **Each frame does the box and then the draw, compared with `LayoutToday`:** 0 mismatches.
+- **The control:** every contact's texts change; box hits are above 0 (keys held across frames); refills and uncached
+  are both above 0.
+
+**The plants and their red sets, for all nine rows:**
+
+| plant | red on exactly |
+|---|---|
+| P6-NEVER | the SEQ rows and the SEQH rows |
+| P6-WIDTH | the SEQ rows and the SEQH rows |
+| P6-POS | the SEQ rows and the SEQH rows |
+| P6-KEYDROP | `P6-COVER` and the SEQH rows. SEQ stays green: 4h's finding. |
+| P6-NOSHARE | `P6-SHARE` and the SEQH rows. SEQH's control needs held-key hits, and NOSHARE has none. |
+| P6-HITWIDTH (the orchestrator's, new): a hit returns the previous fill's widths | the SEQ rows and the SEQH rows |
+| P6-HELDHIT (new): from the second CONSECUTIVE hit on, the widths drift | the SEQH rows only |
+
+**Predictions** (WSL `Ubuntu-24.04`, g++ 13.3, run.sh's flags and staged build), frozen here:
+1. **test_p6_labels:** 9 ok, exit 0.
+   - CMP control, P6-COVER, the SEQ rows and P6-SHARE are unchanged from 4h (their code did not change).
+   - Each SEQH row: 0 mismatches over 16,000, 32,000 and 48,000 contact-frames, box hits above 0, control "yes".
+2. **sabotage_p6_labels.py:**
+   - each of the 7 plants red on exactly its set above, exit 0;
+   - `--anchors`: 7 plants, 12 anchors;
+   - `--control`: 9 ok;
+   - lint: 0 flagged.
+
+**Outside the set:**
+- A SEQH mismatch stops P6. It is reported, and nothing is fixed before a ruling.
+- A plant off its set is reported, not re-predicted.
+- Anything else: stop.
