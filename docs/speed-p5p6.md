@@ -1410,3 +1410,186 @@ own. Nothing else in 4w moves, and 4s's grades are untouched.
   scratch (356 B `.bss`, plus alignment).
 - Its flash-resident tables are not internal memory.
 - 4w's design choice stays open: (a) predict `.bss` + `.data` together, or (b) zero-initialise the LUT.
+
+### 5. Board addendum 1: CLEAR_CHECK, LABELS_CHECK and the heap row on E2:08, from 4s's frozen images (registered 2026-11-16 ~22:0xZ, before any board contact)
+
+**What the reviewer ruled (2026-11-16 21:2x-21:4xZ, relayed):**
+- **Scope (A).** This addendum covers only the rows 4s's FROZEN images can run:
+  - `CLEAR_CHECK` on B4;
+  - `LABELS_CHECK` on B5;
+  - the heap reading from `[health]` (B3 as the base, then B4 and B5), including the LabelCache-in-PSRAM prediction.
+  - **Addendum 2** (later) holds the device anchor, the scratch self-check and the handshake trial-alloc margin. The
+    frozen images have no anchor scene, no self-check and no margin print. They need code, the anchor's host comparison
+    tool (red first), and new images built when C: is at or above 30 GiB.
+- **The board is E2:08** (the Blipscope bench), in a delegated no-hands window on the 11-12 terms:
+  - the write ranges are printed against the partition table first;
+  - no factory image, full erase or NVS write;
+  - both images are sha256-identified before the window;
+  - E2:08 is restored to v19 at the end;
+  - v19 has priority;
+  - anything needing the owner's hands means stop and report.
+  - **Not 6E:64:** these are Blipscope radar images, and CLAUDE.md forbids them there.
+- **Every esptool call** goes through `scripts/app-only-write.py` from #735 (after it merges). That is the private
+  esptool 5.2.0 copy, behind its tool guard, with `--stub-version 2` on every call. No raw call is made, except the
+  recovery read-mac below, which uses the same private copy.
+- **Serial, option (b):** one bench-trace per image.
+  - It opens only after the board's NETWORK report confirms that image's boot, never on a timer after a reset.
+  - It closes before the next write. A closed trace leaves the S3 in the ROM, which is where `app-only-write` wants it.
+- **The seal:** each trace is sha256'd at close and read only through `tools/speed-p5p6/trace_filter.py` (below). The
+  `[frame-bench]` records stay unread until the gains addendum (section 3, after A0a).
+- **The restore** is v19's release asset, with success read over the network.
+- **No new build:** the images come from 4s's frozen manifest.
+
+**M3's state, read before any device run (4o's dependency).**
+- `p4/m3-push-task` is at `9e5198a43d6d` (2026-11-16 05:14Z).
+- Its push task still holds TWO buffers, `LGFX_Sprite* g_buf[2] = {&backbuffer, &backbuffer2}`, exactly as in this
+  base, `a0583e88b142`.
+- Its one commit not in the base changes 38 lines of `src/main.cpp`, and none of them names `g_buf`, `g_draw`, `g_free`
+  or a back buffer. It is M3-9's self-check: a CPU view against a PSRAM view, before the DMA.
+- M3 is not on main.
+- **So the buffer scheme did not move.** 4o's wiring (one dirty set per buffer, chosen by `&drawBuf ==
+  pushtask::g_buf[0]`) stands, and no re-read is needed.
+
+**The images, identified now.**
+- B3, B4 and B5 are 4s's FROZEN bins. All 35 `SHA256SUMS` entries verify, and both frozen checksums match 4x.
+- v19 is the release asset `firmware-s3-128.bin`, downloaded and checked against the release's sha256 digest.
+- Each sits in its own build dir beside one `partitions.bin`.
+
+| image | env (source sha) | bytes | sha256 | `ota_0` write range |
+|---|---|---|---|---|
+| B3 | `blipscope-s3-128-framebench-c1b` (`a0583e88b142`) | 1,965,808 | `1358c324a42ef878e9596e8f4d76e43b9898768527812ca248a46b8c570aeccb` | 0x20000..0x1FFFFF |
+| B4 | the same, `-DSPEED_P5_BENCH` (`73dc246b79cb`) | 1,971,520 | `a73de5971eb8e4ad3ff780139dcb0f0adb4f8a592b1c6e2d63d6a72912b0e7a0` | 0x20000..0x201FFF |
+| B5 | the same, `-DSPEED_P6_BENCH` (`139670a09779`) | 1,967,808 | `b0e14e2615838182e78d4c08250f21b7bd2f2ffe294b249849e300425978a343` | 0x20000..0x200FFF |
+| v19 (restore) | `blipscope-s3-128` (the v19 release) | 1,931,840 | `f6d73e39163177b0dc25516a104bb02021d2048a94f82a66fc42a90f0a2615be` | 0x20000..0x1F7FFF |
+
+**The partition table** is the same CSV at every commit involved: `partitions-s3-16mb-bignvs.csv`, blob
+`3beaadbc7ab8`, at v19, `a0583e88b142`, `73dc246b79cb`, `139670a09779` and main.
+- `partitions.bin` was generated from that CSV with the framework's `gen_esp32part.py --flash-size 16MB`.
+- It is **byte-equal to an independent copy**: the `partitions.bin` of an existing build of
+  `blipscope-s3-128-wxlook`. Both have sha256 `28f336fe57a9991a5f39db735295a978e0a6aee5710f5e7107ac44bdd812d29b`,
+  3,072 B.
+- `app-only-write` still refuses on its own if the board's table differs. That refusal is the executing guard.
+- The table:
+
+| partition | offset | size |
+|---|---|---|
+| `nvs` | 0x9000 | 84 KiB |
+| `otadata` | 0x1E000 | 8 KiB |
+| `app0`/ota_0 | 0x20000 | 6,400 KiB |
+| `app1`/ota_1 | 0x660000 | 6,400 KiB |
+| `spiffs` | 0xCA0000 | 3,392 KiB |
+| `coredump` | 0xFF0000 | 64 KiB |
+
+- Every write lands inside `ota_0` (which ends at 0x65FFFF). NVS, otadata, the bootloader and the table are never
+  written: `app-only-write` writes one region, after its two reads.
+
+**NVS.**
+- From v19 to each image's source, `ConfigMigration` is unchanged, and **no** NVS-writing call is added. The one
+  `.clear(` in the diff is a JSON document's.
+- FrameBench's header says it writes no NVS.
+- The restore's network success (below) is also the test that the settings survived: v19 rejoins Wi-Fi without the
+  portal.
+
+**Tools, and the STOP lines.**
+1. **Reserve the board** with `board-port.py --reserve blipscope-bench --by weatherscope --for "speed-p5p6 addendum 1"`.
+   Release it at the end.
+2. **Resolve the port** from E2:08's USB serial immediately before EVERY write (`board-port.py`, never a COM number).
+   Print the serial beside the port.
+3. **Before the first write,** `app-only-write.py --check-tool` must print esptool **5.2.0**, tree
+   **`84c878702a70`…**, and `CHECK-TOOL PASSED`.
+   - Anything else means STOP: nothing is written.
+   - The shared `~/.platformio` (now 5.3.0) is never used for E2:08.
+4. **The stub actually used** cannot be read from esptool's output. #735's own note: "nothing in esptool's output says
+   which ran".
+   - So it is recorded as the pin in every argv: `--stub-version 2`.
+   - `app-only-write.py --selftest` must print `SELFTEST PASSED` immediately before the first write. Its rows check
+     every argv a run builds.
+5. **The environment.** This session's PowerShell tool is failing. So every `app-only-write` call and every
+   bench-trace runs in a WMI-created PowerShell child (`Win32_Process.Create`), the form the reviewer accepted for the
+   esptool repair.
+   - Each child first asserts MSYSTEM is empty and the PATH has 0 msys/mingw/`Git\usr\bin` entries.
+   - If not, it exits 7 having touched nothing.
+
+**The board's network report.**
+- An HTTP GET of its config page at its mDNS name: the product name plus the MAC's last three octets, `.local`.
+- No LAN address is ever written down.
+- The page shows `firmware v<N>` and the build summary `<env> · v<N> · <features>`.
+- **The test images' env is `blipscope-s3-128-framebench-c1b`, and v19's is `blipscope-s3-128`.** So the env field is
+  what tells them apart. All four images say `firmware v19`.
+
+**The sequence.** Times are minutes from the window's start; the nominal total is ~78 min.
+
+| step | what | budget |
+|---|---|---|
+| 0 | Reserve. Two network reads 60 s apart, which must both show `firmware v19` and one build summary, the **baseline string `S19`** recorded for the restore. Then `--check-tool` and `--selftest`. | 0-3 |
+| 1 | **B3:** resolve the port, `app-only-write --build-dir <B3>`. Network-confirm the boot (the framebench env, within 180 s). Open the trace for **6 min**. Close, seal, filter. | 3-14 |
+| 2 | **B4:** the same, with the trace open **40 min**. CLEAR_CHECK is scene 9 of 13 and ends ~34.5 min after boot (90 s start, then 100 s settle and 120 s measure per scene). | 14-60 |
+| 3 | **B5:** the same, with the trace open **8 min**. LABELS_CHECK is scene 1 of 5 and ends ~5.2 min after boot. | 60-73 |
+| 4 | **Restore v19:** `app-only-write --build-dir <v19>`. Two network reads 60 s apart, both within 300 s of the write's end. Release the board. | 73-78 |
+
+- **HARD END: start + 95 min.** At the hard end, whatever is unread stays unread. Any open trace is closed, and step 4
+  runs.
+- **v19 priority:** anything of v19's preempts this. The window then goes straight to step 4.
+- **Recovery** (a write fails, or a boot is not confirmed within 180 s):
+  - Restore v19 through `app-only-write`.
+  - If that cannot reach the chip, run ONE `read-mac` through the private copy (`python -I -m esptool --chip esp32s3
+    --port <P> --stub-version 2 read-mac`), which brings an S3 out of the ROM, then retry the restore once.
+  - Anything beyond that needs hands: STOP and report.
+- **Data:**
+  - The raw traces stay private in the session's handoff folder. They carry Wi-Fi lines and the sealed records.
+  - Only the filter's output enters this record, and it does so after the four gates.
+
+**The seal: `tools/speed-p5p6/trace_filter.py`.** This is code, not a promise.
+- **It prints:**
+  - the raw file's sha256;
+  - bench-trace's own lines;
+  - `[speed-p5]`, `[speed-p6]`, `[build]` and `[boot]` lines, whole;
+  - and, from the main `[health]` line, ONLY `heap free`, `largest`, `free8`, `psram_free` and `tlsOk`.
+- **It withholds:**
+  - **The frame-time fields of the main `[health]` line** (`frame avg`, `p95`, `max`, …). They are dropped because they
+    are gains material too.
+  - **Every other timing `[health]` line, whole:** `sweep=`, `clear=`, `outline=`, `sweepparts=` and `sweepscan=`.
+  - **Everything else, `[frame-bench]` included.** It is only counted, by tag.
+- `[health] ALLOC FAILED` and preventive-reboot lines pass whole.
+- **Its selftest** puts each withheld string into a synthetic trace as a CONTROL, then asserts its absence from the
+  output. Read: 29 rows ok and 0 FAIL, with exactly 10 lines printed.
+- **Two sabotages each read red:**
+  - a copy that passes `[health]` whole: 7 FAIL rows;
+  - a copy that passes `[frame-bench]`: 3 FAIL rows.
+
+**Predictions.**
+
+| row | graded on | predicted |
+|---|---|---|
+| T-TOOL | step 0 | `CHECK-TOOL PASSED` at 5.2.0 / `84c878702a70`; `SELFTEST PASSED` |
+| W-n (each of the 4 writes) | `app-only-write`'s output | `checks ok: table matches (6 entries), board boots ota_0, image <bytes> B` (the bytes as in the table above). Then write attempt 1 verified ("Hash of data verified."), `reset: ok`, exit 0. |
+| N-BOOT (B3, B4, B5) | the network | the page shows the env `blipscope-s3-128-framebench-c1b` within 180 s of the write's end |
+| TR (each trace) | bench-trace | exit 0, `VERDICT: clean`. A contaminated trace (exit 3) voids that image's rows, the window continues, and there is no re-run in it. |
+| R-CLEAR (B4) | the filter's output | exactly one `[speed-p5] clear S8 frames <n> mismatched-px 0`, with n ≥ 100 |
+| R-LABELS (B5) | the filter's output | exactly one `[speed-p6] labels S0 checked <n> mismatches 0`, with n ≥ 100 |
+| H-TLS | each image's first 10 heap lines (received ≥ 1 s after attach, so the open's stale burst is skipped) | `tlsOk=1` on all 30 lines |
+| H-NOISE (the escape hatch) | the same lines | each image's `free8` max − min is ≤ 2,048 B. Otherwise the heap rows read **UNTRUSTWORTHY at this scale**: no verdict, report, decide. |
+| H-P5 | the medians over those 10 lines | `free8`(B4) − `free8`(B3) **∈ [−6,904, −2,808]**, and `heap free` the same band. That is −4,856 ± 2,048: B4 adds .dram0.bss +4,248 and .dram0.data +608 of internal static (4y). `psram_free`(B4) − (B3) ∈ [−4,096, +4,096]. |
+| H-P6, LabelCache in PSRAM | the same medians | `free8`(B5) − `free8`(B3) **∈ [−2,216, +2,048]**: statics +8 B, one pointer per contact (40 × 4 B), then ± 2,048. AND `psram_free`(B5) − (B3) **∈ [−24,576, −6,720]**: at least 20 entries of 336 B, and at most 40 at ≤ 512 B each, plus 4,096. If the entries were internal, `free8` would fall by ≥ 6,720 and fail its band: the two halves discriminate. |
+| H-LARGEST | | `largest` is recorded, NOT graded ("kept, no longer trusted") |
+| RESTORE | the network | `firmware v19` with the build summary equal to `S19`, on two reads 60 s apart, both within 300 s of the restore write's end. The reads arriving at all show the Wi-Fi rejoin without the portal. |
+
+**Outside the set.**
+- **A refusal** (exit 6 or 7) **on the first write** means STOP. Nothing was written, and there is no restore.
+- **A refusal on a later write** means recovery, then STOP.
+- **A failed write** (exit 8), **or a boot not confirmed,** means recovery, then STOP.
+- **A row line absent** by its trace's end voids that row (an instrument failure), with no re-run in this window.
+- **`mismatched-px` > 0 or `mismatches` > 0** is a **RED reading**: a finding about P5 1c's restore or P6's cache, not
+  an instrument failure. It is reported as read.
+- **A heap median outside its band** is reported as read. No band is moved.
+- **The restore reads not arriving** means recovery, and the owner is told.
+- **Anything none of these covers:** the instrument is unreliable at this scale. Stop and decide.
+
+**What this addendum does NOT show:**
+- frame time or any gain (section 3, after A0a; those records stay sealed);
+- the device anchor, the scratch self-check, or the trial-alloc margin (addendum 2);
+- any edition but radar.
+
+**Earliest start:** after #735 merges (its sha is then named here) AND the reviewer's acceptance of this section. The
+slot is the reviewer's to book, around E2:08's FT-HR (12:54Z), S2b (17:50Z) and the owner's sitting (22:00Z), with v19
+priority.
