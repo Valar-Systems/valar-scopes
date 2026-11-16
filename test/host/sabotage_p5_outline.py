@@ -60,10 +60,14 @@ PLANTS = [
      "        if (ZoomCulled(x, y)) continue;\n",
      {"H-CULL-ORDER"}),
     # The guard off: the mask even where an offset's integer vertices are not the centre's moved (amendment 4e).
+    # Its set is 4f's RECORDED finding, encoded by 4q's ruling. 4e predicted H-EDGE alone; the first run also read
+    # H-CULL red, through one interior filler: a heading-180 dart at x 17, where float sin(pi) ~ -8.7e-8 puts the
+    # offset -1 tip at 16 - 5.2e-7, which rounds below 16 (the float spacing halves below a power of two) and truncates
+    # to 15, not 16. The guard refuses that contact. So the guard is load-bearing inside the disc too.
     ("P5-NOGUARD: no shift check", HEADER,
      "        exact = Same(buildAt(x + kOff[k][0], y + kOff[k][1]), m0, kOff[k][0], kOff[k][1]);",
      "        exact = exact || Same(buildAt(x + kOff[k][0], y + kOff[k][1]), m0, kOff[k][0], kOff[k][1]);",
-     EDGE),
+     EDGE | CULL),
 ]
 
 ROW = re.compile(r"^\s*FAIL\s+(H-[A-Z-]+(?:@\d+)?|CMP control)\s", re.M)
