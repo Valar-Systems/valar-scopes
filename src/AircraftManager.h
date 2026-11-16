@@ -1042,6 +1042,9 @@ private:
     // label -- the part the eye reads as "the aircraft" -- selects the contact, not just the dot.
     bool AircraftLabelBox(const TrackedAircraft& tracked, int x, int y, int& bx, int& by, int& bw, int& bh) const;
     void DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const;
+    // P5 1a: the weather layer's 1 px black outline as one dilated edge (include/OutlineMask.h); the colour marker
+    // follows it, as before.
+    void DrawOutlineMask(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const;
     // Generic dim aircraft glyph drawn in the detail card's photo slot when adsbdb has no photo,
     // so a photo-less card reads as designed rather than broken. Varied by emitter category.
     void DrawAircraftSilhouette(BandCanvas& backbuffer, int cx, int cy, const TrackedAircraft& tracked) const;

@@ -2580,6 +2580,27 @@ exit 2
 )
 note_block $? "image-compare selftest (#656)"
 
+# P5 1a (docs/speed-p5p6.md on weatherscope/speed-p5p6; bench branch bench/speed-p5): the outline as one dilated edge
+# (include/OutlineMask.h) against today's 8 black copies, both rastered by LovyanGFX's port (test/host/LgfxPort.h),
+# every frame compared whole. Its plants (test/host/sabotage_p5_outline.py) run in the drivers' passes above.
+echo
+echo "== P5 1a: the outline mask against 8 copies =="
+(
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_p5_outline.cpp" -o "$OUT/test_p5_outline.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the P5 outline test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_p5_outline.exe" "$ROOT"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the P5 outline test did not run or could not read its inputs (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "P5 1a: the outline mask against 8 copies"
+
 echo
 if [ -n "$RIG_BLOCKS$FAILED_BLOCKS" ]; then
   echo "FAILED BLOCKS:"

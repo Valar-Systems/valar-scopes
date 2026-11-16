@@ -32,6 +32,7 @@
 #include "WxCrop.h"         // the WXC1 decoder: the weather crop is validated before WxPolicy sees it (WD5)
 #include "WxLayer.h"        // which crop cell each screen pixel shows, inverting ProjectAt (WD2)
 #include "WxLayerSwitch.h"  // "wx-layer": on when unset, the owner's saved choice after that
+#include "OutlineMask.h"    // P5 1a: the marker's geometry (one body) and its outline as one dilated edge
 // THE MAP FETCH BEGIN
 #ifdef BLIPSCOPE_MAP_FETCH
 #include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task
@@ -4393,19 +4394,30 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             // While the layer is on, every plane gets a 1 px black edge in both looks (WD5; WD4 addendum 2; look B
             // too since the avionics ruling of 2026-11-06), so a faded plane is never the same colour as the cell
             // under it (WD4f). With the layer off, nothing here changes.
-            // The outline is 8 black copies of the marker, one per 1 px offset, for BOTH kinds: a disc 1 px larger
-            // misses 8 of the dot's 32 neighbours under LovyanGFX's raster (WD5 addendum 3; test_wx_outline.cpp).
+            // The outline is the marker's 8-neighbour edge, for BOTH kinds: exactly the pixels of 8 black copies at the
+            // 1 px offsets (a disc 1 px larger misses 8 of the dot's 32 neighbours under LovyanGFX's raster: WD5
+            // addendum 3; test_wx_outline.cpp). P5 1a (docs/speed-p5p6.md) draws it as ONE dilated edge
+            // (DrawOutlineMask, include/OutlineMask.h), byte-identical to the 8 copies by construction
+            // (test/host/test_p5_outline.cpp); the 8 copies now run only in the bench's OUTLINE_8COPY scenes.
             const bool outline = WxOutlineNow();
 #ifdef WX_LOOK_AB
             const uint32_t outlineT0 = outline ? micros() : 0;   // F7 (docs/wx-device.md): the outline's own cost
 #endif
-            if (outline)
+            bool outlineMask = outline;
+            // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+            if (outline && framebench::OutlineOld()) {   // P5 1a's OLD path: today's 8 black copies
+                outlineMask = false;
                 for (int oy = -1; oy <= 1; ++oy)
                     for (int ox = -1; ox <= 1; ++ox) {
                         if (ox == 0 && oy == 0) continue;
                         if (displayTriangles) DrawAircraftTriangle(backbuffer, x + ox, y + oy, tracked, 0u);
                         else backbuffer.fillCircle(x + ox, y + oy, 3, 0u);
                     }
+            }
+#endif
+            // THE FRAME BENCH END
+            if (outlineMask) DrawOutlineMask(backbuffer, x, y, tracked);
 #ifdef WX_LOOK_AB
             if (outline) outlineFrameUs += micros() - outlineT0;
 #endif
@@ -5812,62 +5824,69 @@ bool AircraftManager::AircraftLabelBox(const TrackedAircraft& tracked, int x, in
 
 void AircraftManager::DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const
 {
-    // Type-aware marker, keyed off the ADS-B emitter category (normalised to
-    // OpenSky's numbering for both the cloud and local feeds). Heading-less types
-    // (rotorcraft, balloons) get a fixed glyph; everything else is a heading dart
-    // whose size grows with the aircraft's weight class so a heavy reads
-    // differently from a light single at a glance.
-    const int cat = tracked.state.category;
+    // Type-aware marker (the darts by weight class, the rotor cross, the balloon ring): its geometry lives in
+    // outlinemask::Heading and outlinemask::Build (include/OutlineMask.h), ONE compiled body that the outline mask
+    // uses too, so the marker and its outline can never disagree about a vertex (P5 1a, docs/speed-p5p6.md).
+    outlinemask::Draw(backbuffer,
+                      outlinemask::Build(tracked.state.category,
+                                         outlinemask::Heading(tracked.state.trueTrack, radarUpDeg), x, y),
+                      color);
+}
 
-    // rotorcraft: a hub with two crossed rotor blades. Non-directional, since
-    // helicopters routinely hover and yaw independently of their ground track.
-    if (cat == 8) {
-        backbuffer.drawLine(x - 5, y - 5, x + 5, y + 5, color);
-        backbuffer.drawLine(x - 5, y + 5, x + 5, y - 5, color);
-        backbuffer.fillCircle(x, y, 2, color);
-        return;
+namespace {
+// P5 1a's device scratch: a 32 x 32 1-bit LGFX_Sprite, so the marker's pixel set M is taken by LovyanGFX's own calls.
+// A 1-bit sprite stores each row MSB first (LGFX_Sprite.cpp, Panel_Sprite::writeFillRectPreclipped: mask
+// 0xFF >> (x & 7)), 4 bytes a row; Row() turns that into bit j = column j. Begin() returns false if the sprite could
+// not be made, and DrawEdge then draws today's 8 copies.
+struct OutlineScratch {
+    LGFX_Sprite s;
+    bool tried = false, ok = false;
+    bool Begin()
+    {
+        if (!tried) {
+            tried = true;
+            s.setColorDepth(1);
+            ok = s.createSprite(outlinemask::kSide, outlinemask::kSide) != nullptr;
+        }
+        if (ok) s.fillSprite(0);
+        return ok;
     }
-
-    // lighter-than-air (balloon / airship): a simple ring, also non-directional.
-    if (cat == 10) {
-        backbuffer.drawCircle(x, y, 4, color);
-        return;
+    uint32_t On() const { return 0xFFFFFFu; }   // white: a set bit on a 1-bit sprite
+    uint32_t Row(int r) const
+    {
+        static const uint8_t rev[16] = {0x0, 0x8, 0x4, 0xC, 0x2, 0xA, 0x6, 0xE, 0x1, 0x9, 0x5, 0xD, 0x3, 0xB, 0x7, 0xF};
+        const uint8_t* p = static_cast<const uint8_t*>(const_cast<LGFX_Sprite&>(s).getBuffer()) + r * (outlinemask::kSide / 8);
+        uint32_t v = 0;
+        for (int b = 0; b < outlinemask::kSide / 8; ++b)
+            v |= (uint32_t)((rev[p[b] & 15] << 4) | rev[p[b] >> 4]) << (8 * b);
+        return v;
     }
+    template <class T> void fillTriangle(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, const T& c) { s.fillTriangle(x0, y0, x1, y1, x2, y2, c); }
+    template <class T> void drawLine(int32_t x0, int32_t y0, int32_t x1, int32_t y1, const T& c) { s.drawLine(x0, y0, x1, y1, c); }
+    template <class T> void fillCircle(int32_t x, int32_t y, int32_t r, const T& c) { s.fillCircle(x, y, r, c); }
+    template <class T> void drawCircle(int32_t x, int32_t y, int32_t r, const T& c) { s.drawCircle(x, y, r, c); }
+};
+OutlineScratch& TheOutlineScratch()
+{
+    static OutlineScratch scratch;
+    return scratch;
+}
+}  // namespace
 
-    // heading unit vector (forward) and its perpendicular (right "wing").
-    // Window-up subtracts the screen-top bearing so darts stay aligned with the
-    // rotated picture (positions rotate inside ProjectCoordinateToScreen).
-    const float headingScreen = radians(tracked.state.trueTrack - (float)radarUpDeg);
-    const float dx = std::sin(headingScreen);
-    const float dy = -std::cos(headingScreen);
-    const float px = -dy;
-    const float py = dx;
-
-    // a dart pointing along the heading: tip ahead of the point, base behind it
-    auto dart = [&](float tip, float base, float halfWidth) {
-        const float tipX  = x + dx * tip,                 tipY  = y + dy * tip;
-        const float leftX = x - dx * base + px * halfWidth, leftY = y - dy * base + py * halfWidth;
-        const float rightX= x - dx * base - px * halfWidth, rightY= y - dy * base - py * halfWidth;
-        backbuffer.fillTriangle(tipX, tipY, leftX, leftY, rightX, rightY, color);
-    };
-
-    // glider: a long, slender dart.
-    if (cat == 9) {
-        dart(9.0f, 2.0f, 1.0f);
-        return;
+void AircraftManager::DrawOutlineMask(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const
+{
+    // P5 1a: the black edge as ONE dilated mask (outlinemask::DrawEdge), pixel for pixel today's 8 copies; the
+    // caller draws the colour marker next, as before. A contact the guard refuses gets the 8 copies.
+    OutlineScratch& scratch = TheOutlineScratch();
+    if (displayTriangles) {
+        const outlinemask::Dir d = outlinemask::Heading(tracked.state.trueTrack, radarUpDeg);
+        const int cat = tracked.state.category;
+        outlinemask::DrawEdge(backbuffer, scratch, outlinemask::Build(cat, d, x, y),
+                              [&](int ax, int ay) { return outlinemask::Build(cat, d, ax, ay); }, x, y, 0u);
+    } else {
+        outlinemask::DrawEdge(backbuffer, scratch, outlinemask::BuildDot(x, y),
+                              [](int ax, int ay) { return outlinemask::BuildDot(ax, ay); }, x, y, 0u);
     }
-
-    // heavy / large jets (Large, High-vortex large, Heavy): a bigger dart with a
-    // stub cross-wing so the airliners stand out from light traffic.
-    const bool heavy = (cat == 4 || cat == 5 || cat == 6);
-    if (heavy) {
-        dart(8.0f, 4.0f, 2.5f);
-        backbuffer.drawLine(x + px * 4.0f, y + py * 4.0f, x - px * 4.0f, y - py * 4.0f, color);
-        return;
-    }
-
-    // everything else (light, small, high-performance, unknown): the standard dart
-    dart(6.0f, 3.0f, 1.5f);
 }
 
 void AircraftManager::DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const

@@ -35,7 +35,9 @@
 
 namespace framebench {
 
-enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3 };
+// P5 1a (docs/speed-p5p6.md, on weatherscope/speed-p5p6): OUTLINE_8COPY draws today's 8 black copies (the OLD path,
+// which lives only in AircraftManager's FRAME_BENCH region), OUTLINE_MASK the shipping mask. Neither delays anything.
+enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, OUTLINE_8COPY = 4, OUTLINE_MASK = 5, kKinds };
 constexpr int kLevel = 40;      // C1's level: a scene's default, and Level() outside a scene
 constexpr int kTableMax = 60;   // the rows TBL-HOST verifies (tbl_host_lv.py: i < 60); Allocate() refuses a level above
 struct Scene {
@@ -43,18 +45,33 @@ struct Scene {
     uint8_t level = kLevel;   // the (a) table's n in this scene
     bool wx = true;           // this scene's "wx-layer" answer (Override)
 };
+// Image B's list. P5 1a's bench (SPEED_P5_BENCH) runs OLD, NEW, OLD, NEW in one session (docs/speed-p5p6.md section
+// 0, "the switch"), at C1's level with the weather layer on (the outline draws only then); the addendum re-states
+// the levels, settle and measure before any reading. A macro, so the eight lines check_frame_bench's C1-L pins below
+// stay exactly as they are.
+#if defined(SPEED_P5_BENCH)
+#if !defined(BLIPSCOPE_PUSH_TASK)
+#error "SPEED_P5_BENCH measures the shipping shape: image B, with the push task"
+#endif
+#define FRAMEBENCH_IMAGE_B {OUTLINE_8COPY}, {OUTLINE_MASK}, {OUTLINE_8COPY}, {OUTLINE_MASK}
+#else
+#define FRAMEBENCH_IMAGE_B {C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}
+#endif
 #if defined(FRAME_PROFILE)
 #include "FrameProfileScenes.h"   // p4's (docs/frame-profile.md): defines kScenes; one owner per line
 #else
 #if defined(BLIPSCOPE_PUSH_TASK)
-static const Scene kScenes[] = {{C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}};   // image B
+static const Scene kScenes[] = {FRAMEBENCH_IMAGE_B};   // image B
 #else
 static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
-static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10"};
-constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0};
+static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "outline-8copy", "outline-mask"};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0};
+// A kind without an entry in both tables fails the build (docs/speed-p5p6.md section 0, "the kind tables").
+static_assert(sizeof(kKindName) / sizeof(kKindName[0]) == kKinds, "kKindName needs one entry per Kind");
+static_assert(sizeof(kPushDelayMs) / sizeof(kPushDelayMs[0]) == kKinds, "kPushDelayMs needs one entry per Kind");
 
 // Bend, at 2 dp: only ever returned to Initialise() and to the table; nothing prints it.
 static const char* const kHomeLat = "44.06";
@@ -149,6 +166,8 @@ inline bool InScene()
 // C1-L: the current scene's level (kLevel outside a scene), the list's largest, and whether every level is one
 // TBL-HOST verified.
 inline int Level() { return InScene() ? (int)kScenes[S().scene].level : kLevel; }
+// P5 1a: draw today's 8-copy outline (the OLD path) in this scene.
+inline bool OutlineOld() { return InScene() && kScenes[S().scene].kind == OUTLINE_8COPY; }
 inline int MaxLevel()
 {
     int m = 0;
