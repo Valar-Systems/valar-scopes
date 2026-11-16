@@ -1163,3 +1163,36 @@ Every header P6 changed, with what its new code uses and where that comes from:
 **For re-acceptance:** 4s at P5 `73dc246b79cb` and P6 `4050a5357d8c`, with the base unchanged. Nothing builds before
 then. The series restarts at B1, and B0 stands. A second compile failure in 4s goes to the orchestrator, then to the
 owner.
+
+### 4u. B1 read; B2 failed to compile (4s's SECOND compile failure, for the orchestrator and the owner) (2026-11-16 13:26-13:34Z)
+
+4s was re-accepted at base `a0583e88b142`, P5 `73dc246b79cb` and P6 `4050a5357d8c`.
+
+**B1** (`blipscope-s3-128` at P5 `73dc246b79cb`) **compiled**, in 193 s:
+- `.bin` 1,936,992 B, sha256 `78c33676c242…`;
+- I-4 passed; the marker counts were 0, 0 and 0, and the anchor 1;
+- the reparse scan read 0 links before `.pio/build` was deleted; bgcheck from the parent: PASS.
+
+Its deltas against B0, reported with the sections and NOT interpreted (as ruled):
+
+| section | B1 − B0 | 4s predicted | |
+|---|---|---|---|
+| `.bin` | +2,672 B | +4 KiB to +40 KiB | **outside (below)** |
+| `.iram0.text` | 0 | exactly 0 | as predicted |
+| `.dram0.data` | +608 B | exactly 0 | **outside** |
+| `.dram0.bss` | +3,880 B | +4,484 to +5,200 B | **outside (below)** |
+| `.flash.text` | +1,548 B | (inside `.bin`) | |
+| `.flash.rodata` | +524 B | (inside `.bin`) | |
+
+**B2** (`blipscope-s3-128` at P6 `4050a5357d8c`) **FAILED to compile:** pio exit 1 after 166 s.
+- The log's two errors: `src/AircraftManager.cpp:5734:56` and `5735:41`, `invalid use of non-static data member
+  'AircraftManager::tft'`. Only `AircraftManager.cpp.o` failed.
+- P6's local adapter `struct Fields`, inside `LabelLayout`, calls `tft.textWidth(s)` and `tft.fontHeight()`. But `tft`
+  is a MEMBER (`LGFX& tft;`, `AircraftManager.h:992`), and a local class has no object to reach it through.
+- 4t's P6 recheck covered only header inlines' include sets, so it could not see this class: a .cpp local class using
+  an enclosing member. Only compiling sees it.
+- The log is kept at `logs/B2.log`. The failed build dir was deleted after the scan read 0 links. bgcheck: PASS.
+- **The series is STOPPED.** It goes to the orchestrator and then the owner, as ruled.
+- **Proposed, NOT applied:** `m.tft.textWidth(s)` and `m.tft.fontHeight()`, through the adapter's existing
+  `const AircraftManager& m`. It is the same object, so P6's behavior and 4s's predictions don't move.
+- **Asked:** may B3, B4, B6 and B7, which don't touch P6's tree, run while P6 waits?
