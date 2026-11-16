@@ -1660,3 +1660,22 @@ If B3's `heap free` and `free8` differ by more than J, `heap free` is recorded, 
 **Unchanged:** everything else in section 5. That covers the images and their shas, the table, the tools and STOP
 lines, the sequence and timeline, the hard end at start + 95, the seal (`trace_filter.py` `eb31148e50ec`), the
 restore, and the outside-the-set lines.
+
+### 5b. #735's merge named, and the recovery moved onto its guarded path (2026-11-16 ~23:4xZ, before anything ran)
+
+**#735 merged at 23:41Z.** Main is `0fc8c1d319cb`, and `scripts/app-only-write.py` there is
+blob `fa9d102be291`. I read both myself at 23:43Z, and they match the reviewer's relay.
+- Its recorded constants are as section 5 registered: `ESPTOOL_VERSION = '5.2.0'`, `ESPTOOL_TREE_SHA =
+  '84c878702a70…'`, and `STUB_VERSION = '2'`.
+- **The window runs that file and no other:** `scripts/app-only-write.py`, together with `board-port.py` and
+  `bench-trace.ps1`, from a clean checkout at `0fc8c1d319cb`.
+- Step 0's `--check-tool` and `--selftest` run there.
+
+**One change to section 5's recovery, and only that.** Section 5 registered the recovery read-mac as a raw call into the
+private copy (`python -I -m esptool … read-mac`). The merged script now has that recovery itself:
+`app-only-write.py --read-mac --port <P>` (#735's A9).
+- It runs through the SAME tool guard as every write.
+- It prints one line, never esptool's output (so never the MAC).
+- **So the recovery uses it, and no raw esptool call remains anywhere in this window.** That is the reviewer's ruling
+  ("via app-only-write (`--read-mac`, the writes) rather than a raw call") applied to the last step that bypassed it.
+- Everything else in sections 5 and 5a stands.
