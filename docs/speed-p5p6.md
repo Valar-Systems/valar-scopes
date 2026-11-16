@@ -942,3 +942,27 @@ run.**
     - The 12 are the outline scratch's read, the photo sprite's 5 null tests, main.cpp's 3 reads (M3-9, /diag/fb
       and M3-1b), and the boot and splash screens' 3 null tests.
   - `W-GEN`: 1 function writes the layer (`RebuildWeatherLayer`), and it bumps.
+
+### 4p. P5 1c's wiring and static row, read (2026-11-16 06:40Z, WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`)
+
+Read against 4o's predictions and counts, pushed at `ef4c6d49323c` and `5268bd56eb3b` before the run. The code read is
+`bench/speed-p5` at `979d3e15e6b4`. **Every 4o prediction held.**
+- **check_p5_writes.py:**
+  - `W-CANVAS`: 14 drawing methods, none unmarked.
+  - `W-DIRECT`: 20 sites, 8 in marking functions and 12 allowed, none unmarked.
+  - `W-GEN`: 1 function writes the layer, and none lacks the bump. Exit 0.
+  - `--selftest` PASSED: UNMARKED red on exactly W-CANVAS, RAWWRITE on exactly W-DIRECT, NOGEN on exactly W-GEN.
+- **Unchanged:**
+  - test_p5_outline, test_p5_blend and test_p5_clear: all checks passed;
+  - sabotage_p5_blend and sabotage_p5_clear: as predicted, and the clear driver's `--anchors` reads 4 plants and 5
+    anchors, each present exactly once;
+  - check_frame_bench.py: 15 rows, 0 failed, and its selftest PASSED.
+
+**Open, for a ruling: sabotage_p5_outline.py reads "1 NOT AS PREDICTED" on every run.**
+- It is 4f's finding, unchanged: NOGUARD red on H-CULL@40 and @60 as well as both H-EDGE rows. That finding stood,
+  recorded OFF and not re-predicted, so the driver still expects H-EDGE alone.
+- The wiring did not cause it. The other four plants read exactly as before.
+- The cost of leaving it is a driver that is red on every run of this branch, and a red that is always there trains
+  people to read past it.
+- **Proposed:** the driver's NOGUARD set becomes the recorded one (H-CULL and H-EDGE, each `@40` and `@60`), with a
+  comment naming 4f's finding as its source, so any further change reads red. **Not done before the ruling.**
