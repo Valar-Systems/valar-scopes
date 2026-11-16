@@ -1357,3 +1357,56 @@ That cites the wrong band:
 
 The error was mine. The orchestrator's 14:0xZ reply repeated it without checking which band, and recorded that as its
 own. Nothing else in 4w moves, and 4s's grades are untouched.
+
+### 4y. B4 − B3 by symbol: where 4w's extra 368 B went (2026-11-16 21:13Z), a reading for the next registration
+
+4s's grades are untouched, as in 4w. This reading only settles what 4w left open: "B4 − B3's `.bss` is +4,248, which is
+368 B more than B1 − B0's +3,880 … it gets diffed by symbol the same way."
+
+**The artifacts held still.**
+- All 35 `SHA256SUMS` entries verify.
+- `SHA256SUMS` and `manifest.txt` hash to the values 4x froze (`bc134065ec32…`, `f95ca6a59a19…`).
+
+**The method is 4w's:**
+- a multiset diff of (type, name, size) over every `d`/`D`/`b`/`B` symbol from `xtensa-esp32s3-elf-nm -S -C`;
+- then `objdump -t -C` for each changed symbol's SECTION.
+
+**The anchor control ran first.** The same script on B0 → B1 reproduces 4w's two rows exactly: `appManager` `B`
+6,864 → 10,744, and `sweepLut` new, `d` 612.
+
+**Predicted before reading B3 → B4 (in the session, at 21:1xZ):**
+- **(i)** `appManager` +3,880 plus separate bench-only `.bss` symbols of +368; or
+- **(ii)** `appManager` alone at +4,248.
+- Anything else would be recorded as read.
+
+**B3 → B4:** 2,692 → 2,697 symbols; 6 gone, 11 new.
+
+| symbol | section | B3 | B4 |
+|---|---|---|---|
+| `appManager` | `.dram0.bss` | 7,912 | 11,792 (**+3,880**, the same as B1 − B0) |
+| `(anonymous)::TheOutlineScratch()::scratch` | `.dram0.bss` | none | **348** |
+| guard variable for that `scratch` | `.dram0.bss` | none | **8** |
+| `AircraftManager::DrawSweepOverWeather(...)::sweepLut` | `.dram0.data` | none | 612 |
+| `(anonymous)::OutlineScratch::Row(int) const::rev` | `.flash.rodata` | none | 16 |
+| `outlinemask::kOff` | `.flash.rodata` | none | 16 |
+| `framebench::kKindName` | `.flash.rodata` | 16 | 44 |
+| `framebench::kPushDelayMs` | `.flash.rodata` | 16 | 44 |
+| `framebench::kScenes` (×3, one per TU) | `.flash.rodata` | 12 each | 39 each |
+
+**What it means:**
+- **`.dram0.bss` +4,248 is branch (i).**
+  - It breaks down as `appManager` +3,880, the outline scratch +348, and its static-initialisation guard +8. That makes
+    +4,236 in symbols, plus 12 B of section alignment.
+  - The 368 B extra over B1 − B0 is the outline scratch (356 B) plus alignment.
+  - The scratch is absent from B0 → B1, so it compiles only into the framebench env.
+- **`.dram0.data` +608 is identical to B1 − B0.** It is `sweepLut`'s 612 B, with 4 B absorbed.
+- **The other `d`-typed growth, +169 B, is in FLASH.** That covers `rev`, `kOff` and the three `framebench` tables.
+  `.flash.rodata` is +832 for the section.
+  - `nm` types these symbols `d`, yet they sit in `.flash.rodata`.
+  - So **an `nm` type letter is not a statement about internal RAM**. Only the section read decides that.
+
+**For the next registration (no verdict changes here):**
+- The framebench env's internal static memory = the shipping env's (+3,880 `.bss`, +612 `.data`) plus the outline
+  scratch (356 B `.bss`, plus alignment).
+- Its flash-resident tables are not internal memory.
+- 4w's design choice stays open: (a) predict `.bss` + `.data` together, or (b) zero-initialise the LUT.
