@@ -379,3 +379,85 @@ the addendum.
 - **A compile-only firmware build** (`pio run` of a bench env, never flashed, never read for time) has been asked
   about, because it produces an image. Until it is ruled, no `pio run`: the firmware call sites stay thin wrappers
   around header-only functions that the host tests compile.
+- **Ruled, after 04:55Z (the orchestrator):** a compile-only build is not a reading, because it is never flashed and
+  never read. Its ELF is deleted or ignored, and no size line comes from it. **But not yet, for disk:** no `pio run`
+  until 5c's A8 window closes AND map-server's step-8 dry runs finish. Then it goes only if C:'s free space, minus the
+  build's size plus 0.5 GiB, still clears 30.0 GiB, read immediately before.
+
+### 4e. P5 1a's host rows and plants, as built (2026-11-16, before any run)
+
+**Where:** bench branch `bench/speed-p5`, from `a0583e88b142`.
+- **The host side, run first:** `include/OutlineMask.h`; `test/host/LgfxPort.h`, LovyanGFX 1.2.21's integer raster
+  ported line for line; `test/host/test_p5_outline.cpp`; `test/host/sabotage_p5_outline.py`; and a `run.sh` block.
+- **The firmware call sites,** not yet compiled (4d): `src/AircraftManager.{h,cpp}`, and `include/FrameBench.h`'s
+  kinds `OUTLINE_8COPY`/`OUTLINE_MASK` with the length `static_assert` section 0 asks for.
+
+**Three design facts the rows rest on:**
+- **Exact by construction, and the guard that keeps it so.** The mask writes black on (D ∖ M), and that equals the 8
+  copies whenever the marker drawn at an offset is the centre's marker moved by it. LovyanGFX's integer raster
+  (fillTriangle, drawLine including its clip walk, drawCircle, fillCircle) is shift-invariant. The float-to-`int32_t`
+  truncation of a dart's vertices is not: it fails across zero, at the sprite's top and left, and can fail under float
+  rounding. So `DrawEdge` builds the integer vertices at all 8 offsets first, and uses the mask only when every one is
+  the centre's moved by its offset. Any other contact gets today's 8 copies. Each row prints its mask and fallback
+  counts.
+- **One compiled body.** `DrawAircraftTriangle`'s arithmetic moves unchanged into `outlinemask::Heading` and `Build`
+  (noinline), and `DrawAircraftTriangle` calls them. So the colour marker, the bench's 8-copy path, the guard and the
+  mask take their vertices from the same instructions, whatever the compiler fuses.
+  - **Open, for the winner's own change:** whether moving that arithmetic moves any shipping pixel compared with
+    main. That is a device question, read there.
+- **The scratch.** On the device, M is drawn by LovyanGFX's own calls on a 32 × 32 1-bit `LGFX_Sprite` (read MSB
+  first). On the host it comes from the port. The edge is written through the canvas's `drawFastHLine`, so it is
+  clipped exactly as LovyanGFX clips.
+
+**The rows (the ids the driver reads):**
+- `CMP control`: a single changed pixel reads 1.
+- `H-OVERLAP@40` and `@60`: pairs and triples, both draw orders, well inside the sprite.
+- `H-EDGE@40` and `@60`: every kind (light, heavy, glider, rotor, balloon, dot) at headings 0, 45, … 315, centred 4 px
+  inside to 6 px past each tangent point. Tangent offsets are −4, 0 and +4; one contact per point per frame, with
+  non-overlapping fillers inside.
+- `H-CULL@40` and `@60`: zoomed in. Contacts at radius 116 to 122 on the diagonals, both just inside and culled, with
+  fillers inside.
+- `H-CULL-ORDER`: read from `src/AircraftManager.cpp`. Every outline call lies after the radar loop's cull and before
+  the contact's own colour marker, and the bench's 8-copy loop lies in the same span.
+- Every raster row compares whole frames against today's 8 copies.
+
+**The plants and their red sets, restated before any run:**
+
+| plant | planted in | red on exactly |
+|---|---|---|
+| P5-ONEPASS: all edges in one pass, then all markers (the reviewer's) | the harness's NEW loop | `H-OVERLAP@40`, `@60` |
+| P5-NOCLIP: the edge clipped to 1..238 | `OutlineMask.h` | `H-EDGE@40`, `@60` |
+| P5-DILATE4: a 4-neighbour dilation | `OutlineMask.h` | `H-OVERLAP`, `H-EDGE`, `H-CULL`, each `@40` and `@60` |
+| P5-CULLSKIP: the edge drawn before the cull | `AircraftManager.cpp` | `H-CULL-ORDER` |
+| P5-NOGUARD: no shift check (new) | `OutlineMask.h` | `H-EDGE@40`, `@60` |
+
+Three changes from section 1a's table:
+- **DILATE4 adds H-CULL.** No non-empty pixel set has the same 4- and 8-neighbour dilation. So the plant turns every row
+  that draws a marker through the mask red, and H-CULL draws its just-inside contacts.
+- **CULLSKIP is read on H-CULL-ORDER,** because the raster rows cannot see AircraftManager's loop.
+- **NOGUARD is new.** It is the control that the guard is ever needed: without it, a guard that never fires would be
+  untested.
+
+**Predictions for the first run** (WSL `Ubuntu-24.04`, g++ 13.3, run.sh's flags), frozen here:
+1. **test_p5_outline:** 8 ok, exit 0.
+   - Every raster row: 0 differing px.
+   - Fallbacks: 0 in both H-OVERLAP and both H-CULL rows, above 0 in both H-EDGE rows.
+   - Culled above 0 in both H-CULL rows.
+   - H-CULL-ORDER: 1 outline call, 0 outside its span, and the 8-copy loop inside it.
+2. **sabotage_p5_outline.py:**
+   - every plant red on exactly its set, "P5 OUTLINE PLANTS AS PREDICTED", exit 0;
+   - `--anchors`: 5 plants, 5 anchors, each present exactly once;
+   - `--control`: test_p5_outline at 8 ok.
+3. **test_wx_outline and sabotage_wx_outline:** unchanged, at 3 ok and as predicted. The 8-copy loop's text is kept
+   word for word in the bench region.
+4. **check_frame_bench.py:** every row ok, and its `--selftest` green. `lint_driver_counts.py` flags nothing in the
+   new driver.
+
+**Outside the set:**
+- A raster row with differing pixels stops 1a. It is reported, and nothing is fixed before a ruling.
+- A fallback count other than predicted is reported. The rows grade pixels, not counts.
+- If NOGUARD's red set differs from its prediction, the guard's reach is reported, not re-predicted.
+- Anything else: the instrument is not understood, so stop.
+
+**WD5o on this branch:** test_wx_outline still reads the 8-copy loop, now the bench's OLD path, as "the outline". That
+the mask equals that loop is test_p5_outline's job. The winner's own change from main moves WD5o onto the mask.
