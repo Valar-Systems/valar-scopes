@@ -1239,3 +1239,38 @@ different path.
 **Artifacts:** `scratchpad/art-p5p6-20261116` holds each build's `.bin`, `.elf`, `sections.txt` and log (B2's log
 included). The interim `manifest.txt` sha256 is `f0be96eacd3e…`, over six lines. It is frozen when B2 and B5 have run.
 `wt-build/.pio/libdeps` is kept for them, and removed at the end.
+
+### 4w. A reading for the next registration, not a re-grade of 4s (2026-11-16 13:5xZ)
+
+4s's grades are untouched: B1 − B0's and B4 − B3's `.dram0.data` and `.dram0.bss` stay **outside**, as 4u and 4v
+recorded. This section explains where the bytes went, so the next registration predicts them correctly. It changes no
+verdict.
+
+**Method.** I diffed B0's ELF against B1's as a multiset of (type, name, size).
+- It covers every `d`/`D`/`b`/`B` symbol (`xtensa-esp32s3-elf-nm -S -C`, read-only, over the archived `.elf` files).
+- Duplicate names (`TAG`, `PIo2`, `s_platform`, defined in many translation units) are counted as a multiset, not
+  joined by name. A join by name cross-multiplies them into false rows.
+
+**The diff has exactly two rows:**
+
+| symbol | type | B0 | B1 | change |
+|---|---|---|---|---|
+| `appManager` | `B` (.bss) | 6,864 | 10,744 | +3,880, which is the whole `.dram0.bss` delta |
+| `AircraftManager::DrawSweepOverWeather(...)::sweepLut` | `d` (.data) | none | 612 | new; `.dram0.data` moved +608, with 4 B absorbed by padding |
+
+- 3,880 + 612 = **4,492 B**, which is exactly the lower edge of 4s's `.bss` band (+4,492..+5,208).
+- So the internal static total landed on the predicted edge. It was split across two sections instead of all landing
+  in `.bss`.
+- **Why:** `wxsweeplut::Table` declares `int pct = -1`. That non-zero initializer puts the function-static `sweepLut` in
+  `.data`.
+
+**Not yet diffed:** B4 − B3's `.bss` is +4,248, which is 368 B more than B1 − B0's +3,880. The difference is
+presumably the bench-only FrameBench P5 kinds, but that is **not established**. Before any registration predicts it,
+it gets diffed by symbol the same way.
+
+**The design choice, left open for the next registration.** It has two options:
+- **(a)** Predict internal static memory as `.bss` + `.data` together.
+- **(b)** Zero-initialize the LUT so it lands in `.bss`.
+
+Either way the 612 B stays in internal DRAM. Option (b) only moves it between sections, and it removes the 612 B
+initializer copy from the flash image.
