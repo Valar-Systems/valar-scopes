@@ -966,3 +966,23 @@ Read against 4o's predictions and counts, pushed at `ef4c6d49323c` and `5268bd56
   people to read past it.
 - **Proposed:** the driver's NOGUARD set becomes the recorded one (H-CULL and H-EDGE, each `@40` and `@60`), with a
   comment naming 4f's finding as its source, so any further change reads red. **Not done before the ruling.**
+
+### 4q. The outline driver encodes 4f's finding (ruled 2026-11-16 after 06:44Z, before the change)
+
+**The ruling** (the orchestrator): "YES, update NOGUARD's expected set to the recorded 4f set (H-CULL and H-EDGE, @40
+and @60), with a comment naming 4f's finding and its mechanism. ... This isn't a re-fit." It came with two conditions:
+- 4e's ORIGINAL prediction stays in the record unedited, with 4f beside it as the finding;
+- the updated driver must be shown to still go red, by a planted one-row change to NOGUARD's set.
+
+**So:**
+- **4e's table above is untouched.** Its NOGUARD row still reads `H-EDGE@40, @60`, and 4f, recorded beside it, is the
+  finding.
+- **The change:** `sabotage_p5_outline.py`'s NOGUARD set becomes `H-EDGE@40, @60, H-CULL@40, @60`. Its comment names
+  4f and the mechanism: float `sin(π)` is about −8.7e-8, so `16 − 5.2e-7` truncates to 15, which the guard refuses.
+
+**Predictions, frozen here:**
+1. **The proof that it can still go red.** A copy of the updated driver, with NOGUARD's set planted one row short
+   (`H-CULL@60` removed), reads "P5 OUTLINE PLANTS: 1 NOT AS PREDICTED" and exits 1. NOGUARD is the one FAIL line.
+2. **The updated driver itself** reads "P5 OUTLINE PLANTS AS PREDICTED" and exits 0, with all five plants on exactly
+   their sets. Its `--anchors` reads 5 plants and 5 anchors, each present once, and its `--control` reads 8 ok.
+3. **Outside the set:** anything else is reported, and stops the change.
