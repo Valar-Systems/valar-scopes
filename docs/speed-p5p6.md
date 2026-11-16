@@ -352,3 +352,30 @@ that the two stop rows match?
    `src/AircraftManager.h:50`, so a bench branch is still never a PR.
 
 None of the three blocks P5/P6, and section 0 stands with these readings.
+
+### 4d. Amendment 4d: code before the addendum (ruled 2026-11-16, before any reading)
+
+**The ruling.** The orchestrator, after 04:49Z on 2026-11-16, carrying the owner's overnight order ("5. weatherscope:
+the weather cut and label cache", with nobody to stop and wait for him): "P5/P6 build no image before the addendum,
+and the addendum waits for an A0a reading. So overnight, do what doesn't depend on A0a's numbers: the code, host tests
+and selftests for the weather cut and the label cache, on bench branches from a0583e88b142, committed and pushed behind
+your gates. ... No board use."
+
+**What changes.** The header and section 3 say the addendum comes "before any code is written". That no longer holds.
+Code, host tests and selftests may now be written, committed and pushed on bench branches from `a0583e88b142` before
+the addendum.
+
+**What does not change, and why the early code cannot bias any reading:**
+- **No image is built and no board is used before the addendum,** so every frame-time reading still comes after it.
+- **The gains are still predicted in the addendum,** from A0a's measured `outline`, `sw_blend`, `under` and
+  `lbl_layout` splits, before any image is built. They come from A0a's numbers, not from this code.
+- **Every host row's outcome is already frozen in sections 1 and 2:** byte-identical images, 0 mismatches, and each
+  plant red on its named row. So no host result can be fitted after it is seen. A host result outside them stops that
+  row and is reported, and nothing is fixed before a ruling.
+- **If A0a moves a premise** (section 3), the order is re-ruled, and code already written may be set aside. That is
+  the cost of not waiting, and it is accepted.
+- **Each bench branch is pushed as a record only,** never as a PR (section 0). Each winner lands later in its own change
+  from main.
+- **A compile-only firmware build** (`pio run` of a bench env, never flashed, never read for time) has been asked
+  about, because it produces an image. Until it is ruled, no `pio run`: the firmware call sites stay thin wrappers
+  around header-only functions that the host tests compile.
