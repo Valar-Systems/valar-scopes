@@ -27,6 +27,22 @@ from `git log aa40aa43..origin/main -- proxy/`:
 
 `77acc072` (#721) changes `docs/` only, so it is not in the table.
 
+**Re-registered 2026-11-16, before the run (the reviewer's ruling, after D0.2's early read at 15:10Z).** Two more
+commits touch `proxy/`. Both were already on main at `b282699a`, so the eight-row list was short before #727 merged:
+
+| commit | PR | what changes in the deployed Worker | its check after the deploy |
+|---|---|---|---|
+| `620a215d` | #708 | `src/routeshealth.ts`: `/healthz`'s routes block gains an OPTIONAL `sourceCommittedAt`. It is emitted only when `meta:routes` holds it in the writer's exact form (`YYYY-MM-DDTHH:MM:SSZ`), and omitted otherwise, never coerced (RH9s). **Predicted ABSENT on both after the deploy.** `meta:routes` was read 2026-11-16 15:12Z through the helper, printing one boolean each: neither production nor staging holds the key. The controls: each read exited 0 and parsed with a `builtAt`. Its 20 scripts and 2 tests are not in the Worker (below) | C2 |
+| `7606224c` | #723 | nothing: 8 files, all under `proxy/scripts/` | none of its own (C6) |
+
+**No Worker build reads #723's 8 files or #708's 22 non-`src` files (24 unique). Derived, not asserted:**
+- the build's entry is `wrangler.toml`'s `main` (`src/index.ts`), with no `[[rules]]` and no build command;
+- bundling it in memory with the checkout's own esbuild (a metafile, `write: false`) gives 57 inputs, all under `src/`,
+  with 0 under `scripts/`, `test/` or `photos/`, and none of the 24;
+- the control: `src/routeshealth.ts` is an input, so the method can see a file that is read.
+
+`074863fc` (#727) changes 0 files under `proxy/`, so the proxy tree there equals `b282699a`'s.
+
 ### 1a. #720 in this deploy: inert until the radar deploy (the owner's condition)
 
 The owner, relayed 2026-11-14: *"If Monday's proxy deploy carries the merged radar fallback code, it must stay inert
@@ -74,7 +90,7 @@ until it is planned. A deploy never carries a change nobody predicted.
 | step | when | what | predicted |
 |---|---|---|---|
 | D0.1 | 15:55Z | the wake fires; `date -u` read | between 15:55 and 16:00Z on 11-16 |
-| D0.2 | before 16:00Z | `git ls-remote` main, and the carried list from `git log aa40aa43..<main> -- proxy/` | the eight commits above, or more that touch only files no Worker build reads. Anything else: stop |
+| D0.2 | before 16:00Z | `git ls-remote` main, and the carried list from `git log aa40aa43..<main> -- proxy/` | the ten commits above (the eight, plus #708 and #723 as re-registered on 11-16), or more that touch only files no Worker build reads. Anything else: stop |
 | D0.2b | with D0.2 | #696 (map-server's basemap branch, HELD from merge: its `/credits` line names TIGER/Line 2025 while the served store is 2024; the reviewer, 2026-11-15) is not carried. Three reads: no carried subject names `(#696)`; `TIGER/Line 2025` appears 0 times in `proxy/` at main's sha, with the control that `TIGER/Line 2024` is still in `photos/credits.html` and `src/photolicense.ts`; and #696 is OPEN with `ahead_by` equal to its commit count | all three true. #696 merged, a 2025 hit, or the 2024 control missing: stop |
 | D0.3 | before 16:00Z | the owner's other conditions: no S1, S2, S4 or Sunday sitting is on (asked of the reviewer), and valarscopes-site PR #19 (the live scope on /blipscope/) has not merged on 11-16: `gh pr view 19 --repo Valar-Systems/valarscopes-site --json mergedAt` | both true. If either is not, no deploy: report |
 | D0.4 | before 16:00Z | the rollback targets, from `deployments list --json` through the helper, ids only | production `69072b90-575a-4984-b704-3e101cd0e36a`, staging `1f1a0fae-7674-43d5-9499-e3b35c00ba68` (read 11-14 03:37-03:38Z). A different id means someone deployed since: write the new id down, and report before going on |
@@ -104,7 +120,8 @@ changes anywhere.
 **C2, the route-age line** (#703's D-B1 and D-B3, `docs/route-age-alert.md` section 5.4):
 - `maxAgeDays` is 10;
 - `builtAt` is unchanged from D0.5;
-- `rows` 628956, `stale` false, no `why`.
+- `rows` 628956, `stale` false, no `why`;
+- no `sourceCommittedAt` key on either environment (#708's field: `meta:routes` holds none, read 2026-11-16 15:12Z).
 - `ageDays` is computed by script from that `builtAt` at the moment of the read. With the seals as they stand on 11-14:
   - production (`2026-11-14T01:52:29.338Z`): 2 from 11-16 01:52:29.338Z to 11-17 01:52:29.338Z;
   - staging (`2026-11-13T17:44:25.919Z`): 2 until 11-16 17:44:25.919Z.
