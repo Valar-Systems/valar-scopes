@@ -859,3 +859,71 @@ Read against 4m's predictions, pushed at `1afb7f40877f` before the run. The code
   - lint: 0 flagged.
 - **Ungraded reading:** a partial restore copied 10,469 pixels on average, against 57,600 for a full clear, for this
   host scene of 40 primitives. It says nothing about the device's `under`, which the addendum predicts from A0a.
+
+### 4o. P5 1c's firmware wiring and its static row (ruled 2026-11-16 after 06:27Z; registered before the code)
+
+**The ruling** (the orchestrator): "YES, write the wiring (uncompiled until the disk condition clears), registered as
+its OWN amendment first, with your audit as its list". Two additions:
+- "A STATIC SOURCE ROW, so the audit is a check that runs, not a list that's remembered", with a plant of "one
+  BandCanvas method forwarding without marking";
+- the M3 dependency, named.
+
+**The wiring, which is the audit's list:**
+1. **`BandCanvas`:** each of its 15 drawing methods marks the canvas's dirty set (when it has one) before it forwards.
+   - `fillScreen` calls `All()`.
+   - `drawString` marks `x ± width, y ± fontHeight`, which covers any text datum.
+   - `fillArc` and `drawArc` mark the outer radius's box.
+   - A canvas with no set (every other edition, every other face) marks nothing, as now.
+2. **`DrawSweepOverWeather`:** marks the wedge's per-row spans (`rowLo`/`rowHi`), the only direct pixel writes in the
+   radar-weather frame. Its beam is drawn through the canvas.
+3. **`DrawWeatherUnder`'s flat path:** `dirtyclear::Restore` from the layer, for the buffer's own set. Today's whole
+   memcpy becomes the bench's `CLEAR_OLD` path, in a FRAME_BENCH region.
+4. **Every other write calls `All()`:**
+   - the non-flat `wxSprite.pushSprite`;
+   - `CheckLayerCopy`'s push (bench F1);
+   - the detail card's `photoSprite.pushSprite`;
+   - and any frame that `DrawWeatherUnder` does not clear flat: main's `fillScreen`, through (1).
+5. **`RebuildWeatherLayer`** bumps `wxLayerGen` before its first write to the layer, so both buffers restore in full.
+6. **One set per M3 buffer.** main.cpp chooses the set by `&drawBuf == pushtask::g_buf[0]`, and an image without the
+   push task uses one set for its one buffer.
+   - The indicator's band is `SCREEN_SIZE_DIV_2 ± ((SCREEN_COUNT - 1) * 6 + 4)` by `SCREEN_SIZE - 16 ± 5`, which
+     covers DrawScreenIndicator's dots.
+7. **The device's backstop, `CLEAR_CHECK`:** an untimed scene that, after each Restore, counts the buffer's pixels
+   that differ from the layer. It prints `[speed-p5] clear S<k> frames <n> mismatched-px <m>`, predicted 0.
+   - `[speed-p5]` joins `check-no-bench-hooks.sh`'s MARKERS (I-4).
+   - `CLEAR_OLD`, `CLEAR_DIRTY` and `CLEAR_CHECK` join FrameBench's kinds and `SPEED_P5_BENCH`'s list. The
+     addendum re-states that list.
+
+**THE M3 DEPENDENCY, named.** "One set per buffer, keyed by pushtask's buffer index" relies on p4's M3 push-task
+design, which is not settled (tonight's soak). **If M3's buffer scheme changes, this wiring is re-read before any device
+run.**
+
+**The static row: `test/host/check_p5_writes.py`.** It reads the source, and it is the audit as a check that runs.
+- **`W-CANVAS`:** every method in `include/BandCanvas.h` that forwards a drawing call (`s_.fill*`, `draw*`, `push*`,
+  `write*`) marks or calls `All()` in its body. Methods that do not draw are named in an exempt list.
+- **`W-DIRECT`:** every direct write to a canvas buffer in `src/AircraftManager.cpp` and `src/main.cpp` is a
+  `.sprite()` handle, `getBuffer()` or `pushSprite(&` onto a canvas sprite. Each one's function must mark spans or call
+  `All()`. Read-only sites, and writes to sprites other than the canvas, are named in an allowlist, each with its
+  reason.
+- **`W-GEN`:** every function that writes into the layer (`wxSprite.fill*`, `draw*`, `write*`) bumps `wxLayerGen`.
+- **The control:** each row finds more than 0 sites, or the check reads the rig (exit 2).
+
+**Its plants** (`--selftest`), each red on exactly its row:
+
+| plant | where | red on |
+|---|---|---|
+| P5-UNMARKED (the orchestrator's): `BandCanvas::drawLine` forwarding without marking | `BandCanvas.h` | `W-CANVAS` |
+| P5-RAWWRITE: the photo push without its `All()` | `AircraftManager.cpp` | `W-DIRECT` |
+| P5-NOGEN: the generation bump removed | `AircraftManager.cpp` | `W-GEN` |
+
+**Predictions** (WSL, run.sh's flags; the firmware itself is not compiled, 4d):
+1. `check_p5_writes.py`: every row ok, exit 0; `--selftest`: each plant red on exactly its row.
+2. Unchanged:
+   - test_p5_outline at 8 ok, test_p5_blend at 4 ok, test_p5_clear at 4 ok;
+   - check_frame_bench.py at 15 rows, 0 failed, its selftest PASSED. FB1 holds: every new FRAME_BENCH line is in a
+     region.
+
+**Outside the set:**
+- An unmarked write found on the wired tree is reported, and the wiring is fixed only after a ruling.
+- A plant off its row is reported.
+- Anything else: stop.
