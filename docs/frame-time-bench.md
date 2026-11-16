@@ -3290,6 +3290,31 @@ cross-check of the transcriptions' v19-to-v20 differences against a real v19 run
 | Q-S2b-C | CTRL-IL's map and weather | off, by the local feed's construction (above). The control's +10 is the plant's, so its scene's draw content does not change what it controls for |
 | Q-S2b-D | the date | S2b's window opens only after: the port's commits pass, S2B-ISO, the image and its manifest are acknowledged, and S2's numbers are frozen into this section. The target date is the orchestrator's to set |
 
+**ACCEPTED as the plan at `092868e2e24c`** (the orchestrator, recorded 2026-11-16T05:03:50Z), with all seven defaults.
+- **D, the slot:** already booked, **Tue 2026-11-17 17:50-19:55Z** (moved there earlier for daylight at its test homes),
+  after FT-HR's 12:54Z start. XA and X̂ freeze after S2 (Mon about 19:50Z).
+- **S2B-ISO's disk rule:**
+  - read C: before each build pair, and start one only at 31.0 GiB or more;
+  - after each pair's comparison, keep only its hashes and diff results, and delete that pair's build output (my
+    own rebuildable) before the next;
+  - never leave C: under 30.6 GiB between 09:30 and 13:00Z (5c's A8 bar at 10:00Z). A pair that would breach that
+    runs after 13:00Z.
+
+**AMENDMENT to P2, before any code (2026-11-16T05:05Z), because the accepted text contradicts its own S2B-ISO.**
+- "The sibling's `OnCloudPoll` gains RP5's two sent-coordinate arguments" changes a call site that every bench env
+  compiles. The FT and C1 images would then differ: the call builds two `String`s from `wireloc::Center`, whether or
+  not the callee reads them. S2B-ISO exists to catch exactly that, so the plan as written fails its own proof.
+- **The rule instead, for every piece:** no shared function's signature or body changes. At each FRAME BENCH call
+  site an S2B piece needs, the region gains `#if defined(FRAME_BENCH_S2B)` with S2b's own call, and `#else` with the
+  existing text byte for byte. A non-S2B env then compiles the same preprocessed text as at `8fb80fef41d1`, which is
+  what S2B-ISO proves from the images.
+- So P2 is a new `OnCloudPollS2b(...)`, carrying RP5's signature and its REPLAY branch, called only under
+  `FRAME_BENCH_S2B`.
+- **check_frame_bench's counting rows are kept at their counts in every env.** S2b reuses the one `Record` call
+  (TAG-SET, FB-REC), the one moved loop plant (M3-L), and the one push plant site (M3-3P), and never adds a second.
+  Where a row counts a call that S2b's `#if` duplicates in text, the row is scoped to the non-S2B branch, and that
+  scoping is named in the row's commit.
+
 ### THE POST-v20 QUEUE: the ~200 ms full redraw (the owner's answer, 2026-11-15; queued, nothing before v20)
 
 - **The owner, verbatim:** "Sea: a. Queue the faster water fill for after v20, and with it, look at the ~200 ms full
