@@ -497,3 +497,92 @@ Read against 4e's predictions, which were pushed at `896f290df424` before the ru
 **My own rig miss:** the standalone WD5o compile failed once ("cannot open output file"), because its WSL build
 directory from the first call no longer existed. It was re-run with the directory made, and read 3 ok. The code was
 not involved.
+
+**Finding, recorded by the orchestrator (after 05:25Z):**
+- **The guard is load-bearing everywhere,** not only at the sprite's edges. A vertex just below a power of two can
+  truncate differently at an offset, as the heading-180 dart at x 17 did. H-CULL's fallback row is recorded OFF and
+  not re-predicted.
+- **Carried into the addendum:** the device's OUTLINE_MASK scenes will include fallbacks, so the gain is predicted on
+  the mask path plus its fallback rate, never on the mask alone.
+
+### 4g. P6's host rows and plants, as built (2026-11-16, before any run)
+
+**Where:** bench branch `bench/speed-p6`, from `a0583e88b142`.
+- **The host side, run first:**
+  - `include/LabelCache.h`;
+  - `LabelKey()` in `src/AircraftInfoFields.{h,cpp}`;
+  - the host's stand-ins: `test/host/p6_fake/TrackedAircraft.h` and `test/host/p6_shim/Arduino.h`;
+  - `test/host/test_p6_labels.cpp` and `test/host/sabotage_p6_labels.py`;
+  - a `run.sh` block.
+- **The firmware call sites,** not yet compiled (4d): `AircraftManager::LabelLayout` and `DrawAircraftInfo`; the
+  `TrackedAircraft::labelCache` member; FrameBench's kinds `LABELS_TODAY`, `LABELS_CACHE` and `LABELS_CHECK`, with the
+  length `static_assert`; and the `[speed-p6]` marker in `check-no-bench-hooks.sh` (I-4).
+
+**The design facts the rows rest on:**
+- **The key, exact.** It holds every input of every info field: the strings length-prefixed, the floats by their
+  bits, the ints, and the enabled-field mask.
+  - `LabelKey` builds it beside the formatters it covers. Raw values are used, never rounded ones, so a wrong key can
+    only over-invalidate (one refill), never keep a stale text.
+  - An input past the 192-byte key, or a chosen line past 39 characters, makes the contact UNCACHED. It is then laid
+    out by `LayoutToday`, exactly as before, every frame.
+- **One layout rule.** `LayoutToday` is the old `LabelLayout` body, moved unchanged. It serves as the bench's OLD path
+  and as the cache's fallback. `PlaceCached` repeats its loop on cached widths at this frame's (x, y), so the
+  placement is never cached.
+- **The box and the draw share the one entry.** Both go through `LabelLayout`, and so does the tap hit-test.
+- **Memory.** The entry (predicted 336 bytes) lives in PSRAM. Each contact pays one pointer of internal heap, through
+  `labelcache::Slot`, which owns the entry and frees it with the contact. A copy starts empty, which is correct
+  because the key includes `icao24`.
+  - **The device's heap reading is a row for the addendum,** not a host one.
+- **The equality row on the device** runs in its own scene kind, `LABELS_CHECK`, which is untimed: the check costs a
+  second layout, so it never runs in a timed scene. It prints `[speed-p6] labels S<k> checked <n> mismatches <m>`,
+  and is predicted at 0 mismatches.
+
+**The rows (the ids the driver reads):**
+- `CMP control`: one changed x reads a mismatch.
+- `P6-COVER`: the real formatters and `LabelKey`, compiled against the stand-in.
+  - Each of the 16 members it reads is moved through several values, and wherever any field's text moves, the key
+    must move.
+  - The control: every member moves some text.
+  - The members are generated from the same lists as the stand-in, so a member added there is moved here.
+- `P6-SEQ@20`, `@40` and `@60`: a recorded 400-frame sequence.
+  - Every input changes while its field is shown alone: each input's period is under the mask's 20 frames.
+  - Contacts drift, the rim's drops and clamps included. The enabled mask cycles (each field alone, the defaults,
+    all, and pairs).
+  - Enrichment arrives, strings go empty, a route turns Local. Contact 0's inputs overflow the key, and contact 1's
+    operator overflows a line.
+  - Each frame does the box and then the draw through the cache, compared with `LayoutToday`: 0 mismatches in
+    count, index, string, x, y or width.
+  - The control: every contact's texts change at least once, and both refills and uncached are above 0.
+- `P6-SHARE`: on every frame whose box refreshed, the draw's lookup is a hit.
+
+**The plants and their red sets:**
+
+| plant | planted in | red on exactly |
+|---|---|---|
+| P6-NEVER: never invalidated | `LabelCache.h` | `P6-SEQ@20`, `@40`, `@60` |
+| P6-WIDTH: a stale width kept across a text change | `LabelCache.h` | `P6-SEQ@20`, `@40`, `@60` |
+| P6-POS: the first frame's placement reused | `LabelCache.h` | `P6-SEQ@20`, `@40`, `@60` |
+| P6-KEYDROP: the squawk left out of `LabelKey` (new) | `AircraftInfoFields.cpp` | `P6-COVER` and `P6-SEQ@20`, `@40`, `@60` |
+| P6-NOSHARE: every lookup refills (new) | `LabelCache.h` | `P6-SHARE` |
+
+Section 2's three plants read "mismatches above 0". That is the SEQ rows here. KEYDROP shows the key's coverage can be
+broken, and NOSHARE shows the sharing row can fail.
+
+**Predictions for the first run** (WSL `Ubuntu-24.04`, g++ 13.3, run.sh's flags and its staged build), frozen here:
+1. **test_p6_labels:** 6 ok, exit 0. The entry is 336 bytes.
+   - P6-COVER: 16 members, 0 with the key unmoved, 0 silent.
+   - Each SEQ row: 0 mismatches, hits above 0, control "yes".
+   - P6-SHARE: 0 misses.
+2. **sabotage_p6_labels.py:**
+   - each plant red on exactly its set, exit 0;
+   - `--anchors`: 5 plants, 6 anchors (POS has two);
+   - `--control`: 6 ok;
+   - `lint_driver_counts` flags nothing.
+3. **check_frame_bench.py on `bench/speed-p6`:** 15 rows, 0 failed, and its `--selftest` PASSED. `test_label_lines`
+   is unchanged.
+
+**Outside the set:**
+- A SEQ mismatch or a COVER violation stops P6. It is reported, and nothing is fixed before a ruling.
+- An entry size other than 336 is reported (it is a layout fact, not a grade).
+- A plant off its set is reported, not re-predicted.
+- Anything else: the instrument is not understood, so stop.
