@@ -461,3 +461,39 @@ Three changes from section 1a's table:
 
 **WD5o on this branch:** test_wx_outline still reads the 8-copy loop, now the bench's OLD path, as "the outline". That
 the mask equals that loop is test_p5_outline's job. The winner's own change from main moves WD5o onto the mask.
+
+### 4f. P5 1a's first host run, read (2026-11-16 05:19-05:20Z, WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`)
+
+Read against 4e's predictions, which were pushed at `896f290df424` before the run. The code read is
+`bench/speed-p5` at `11ef2d24079e` (pushed 05:23:53Z, identical to the tree the run read).
+
+**As predicted:**
+- **test_p5_outline:** 8 ok, exit 0.
+  - Every raster row: 0 differing px (H-OVERLAP over 12 frames each; H-EDGE over 1,584; H-CULL over 336).
+  - Fallbacks: H-OVERLAP 0, 0; H-EDGE 730, 731.
+  - H-CULL: culled 1,968 and near-circle drawn 2,064 in each row.
+  - H-CULL-ORDER: 1 call, 0 outside its span, the 8-copy loop inside it.
+- **sabotage_p5_outline.py:**
+  - ONEPASS, NOCLIP, DILATE4 and CULLSKIP each red on exactly their sets;
+  - `--anchors`: 5 plants and 5 anchors, each present once;
+  - `--control`: 8 ok;
+  - lint_driver_counts: 0 flagged.
+- **WD5o:** 3 ok, and sabotage_wx_outline as predicted.
+- **check_frame_bench.py:** 15 rows, 0 failed, and its selftest PASSED, so C1-L and FB-TU held.
+
+**Off the predicted set, reported and not re-predicted** (4e's branch for both is "report"):
+1. **H-CULL's fallbacks read 1 and 1, not 0.** Both are the same filler: a light dart at heading exactly 180 (up 0) at
+   (17, 60).
+   - Float `sin(π)` is about −8.7e-8, so its tip's x is `17 − 5.2e-7`, which rounds to 17.0 and truncates to 17.
+   - At offset −1 it is `16 − 5.2e-7`. Below a power of two the float spacing halves, so this one rounds to
+     15.9999995 and truncates to 15, not 16.
+   - The guard saw that, and the contact got today's 8 copies. The pixels are equal.
+2. **NOGUARD read red on H-CULL@40 and @60 as well as both H-EDGE rows.** It is the same contact: without the guard,
+   its pixels differ.
+   - So the guard is needed inside the disc too, wherever a vertex sits just below a power of two, not only at the
+     sprite's top and left as 4e's prediction assumed.
+   - The red set is therefore the set of rows with a fallback, which is what the plant exists to show.
+
+**My own rig miss:** the standalone WD5o compile failed once ("cannot open output file"), because its WSL build
+directory from the first call no longer existed. It was re-run with the directory made, and read 3 ok. The code was
+not involved.
