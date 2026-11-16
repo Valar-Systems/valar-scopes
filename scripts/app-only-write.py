@@ -17,9 +17,14 @@ only if esptool says "Hash of data verified."; one retry while the chip is still
 in the ROM; reset only after a verified write. Nothing is erased; NVS, otadata,
 the bootloader and the partition table are never written.
 
-    app-only-write.py --port COMx --build-dir .pio/build/<env> [--before default-reset|no-reset]
+    app-only-write.py --port COMx --build-dir .pio/build/<env> [--before default-reset|no-reset] [--check-only]
     app-only-write.py --selftest
-Exit: 0 written and verified, 7 refused (nothing written), 8 write failed, 2 usage.
+    app-only-write.py --sabotage
+--check-only stops after the checks: the two reads, nothing written, the chip left in the ROM (an esptool read-mac
+with a hard reset brings it back). --selftest runs a full write and a --check-only run against a fake esptool and
+checks every argv they build; --sabotage plants faults into copies of this file and each must turn its own rows red.
+Exit: 0 written and verified (with --check-only: checked), 7 refused (nothing written), 8 write failed, 2 usage
+(--sabotage: 2 when its anchor fails).
 """
 import os
 import struct
@@ -32,6 +37,7 @@ PIO = os.path.join(os.path.expanduser('~'), '.platformio')
 PY = os.path.join(PIO, 'penv', 'Scripts', 'python.exe')
 ESPTOOL = os.path.join(PIO, 'packages', 'tool-esptoolpy', 'esptool.py')
 PT_OFFSET, PT_SIZE = 0x8000, 0xC00
+COMMANDS = ('read-flash', 'write-flash', 'read-mac')  # the esptool commands this script runs (the selftest reads them)
 T_APP, T_DATA, ST_OTA0, ST_OTADATA = 0x00, 0x01, 0x10, 0x00
 
 
@@ -65,9 +71,13 @@ def selected_slot(otadata, n_ota=2):
     return 0 if best is None else (best - 1) % n_ota
 
 
+def esptool_argv(port, before, after, *args):
+    """The ONE place an esptool argv is built: esptool() runs it, and the selftest checks every one a run builds."""
+    return [PY, ESPTOOL, '--chip', 'esp32s3', '--port', port, '--before', before, '--after', after, *args]
+
+
 def esptool(port, before, after, *args):
-    cmd = [PY, ESPTOOL, '--chip', 'esp32s3', '--port', port, '--before', before, '--after', after, *args]
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(esptool_argv(port, before, after, *args), capture_output=True, text=True)
     return r.returncode, (r.stdout or '') + (r.stderr or '')
 
 
@@ -79,7 +89,7 @@ def read_flash(port, before, off, size, path):
         return f.read()
 
 
-def run(port, build, before):
+def run(port, build, before, check_only=False):
     img_path = os.path.join(build, 'firmware.bin')
     with open(os.path.join(build, 'partitions.bin'), 'rb') as f:
         want = parse_table(f.read())
@@ -108,6 +118,10 @@ def run(port, build, before):
         if slot != 0:
             print(f'REFUSED: the board boots ota_{slot}; writing ota_0 would be ignored.')
             return 7
+    if check_only:
+        print(f'checks ok: table matches ({len(want)} entries), board boots ota_0. --check-only: nothing written; '
+              'the chip is left in the ROM.')
+        return 0
     print(f'checks ok: table matches ({len(want)} entries), board boots ota_0, image {len(img)} B '
           f'fits ota_0 @ {hex(app_off)} ({app_size} B). Writing ota_0 only.')
     for attempt in (1, 2):
@@ -153,13 +167,106 @@ def selftest():
     ok(selected_slot(entry(1).ljust(0x1000, b'\xff') + entry(2).ljust(0x1000, b'\xff')) == 1, 'seq 2 boots ota_1')
     bad_crc = (struct.pack('<I', 2) + b'\xff' * 28).ljust(0x1000, b'\xff') + b'\xff' * 0x1000
     ok(selected_slot(bad_crc) == 0, 'CONTROL: a seq with a bad crc is ignored')
+
+    # A1-A4: run() itself, a full write and a --check-only run, against a fake subprocess.run that records every argv.
+    def word(cmd):
+        return next((i for i, a in enumerate(cmd) if a in COMMANDS), None)
+
+    def pinned(cmd):
+        w = word(cmd)
+        i = next((i for i, a in enumerate(cmd) if a == '--stub-version'), None)
+        return w is not None and i is not None and i < w and i + 1 < len(cmd) and cmd[i + 1] == '2'
+
+    def capture(check_only):
+        calls = []
+
+        def fake(cmd, **kw):
+            calls.append(list(cmd))
+            out, w = '', word(cmd)
+            if w is not None and cmd[w] == 'read-flash':
+                off, size, path = int(cmd[-3], 16), int(cmd[-2], 16), cmd[-1]
+                with open(path, 'wb') as f:
+                    f.write(table(rows) if off == PT_OFFSET else b'\xff' * size)
+            elif w is not None and cmd[w] == 'write-flash':
+                out = 'Wrote 256 bytes at 0x00020000\nHash of data verified.\n'
+            return subprocess.CompletedProcess(cmd, 0, out, '')
+
+        real = subprocess.run
+        with tempfile.TemporaryDirectory() as b:
+            with open(os.path.join(b, 'partitions.bin'), 'wb') as f:
+                f.write(table(rows))
+            with open(os.path.join(b, 'firmware.bin'), 'wb') as f:
+                f.write(b'\xe9' + b'\0' * 255)
+            subprocess.run = fake
+            try:
+                rc = run('COMX', b, 'default-reset', check_only)
+            except BaseException as e:  # a run that raises is a failed row, not a crashed selftest
+                rc = f'raised {type(e).__name__}'
+            finally:
+                subprocess.run = real
+        return rc, calls, [c[word(c)] if word(c) is not None else None for c in calls]
+
+    rc, calls, words = capture(False)
+    ok(rc == 0 and bool(calls) and all(pinned(c) for c in calls),
+       "A1 every call of a full run carries '--stub-version' '2', ahead of the command word")
+    ok(words == ['read-flash', 'read-flash', 'write-flash', 'read-mac'],
+       'A2 CONTROL: a full run makes exactly read-flash, read-flash, write-flash, read-mac')
+    rc, calls, words = capture(True)
+    ok(rc == 0 and words == ['read-flash', 'read-flash'], 'A3 check-only: exactly read-flash, read-flash, and no write-flash')
+    ok(rc == 0 and bool(calls) and all(pinned(c) for c in calls),
+       "A4 every call of a check-only run carries '--stub-version' '2', ahead of the command word")
     print('SELFTEST PASSED' if not bad else f'SELFTEST FAILED ({bad})')
+    return 1 if bad else 0
+
+
+# Each plant goes into a temp copy of this file, and the copy's --selftest must turn EXACTLY these rows red. The needles
+# are split across a '+' so that this table never matches itself (each must appear exactly once in the source).
+SABOTAGE = [
+    ('S-NOPIN', "'--after', after, '--stub-" + "version', STUB_VERSION, *args]", "'--after', after, *args]", {'A1', 'A4'}),
+    ('S-PIN1', "STUB_VERSION" + " = '2'", "STUB_VERSION = '1'", {'A1', 'A4'}),
+    ('S-CHECKONLY', "    if check" + "_only:\n", "    if False:\n", {'A3'}),
+]
+
+
+def sabotage():
+    with open(os.path.abspath(__file__), encoding='utf-8') as f:
+        src = f.read()
+
+    def red_rows(text):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'app-only-write.py')
+            with open(p, 'w', encoding='utf-8', newline='\n') as f:
+                f.write(text)
+            r = subprocess.run([sys.executable, p, '--selftest'], capture_output=True, text=True)
+        rows = {l.split()[1] for l in r.stdout.splitlines() if l.strip().startswith('FAIL') and len(l.split()) > 1}
+        return r.returncode, rows
+
+    rc, rows = red_rows(src)
+    if rc != 0 or rows:
+        print(f'SABOTAGE RIG: the unplanted copy does not pass its selftest (exit {rc}, red {sorted(rows)}); no plant run')
+        return 2
+    print('  ok    anchor: the unplanted copy passes its selftest')
+    bad = 0
+    for name, needle, repl, want in SABOTAGE:
+        n = src.count(needle)
+        planted = src.replace(needle, repl)
+        if n != 1 or planted == src:
+            print(f'  FAIL  {name}: the needle appears {n} times (must be once); not planted')
+            bad += 1
+            continue
+        rc, rows = red_rows(planted)
+        good = rc != 0 and rows == want
+        print(f"  {'ok  ' if good else 'FAIL'}  {name}: red {sorted(rows)}, want {sorted(want)}, exit {rc}")
+        bad += not good
+    print(f'SABOTAGE PASSED ({len(SABOTAGE)} of {len(SABOTAGE)})' if not bad else f'SABOTAGE FAILED ({bad})')
     return 1 if bad else 0
 
 
 def main(argv):
     if '--selftest' in argv:
         return selftest()
+    if '--sabotage' in argv:
+        return sabotage()
     try:
         port = argv[argv.index('--port') + 1]
         build = argv[argv.index('--build-dir') + 1]
@@ -167,7 +274,7 @@ def main(argv):
         print(__doc__)
         return 2
     before = argv[argv.index('--before') + 1] if '--before' in argv else 'default-reset'
-    return run(port, build, before)
+    return run(port, build, before, '--check-only' in argv)
 
 
 if __name__ == '__main__':

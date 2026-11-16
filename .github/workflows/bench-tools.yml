@@ -1,0 +1,24 @@
+name: bench-tools
+
+# scripts/app-only-write.py writes the app image to ota_0 on the bench boards (bench-flash.ps1 -AppOnly, and the
+# frame-time windows). Its --selftest runs a full write and a --check-only run against a fake esptool and checks EVERY
+# argv they build: each must pin --stub-version 2 (see STUB_VERSION in the script for why). --sabotage plants the pin's
+# removal, a pin of 1, and an unguarded --check-only into copies of the script, and each must turn exactly its own rows
+# red. No path filter, like device-ids.yml: it costs seconds, and a filter is one more way for a guard not to run.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  app-only-write:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/app-only-write.py --selftest
+      - run: python3 scripts/app-only-write.py --sabotage
