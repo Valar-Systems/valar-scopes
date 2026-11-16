@@ -986,3 +986,16 @@ and @60), with a comment naming 4f's finding and its mechanism. ... This isn't a
 2. **The updated driver itself** reads "P5 OUTLINE PLANTS AS PREDICTED" and exits 0, with all five plants on exactly
    their sets. Its `--anchors` reads 5 plants and 5 anchors, each present once, and its `--control` reads 8 ok.
 3. **Outside the set:** anything else is reported, and stops the change.
+
+### 4r. The outline driver's change, read (2026-11-16 06:47-06:48Z, WSL `Ubuntu-24.04`, g++ 13.3.0)
+
+Read against 4q's predictions, pushed at `e78525270e5b` before the change. The code read is `bench/speed-p5` at
+`9a531c0e5496`. **Both predictions held.**
+1. **The proof copy, one row short:** "P5 OUTLINE PLANTS: 1 NOT AS PREDICTED", exit 1. NOGUARD was the one FAIL line:
+   red on H-CULL@40, @60 and H-EDGE@40, @60 against a planted want without H-CULL@60.
+2. **The updated driver:** "P5 OUTLINE PLANTS AS PREDICTED", exit 0, with all five plants on exactly their sets.
+   - `--anchors`: 5 plants and 5 anchors, each present once.
+   - `--control`: 8 ok.
+   - lint: 0 flagged.
+
+4e's original NOGUARD row is unedited above, and 4f stands beside it as the finding.
