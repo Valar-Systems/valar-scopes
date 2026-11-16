@@ -44,8 +44,9 @@ HUB_PORT=3                             # the YKUSH port map, confirmed by the ow
 YKUSH="${FBA_YKUSH:-/c/Program Files (x86)/YEPKIT LDA/ykushcmd/ykushcmd.exe}"
 CUT_S=10
 # A PUBLIC airport reference point (Seattle-Tacoma), rounded to 0.01 degree: traffic for the claim tap, and nothing
-# about the owner (the reviewer, 02:03:41Z). Stored by the board as 4 dp, so K-loc reads these back.
-SEA_LAT="47.45"; SEA_LON="-122.31"; SEA_LAT_STORED="47.4500"; SEA_LON_STORED="-122.3100"
+# about the owner (the reviewer, 02:03:41Z). The board stores CoordParse::Format of each: "%.4f" with trailing zeros
+# stripped (include/CoordParse.h, unchanged at v19 7b943ae0b5d1), so K-loc reads back 47.45 / -122.31, not 47.4500.
+SEA_LAT="47.45"; SEA_LON="-122.31"; SEA_LAT_STORED="47.45"; SEA_LON_STORED="-122.31"
 CFGDIR="${FBA_CFGDIR:-$HOME/.config/blipscope}"
 WIFI_FILE="$CFGDIR/bench-wifi"
 SNAP="$CFGDIR/e208-snapshot"
@@ -308,8 +309,9 @@ fi
 # ------------------------------------------------------------------------------------------------------- step 2b
 s="$(post "$IP" /location --data-urlencode "lat=$SEA_LAT" --data-urlencode "lon=$SEA_LON")"; [ "$s" = "200" ] || die "step 2b: POST /location read $s"
 s="$(get_page "$IP" "$WORK/loc.html")"; [ "$s" = "200" ] || die "step 2b: GET / read $s"
-"${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" field-equals "$WORK/loc.html" loc0-lat "$SEA_LAT_STORED" >/dev/null \
-  && "${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" field-equals "$WORK/loc.html" loc0-lon "$SEA_LON_STORED" >/dev/null \
+# /location writes the "latitude"/"longitude" prefs; loc0-* is saved-location slot 0, empty after a reset (2026-11-16)
+"${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" field-equals "$WORK/loc.html" latitude "$SEA_LAT_STORED" >/dev/null \
+  && "${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" field-equals "$WORK/loc.html" longitude "$SEA_LON_STORED" >/dev/null \
   || die "K-loc: the posted location did not read back"
 say "step 2b: SEA set, and read back (K-loc)"
 
