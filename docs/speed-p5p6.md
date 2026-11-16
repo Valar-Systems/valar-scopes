@@ -999,3 +999,88 @@ Read against 4q's predictions, pushed at `e78525270e5b` before the change. The c
    - lint: 0 flagged.
 
 4e's original NOGUARD row is unedited above, and 4f stands beside it as the finding.
+
+### 4s. The build addendum: compile-only builds, before any build (2026-11-16, for the orchestrator's acceptance)
+
+This is NOT section 3's gains addendum, which still waits for an A0a reading. It registers COMPILE-ONLY builds: no
+board, no flash, no frame time.
+
+**Why sizes are read now.** The 04:55Z ruling said a compile-only build gives "no size line". The orchestrator's
+request of 2026-11-16 (~12:2xZ) asks for predicted sizes or bands, with the sections named, so that newer instruction
+governs here. The sizes are predicted below, before any build.
+
+**The trees** (each read by `ls-remote` at 13:0xZ):
+- the base, `a0583e88b142` (A0a's tree, 4b);
+- P5, `bench/speed-p5` at `9a531c0e5496`;
+- P6, `bench/speed-p6` at `4050a5357d8c`.
+
+**The builds:** all in ONE detached build worktree, so every image shares one path. The trees are checked out by sha,
+and pio runs from PowerShell, because of the MSYS esptool trap.
+
+| build | env | tree | extra |
+|---|---|---|---|
+| B0 | `blipscope-s3-128` | base | |
+| B1 | `blipscope-s3-128` | P5 | |
+| B2 | `blipscope-s3-128` | P6 | |
+| B3 | `blipscope-s3-128-framebench-c1b` | base | |
+| B4 | `blipscope-s3-128-framebench-c1b` | P5 | `PLATFORMIO_BUILD_FLAGS=-DSPEED_P5_BENCH` |
+| B5 | `blipscope-s3-128-framebench-c1b` | P6 | `PLATFORMIO_BUILD_FLAGS=-DSPEED_P6_BENCH` |
+| B6 | `missileer-s3-128` | base | |
+| B7 | `missileer-s3-128` | P5 | BandCanvas.h is shared by every edition |
+
+- The shipping env has no `WX_LAYER_SHIPS` ("v19 ships without weather"). The weather code still compiles under
+  `FEATURE_CLOUD_FEED`, which `${cloud.prod}` defines, but it is off at run time.
+- **The protocol:**
+  - a fresh C: reading before each build, stopping under 30.2 GiB;
+  - after each build, `firmware.bin` and `firmware.elf` go to a frozen art dir with a manifest line: build, env, sha,
+    extra flags, `.bin` size and sha256, the ELF's section sizes, and the I-4 result;
+  - then `.pio/build` is deleted.
+  - Each build is a background process registered with bgcheck, and is confirmed stopped afterwards.
+
+**The predictions,** as deltas within my own path (B1, B2 against B0; B4, B5 against B3; B7 against B6). The sections
+are read with `xtensa-esp32s3-elf-size -A`.
+- **Every build compiles** (exit 0).
+- **`.iram0.text` delta: exactly 0 in every pair.** No IRAM code was added.
+- **`.dram0.data` delta: exactly 0 in every pair.** The new constants are `const`, so they go to `.flash.rodata`.
+- **`.dram0.bss`:**
+  - **B1 − B0: +4,484 to +5,200 B.**
+    - The dirty sets: 2 × 1,936 B.
+    - The sweep table: 612 B.
+    - `OutlineScratch`'s function-local static object and its guard: the rest of the band.
+    - **This is new INTERNAL RAM.** `appManager` is a plain global. It is recorded for the device's heap row, and
+      moving the sets to PSRAM is an option for a ruling.
+  - **B4 − B3:** the same band, plus 8 B for CLEAR_CHECK's two counters: +4,492 to +5,208 B.
+  - **B2 − B0: −16 to +16 B** (P6 adds no static; each entry is in PSRAM at run time).
+  - **B5 − B3: −16 to +24 B** (LABELS_CHECK's two counters).
+  - **B7 − B6: 0 exactly.**
+- **The `.bin` size** (flash: text, rodata and data):
+  - **B1 − B0: +4 KiB to +40 KiB.**
+    - About 175 draw-call sites gain a null-checked mark.
+    - Plus the new code: DrawEdge's two instantiations, Heading and Build, OutlineScratch, the LUT blend, Restore.
+  - **B4 − B3: +4 KiB to +44 KiB.**
+  - **B2 − B0 and B5 − B3: +2 KiB to +16 KiB** (LabelCache's templates, LabelKey and Slot).
+  - **B7 − B6: +0.5 KiB to +12 KiB.** The marks' null checks are compiled into every edition's call sites, though no
+    other edition attaches a set.
+- **I-4, read on each `.bin`** (`scripts/check-no-bench-hooks.sh`):
+  - B0, B1, B2, B6 and B7 pass;
+  - B3, B4 and B5 are refused (`[frame-bench]` is present);
+  - `--expect "[speed-p5]"` finds that marker in B4, and `--expect "[speed-p6]"` finds it in B5;
+  - so the extra flag is proved to have reached each image, read from the image rather than the command.
+
+**What the builds show, and what they do NOT:**
+- **They show:** every firmware call site written tonight compiles, in the shipping shape and with the bench regions.
+  They also show what each step costs in each section, and that the bench markers are present only where they belong.
+- **They do NOT show:**
+  - pixels or correctness on a device: the device anchor, the scratch's 1-bit layout, CLEAR_CHECK and LABELS_CHECK
+    all need a board;
+  - any frame time or gain, which is section 3's addendum, from A0a;
+  - the run-time heap;
+  - the weather paths running (the shipping images have the layer off);
+  - I-3, that the regions add nothing (that needs a stripped twin);
+  - any edition but radar and Missileer.
+
+**Outside the set:**
+- A build that fails to compile stops. It is reported, with the first error, and nothing is fixed before a ruling.
+- A section outside its band is reported with the section that moved. The images stay compile checks.
+- An I-4 result other than predicted stops.
+- A C: reading under 30.2 GiB stops before the next build.
