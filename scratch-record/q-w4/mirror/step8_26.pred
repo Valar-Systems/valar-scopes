@@ -1,0 +1,932 @@
+STEP-8 RE-REGISTERED, (a) of Daniel's ruling (2026-11-15 23:31Z, "Map data: recommended", relayed by the orchestrator).
+REGISTERED by map-server on 2026-11-16, after DW-3 read 7 of 7 (Amendment 2, run at 04:50:52-04:55:09Z). It is sent for accept in
+the order set: DW-3's predictions, its result, then this. Its dry runs start only after CMP-26 (cmp26.pred 51ec317beb62) reads
+24 of 24, and only after the A8 window closes.
+It replaces step8_25.pred's (83a137caff54) steps 3 and 4 (M-4, S-2) and its Amendment 1 disk rule. Every other row of step8_25.pred
+stands as written, except where this file names it. Nothing uploads: d1 runs only with --plan.
+
+WHY RE-REGISTERED: M-4's run on 2026-11-15 found two things.
+- diskwatch.sh's kill used a Windows pid read once at launch, stale after its job's subshell exec'd bash. Replaced by diskwatch2.sh
+  (DW-3).
+- A full dry-run store is 0.98 GiB, not the 0.33 GiB Amendment 1 assumed, so three kept trees do not fit. Each tree is now kept as
+  its per-file sha256 list plus its small JSONs (tree25_cmp.py keep, CMP-26), and only one store is on disk at a time.
+
+WHEN: after the A8 window on Monday 2026-11-16 closes (13:00Z). Never inside a PC-quiet window.
+
+THE INPUTS, each checked immediately before step 1; any mismatch is a STOP and a re-registration:
+- #696's head by ls-remote is e81e794908a6. It is docs-only over 6a11b5a21d0a (one file, docs/basemap-dense-code.md), so the
+  ingest's code is unchanged.
+- The dry-clone moves from 6a11b5a21d0a to e81e794908a6 by `git fetch` and `git checkout --detach`, with the same checks as
+  dryclone25.sh: 0 reparse points, clean, LF.
+  - proxy/package.json and proxy/package-lock.json have no diff 6a11b5a21d0a..e81e794908a6, so Amendment 2's install reading
+    stands.
+- The cache is as placed: plan.json 3d7437c8e1b0, retry-fetched.json 8e421f533094, the six equal to record.json 8235360487fb, no
+  ftp2 tree, and no dry-run dir.
+- P1 (1ea420092897 / 502372153bb1, records fd7cb404eb9d / 12b67b948a01) is printed before step 1 and after every dry run.
+- The tools, by sha256, each checked before step 1:
+  - diskwatch2.sh dce021139d43 and dwtree.py 3dc53c5c27ab (DW-3's, 7/7);
+  - bg/bgcheck.py bb2f9e9dc836;
+  - tree25_cmp.py 66630ef80cb2 (CMP-26's);
+  - m4_25.py c9fc2849906e, cleanup_dry25.py 5a52517c916a, seastore/s01.py a3b285ea0a38, ev26.py f462201f494d.
+  - The old diskwatch.sh is not used again.
+- C: free is read immediately before each dry run. START ONLY at C: >= 31.48 GiB (30.0 + the measured peak 0.98 + 0.5).
+
+EVERY DRY RUN:
+- Launched in the background, through runlog.sh, as
+  `bash diskwatch2.sh 32212254720 <log> -- bash -c "cd <dry-clone/proxy> && npx tsx scripts/ingest-basemap.ts dry-run --cache <cache>"`.
+  The launching shell is tagged and registered on the session ledger first:
+  `export BGCHECK_TAG=$(python bg/bgcheck.py newtag)`, then
+  `python bg/bgcheck.py register --label "<run>" --winpid $(cat /proc/$$/winpid) --msyspid $(cat /proc/$$/pgid)`.
+  Its last command is not the run itself, so the shell never execs. diskwatch2 tags its own job separately.
+- Predicted for each:
+  - diskwatch2's start line reads "test seams: none";
+  - exit 0; last line "verdict OK, command exit 0, leftovers 0";
+  - the command's stderr is 0 B;
+  - its min free is recorded, and the run's peak is its start minus that minimum, reported with each run;
+  - after it, the session ledger's check reads "0 running".
+- Any other verdict (KILLED, ENDED BEFORE KILL, KILL FAILED, LEFTOVER), any stderr, or any refusal: STOP. After a KILLED, the cleanup
+  runs as before: m4_25 restore if the plan is stripped, then cleanup_dry25 with its read-back.
+
+THE SEQUENCE, with one store on disk at a time:
+1. S-0 and S-1, re-run (s01.py through runlog): as read at 2026-11-15 19:55:43Z, every number equal.
+2. M-4:
+   a. m4_25 strip, so plan.json 3d7437c8e1b0 -> 75093c012e44;
+   b. C: >= 31.48, then the dry run;
+   c. KEEP it: `tree25_cmp.py keep <cache>/dry-run scratchpad/keep26/m4`;
+   d. m4_25 restore, so plan.json is 3d7437c8e1b0 again;
+   e. cleanup_dry25 (it removes <cache>/dry-run only, and reads back plan, retry and the six);
+   f. P1.
+   The restore comes BEFORE the cleanup, because the cleanup's read-back requires the placed plan.
+3. S-2, run A: C: >= 31.48; the dry run; keep to keep26/a; cleanup_dry25; P1.
+4. S-2, run B: C: >= 31.48; the dry run; keep to keep26/b; the tree STAYS in <cache>/dry-run for steps 5-9; P1.
+5. THE GRADES:
+   - S-2: `tree25_cmp.py s2k keep26/a keep26/b` reads BYTE-IDENTICAL: every file's path and sha256 equal, sea-regions.json in
+     both.
+   - M-4: `tree25_cmp.py m4k keep26/m4 keep26/a` reads AS PREDICTED. The same path set; only store/manifest.json and
+     dry-run.json differ; the manifest's differing keys are exactly [notes]; dry-run.json's are exactly
+     [manifestBytes, storeId, vectorStoreBytes].
+   - EV, the cross-commit check, against tonight's M-4 evidence (scratchpad/dry25-m4-evidence, from 6a11b5a21d0a). The ingest's
+     code did not change between the two commits, so keep26/m4 (at e81e794908a6) against the evidence:
+     - dry-run.json differs in exactly [ingestCommit, storeId];
+     - store/manifest.json differs in exactly [builder];
+     - store/index.json and store/sea-regions.json are byte-equal to the evidence (f5b9b01aa4e9, 83e5940fe68a);
+     - keep26/m4's cell count is 2,378.
+     The two builder strings have the same length, so manifestBytes and vectorStoreBytes are predicted EQUAL to the evidence's
+     (3,867,599 and 1,054,364,373). Anything else differing: STOP.
+   - EV's checker is mirror/ev26.py f462201f494d (key names, byte-equality and counts only, never a value). Its predicted lines
+     for `ev26.py <dry25-m4-evidence> <keep26/m4/json> <keep26/m4/files.json>`:
+     - "dry-run.json: keys that differ ['ingestCommit', 'storeId']";
+     - "manifestBytes equal True; vectorStoreBytes equal True";
+     - "store/manifest.json: keys that differ ['builder']";
+     - "store/index.json byte-equal True" and "store/sea-regions.json byte-equal True";
+     - "B cell files 2378".
+   - TWO CONTROLS, which read FIRST, before the EV reading (they need only the evidence, so they may run before step 1):
+     - EV-C1, the evidence against itself: "keys that differ []" for both JSONs, byte-equal True for both;
+     - EV-C2, a planted copy at scratchpad/ev26-plant (the evidence dir copied; in its store/manifest.json one character of the
+       "builder" value changed; the copy's manifest sha256 proven different from the evidence's, every other file proven equal):
+       exactly "store/manifest.json: keys that differ ['builder']", with dry-run.json's [] and both byte-equal True.
+     If either control fails, no EV reading is given.
+6. M-3, the manifest, on tree B, as step8_25.pred registered it, with one change: builder = e81e794908a6…, not 6a11b5a21d0a…
+7. THE REINDEX, as registered.
+8. S-3 to S-7 and the 16 points, as registered (step8_25.pred steps 7 to 9), on tree B.
+
+DISK:
+- Each keep is small: files.json for about 2,381 paths plus the four JSONs, about 4.3 MB.
+- After step 4 the one store (0.98 GiB) stays. The next start floor is not needed until a new dry run is registered.
+
+OUTSIDE THE SET
+| reading | then |
+|---|---|
+| an input check fails | STOP; re-register |
+| C: under 31.48 GiB before a dry run | STOP before that run (free only within the standing reserve-A ruling, else to the orchestrator) |
+| a dry run's verdict not OK, any stderr, leftovers > 0 | STOP; cleanup as above; report whole |
+| a keep refused or an INSTRUMENT line from tree25_cmp | STOP; the tool is not trusted |
+| S-2 not byte-identical, M-4 not as predicted, or EV not as predicted | STOP before M-3 |
+| anything else | stop and decide |
+FROZEN 2026-11-16T04:58:12Z
+
+AMENDMENT 3 (the orchestrator's request after uk-data's 05:01:21Z VOID; p4's fix landed proven at 944e9ad8ce64; appended before
+any dry run). bgcheck bb2f9e9dc836 VOIDed on unrelated Windows system processes (svchost, audiodg, WmiPrvSE, sppsvc) starting inside
+a run's window, so each of this step's end checks would likely have read VOID, which this registration treats as a STOP.
+- THE RE-PIN: bg/bgcheck.py is now p4's fixed 944e9ad8ce64, copied cmp-identical from C:\Github\_handoffs\p4\bg\. It replaces
+  bb2f9e9dc836 in THE INPUTS' tool list.
+  - An unreadable owner is skipped as not this user's. An unreadable environment of a confirmed, still-running same-user process
+    stays VOID. A process exiting mid-read is skipped. p4's named residual is a same-user ELEVATED descendant with a refused owner
+    read, which is also skipped.
+  - Its selftest passed HERE, all 13 cases, C11 (an unrelated unreadable owner) PASS included, with exactly one VOID line (C9's
+    seam), at 2026-11-16T05:28:00Z.
+  - bb2f9e9dc836 is kept as bg/bgcheck.bb2f9e9dc836.py and is not used.
+- DW-3 RE-RUN on it, as dw3.pred Amendment 3 (641710381417): 7 of 7 AS PREDICTED, at 05:28:33Z to 05:32:27Z, exit 0, stderr 0 B.
+  The same driver (c900d97b3568), diskwatch2 (dce021139d43) and dwtree (3dc53c5c27ab); no VOID in any case.
+- PER-RUN LEDGERS: each dry run's launching shell exports BGCHECK_LEDGER=<run-logs>/<tag>-<UTC stamp>.ledger.jsonl BEFORE
+  `bgcheck newtag` and `register`, and the post-run check reads that same ledger, so each check's candidate window starts at its
+  own run. diskwatch2's job ledger is already per run (<log>.bg.jsonl). The session ledger is not used for this step's runs.
+- A VOID in any end check is still an instrument STOP, never a re-run. It comes to the orchestrator with the unreadable process's
+  image name and parent only.
+- WHEN, unchanged: the dry runs start at 13:00Z only if C: reads >= 31.48 GiB. Otherwise they wait, and the orchestrator handles
+  the disk.
+- Everything else in this file stands as frozen.
+FROZEN AMENDMENT 3 2026-11-16T05:32:45Z
+
+AMENDMENT 4 (after the dry runs and their grades read as predicted at 12:34:16Z; before M-3 or the region test runs): the two
+checkers those rows need, adapted to this design, each with its control.
+- WHY: the existing graders were written for the earlier mirror switch. mirror/m34_check.py expects mirror notes ("fetched via
+  the Census Bureau's mirror") and 8 bm-obj entries. mirror/met.mts reads bm-obj's index, the eight TIGER2024 urls and wt-code's
+  builder. Step 8's M-3 and region test need the TIGER2025 design, tree B's index and the dry-clone's code at e81e794908a6.
+- M-3's EXPECTATION from the other side of the contract: mirror/m3_26_expect.mts 52e89e24ff11 imports the dry-clone's own sources.ts and
+  writes mirror/m3-26-expect.json (TIGER2025_NOTE and TIGER2025_URLS, sorted). Predicted: "urls 6".
+- M-3's CHECKER: mirror/m3_26.py c63882f2e233, step8_25's M-3 row exactly:
+  - 16,036 entries; keys builder,files,notes,predicates in that order; builder = the dry-clone's full HEAD (e81e794908a6…);
+  - the 2 P1 entries equal bm-obj's;
+  - the six equal record.json (url, bytes, sha256), vintage "2025", layers water x4 and rivers x2;
+  - notes exactly the six "<url>: <TIGER2025_NOTE>" lines in byte order (ingest-lib's checkNotes order), none on 27081 or 54093;
+  - no ftp2.census.gov in the bytes.
+- ITS CONTROLS, red first: mirror/m3_26_controls.py 6d0b8dccc82d, on byte copies of tree B's manifest under mirror/m3-26-controls/. The
+  manifest must first re-serialise byte-equal, else INSTRUMENT. Each plant is proved applied by sha.
+  - K1, the unmodified copy: exit 0, "M-3: AS PREDICTED". This IS M-3's reading on tree B's manifest bytes.
+  - K2, one character of one note: exit 1, the notes row OFF.
+  - K3, the builder's last character: exit 1, the builder row OFF.
+  - K4, "ftp2.census.gov" in one note: exit 1, the ftp2 row OFF.
+  - PASS is 4 of 4. Then m3_26.py also runs on tree B's manifest in place: "M-3: AS PREDICTED".
+- THE REGION TEST: mirror/met26.mts 95a07217683f, met.mts's 16 points and query unchanged, on tree B's store/index.json, with the dry-clone's
+  squareBox / makeFrame / boxMeets / parseQuery and its TIGER2025_URLS. Names and counts only.
+  - Predicted: "the six named by a region: 6"; CONTROL 6 of 6 (a square at each region box's own centre meets it);
+  - "REGION TEST: points meeting a region of the six: KBOS KJAC", exactly.
+- OUTSIDE THE SET, as step8_25's table: M-3 not as above, or a control off -> STOP before S-3. The region test not exactly KBOS
+  and KJAC -> STOP before I2.
+- THE REST (the reindex record, S-3 to S-7, I2 and the 16 points, SEA-OWN, KB7-b, KB7-c-real, PEAKS-REC): their tools are
+  inventoried and re-pinned to this head in the next amendment, before any of them runs.
+FROZEN AMENDMENT 4 2026-11-16T12:37:10Z
+
+AMENDMENT 5a (after M-3 read AS PREDICTED with its controls 4 of 4; before any row below runs). The orchestrator's ruling: 5a, then 5b,
+then 5c, each its own amendment, accepted before it runs. 5a is the rows that read tree B as it stands. No row in 5a writes into the
+cache, fetches, deploys, or writes outside mirror/pieces26.json and run-logs/.
+- HOW EACH ROW RUNS: in the foreground, through runlog.sh 7abc356134d1. Its console goes to run-logs/<tag>.console, beside the .out, and
+  is read whole after the run: never piped, never /dev/null. CW and SW are the cache's and the scratchpad's C:/ paths (cygpath -m),
+  because node and Windows Python cannot read an MSYS path. Each row's shell exports its own BGCHECK_LEDGER and BGCHECK_TAG and
+  registers before the run (bgcheck 944e9ad8ce64). After the run, `bgcheck check` must read 0 (PASS). That catches tsx's esbuild
+  child in S-4. A 1 or a 4 is an instrument STOP.
+- ORDER: R5a-1, then R5a-2 (pieces, then verify2), then R5a-3. Before R5a-2, C: is read; under 30.8 GiB is a STOP.
+- OUTSIDE THE SET, for every row: a figure not as below, a control OFF, INSTRUMENT, a crash, or a bgcheck 1 or 4 -> STOP before
+  the next row, and it goes to the orchestrator before any fix. A crash is instrument failure #2 on this file (met26 was #1); a third
+  goes to Daniel.
+
+R5a-1 THE REINDEX (step8_25 row 6), read on tree B's manifest. mirror/reindex26.py cbe3810d0034:
+  cd SCR && bash runlog.sh reindex26 python -X utf8 -I mirror/reindex26.py > run-logs/reindex26.console 2>&1
+  - Before reading: tiles.json must be 5d868a475cd5, and the manifest's urls must be sorted; else INSTRUMENT, exit 3.
+  - Inputs: plan.original.f12d3eb56040.json, the cache's plan.json 3d7437c8e1b0, and tree B's manifest 33d6dc41c749.
+  - One function measures every case, so the controls test the code that makes the reading.
+  - Predicted, exit 0:
+    GREEN: the original order against itself: moved 0, new 0, dropped 0; AS PREDICTED
+    RED: one url planted first: moved 16036 of 16036, new at [0]; AS PREDICTED
+    REINDEX: manifest entries 16036; original order 16036; in both 16030; dropped 6; index changed 4333
+      by layer: {'counties': 1, 'rivers': 3142, 'roads': 51, 'states': 1, 'water': 1138}
+      the files new to the order sit at [16029, 16030, 16031, 16032, 16033, 16034] of 16036
+    AGREE: the placed-plan method moves 4333, same layers True; placed order equals the manifest's True; AS PREDICTED
+  - WHY those counts:
+    - the original plan has 6,398 urls and tiles.json 9,638, making 16,036;
+    - the placed plan also has 6,398, with the six TIGER2025 files in place of their six TIGER2024 twins (dropped 6, new 6);
+    - ingest-basemap.ts:278-289 builds the manifest from plan + tiles, all fetched, URL-sorted, so the placed order IS the
+      manifest's.
+  - DISCLOSED:
+    - 4,333, its layers and the six's positions were seen at 2026-11-15T16:52:24Z by the placed-plan method; step8_25 row 6
+      registers them. The manifest reading has not run.
+    - The input counts above (6,398 / 6,398 / 9,638; the twins 6 in the original plan, 0 in the placed one) were read before this
+      freeze to build the row.
+
+R5a-2 S-4 (THE PIECES) AND S-5 (THE REGIONS) on tree B.
+  pieces.mts 6524027309c1 (seastore/, pinned here), run from dry-clone/proxy (e81e794908a6, clean) so decodeCell is the head's:
+  cd SCR/dry-clone/proxy && bash ../../runlog.sh s4-pieces26 node --import tsx SW/seastore/pieces.mts CW SW/mirror/pieces26.json SW/dry-clone/proxy > ../../run-logs/s4-pieces26.console 2>&1
+  - mirror/pieces26.json is absent before the run; if present, refuse.
+  - Predicted, exit 0, one JSON line: cellsRead 2378; pieces 1914; cellsWithSea 1435; holes 497.
+  - S5 (as a set): regionsInFile 2; perFile has two entries, ne_10m_ocean.zip and ne_10m_lakes.zip, each layer "sea", regions 1,
+    equal true.
+  - seaFeatures is recorded, not predicted.
+  - pieces26.json's sha256 is recorded after the run, then read again before verify2 and before R5a-3, and must be unchanged.
+  verify2.py bd3766b3161d, from SCR. Its references: parity/verify.py 0951ccd447d1, sea-extent-cells.json b47eb8e12f48,
+  sea-dryrun.py e1b68a840847, sea-pieces.json 8ad5d92fa7c7.
+  cd SCR && bash runlog.sh s4-verify26 geo-venv/Scripts/python.exe -I -X utf8 parity/verify2.py SW/mirror/pieces26.json CW/dry-run/sea-stats.json > run-logs/s4-verify26.console 2>&1
+  - Predicted, exit 0:
+    - PB-0 ok: ref 2584, cand 2584, only_ref 0, only_cand 0;
+    - PB-1 ok: ocean_outers 2, ocean_holes 6820, lakes_read 1355, lakes_selected 1168, lakes_inside_us 149, lakes_small 38;
+    - PB-2 ok: 1168 and 1168, only 0 and 0;
+    - PA-1 true (1435 / 1914 / 497; holes_dropped 135); every PA fail count 0; name_map true.
+  - DISCLOSED:
+    - PB-1's and PA-1's figures are verify2.py's own constants.
+    - The inventory printed two lengths from tree B's sea-stats.json: extent 2,584 and selected_indices 1,168. So PB-0's and PB-2's
+      counts are not blind.
+    - pieces.mts has not run on tree B.
+
+R5a-3 KB7-b ON TREE B'S PIECES (ruling R2), with its (b) control.
+  mirror/kb7b26.py 4b34a69851f5 is kb7.py e24035aa2fab with exactly two lines changed; `diff kb7.py mirror/kb7b26.py` reads 12c12 and
+  70c70, 4 marked lines.
+  - Line 12 is the usage comment.
+  - Line 70 reads the pieces from argv[1], and the extent from argv[2]'s "extent". The extent's "lat0/lon0" strings
+    (sea-pieces.ts:27) are converted the same way verify2.py's PB-0 converts them.
+  - Every other line is kb7.py's: KB7-a, the cut, the (b) control and the 2,584 check.
+  - Its NE inputs equal tree B's: ne-dl/ne_10m_lakes.zip and ne-admin0-dl/ne_10m_admin_0_countries.zip each equal the sha256 of tree
+    B's manifest entry (checked before this freeze: both true).
+  cd SCR && bash runlog.sh kb7b26 geo-venv/Scripts/python.exe -I -X utf8 mirror/kb7b26.py SW/mirror/pieces26.json CW/dry-run/sea-stats.json > run-logs/kb7b26.console 2>&1
+  - Predicted, exit 0, one JSON line:
+    - KB7-a: selected ["lake1"], lake1_sums true, PASS true, control_b_sums false, control_FAILS true (synthetic; it reads no input).
+    - Lake Erie / Lake Champlain / Falcon Lake / Amistad Reservoir: pieces 16 / 5 / 2 / 2; PASS true and control_FAILS true for
+      each.
+    - cells, rel_diff and control_b_rel_diff are recorded, not predicted.
+    - A "STOP" line instead of the JSON is the row OFF.
+  - DISCLOSED:
+    - 16 / 5 / 2 / 2 are the reference sea-pieces.json's (8ad5d92fa7c7) piece counts by src, read before this freeze.
+    - kb7.py's first run on the reference read the controls at rel 0.50 / 0.94 / 0.47 / 0.61 and the pieces at rel <= 1.9e-15
+      (basemap-dense-code.md :3229).
+    - Tree B's pieces have not been read.
+- AFTER 5a: the results go to the orchestrator. 5b's amendment is written next (coverage and tile-bits, tree B's exact additions,
+  keep26/b re-based, S-3, the region test via assembleStore, S-6 naming the lakes, S-7 with R4) and frozen before any of 5b runs.
+- Everything else in this file stands as frozen.
+FROZEN AMENDMENT 5a 2026-11-16T13:00:41Z
+
+AMENDMENT 5a.1 (after R5a-1 read AS PREDICTED and its bgcheck end check read 1, a conhost.exe at depth 1 under the registered shell;
+the orchestrator's rulings: R5a-1's reading stands, this is instrument failure #2 on this file, and the fixed form below is accepted,
+frozen here before its first use). It replaces 5a's "HOW EACH ROW RUNS" bgcheck sentence for every row from here on. Everything else
+in 5a stands.
+- THE FORM, for each row:
+  - the PARENT shell exports BGCHECK_LEDGER=run-logs/<tag>-<UTC stamp>.ledger.jsonl and BGCHECK_TAG=$(bgcheck newtag);
+  - it runs the row in a CHILD `bash -c '...'`. The child registers ITSELF (--winpid of its own $$, --msyspid $$), runs the row's
+    runlog command, and ends in `exit $rc`, so it never execs;
+  - after the child has ended, the parent runs mirror/conhosts.py 8b9e4bf106d5 with the parent's winpid and the child's winpid
+    (the child's is read from the ledger's record). It records every conhost.exe under either, with its parent pid and creation
+    time, plus each pid's own creation time if it is still running;
+  - then the parent runs `bgcheck check` (944e9ad8ce64, unchanged).
+- THE FORM'S FIRST LIVE TEST: R5a-1 re-run ONCE, tag reindex26b, on a row whose answer is known.
+  - Predicted:
+    - runlog exit 0 and stderr 0 B;
+    - the new .out is byte-equal to run-logs/reindex26-20261116T130230Z.out (sha256 0fb32fd3f364, 550 B), compared by sha256;
+    - the child exits 0;
+    - conhosts.py: the child is not running; 1 conhost.exe, whose parent is the PARENT shell, created before the child's register
+      stamp; 0 under the child;
+    - bgcheck check exit 0 ("0 running").
+  - WHY the conhost and the PASS: the child inherits the parent's console, so it gets no conhost of its own. The parent's conhost
+    is the parent's child, not a descendant of the registered root. It was created before the root, so it is outside the check's
+    candidate window, and its environment predates the tag.
+  - Outside the set: a byte mismatch, a check of 1 or 4, a crash, or a conhost record off these figures -> STOP, and it goes to
+    the orchestrator.
+- ORDER from here: this freeze, then the re-run, then R5a-2's real read (its condition met by the cite of basemap-dense-code.md
+  :2734-2750 at e81e794908a6; no plant), then R5a-3. Every row runs in this form.
+FROZEN AMENDMENT 5a.1 2026-11-16T13:05:20Z
+
+AMENDMENT 5b (after 5a read AS PREDICTED throughout, under 5a.1; before any row below runs). The steps that write into the cache:
+coverage and tile-bits, run from the dry-clone at e81e794908a6. Then the rows that need their output: S-3, keep26/b re-based, the region
+test, S-6 with its restore, S-7, and the R2 figures (R4: IN).
+- EVERY ROW runs in the 5a.1 form: a registered child, then conhosts.py, then `bgcheck check` in the parent, which must read 0. Each
+  console is read whole. Before R5b-1, C: is read; under 30.8 GiB is a STOP.
+- THE EGRESS BLOCK. Every node row except R5b-7 runs with NODE_USE_ENV_PROXY=1, HTTPS_PROXY=http://127.0.0.1:9 and
+  HTTP_PROXY=http://127.0.0.1:9, with NO_PROXY and no_proxy unset (env -u). Node 24.18 then sends every fetch to a closed port, so
+  nothing leaves the machine. WHY: the coverage step HEADs every tile missing from tile-log.json (ingest-basemap.ts:454-471), and
+  this makes the predicted "no HEAD" an executing guard rather than reasoning.
+- OUTSIDE THE SET, for every row: a figure not as below, a control OFF, INSTRUMENT, a crash, a bgcheck 1 or 4, or a "HEAD failed"
+  line -> STOP before the next row, to the orchestrator before any fix. A crash is instrument failure #3 on this file, which goes to
+  Daniel.
+
+R5b-0 THE BLOCK'S CONTROL: mirror/netblock26.mjs 13068a901bd4, under the block, with the cache's tiles.json.
+  - It HEADs tiles.json's first url, the request coverage would make.
+  - Predicted: "BLOCKED: ECONNREFUSED", exit 0.
+  - "NOT BLOCKED" (exit 1; that one HEAD reached the tile host) or "UNCLEAR" (exit 3) -> STOP before coverage.
+  - Its stderr is recorded. Any Node warning lines in it are the only stderr lines the later blocked rows may carry.
+
+R5b-1 COVERAGE, from dry-clone/proxy, under the block:
+  node --import tsx scripts/ingest-basemap.ts coverage --cache CW   (runlog tag coverage26)
+  - Predicted: exit 0; no "HEAD failed" on stderr, and no stderr line beyond R5b-0's warning lines. The stdout summary:
+    - terrain.tiles 9638, terrain.headFailed 0, terrain.reachKm 250;
+    - regions.states 51;
+    - coverage.bytes 121428;
+    - the other figures recorded.
+  - AFTER, predicted:
+    - tiles.json byte-equal at 5d868a475cd5, and tile-log.json byte-equal at e6063f7ad949 (both rewritten, same bytes);
+    - tree B gains store/coverage.bin at 5cf7169484c2 (121,428 B), store/regions.json, and coverage-tiles.json.
+  - WHY:
+    - coverageAndTiles is unchanged since 4989fa7e, the last ingest commit before tiles.json was written (11-12 22:38 -0800);
+    - coverage.ts, terrain-plan.ts and shapefile.ts last changed at ca30b882 (10-29);
+    - the states file is unchanged (S-1, doc :4115), and the store has 1 states entry;
+    - so the tile list, the coverage bytes and tile-log's keys are the same, and both files re-serialise to the same bytes;
+    - 5cf7169484c2 / 121,428 B are bm-obj's coverage.bin.
+  - regions.json's content is new (regions.ts changed at 6a11b5a2, and the plan names the six TIGER2025 files). It is graded by
+    R5b-5, not by a sha.
+
+R5b-2 TILE-BITS, from dry-clone/proxy, under the block:
+  node --import tsx scripts/ingest-basemap.ts tile-bits --cache CW   (runlog tag tilebits26)
+  - Predicted: exit 0; stdout tiles 9638, bytes 48202, zeroBitTiles 0; perBit and combos recorded.
+  - Tree B gains store/terrain-sources.bin, byte-equal to bm-obj's at b56281654786 (48,202 B).
+  - WHY:
+    - tile-bits.ts is unchanged since bm-obj's builder 393e4bcd5176;
+    - tileBitsCmd changed only its lookup (the ocean found under "sea", I1);
+    - its inputs are unchanged: the store's land e547d749445e, ocean db626fcd5d50 and admin-0 ce1ac7036499 entries each equal S-0's pin
+      (checked before this freeze, booleans), and the same 9,638 tiles.
+
+R5b-3 S-3: mirror/s3_26.py 3b4550323d26.
+  - Rows:
+    - coverage.bin equals dry-run.json's seaPieces.coverageSha256: true;
+    - its first 12 hex are 5cf7169484c2: true;
+    - CONTROL, one byte changed reads unequal: true.
+  - Predicted: "S-3: AS PREDICTED", exit 0.
+
+R5b-4 KEEP26/B RE-BASED:
+  - First, tree25_cmp.py 66630ef80cb2 keep <the cache's dry-run> keep26/b2 (keep26/b2 absent before). Predicted: exit 0.
+  - Then mirror/rebase26.py 78024f9716a3 keep26/b keep26/b2. It checks keepA's files.json is c06f40a99549. Predicted:
+    - GREEN: 0 / 0 / 0, AS PREDICTED;
+    - RED: changed 1, AS PREDICTED;
+    - RE-BASED: A 2383, B 2387; added 4, exactly coverage-tiles.json, store/coverage.bin, store/regions.json and
+      store/terrain-sources.bin, others 0; removed 0; changed 0; AS PREDICTED; exit 0.
+
+R5b-5 THE REGION TEST, re-pointed (instrument failure #1's fix): mirror/met26b.mts 9851e325ea20, run under the block.
+  - It is met26.mts 95a07217683f with ONLY its index input changed. `diff met26.mts met26b.mts` reads 1a2, 7c8,11 and 22c26,32:
+    - one header line;
+    - the imports;
+    - the index read replaced by assembleStore(CACHE, cachePath)'s index object (d1.ts ca58a5514a8b, checked to be the object
+      under storeKeys(storeId).index). cachePath is ingest-basemap.ts:68-71, transcribed, because importing that file runs its
+      main(). assembleStore checks every tile's sha256 through it, so a wrong transcription throws.
+  - The 16 points, the query, squareBox / makeFrame / boxMeets / parseQuery and TIGER2025_URLS are unchanged.
+  - Predicted: "the six named by a region: 6"; "CONTROL: 6 of 6"; "REGION TEST: points meeting a region of the six: KBOS KJAC",
+    exactly; exit 0. The region count is recorded.
+
+R5b-6 S-6 THEN S-7: mirror/s6_26.sh a6f548c2acea, one driver under the block, so the restore cannot be skipped. It uses ingest-basemap.ts
+  a9c7408edb53's `d1 --plan --cache CW`, run from dry-clone/proxy.
+  - The copy: sea-regions.json 83e5940fe68a is byte-copied to mirror/s6-26/ (absent before) and proved equal.
+  - The plant: the store's sea-regions.json is removed, and its absence proved.
+  - S-6, re-predicted (the inventory's finding): runlog tag s6-refuse26.
+    - Exit 1 and stdout 0 B. Stderr carries "the sea file <url> is in no region: re-run the dry run", where <url> ends
+      /ne_10m_lakes.zip, NOT the ocean.
+    - WHY: assembleStore walks the sea urls in manifest order (d1.ts:32), URL-sorted, and .../ne_10m_lakes.zip sorts before
+      .../ne_10m_ocean.zip.
+  - The restore: from the byte copy, sha256 proved 83e5940fe68a. An EXIT trap restores too.
+  - S-7, on the restored store: runlog tag s7-plan26, exit 0. Stdout JSON, predicted:
+    - storeId 33d6dc41c749 (tree B's manifest sha), bucket blipscope-basemap;
+    - puts 12021, objects 12020 (4 + 2378 cells + 9638 tiles), cells 2378, tiles 9638;
+    - manifestBuilder the full e81e794908a6..., builderKnown true, dryRun.storeId 33d6dc41c749;
+    - bytes recorded.
+  - The driver exits 0.
+
+R5b-7 THE R2 FIGURES (R4), the one row with no egress block. dry-clone/proxy's scripts/r2-class-a.ts fd4a2955f018 (token-file.ts
+  4e439eca3957), with BLIPSCOPE_TOKEN_FILE exported in that shell only (the file's presence checked as a boolean). It is read-only
+  analytics to api.cloudflare.com and prints counts only.
+  - Predicted: exit 0; no "BLIND", no "query failed".
+  - Recorded: month-to-date Class A and B per bucket and in total, the month's projection, and storage per bucket and in total.
+  - The report states, derived from those and S-7:
+    - Class A after the load = the projection + 12,021, against the free 1,000,000, at $4.50 per million over;
+    - storage after the load = the total + S-7's bytes, with the old store kept for rollback, against the 10 GB free tier;
+    - BOTH ORDERS, as ruled at 04:12:32Z (doc :1500-1506): FORWARD (builder deploys -> store uploads -> R2 current -> KV bm:store)
+      and ROLLBACK, REVERSED (KV bm:store back -> R2 current back -> only then the builder).
+  - Nothing uploads: no d1 --go or --resume is run.
+
+- DISCLOSED, read before this freeze to build the predictions:
+  - bm-obj's coverage.bin (5cf7169484c2, 121,428 B) and terrain-sources.bin (b56281654786, 48,202 B);
+  - the cache's tiles.json 5d868a475cd5 and tile-log.json e6063f7ad949;
+  - the git history and diffs named above;
+  - the store manifest's NE pins, terrain count and states count;
+  - two lines of tree B's dry-run.json, storeId 33d6dc41c749 and ingestCommit e81e794908a6..., seen in a grep before this freeze.
+  - Not seen: coverageSha256's value, regions.json, the region test's output, and every R2 figure.
+- AFTER 5b: the results go to the orchestrator. 5c's amendment (the store adapter with its known-output control, I2, SEA-OWN,
+  PEAKS-REC with its guard, KB7-c-real, the AFTER packages) is written and frozen before any of 5c runs.
+- Everything else in this file stands as frozen.
+FROZEN AMENDMENT 5b 2026-11-16T13:19:16Z
+
+AMENDMENT 5b.1 (the orchestrator's two conditions on 5b's acceptance, frozen before R5b-0; nothing in 5b has run).
+- CONDITION 1, R5b-0 TESTS THE COVERAGE WORKER'S OWN CLIENT.
+  - ingest-basemap.ts:462 is `const h = await fetch(u, { method: "HEAD", headers: UA });`, Node's global fetch. The file has no
+    http.request or https.request (grep). The worker is nested inside coverageAndTiles and is not exported, so it cannot be imported.
+  - mirror/netblock26.mjs is now 3e44d2a06b70 (replacing 13068a901bd4). It makes the same call: global fetch, method HEAD, on
+    tiles.json's first url. Headers are left out because they do not route a request.
+  - BLOCKED now requires the error's cause to be ECONNREFUSED AT 127.0.0.1 PORT 9, the proxy. The tile host is not 127.0.0.1, so only
+    a proxied request can be refused there.
+  - Any other error (DNS, no network, a timeout, a refusal elsewhere) reads UNCLEAR, exit 3 -> STOP.
+  - Predicted: "BLOCKED: ECONNREFUSED at the proxy 127.0.0.1:9", exit 0.
+- CONDITION 2, S-6'S RESTORE IS VERIFIED, NOT TRUSTED.
+  - After s6_26.sh ends, the PARENT reads the store's sea-regions.json sha256 against 83e5940fe68a before conhosts, bgcheck,
+    R5b-7, or any other reader.
+  - If the driver ends by a kill, the EXIT trap does not run. The parent then restores from mirror/s6-26/sea-regions.json, verifies
+    83e5940fe68a, and reports to the orchestrator before anything else touches the cache.
+  - Predicted: equal to 83e5940fe68a.
+- Everything else in 5b stands as frozen.
+FROZEN AMENDMENT 5b.1 2026-11-16T13:21:18Z
+
+AMENDMENT 5c (after 5b read AS PREDICTED throughout; before any row below runs). The packages from tree B and the rows that read
+them: the store adapter with its known-output control, I2, SEA-OWN, and KB7-c-real. PEAKS-REC goes to the orchestrator (below).
+S4's AFTER is NOT in 5c: it needs three tools that do not exist yet (an AFTER build at the six centres, the seam finder, and the two
+planted controls of seam25.pred :40-43 and :70-74). It comes as AMENDMENT 5d, frozen before it runs.
+- EVERY ROW runs in the 5a.1 form, every node process under 5b's egress block, consoles read whole.
+- OUTSIDE THE SET, for every row: a figure not as below, a control OFF, INSTRUMENT, a crash, or a bgcheck 1 or 4 -> STOP, to the
+  orchestrator. A crash is instrument failure #3, which goes to Daniel.
+- WHICH BUILDER: the dry-clone's (e81e794908a6). proxy/src/basemap last changed at 4ac195bb (2026-11-12T21:08:35-08:00). SEA-PKG's
+  cp-out packages were written at 22:53:58 the same night. wt-code, which cp-run.mts imports, is also at e81e794908a6 and clean.
+
+R5c-1 THE STORE ADAPTER'S CONTROL: mirror/tbstore26.mts 5bc1ec970941, a NEW instrument, from dry-clone/proxy.
+  - One in-memory store (key -> bytes, R2's keys: storeKeys and CURRENT_KEY; a missing key returns null, as an R2 miss does) and one
+    build loop serve both sources. The loop is cp-run.mts's query, options and 16 homes, sequential in one process.
+  - The control serves a store whose build is known: `dir` over sea-obj (store e9ef04165ba2), tag ctl, out tb26-out/ctl (absent
+    before).
+  - Predicted:
+    - exit 0; 16 RESULT lines, each ok;
+    - every sha equals run 10's (cp-seapkg.py e3bd13ca7f16's table), and every package is byte-equal (cmp) to cp-out/<H>-sea.bmpk;
+    - SUMMARY storeId e9ef04165ba2.
+    - gets, misses and the sea counts are recorded.
+  - It also shows that 16 sequential builds in one process carry no state between builds: build.ts has no module-level let or Map.
+  - Any sha off -> STOP: the adapter is not used on tree B.
+
+R5c-2 THE ADAPTER ON TREE B: `cache` over the cache, tag tb, out tb26-out/b (absent before).
+  - The map is d1.ts's own assembleStore objects plus `current`.
+  - Predicted: exit 0; 16 RESULT lines, each ok; SUMMARY storeId 33d6dc41c749, objects 12021 (S-7's 12,020 + current).
+  - The shas, rung, radius, ntb, the sea counts, gets and misses are recorded. The report JSONs are kept for R5c-5.
+
+R5c-3 I2 (doc :3961; step8_25.pred :67-70): mirror/i2_26.py 02f7f769b3a7, run with geo-venv's python (numpy). Out i2-26 (absent
+  before).
+  - The chain per side: i2/pkg2json.mts a721e512c93d, then p2-render.py ce0f176ea317 kb5, then the WSL kb5 a841b11b5f47 (KB5's
+    FillRing; ./kb5 in the scratchpad root).
+  - The sides are NEW tb26-out/b/<H>-tb.bmpk and OLD cp-out/<H>-sea.bmpk. The C++ masks are compared byte for byte.
+  - CONTROL FIRST: mirror/i2plant26.py 1824cca0de42 is kb5-plant.py's move without its run-10 vertex assertion. It moves the first
+    in-view vertex of KJFK OLD's rings 1 px along its edge's left normal, proved as the only changed line. Its kb5 mask must differ
+    from KJFK OLD's by > 0 px; else STOP.
+  - Predicted:
+    - CONTROL AS PREDICTED;
+    - at the 14: differing px 0, EQUAL, "14 of 14";
+    - at KBOS and KJAC: REPORTED, not graded (R1).
+    - py==cpp and the drawn px are recorded.
+  - WHY 0 at the 14: SEA-OWN's water multiset (below) makes the ring sets equal, and both renderers fill ring by ring and OR the
+    results, so ring order cannot change a mask.
+
+R5c-4 SEA-OWN (doc :3317, :4118-4119; R1): mirror/seaown26.mts e872c1e13af8, from dry-clone/proxy.
+  - NEW tb26-out/b vs OLD cp-out, decoded (kOk) with the dry-clone's format.ts.
+  - CONTROL FIRST:
+    - KJFK NEW against itself reads all equal;
+    - a copy of KJFK NEW with its first road's first point moved +1 (re-encoded, sha proved changed) reads the roads section unequal.
+  - Graded at the 14:
+    - no peaks section in either package;
+    - header and section types equal;
+    - the water rings equal as a multiset;
+    - every other non-PROVENANCE section deep-equal (the stand-in for byte-identical);
+    - PROVENANCE's differing keys EXACTLY {store}, plus {source.sea, vintage.sea, sha256.sea} when both packages read the sea.
+  - At KBOS and KJAC: the same figures, REPORTED.
+  - THE RE-PREDICTION, put to you before it runs:
+    - the registered text allows "the store's id and its file references".
+    - The sea lines go beyond that, for a cause found in the manifests before this freeze. sea-obj names the sea's two Natural Earth zips
+      under placeholder www2.census.gov urls (vintage 2022 each). Tree B names them at naciscdn.org, with lakes vintage 2021 and the
+      ocean 2022. The bytes are the same (sha equal).
+    - So source.sea (the common dir), vintage.sea ("2022" against "2021 2022") and sha256.sea (a digest over url + sha lines) differ
+      wherever the sea is read.
+    - files.sea (a count) does not.
+    - Every other layer's lines are predicted unchanged at the 14. The same urls are read with the same sha256 and vintage: of the
+      16,029 common urls, every vintage is equal, and only the 51 GNIS peaks files differ in sha, which the query never reads.
+  - WHY the other sections are equal despite the reindex:
+    - every section sorts by bySource (file index, record, part; layers.ts:25);
+    - the reindex keeps the relative order of every file except the six;
+    - the 14 read none of the six (R5b-5).
+
+R5c-5 KB7-c-real (doc :1625, :1711; R3): mirror/kb7c26.mts cf8f0e28b80b, from dry-clone/proxy. It is p2-read.py 7ad9bcdbb63a:243-251's
+  check on the code PR's builder.
+  - The pieces' src and outer box come from tree B's own cells, decoded with decodeCell, which replaces sea-obj's records.json.
+  - The fates come from R5c-2's report JSONs (report.sea.fates). The view and LAKES are p2-read's.
+  - CONTROL FIRST: BUFFALO's fates with the first in-view piece set to "refused" (in memory) must read not drawn ["refused"].
+  - Predicted:
+    - BUFFALO 1 in view, ROUSES 2, ZAPATA 1, every one drawn;
+    - fates with no decoded record 0;
+    - "KB7-c-real: 3 of 3".
+    - None in view is a STOP (blind).
+  - DISCLOSED: 1 / 2 / 1 are run 10's on sea-obj (p2-runs/p2-read.run10.out :186-188).
+  - THE BUILDER'S OWN BOWTIE CONTROL: the code PR's KB7C test (proxy/test/basemap-sea.test.ts:64). Before R5c-5, #696's CI log at
+    e81e794908a6 is read (gh, read-only). Predicted: test/basemap-sea.test.ts is listed with no failed test. Not found -> STOP and
+    ask.
+
+- PEAKS-REC AND ITS GUARD (doc :4120-4123), TO THE ORCHESTRATOR:
+  - the client's query (cp-run's, the 16 points' throughout) asks for water, rivers, roads, places and terrain, not peaks;
+  - so neither package has a peaks section, and there are no peaks lines;
+  - SEA-OWN's peaks exception is unused, and PEAKS-REC compares nothing on this query.
+  - R5c-4 asserts the absence at all 16.
+  - Whether PEAKS-REC runs on a second query that includes peaks (tree B against bm-obj, with the summit-level guard) is your
+    ruling, and it is not in 5c.
+- DISCLOSED, read before this freeze:
+  - the builder's git history;
+  - cp-out's mtimes;
+  - the two manifests' url, sha and vintage comparisons (counts; the sea urls by host and file name);
+  - run 10's KB7-c-real counts;
+  - format.ts's section shapes, and build.ts's report shape.
+  - Not seen: any tree B package, any I2 mask, any SEA-OWN or KB7-c-real reading.
+- AFTER 5c: the results go to the orchestrator; then 5d (S4's AFTER).
+- Everything else in this file stands as frozen.
+FROZEN AMENDMENT 5c 2026-11-16T13:44:26Z
+
+AMENDMENT 5c.1 (after R5c-4 SEA-OWN read OFF at 13 of 14, SEA-OWN's FIRST off; R5c-1, -2, -3 and -5 read AS PREDICTED). The orchestrator's
+ruling: a read-only DISCRIMINATION, frozen with its outcome table before it runs. There is NO SEA-OWN re-registration and NO "I2 binds"
+ruling. 5d's AFTER set must name the points where SEA-OWN differed.
+- THE FORM: 5a.1's, with bgcheck 0ac6f374f53e (p4's, copied to bg/bgcheck2.py from _handoffs/p4/bg/, sha checked) from this amendment's
+  first registration. Only exit 0 is PASS; 1, 4 and 5 are not. Every node row runs under 5b's egress block. Consoles are read whole.
+  No row writes outside mirror/pieces-seaobj26.json and run-logs/.
+- CONTEXT, READ BEFORE THIS FREEZE (disclosed). It bears on alternative (b) and is not a reading of D1-D3:
+  - sea-obj names its sea files www2.census.gov/zz-sea/..., which sort LAST: manifest indices 16035 and 16036, after every water file
+    (9693-12836).
+  - Tree B's naciscdn.org urls sort FIRST: indices 1 and 3, before every water file (9694-16032).
+  - Every section sorts by bySource (file index first; layers.ts:25), and the water section is [...water, ...sea].sort(bySource)
+    (layers.ts:143). So the sea's position relative to TIGER water in that order is REVERSED between the two stores.
+  - The budget drops water rings smallest-area first and secondary roads shortest first (budget.ts:5). PROVENANCE's dropped.roads and
+    dropped.water are those whole-feature drop counts (build.ts:249).
+  - The builder takes the drawn sea from the CELLS whose reach meets the square (build.ts:143-153). Regions decide only the files
+    PROVENANCE names (build.ts:157-162).
+
+D1, THE PIECES:
+  - pieces.mts 6524027309c1 on sea-obj (bare-store mode), run from dry-clone/proxy:
+    node --import tsx ../../seastore/pieces.mts SW/sea-obj SW/mirror/pieces-seaobj26.json SW/dry-clone/proxy   (runlog tag d1-pieces)
+    The output must be absent before. Its S5 line is recorded (sea-obj has no sea-regions.json, so its regionsInFile is 0).
+  - Then mirror/d1_26.py 764649483e9f <pieces-seaobj26.json> <pieces26.json 09db20fc5a86>. It compares only the cell keys present in sea-obj's
+    output, because sea-obj is a partial store. It classes each cell: identical / reordered / geom-only (src names alone differ) /
+    subset (coverage) / different.
+  - Its CONTROLS come first: self all identical; one x moved 1e-9 -> 1 different; two pieces swapped -> 1 reordered.
+D2, THE SEA REGIONS: mirror/d2d3_26.mts aa521a619965 (part 1), from dry-clone/proxy.
+  - It compares sea-obj's two sea region boxes (from its index.json) with tree B's sea-regions.json, by file name: equal, or which
+    edges differ.
+  - Per home, it lists which sea files' boxes meet the square (build.ts's rule) on each side.
+  - SELF-CHECK: those counts must reproduce PROVENANCE's files.sea in all 32 packages; else INSTRUMENT.
+  - SAID IN ADVANCE: the box that explains files.sea at KSFO and KSEA is the one whose meet status differs between OLD and NEW at
+    those two homes, and at no home where files.sea is equal.
+D3, THE ROADS: the same file (part 2), at KSFO KSEA KORD KDTW KMSP BUFFALO ROUSES.
+  - Roads are compared as multisets of whole roads, with only-new / only-old counts and both packages' dropped.roads.
+  - "Budget consequence" means the difference is one-sided, on the side the drop counts say, and of size exactly
+    |dropped.roads(NEW) - dropped.roads(OLD)|.
+  - CONTROLS: self 0/0; the first road removed 1/0.
+
+OUTCOME TABLE (D1 x D2 x D3). Several can hold at once:
+| D1 (over sea-obj's cells) | D2 (regions) | D3 (roads) | what it means |
+|---|---|---|---|
+| every cell identical or subset | boxes equal | 7/7 consequence | the pieces and regions agree; the water differences come from ORDER (the reversed sea position, b) through the order-dependent drops, and roads follow the budget. files.sea at KSFO/KSEA is then UNEXPLAINED -> OUTSIDE (STOP) |
+| every cell identical or subset | a box differs, as said in advance | 7/7 consequence | pieces equal; (c) explains files.sea; the water differences come from ORDER (b); roads follow the budget |
+| some cells reordered (none different) | either | 7/7 consequence | the same pieces in another record order: (b) at both the piece and the file level; D2 as its row says |
+| some cells geom-only (none different) | either | 7/7 consequence | only the names differ (latin-1 against UTF-8, as PARITY's C-NAME showed). Names are not drawn, so the cause is (b) as above |
+| some cells different | either | 7/7 consequence | (1): the pieces themselves differ (as predicted from verify2's tolerance match), plus order; D2 as its row says; roads follow the budget |
+| any | any | fewer than 7 | a REAL roads difference at the points not read as consequence -> STOP, to Daniel |
+| D2's self-check fails, or a control off, or a crash | | | INSTRUMENT -> STOP (a crash is instrument failure #3, to Daniel) |
+| none of the rows above (for example: a box differs, but not the way said in advance) | | | OUTSIDE -> STOP, to the orchestrator, then Daniel |
+- A second SEA-OWN off, or anything outside this table, goes to the orchestrator, then Daniel.
+- AFTER: the readings go to the orchestrator; then 5d, whose AFTER set names the points where SEA-OWN differed.
+- Everything else in this file stands as frozen.
+FROZEN AMENDMENT 5c.1 2026-11-16T13:59:16Z
+
+AMENDMENT 5c.2 (the orchestrator's two additions on accepting 5c.1, frozen before D1 runs; nothing in 5c.1 has run).
+- 1. D1'S PRECEDENCE AND MIXTURES. d1_26.py classes each of sea-obj's cells once, by the first class that fits, and prints the COUNT per
+  class.
+  - D1's reading is the MOST SEVERE class present: different > geom-only > reordered > subset > identical.
+  - A MIXTURE WITHOUT "different" (any combination of identical, subset, reordered and geom-only) maps to the (b) family explicitly,
+    under the table's reordered and geom-only rows: the same pieces as drawn geometry, so the cause is order.
+  - Any "different" present makes the reading (1) plus order. The count of "different" cells is stated beside the others.
+- 2. D4, THE WATER DECOMPOSITION (D3's water twin): mirror/d4_26.mts 3accaf9fd35c, from dry-clone/proxy, under the egress block, after D3.
+  - At the 11 points where the water multisets differed (KJFK KLGA KEWR MIDTOWN KMIA KSFO KSEA KDTW BUFFALO ROUSES ZAPATA), each side's
+    water rings are split by source.
+  - ATTRIBUTION IS THE BUILDER'S OWN: report.sea.ringIdx, the positions of the sea rings in the package's water section (build.ts:265,
+    by object identity). Every other ring is TIGER-sourced. So D4 is not an improvised attribution.
+  - NEW uses R5c-2's reports. OLD uses R5c-1's control reports. Those are the reports of the builds that made cp-out's exact bytes; the
+    tool checks each control package's sha against cp-out's, else INSTRUMENT.
+  - ringIdx's size against drawn - dropped is recorded beside each point.
+  - THE TIGER RULE:
+    - rung 4 drops the smallest-area rings from ALL water rings, sea included (budget.ts:123-124);
+    - the report counts the sea ones (report.sea.dropped);
+    - so TIGER drops per side = PROVENANCE's dropped.water - report.sea.dropped.
+    - The TIGER difference must be one-sided, on the side those counts say, and of size exactly |TIGER drops(NEW) - TIGER drops(OLD)|:
+      a budget consequence.
+  - Anything else in TIGER water is a REAL water difference -> STOP, to Daniel. The 14 read sha-equal TIGER files, so it would be a
+    builder defect.
+  - THE SEA PART (its only-new / only-old) is recorded: what D1 explains.
+  - CONTROLS: KJFK NEW against itself 0/0 TIGER, 0/0 sea; a copy with its first TIGER ring removed reads TIGER only-new 0, only-old 1,
+    sea 0/0.
+  - Predicted: "D4: 11 of 11" budget consequences.
+  - OUTCOMES:
+    - 11 of 11: the TIGER water differences are the budget's, and D1 owns the sea part;
+    - fewer: a REAL water difference -> STOP, to Daniel;
+    - a control off, an INSTRUMENT line, or a crash -> STOP (a crash is instrument failure #3, to Daniel).
+- ORDER: D1, then D2 and D3 (one run), then D4. The rest of 5c.1's table stands, including row 1's OUTSIDE (boxes equal, files.sea
+  unexplained).
+FROZEN AMENDMENT 5c.2 2026-11-16T14:01:46Z
+
+AMENDMENT 5d, S4'S AFTER (seam25.pred 3382638a1ea2: S4-2, S4-3, S4-3b, S4-4; s4b.pred 8b80aa3409d1 for BEFORE), written while 5c.1 waits on
+Daniel (instrument failure #3). NOTHING in 5d runs before Daniel's word on 5c.1 AND the orchestrator's accept of this amendment.
+- THE FORM: 5a.1's, with bgcheck 0ac6f374f53e (bg/bgcheck2.py). Node rows run under 5b's egress block. Consoles are read whole.
+- THE PATH LIST, the orchestrator's (b), RUN AT THIS FREEZE: mirror/p5d_paths.sh 1b0f5762e7ed.
+  - It names every input path of every 5d tool, resolved as that tool resolves it, and the three paths 5d writes.
+  - It read "63 present, 0 missing, 0 produced-path(s) already present", exit 0, just before this freeze. It is run again, with
+    the same predicted reading, as each row's first step.
+- THE AFTER SET, as ruled, includes SEA-OWN's points: all 16 homes' NEW (tb26-out/b) and OLD (cp-out) packages are rendered at the
+  device's 10 / 25 / 50 mi and go to Daniel as pictures. That covers the 13 SEA-OWN read OFF and the 2 it reported.
+
+R5d-1 THE AFTER PACKAGES: mirror/tbafter26.mts 727cb4511ed0, from dry-clone/proxy, `cache` over tree B, out s4-pkg-after, tag after.
+  - It is the adapter (tbstore26.mts 5bc1ec970941, whose control R5c-1 read 16/16 equal to run 10) with ONLY its homes and its commit
+    stamp changed. `diff tbstore26.mts tbafter26.mts` reads 0a1, 30,33c31,33 and 65c65: 10 marked lines.
+    - The homes become seam25's six S4-1 centres, as s4b_pkg.mts fe1ae0ffeedb writes them.
+    - The stamp becomes #696's head e81e794908a6..., as BEFORE was stamped with main's.
+    - The query is BEFORE's exactly (s4b_pkg.mts's PARAMS, the same string).
+  - Predicted: exit 0; 6 RESULT lines, each ok; SUMMARY storeId 33d6dc41c749, objects 12021. Shas, rungs and sea counts are recorded.
+  - A package that does not build -> STOP (seam25 :48).
+R5d-2 THE TWO PLANTED CONTROLS: mirror/s4after_plants26.mts cc99aebe9af5, from dry-clone/proxy. It writes copies only
+  (s4-pkg-after/44007-plant.bmpk and 17005-plant.bmpk).
+  - S4-3's: every water ring of 44007-after whose centroid lies inside 44007's 2024 county polygon, shifted 500 m east.
+  - S4-3b's: every river polyline of 17005-after with a vertex inside 17005's 2024 polygon, shifted 500 m along L's direction at the
+    centre.
+  - The coordinates are the package's own: frame.ts's makeFrame and toFrameKm, at quantise's scale. The county polygon comes from
+    tree B's sha-checked tl_2024_us_county.zip.
+  - Proofs before each write:
+    - the round trip encode(decode(original)) equals the original;
+    - the copy's sha differs;
+    - exactly the shifted rings or polylines differ;
+    - every other section is equal.
+  - Predicted: both "APPLIED", each with > 0 shifted; exit 0. Either NOT APPLIED (0 shifted, or a proof off) -> STOP: that control
+    is void.
+R5d-3 THE RENDERS: fbcounts/s4_render_after.sh 729d68b877a5 in WSL, with fbcounts/s4_render2 7038e86a1f24.
+  - s4_render2 is built from s4_render2.cpp 216e79708930 by s4_build2.sh 27d492aab592: g++ 13.3, the same flags and the same
+    four header pins as s4b, warning-clean (build log 0 B).
+  - s4_render2.cpp is s4_render.cpp 40d6f0a0dd7d plus S4-3's SEAM finder, written by mirror/mk_render2.py 174e6886a375.
+    `diff s4_render.cpp s4_render2.cpp` reads 102c102 (the usage text) and 174a175,212 (the SEAM block, after the BREAK line, sampling
+    L exactly as BREAK does).
+    - SEAM PIXEL, seam25 S4-3: a LAND pixel within 1 px of L while the pixels 2 and 3 px from L on BOTH sides, along the normal, are
+      water or river.
+    - Its -seam frame marks L's sampled pixels white and each seam pixel magenta.
+  - It renders, in order:
+    - BEFORE x6 with lines (the anchor);
+    - AFTER x6 with lines;
+    - the two plants with lines;
+    - NEW and OLD at the 16 homes (no lines).
+  - Predicted: exit 0; "frames written: 318" (14 lined packages x 9 + 32 home packages x 6).
+R5d-4 THE GRADE AND THE PICTURES: mirror/s4after_grade26.py eb1ceeec58b1 on R5d-3's .out. It uses s4_png.py 8d8aecb4d6e3.
+  - Predicted:
+    - ANCHOR: 6 of 6 BEFORE blocks' FRAME and BREAK lines equal s4_render's recorded run (run-logs/s4-r4-render-20261116T052345Z.out
+      48091621541d). Off -> INSTRUMENT, STOP.
+    - RENDERS: no block off.
+    - S4-3 CONTROL: PLANT-44007 SEAM at 10 mi > 0 (seam25 :42). 0 -> the finder is blind; no seam reading is given; STOP.
+    - S4-3: AFTER seam pixels 0 at 18 of 18 (seam25 :39). A non-zero picture is FLAGGED to the owner with its counts (seam25 :46-47),
+      not a stop.
+    - S4-3b CONTROL: PLANT-17005 BREAK at 10 mi >= AFTER-17005's + 2 (seam25 :72). Else S4-3b is blind; no S4-3b reading; STOP.
+    - S4-3b: |AFTER - BEFORE| <= T = max(4, ceil(0.25 x BEFORE)) at 18 of 18 (seam25 :65). Outside T is FLAGGED with its pictures
+      (seam25 :67-69), not a stop.
+    - HOMES: NEW against OLD differing pixels at 10/25/50 mi, RECORDED, not graded; they go to Daniel beside the pictures.
+    - PNGs: 162 of 162 written to C:/Github/_handoffs/map-server/census-2025-pictures-after/ (absent before), UNOPENED, with
+      LIST.txt (name and sha).
+  - S4-4 then goes to the owner through the orchestrator:
+    - the pictures and S4-3's and S4-3b's counts;
+    - both controls' readings;
+    - the homes' diffs;
+    - seam25's confound sentence (AFTER also carries #696's builder);
+    - the six sizes from record.json, with 39167's 5.5%.
+- DISCLOSED: seam25's predictions are its own (frozen 2026-11-15). This amendment adds the anchor, the plant proofs and the frame
+  count. No AFTER package, frame or picture has been made or seen.
+- Everything else in this file stands as frozen.
+FROZEN AMENDMENT 5d 2026-11-16T14:11:00Z
+
+AMENDMENT 5c.3 (Daniel's word, relayed at 15:02Z: "census check: fix and continue", after instrument failure #3, the D2/D3 crash).
+- THE FIX, and nothing else:
+  - in mirror/d2d3_26.mts, line 37's "../../bm-cache-qw4/dry-run/store/sea-regions.json" becomes "../bm-cache-qw4/dry-run/store/sea-regions.json";
+  - that line's base is S = new URL("../", import.meta.url), the scratchpad, and the cache sits beside the scratchpad.
+  - The crashed file is kept as mirror/d2d3_26.aa521a619965.mts (aa521a619965). The fixed file is 2a9729a48281.
+    `diff d2d3_26.aa521a619965.mts d2d3_26.mts` reads 37c37 and 2 marked lines: that line alone.
+- RULE (b), RUN AT THIS FREEZE: mirror/p5c3_paths.mts 49a3f04c64d7, from dry-clone/proxy.
+  - It lists every input path of d2d3_26.mts and d4_26.mts, each the tool's own literal with its line, resolved through the same
+    bases: data against S, imports against the module file. It checks existence only.
+  - Read just before this freeze: "PATHS 5c.3: 96 present, 0 missing (of 96)", exit 0.
+- THEN, AS FROZEN: D2/D3 (d2d3_26.mts, now 2a9729a48281), then D4 (d4_26.mts 3accaf9fd35c), in the 5a.1 form with bg/bgcheck2.py
+  0ac6f374f53e and the egress block. Their predictions, controls and outcome table (5c.1, 5c.2) are unchanged.
+  - OUTSIDE, or a real roads or water difference -> STOP before 5d, to Daniel.
+  - A FOURTH instrument failure stops everything in step8_26 and goes to Daniel.
+- THEN 5d (73d53070dae8, accepted): R5d-1..4, each row first re-running p5d_paths.sh.
+- Nothing uploads: no d1 --go or --resume.
+FROZEN AMENDMENT 5c.3 2026-11-16T15:05:04Z
+
+AMENDMENT 5d.1 (a correction to 5d's frozen text, accepted before the rows it governs; R5d-1 has run, on the original text, whose 0
+held for it). 5d said p5d_paths.sh 1b0f5762e7ed "is run again, with the same predicted reading, as each row's first step". That held for
+R5d-1 only, because the script also checks that 5d's three written paths are ABSENT. A drafting error, caught by reading.
+- THE CORRECTED READING, per row:
+  - missing 0 at every row;
+  - produced-present EXACTLY the paths earlier 5d rows wrote:
+    - R5d-1: 0 (as run);
+    - R5d-2: 1 (s4-pkg-after);
+    - R5d-3: 1 (s4-pkg-after; s4-frames-after still absent);
+    - R5d-4: 2 (s4-pkg-after and s4-frames-after; the picture folder still absent).
+  - Graded by the printed "EXISTS, must be absent" lines naming exactly those, and the PATHS line's counts.
+  - From R5d-2 on, the script's exit is 1 by construction, and is not the grade.
+- Everything else in 5d stands as frozen.
+FROZEN AMENDMENT 5d.1 2026-11-16T15:08:47Z
+
+AMENDMENT 5d.2 (written during the hold after INSTRUMENT FAILURE #4: R5d-2's 44007 plant read NOT APPLIED because its proof paired
+sections by FIRST of type, and the AFTER packages carry three terrain sections, types [1,2,3,5,6,6,6,7]). Frozen with its shas; NOTHING
+here runs before Daniel's word on #4. Three parts, as the orchestrator recommends to him.
+- (a) THE PLANT TOOL'S FIX:
+  - mirror/s4after_plants26.mts cc99aebe9af5 is kept as mirror/s4after_plants26.cc99aebe9af5.mts. The fixed file is b79b371eea7c, written by
+    mirror/mk_plants_fix.py 27fa7bbd9e0d. `diff` reads 58a59,60, 71c73 and 80,81c82,84: 9 marked lines.
+    - a helper one(pkg, type) returns the section of that type and THROWS unless it occurs exactly once;
+    - the planted section's lookups (lines 71 and 81) use one();
+    - "other sections equal" asserts equal type sequences, then compares section i with section i.
+  - Its inputs and outputs are unchanged (p5d_paths.sh covers them).
+  - R5d-2 is then re-run, as frozen in 5d with 5d.1's path reading (produced-present 1: s4-pkg-after). Predicted: both "APPLIED".
+    - The 44007 run already showed 3 of 176 water rings shifted and a changed sha; it read NOT APPLIED only on the faulty proof. That
+      is disclosed: 3 is a seen value, and the prediction for it is "the same 3".
+- (b) R5c-4'S GAP, ITS OWN ROW, before the census upload: mirror/terrain26.mts b76c7f2500b3, from dry-clone/proxy, in the 5a.1 form with
+  bgcheck2 and the egress block.
+  - At the 16 homes, NEW (tb26-out/b) against OLD (cp-out): the type sequences must be equal, then sections are paired BY INDEX, and
+    every terrain section (levels 1, 2 and 3 by position) is compared deep-equal.
+  - THE TYPE CENSUS: types 1, 2, 3 and 7 must each occur once in both packages, which makes the older tools' first-of-type lookups
+    sound on these packages (d2d3_26: 7, 3; d4_26: 7, 1; pkg2json: 1; seaown26: 3, 2).
+  - CONTROLS FIRST: self, all levels equal; level 2's values[0] flipped in a copy reads levels [true, false, true].
+  - Predicted: CONTROLS AS PREDICTED; "TERRAIN: 16 of 16"; "TYPE CENSUS: ... at 16 of 16"; exit 0.
+    - DISCLOSED: R5c-4 already read "types true" at all 16 and level 1 equal at all 16.
+  - Outcomes:
+    - a terrain level unequal at any home -> a real terrain difference in a row that read passing -> STOP, to Daniel;
+    - a census miss -> the older readings at that package are unsound -> STOP, to Daniel;
+    - a control off or a crash -> STOP.
+  - RULE (b), run at this freeze: mirror/p5d2_paths.mts 7b97b2b7888f read "PATHS 5d.2: 33 present, 0 missing (of 33)".
+  - R5c-4's record gains the note whatever this row reads: its "every other section deep-equal" compared only the FIRST terrain
+    section; levels 2-3 were not compared until this row.
+- (c) THE CLASS RULE and its REVIEWER CHECK: mirror/pairing_check.py f1b53159a913.
+  - A package comparator never takes a section by FIRST of type. Allowed forms: a helper that throws unless the type occurs once; or
+    pairing by index after asserting equal type sequences.
+  - The check lists every `sections.find(` with its line and the type it selects. A new comparator passes with 0.
+  - Read at this freeze:
+    - the fixed s4after_plants26.mts and terrain26.mts: 0 and 0;
+    - the older tools, recorded: seaown26 4 (41 the per-type loop, the gap; 63 types 3 and 2), d2d3_26 2 (7, 3), d4_26 2 (7, 1),
+      pkg2json 1 (1), the failed plant file 4.
+  - The older ones are sound only where (b)'s census holds.
+- ORDER, on Daniel's word: (b), then R5d-2 again, R5d-3, R5d-4 (as 5d / 5d.1). Every row runs in the 5a.1 form; nothing uploads.
+FROZEN AMENDMENT 5d.2 2026-11-16T15:13:34Z
+
+AMENDMENT 5d.3, THE INVENTORY (Daniel, 15:13Z: "list every earlier check that compared layers 'against the first of its kind', and re-run
+each one; a pass from a wrong comparison doesn't count"). Its METHOD is frozen here before it runs. Read-only.
+- THE SCAN: mirror/inv26.py bfc0b92df6d7 over BOTH scratchpads (every .mts .mjs .ts .js .py .cpp .h .sh).
+  - It skips only repository or builder copies and data: node_modules, .git, geo-venv, run-logs, dry-clone, sab-ingest, mt-tree,
+    tree, pq4d, __pycache__, the store and package folders, and every wt-* worktree.
+  - Patterns P1-P7, per line:
+    - TS/JS first-match by .type (find, or filter(...)[0]);
+    - any sections.find(;
+    - a TS/JS map keyed by .type;
+    - Python ["type"] == tests and {x["type"]: ...} dicts;
+    - C/C++ .type == <digit>.
+  - It prints every hit with its file sha, and the prediction files and docs that name each hit file.
+- THE CONTROL: the hits must include seaown26.mts e872c1e13af8 and s4after_plants26.cc99aebe9af5.mts cc99aebe9af5. Else the scan is
+  BLIND -> STOP.
+- THEN, BY READING:
+  - each hit is classed PACKAGE-SECTION PAIRING or OTHER (a feature kind, a report field, a decoder);
+  - for each pairing: the TYPE it selects, the rows that used it, and whether they read PASS.
+- THE RULING THAT GRADES THEM (the orchestrator, from Daniel's word):
+  - a pass through first-of-type on a type that occurs EXACTLY ONCE in both packages compared STANDS, but only where that census is
+    read on the packages that run compared, if they still exist;
+  - any pass that touched a multi-instance type (6, terrain), or whose packages' census cannot be read, is VOID until re-run by
+    index, and each VOID becomes a registered re-run row, prediction first, before the census upload.
+- The table goes to the orchestrator BEFORE any re-run is registered. Then terrain26 (5d.2 (b)), then R5d-2 again, R5d-3, R5d-4.
+FROZEN AMENDMENT 5d.3 2026-11-16T15:15:20Z
+
+AMENDMENT 5d.4 (the orchestrator's ruling after R5d-2's FIRST off: the 17005 S4-3b control read NOT APPLIED, 0 of 158 river polylines
+inside the county). S4-3b's measurement has not run, and its control was void, not graded, so moving the control is a registration.
+- THE CHANGES, written by mirror/mk_5d4.py 3c3dd354a8d1. Each file is kept as <name>.<old sha>, and each change is proved by a line diff:
+  - mirror/s4after_plants26.mts b79b371eea7c -> 1ea57ed533a0 (93,95c93,95; 6 marked lines):
+    - the S4-3 (44007) call is NOT re-run; it ran at R5d-2 and its copy is written (44007-plant.bmpk a6dffa7083f7);
+    - the S4-3b plant moves to 19123, the other LINEARWATER centre, with L = mirror/s4-lines/19123.txt.
+  - fbcounts/s4_render_after.sh 729d68b877a5 -> dfec0db3ac42 (24c24): PLANT-17005 becomes PLANT-19123.
+  - mirror/s4after_grade26.py eb1ceeec58b1 -> 6bf01deb7a67 (64c64, 66c66, 70a71,72, 75c77, 94c96):
+    - the S4-3b control reads AFTER-19123 against PLANT-19123;
+    - S4-3b's three 17005 rows print N/A "(0 of 158 polylines inside the county)", and S4-3b is graded at 15;
+    - the plant PNGs name 19123.
+  - mirror/p5d_paths.sh 1b0f5762e7ed -> 3f16136919d0 (19c19): the plants' L is 19123's. Read just before this freeze:
+    "63 present, 0 missing, 1 produced-path(s) already present" (EXISTS: s4-pkg-after), as 5d.1 predicts for R5d-2.
+- R5d-2 AGAIN (19123 only). Predicted: "S4-3b CONTROL (19123 rivers, 500 m along L): ... river polylines shifted 7 of 176 ...
+  other sections equal true; APPLIED", exit 0. Written: s4-pkg-after/19123-plant.bmpk.
+  - DISCLOSED: 7 of 176 is the read-only count seen before this freeze.
+- R5d-3: unchanged except PLANT-19123. Predicted "frames written: 318".
+- R5d-4, as 5d, with:
+  - S4-3b CONTROL: PLANT-19123's BREAK at 10 mi >= AFTER-19123's + 2. It also tests the river projection path directly, which closes
+    the rivers-only alternative R5d-2 named.
+  - S4-3b graded at 15, with 17005's 3 rows N/A, recorded with the count. A row that cannot fail is a reading, not a pass.
+  - S4-3 (SEAM) stays graded at 18, 17005 included. Its seam can still form from WATER at L there (the AFTER-17005 package has water
+    touching the county box), so those rows can fail and are not N/A.
+  - PNGs 162, control-19123 in place of control-17005.
+- S4-4 CARRIES THE FINDING: at the device's 162 km package, the AFTER-17005 package draws 0 of its 158 river polylines inside Bond
+  County. So the 2025 LINEARWATER change at 17005 has no drawn river at that centre, and its census update is invisible on the device
+  there.
+- OUTSIDE (the 19123 plant not applied, or the BREAK rise < 2) is R5d-2's SECOND off: to the orchestrator, then Daniel.
+FROZEN AMENDMENT 5d.4 2026-11-16T15:25:20Z
+
+AMENDMENT 5d.5, ONE UNIFORM ELIGIBILITY RULE (the orchestrator's ruling on 5d.4's stated choice), frozen BEFORE any eligibility count is
+printed and before R5d-4 grades. R5d-2 (19123: APPLIED, 7 of 176, copy 89d665610a80) and R5d-3 ("frames written: 318", exit 0, stderr
+0 B) have run.
+- DISCLOSED, R5d-3's console: its .out holds the SEAM and BREAK values. I have read only its error lines and line counts (46 blocks;
+  42 SEAM, 42 BREAK, 138 FRAME lines; no RIG, INSTRUMENT or non-zero exit). NOT its values. They are read whole by R5d-4, after this
+  rule.
+- THE RULE, for every centre, every rung and BOTH rows:
+  - per AFTER package and rung, count the features with a vertex inside the SEAM/BREAK finder's own window: WATER rings for S4-3,
+    RIVER polylines for S4-3b;
+  - a row with 0 is N/A, printed with its count, and is not graded; a row with >= 1 is graded as 5d says.
+  - 17005's S4-3b becomes N/A by this rule, if its counts read 0, and not by a special case.
+- THE COUNTER: mirror/elig26.mts 745169b6c244, from dry-clone/proxy, under the egress block, in the 5a.1 form. It writes
+  mirror/elig26.json.
+  - It rebuilds the window exactly as s4_render2.cpp builds it: L projected with RadarView at the package centre (rLat = km/111,
+    rLon = km/(111 cos lat), C = 120), sampled every 0.5 px per segment, samples off the frame or off the disc skipped (WxLayer.h's
+    OffDisc), and the pixels floor(sample + o * normal), o = -3..3.
+  - A package vertex maps by the same linear view: px = C + x_km * C / km, py = C + y_km * C / km.
+  - Sections are taken by one() (rule (c); pairing_check reads 0).
+  - INSTRUMENT CHECK in the grader: elig26's samples must equal s4_render2's own SEAM samples at all 18 centre/rungs, else INSTRUMENT,
+    STOP.
+  - CONTROL CENTRES: 44007's water at 10 mi and 19123's rivers at 10 mi must each be >= 1, else OUTSIDE, STOP, to the orchestrator.
+  - EXPECTED, and not a stop, because the rule governs: 17005's rivers at 0 at all three rungs. Its nearest river vertex is 2.78 km
+    outside the county's box, and the window's half-width is 3 px, about 2.0 km at 50 mi.
+- THE GRADER: mirror/s4after_grade26.py 6bf01deb7a67 (kept as s4after_grade26.6bf01deb7a67.py) -> bedcbbe704bd, by mirror/mk_5d5.py 9c76fff378d9.
+  - `diff` reads 14c14, 55a56,63, 58c66,67, 61c70, 71,72c80,81 and 77c86,87 (22 marked lines);
+  - it applies the rule to S4-3 and S4-3b, replaces 5d.4's 17005 special case, and prints each N/A with its count and each row's
+    graded total.
+- RULE (b), at this freeze: mirror/p5d5_paths.sh 70cf10a38605 read "PATHS 5d.5: 14 present, 0 missing; elig26.json present 0".
+- ORDER: elig26 (counts printed), then R5d-4 as 5d, with S4-3 and S4-3b graded on the eligible rows only. R5d-4's path check
+  (5d.1) reads 2 produced paths: s4-pkg-after and s4-frames-after.
+FROZEN AMENDMENT 5d.5 2026-11-16T15:29:36Z
+
+AMENDMENT 5d.6, S4-3b's CUT-AND-OFFSET CONTROL (the orchestrator's ruling. Its earlier perpendicular-shift ruling is WITHDRAWN, because that
+design keeps each crossing continuous). Frozen with its shas; NOTHING runs until Daniel's word ("census rivers: new test" or "skip").
+- WHY: of 19123's 7 river polylines with a vertex inside the county, 3 lie wholly inside and 4 CROSS the county line as single joined
+  lines (19 vertices inside, 27 outside; a read-only count before this freeze). A whole-polyline shift along L, the registered control,
+  read flat (BREAK 4 -> 4 at 10 mi) for that reason. A perpendicular shift of the inside vertices would keep each crossing continuous too.
+- THE PLANT: mirror/s4after_cut26.mts 5a18694ecc51, from dry-clone/proxy, under the egress block, in the 5a.1 form with
+  bgcheck2. It writes only s4-pkg-after/19123-cut.bmpk.
+  - Each CROSSING polyline is cut at its intersection X with 19123's 2024 county polygon (package coordinates, tree B's sha-checked
+    county file), and ONLY the inside pieces (X included) are offset 500 m ALONG L (L's direction at the centre).
+  - Wholly-inside and wholly-outside lines are unchanged. A cut line keeps its name index.
+  - Proofs before the write:
+    - the round trip holds;
+    - the copy's sha differs;
+    - the river line count rises by EXACTLY the number of cuts;
+    - the non-crossing lines, in order, are unchanged;
+    - the type sequence is equal and every other section is equal BY INDEX.
+  - Sections are taken by one(); pairing_check reads 0.
+  - R5d-2c PREDICTED: "APPLIED"; crossing polylines 4 (disclosed: the read-only count); cuts >= 4, the exact number recorded;
+    lines 176 -> 176 + cuts. NOT APPLIED -> OUTSIDE, STOP: to the orchestrator, then Daniel.
+- THE RENDER: fbcounts/s4_render_cut.sh 4d7d1aa26e4f, with s4_render2 7038e86a1f24 (unchanged): 19123-cut.bmpk with 19123's line,
+  frames CUT-19123-* in s4-frames-after/.
+  - R5d-3c PREDICTED: exit 0; "frames written: 9".
+- THE GRADE: mirror/s4after_cutgrade26.py d2cd417d078f <R5d-3's .out> <the cut render's .out>.
+  - CONTROL: CUT-19123's BREAK at 10 mi >= AFTER-19123's (4) + 2. PREDICTED: AS PREDICTED.
+  - THE PRE-REGISTERED MEANING OF FLAT: if the cut plant APPLIED (proved above) and BREAK does not rise by 2, that is evidence the BREAK
+    FINDER IS BLIND, not the plant. It goes to Daniel as such, with NO third control design.
+  - S4-3b, ONLY when the control sees: |AFTER - BEFORE| <= T = max(4, ceil(0.25 x BEFORE)) at every ELIGIBLE row (elig26.json
+    70e10fee91fd: river polylines >= 1; 11 rows). N/A rows are printed with their counts. Outside T is FLAGGED to the owner (seam25
+    Amendment 1), not a stop.
+  - PNGs: control-19123-CUT-{10,25,50}mi.png and -SEAM.png, 6 of 6, into the picture folder, UNOPENED, with LIST-cut.txt.
+- RULE (b), at this freeze: mirror/p5d6_paths.sh 000966301dc6 read "PATHS 5d.6: 13 present, 0 missing, 0 produced-path(s) already
+  present". Each row re-runs it first: produced-present 0, then 1 (the cut package), then 2 (the cut frames).
+- ORDER on "census rivers: new test": R5d-2c, R5d-3c, R5d-4c, then S4-3b's reading goes to Daniel. On "skip": nothing runs, and S4-3b
+  stays "NO READING" as S4-4 states it.
+FROZEN AMENDMENT 5d.6 2026-11-16T15:38:28Z
+
+FINAL RECORD: STEP8_26 CLOSED. Daniel's word, relayed by the orchestrator: "census rivers: no reading." Step 8's offline checks are
+COMPLETE. NOTHING UPLOADED: no d1 --go and no --resume; the store is not in R2 and no device has it. The census upload is a separate
+decision of Daniel's. Tree B (bm-cache-qw4/dry-run), the keeps, the AFTER packages and copies, the frames and both picture lists stay as
+they are until he makes it.
+- EVERY ROW'S VERDICT, each read from the row's own log in run-logs/:
+  - Inputs (inputs26, dry-clone at e81e794908a6, the tool shas): OK. S-0 and S-1: AS REGISTERED. M-4: AS PREDICTED. S-2 A and B:
+    diskwatch2 verdict OK both, S-2 BYTE-IDENTICAL. EV: graded AS PREDICTED (only the run's identity keys differ; index.json and
+    sea-regions.json byte-equal). M-3: AS PREDICTED, controls 4 of 4.
+  - The first region test (met26): CRASHED, instrument failure #1 (below); its re-run is R5b-5.
+  - R5a-1 reindex: AS PREDICTED (4,333 moved, same layers). R5a-2 S-4 and S-5: AS PREDICTED. R5a-3 KB7-b: AS PREDICTED (KB7-a PASS,
+    its control fails as it must).
+  - R5b-0 the block's control: BLOCKED (ECONNREFUSED at the proxy), AS PREDICTED. R5b-1 coverage and R5b-2 tile-bits: byte-equal to
+    bm-obj, read by R5b-3 S-3: AS PREDICTED. R5b-4 re-base: AS PREDICTED (+4 files, 0 changed). R5b-5 region test: KBOS KJAC, AS
+    PREDICTED. R5b-6: S-6 refuses naming the lakes file, S-7 plans 12021 puts, the restore verified: AS PREDICTED. R5b-7 R2 figures:
+    inside the 1M bound, AS PREDICTED.
+  - R5c-1 the adapter's control: 16 of 16 equal to run 10. R5c-2 the adapter on tree B: 16 of 16 ok. R5c-3 I2: 14 of 14 EQUAL, AS
+    PREDICTED (control 21 px). R5c-4 SEA-OWN: OFF, 1 of 14, EXPLAINED below. R5c-5 KB7-c-real: 3 of 3, AS PREDICTED.
+  - D1: controls AS PREDICTED; sea-obj's 102 sea cells: 85 different, 17 identical. D2/D3 first run: CRASHED, instrument failure #3.
+    D2 (5c.3): the lakes file's region box explains files.sea at KBOS KSFO KSEA KJAC. D3: 7 of 7. D4: 11 of 11.
+  - R5d-1 the AFTER packages: 6 of 6 ok. R5d-2 first run: NOT APPLIED by a faulty proof, instrument failure #4. R5d-2 again (5d.2):
+    44007 APPLIED; 17005 NOT APPLIED, an OFF and not an instrument failure (0 of 158 river polylines inside the county). R5d-2 at 19123
+    (5d.4): APPLIED, 7 of 176. R5d-3: 318 frames, exit 0. terrain26: 16 of 16. elig26: both control centres >= 1. R5d-4: anchor 6 of 6,
+    S4-3 control 15 at 10 mi (AS PREDICTED), S4-3 as below, S4-3b control OFF (BREAK 4 -> 4).
+  - R5d-2c the cut plant: APPLIED (4 crossing polylines, 4 cuts, 176 -> 180 lines). R5d-3c: 9 frames, exit 0. R5d-4c: FLAT at the
+    graded 10 mi rung (4 -> 4) while rising at 25 mi (6 -> 7) and 50 mi (8 -> 11): outside the pre-registered set, to Daniel.
+- THE FOUR INSTRUMENT FAILURES, each closed:
+  1. The first region test read regions from tree B's index.json, which holds only cells. Closed in 5b: coverage first, then met26b
+     reading the regions as d1 merges them (R5b-5 AS PREDICTED).
+  2. R5a-1's bgcheck FAILED on the parent shell's own conhost. Closed in 5a.1: each row runs in a registered child, and conhosts.py plus
+     bgcheck check run in the parent.
+  3. d2d3_26.mts:37 resolved the cache path one level too high. Closed in 5c.3 on Daniel's word (one line, 2a9729a48281), with rule
+     (b): every input path is checked at the freeze and first by each row.
+  4. The plant proof paired sections by first-of-type, and a package has 3 terrain sections. Closed in 5d.2: one() plus index
+     pairing, with rule (c): pairing_check.py lists every sections.find.
+- SEA-OWN's OFF, EXPLAINED (5c.1 to 5c.3): the two stores' sea pieces differ (D1: 85 of 102 cells), tree B's sea files sort first where
+  sea-obj's sort last, and the package's byte budget turns that into different drops: roads at 7 of 7 points (D3), inland water at 11
+  of 11 (D4). The lakes file's region box explains files.sea at 4 points (D2).
+- THE VOID FAMILY: the inventory found exactly one. seaown26:41 compared terrain by first-of-type, so R5c-4's terrain claim was VOID.
+  Re-run by position (terrain26): every terrain level equal at 16 of 16, and the type census holds at 16 of 16.
+- THE INVENTORY (Daniel's "list every earlier check that compared layers against the first of its kind"): 53 files. Apart from the
+  family above, every check compared a type that occurs once per package: format.ts:248 refuses a duplicate, and all 34 builder
+  versions share one emission block (a518b9c89ac0) that writes types 1-5 and 7 once. Those passes stand (ruling (i)).
+- S4-3, THE SEAM: 0 at 10 of 15 eligible pictures. FLAGGED to Daniel: 44007 at 10/25/50 mi 19/4/2, 19123 at 25 mi 3, 38021 at 25 mi 1.
+  N/A with no water at the line: 38021, 17005 and 19123 at 10 mi. The control read 15 at 10 mi.
+- S4-3b, THE BREAK: NO READING, by Daniel's word. The registered control could not move the finder; the cut control was flat at the
+  graded 10 mi rung and rose at 25 and 50 mi. Both are recorded above. Nothing is re-graded. The rivers are judged from the pictures
+  (Daniel: accepted).
+- 17005, Bond IL: none of the 158 river polylines in the package falls inside the county, so its 2025 river change is invisible on the
+  device at that location.
+- POST-v20 ITEM, as ruled: one investigation, cause first, read-only, its predictions frozen before any of it runs. NOTHING RUNS ON IT NOW.
+  - Q1, FIRST, Daniel's words verbatim: "For the after-v20 look: the 10-mile count was already 4 before the slide, with 4 rivers
+    crossing the line, so check first whether the counter counts every crossing as a break at that view."
+    - The hypothesis: at 10 mi the BREAK counter is SATURATED. AFTER-19123's 4 breaks are the 4 crossings, so cutting the same 4 rivers
+      cannot raise the count, and flat is what a working counter would show there.
+    - The separator: map each of AFTER-19123's 4 break pixels at 10 mi to the crossing it sits on. If each is one of the 4 crossings,
+      saturation is confirmed. Then the wider rungs the same way: do the 6 breaks at 25 mi include all 4 crossings plus 2 others?
+  - Q2: my reading, not excluded by the counts. At 10 mi the 500 m offset is about 3.7 px and the break test looks only 1-3 px across
+    the line, so the pixels the cut makes may be balanced by break pixels the original crossings already made.
+  - Q3: the loose end. Comparing the cut copy with the original, 6 river runs differ from every original line where 8 were expected
+    (4 lines cut once each), while the plant's own proofs (+4 lines, 172 unchanged in order) all passed. Noted, not explained.
+- #696 HOLDS FROM MERGE. Production is unaffected.
+CLOSED STEP8_26 2026-11-16T18:43:58Z
