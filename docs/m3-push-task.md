@@ -470,6 +470,40 @@ the owner's morning list.
   - `check_err` must be 0, and an error is never a check;
   - the summary and the tail are reported separately and graded together, so the tail cannot hide a frame.
 
+**M3-9's OVERNIGHT SOAK, READ (2026-11-16, 10:58-11:05Z): CLEAN, AS PREDICTED. Design (i) is KEPT.**
+- **The soak:** (i) `4ac1b8019a58` on E2:08, traced 05:32:37-10:58:07Z (5 h 25 min) by a detached `bench-trace`
+  (registered and tagged). Only the closed log was read.
+- **THE GRADE LINE (written at 667dfb9dc2d0 before the read):**
+  - the last summary (10:57:28Z) read "checks=17100 bad_frames=0 bad_chunks=0 bad_bytes=0 max_bytes=0 check_err=0";
+  - mismatch lines AFTER it: 0 (and 0 in the whole log);
+  - **stale-frame total: 0, so (i) is kept.**
+- **The instrument held throughout:**
+  - `check_err` was 0 on every one of the 684 summary lines, and `sync_err` was 0;
+  - `checks` rose by exactly 25 each time, from 25 to 17,100;
+  - the gap between summaries was 23-37 s (mean 28.5), so there was no trace gap;
+  - pushes 513,000; push_avg_us 24,415, which includes the check on 1 in 30 frames.
+- **Stability:** one boot banner (`env=blipscope-s3-128-m3bench`), and no `rst:`, panic, Guru Meditation, abort,
+  brownout or WDT line.
+- **What it rests on:** the self-check's planted control, P2, caught 425 of 425 frames with 2,922-5,154 stale bytes
+  each. 17,100 clean checks therefore say that over 5 h 25 min, no checked frame reached the DMA with even about 3 KB
+  of stale data.
+- **What it does NOT cover:** the 29 frames in every 30 that were not checked, and the glass. There were no photos
+  overnight.
+- **R, the v19 restore:** the frozen `win_m32.ps1 -Mode restore` (`388f1d7f7aa9`) exited 0. W0 matched 6 of 6;
+  W3-restore was "rc 0, verified", "reset ok".
+- **W3's boot read:** CONNECTED, fast join OK, 0 portal-START lines; W4: read-mac, then HTTP 200.
+- **A second boot in W3's trace, explained by the firmware's own cause line:** at 11:00:00Z v19 logged "[quiet]
+  quiet-hour -> deferring update check to reboot" and restarted itself (`rst:0xc RTC_SW_CPU_RST`, reason SW). It then
+  reconnected by fast join with no portal. That is v19's quiet-hour reboot, not p4's doing; the read holds across both
+  boots.
+- **After-reads:** HTTP 200 with v19 at 11:03:35Z and 11:04:37Z. E2:08 was released at about 11:04Z, and the bg end
+  check read PASS, 0 running.
+- **Still open for M3 before it merges:**
+  - M3-8, which needs the owner: his eyes and a video on glass, his OK for 5c's bench prerelease, and his browser
+    save;
+  - M3-9's glass photos;
+  - the bench self-check commit `9e5198a43d6d`, which is still to push to #687's branch.
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
