@@ -35,7 +35,11 @@
 
 namespace framebench {
 
-enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3 };
+// P6 (docs/speed-p5p6.md section 2, on weatherscope/speed-p5p6): LABELS_TODAY lays labels out as before the cache
+// (the OLD path, only in AircraftManager's FRAME_BENCH region), LABELS_CACHE through the cache, and LABELS_CHECK
+// through the cache with today's layout alongside, counting mismatches (untimed: the check costs a second layout).
+enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, LABELS_TODAY = 4, LABELS_CACHE = 5,
+                      LABELS_CHECK = 6, kKinds };
 constexpr int kLevel = 40;      // C1's level: a scene's default, and Level() outside a scene
 constexpr int kTableMax = 60;   // the rows TBL-HOST verifies (tbl_host_lv.py: i < 60); Allocate() refuses a level above
 struct Scene {
@@ -43,18 +47,33 @@ struct Scene {
     uint8_t level = kLevel;   // the (a) table's n in this scene
     bool wx = true;           // this scene's "wx-layer" answer (Override)
 };
+// Image B's list. P6's bench (SPEED_P6_BENCH) checks first, then runs OLD, NEW, OLD, NEW in one session
+// (docs/speed-p5p6.md section 0, "the switch"); the addendum re-states the levels, settle and measure before any
+// reading. A macro, so the eight lines check_frame_bench's C1-L pins below stay exactly as they are.
+#if defined(SPEED_P6_BENCH)
+#if !defined(BLIPSCOPE_PUSH_TASK)
+#error "SPEED_P6_BENCH measures the shipping shape: image B, with the push task"
+#endif
+#define FRAMEBENCH_IMAGE_B {LABELS_CHECK}, {LABELS_TODAY}, {LABELS_CACHE}, {LABELS_TODAY}, {LABELS_CACHE}
+#else
+#define FRAMEBENCH_IMAGE_B {C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}
+#endif
 #if defined(FRAME_PROFILE)
 #include "FrameProfileScenes.h"   // p4's (docs/frame-profile.md): defines kScenes; one owner per line
 #else
 #if defined(BLIPSCOPE_PUSH_TASK)
-static const Scene kScenes[] = {{C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}};   // image B
+static const Scene kScenes[] = {FRAMEBENCH_IMAGE_B};   // image B
 #else
 static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
-static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10"};
-constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0};
+static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "labels-today", "labels-cache",
+                                        "labels-check"};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0};
+// A kind without an entry in both tables fails the build (docs/speed-p5p6.md section 0, "the kind tables").
+static_assert(sizeof(kKindName) / sizeof(kKindName[0]) == kKinds, "kKindName needs one entry per Kind");
+static_assert(sizeof(kPushDelayMs) / sizeof(kPushDelayMs[0]) == kKinds, "kPushDelayMs needs one entry per Kind");
 
 // Bend, at 2 dp: only ever returned to Initialise() and to the table; nothing prints it.
 static const char* const kHomeLat = "44.06";
@@ -119,6 +138,7 @@ struct State {
     uint16_t wxRows = 0, wxCols = 0;
     uint8_t wxCoarsen = 0;
     uint32_t fbSubmits = 0;      // enrichment submits for the table's hexes in this scene (must be 0)
+    uint32_t labelChecks = 0, labelMismatches = 0;   // P6's equality row (LABELS_CHECK scenes)
     bool noting = false;
     int nNoted = 0;
     Noted noted[kMaxKeys];
@@ -149,6 +169,15 @@ inline bool InScene()
 // C1-L: the current scene's level (kLevel outside a scene), the list's largest, and whether every level is one
 // TBL-HOST verified.
 inline int Level() { return InScene() ? (int)kScenes[S().scene].level : kLevel; }
+// P6: lay labels out as before the cache (the OLD path) in this scene; or check the cache against that, per contact.
+inline bool LabelsOld() { return InScene() && kScenes[S().scene].kind == LABELS_TODAY; }
+inline bool LabelsCheck() { return InScene() && kScenes[S().scene].kind == LABELS_CHECK; }
+inline void NoteLabel(bool same)
+{
+    State& s = S();
+    ++s.labelChecks;
+    if (!same) ++s.labelMismatches;
+}
 inline int MaxLevel()
 {
     int m = 0;
@@ -485,6 +514,11 @@ inline void EndMeasure()
     s.dumpPos = 0;
     s.dumpScene = s.scene;
     Serial.printf("[frame-bench] scene S%d end frames=%d over-cap=%d\n", s.scene, s.n, s.overflowFrames);
+    if (s.scene >= 0 && kScenes[s.scene].kind == LABELS_CHECK) {   // P6's equality row: predicted 0 mismatches
+        Serial.printf("[speed-p6] labels S%d checked %lu mismatches %lu\n", s.scene, (unsigned long)s.labelChecks,
+                      (unsigned long)s.labelMismatches);
+        s.labelChecks = s.labelMismatches = 0;
+    }
     uint32_t pn;
     uint64_t pu, su;
     static uint16_t hist[200];
