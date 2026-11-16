@@ -675,3 +675,20 @@ frames, the path the device lives on. So:
 - A SEQH mismatch stops P6. It is reported, and nothing is fixed before a ruling.
 - A plant off its set is reported, not re-predicted.
 - Anything else: stop.
+
+### 4j. P6-SEQH, read (2026-11-16 05:54-05:55Z, WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`)
+
+Read against 4i's predictions, pushed at `ec8f5833c887` before the run. The code read is `bench/speed-p6` at
+`4050a5357d8c`. **Every prediction held. Nothing is off the set.**
+- **test_p6_labels:** 9 ok, exit 0.
+  - CMP control, P6-COVER, the SEQ rows and P6-SHARE match 4h, number for number.
+  - SEQH@20, @40, @60: 0 mismatches over 16,000, 32,000 and 48,000 contact-frames.
+    - Box hits (keys held across frames): 11,352, 23,295 and 35,302.
+    - Refills: 3,808, 7,865 and 11,858. Uncached: 1,680 in each.
+    - The fewest text changes of any contact: 142, 138 and 137. The control read "yes" in each.
+- **sabotage_p6_labels.py:** all 7 plants red on exactly their sets, "P6 LABEL PLANTS AS PREDICTED", exit 0.
+  - HELDHIT read red on SEQH alone, and KEYDROP on COVER and SEQH.
+  - `--anchors`: 7 plants and 12 anchors, each present once.
+  - `--control`: 9 ok.
+  - lint: 0 flagged.
+- **So the cache's held-key hit path, the one the device lives on, is now graded on the host.**
