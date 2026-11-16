@@ -2072,8 +2072,10 @@ void AircraftManager::ReportSweep()
         Serial.printf("[bench] layer copy: memcpy equals pushSprite: %s\n", kCheck[layerCopyCheck]);
 }
 
-void AircraftManager::CheckLayerCopy(LGFX_Sprite& sp, uint8_t* dst)
+void AircraftManager::CheckLayerCopy(BandCanvas& canvas, uint8_t* dst)
 {
+    LGFX_Sprite& sp = canvas.sprite();
+    canvas.DirtyAll();   // P5 1c: it writes the buffer unmarked, so that buffer's next restore is full
     // F1, once: the canvas as the push leaves it, against the canvas as the memcpy leaves it. Each starts from a
     // different fill, so a push that skipped a pixel could not pass by leaving the other's byte behind.
     constexpr size_t kBytes = (size_t)SCREEN_SIZE * SCREEN_SIZE * 2;
@@ -3668,6 +3670,7 @@ bool AircraftManager::RebuildWeatherLayer()
     v.rotCos = rotCos;
     v.size = SCREEN_SIZE;
     wxlayer::Build(h, wxCells, v, wxPixels);
+    ++wxLayerGen;   // P5 1c: the layer changes from here, so every buffer's next restore is full
     wxSprite.fillScreen(0);
     for (int y = 0; y < SCREEN_SIZE; ++y)
         for (int x = 0; x < SCREEN_SIZE; ++x) {
@@ -3717,10 +3720,42 @@ bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
     const bool flat = canvas.offsetY() == 0 && sp.width() == SCREEN_SIZE && sp.height() == SCREEN_SIZE &&
                       sp.getColorDepth() == 16 && dst != nullptr && wxLayer565 != nullptr;
 #ifdef WX_LOOK_AB
-    if (flat && layerCopyCheck < 0) CheckLayerCopy(sp, dst);   // F1, once: the memcpy against the push it replaces
+    if (flat && layerCopyCheck < 0) CheckLayerCopy(canvas, dst);   // F1, once: the memcpy against the push it replaces
 #endif
-    if (flat) memcpy(dst, wxLayer565, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2);
-    else wxSprite.pushSprite(&sp, 0, -canvas.offsetY());
+    if (!flat) {
+        canvas.DirtyAll();   // P5 1c: an unmarked write; this buffer's next restore is full
+        wxSprite.pushSprite(&sp, 0, -canvas.offsetY());
+        return true;
+    }
+    // P5 1c (docs/speed-p5p6.md 4o): restore only what the last frame drawn into THIS buffer changed, plus the
+    // indicator's band, from the layer (include/DirtyClear.h). No set attached: today's whole copy.
+    dirtyclear::Set* const dirty = canvas.Dirty();
+    bool whole = dirty == nullptr;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::ClearOld()) whole = true;   // P5 1c's OLD path: today's whole copy
+#endif
+    // THE FRAME BENCH END
+    if (whole) {
+        if (dirty) dirty->All();   // the bench's OLD copy: the next restore of this buffer must not trust its set
+        memcpy(dst, wxLayer565, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2);
+        return true;
+    }
+    constexpr int kBandHalf = (SCREEN_COUNT - 1) * 6 + 4;   // DrawScreenIndicator's dots: cx +- (shown - 1) * 6, r 3
+    const dirtyclear::Band band = {SCREEN_SIZE_DIV_2 - kBandHalf, SCREEN_SIZE - 21, SCREEN_SIZE_DIV_2 + kBandHalf,
+                                   SCREEN_SIZE - 11};
+    dirtyclear::Restore((uint16_t*)dst, (const uint16_t*)wxLayer565, *dirty, wxLayerGen, band);
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::ClearCheck()) {   // P5 1c's device backstop: the restored buffer against the layer, every pixel
+        uint32_t off = 0;
+        const uint16_t* a = (const uint16_t*)dst;
+        const uint16_t* b = (const uint16_t*)wxLayer565;
+        for (size_t i = 0; i < (size_t)SCREEN_SIZE * SCREEN_SIZE; ++i) off += a[i] != b[i];
+        framebench::NoteClear(off);
+    }
+#endif
+    // THE FRAME BENCH END
     return true;
 }
 
@@ -3743,6 +3778,9 @@ bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, i
     int16_t* const rowLo = (int16_t*)wxSweepSpans;
     int16_t* const rowHi = rowLo + SCREEN_SIZE;
     wxsweep::Rasterise(cx, cy, radius, angle, wxSweepSlice, SCREEN_SIZE, SCREEN_SIZE, &y0, &y1, rowLo, rowHi);
+    // P5 1c: the blend below writes the buffer directly, so its spans are this frame's to restore next time.
+    for (int y = y0; y <= y1; ++y)
+        if (rowHi[y] >= rowLo[y]) canvas.MarkSpan(rowLo[y], rowHi[y], y);
 #ifdef WX_LOOK_AB
     const uint32_t tBlend = micros();
 #endif
@@ -11774,6 +11812,7 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
         // No fillScreen: the photo covers every pixel of the disc, which is what
         // pays for the larger blit (BlitProbe: fillScreen 240x240 = 1.653 ms of
         // the 2.652 ms the bigger sprite costs).
+        backbuffer.DirtyAll();   // P5 1c: an unmarked write; this buffer's next restore is full
         photoSprite.pushSprite(&backbuffer.sprite(), 0, -backbuffer.offsetY());
         backbuffer.drawCircle(cx - 1, cx - 1, SCREEN_SIZE_DIV_2 - 1, lgfx::color888(0, 200, 0));
 

@@ -1263,6 +1263,14 @@ void loop()
 #if defined(FEATURE_CLOUD_FEED) && !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
     // Weather under the planes (docs/wx-device.md, WD5): on the radar scope, with a crop WxPolicy allows, the cached
     // layer replaces the clear, then the sweep and the planes draw over it. Everywhere else: cleared as before.
+    // P5 1c (docs/speed-p5p6.md 4o): this buffer's dirty set rides on the canvas from BEFORE the clear, so a black
+    // clear (fillScreen) marks it for a full restore and DrawWeatherUnder restores from it. ONE SET PER M3 BUFFER: this
+    // relies on p4's push-task design (two buffers, pushtask::g_buf); if that scheme changes, re-read this first.
+#if defined(BLIPSCOPE_PUSH_TASK)
+    canvas.SetDirty(appManager.WxDirty(&drawBuf == pushtask::g_buf[0] ? 0 : 1));
+#else
+    canvas.SetDirty(appManager.WxDirty(0));
+#endif
 #if defined(WX_LOOK_AB)
     // Step C (docs/wx-device.md, ruled 2026-10-29): the clear-or-push call, timed, on the bench image only. The #else
     // branch is the shipping code, unchanged.

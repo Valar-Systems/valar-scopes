@@ -2642,6 +2642,26 @@ exit "$rc"
 )
 note_block $? "P5 1c: the dirty-region restore against a full clear"
 
+# P5 1c's static row (docs/speed-p5p6.md 4o): every pixel write in the radar-weather frame is marked for the dirty
+# restore or forces a full one -- the audit as a check that runs, with its selftest's plants.
+echo
+echo "== P5 1c: every frame write marked (check_p5_writes) =="
+(
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the write audit cannot run. This is the RIG, not the code."
+  exit 2
+fi
+"$PY" -I -B "$ROOT/test/host/check_p5_writes.py" "$ROOT"
+rc=$?
+[ "$rc" -ge 2 ] && exit 2
+"$PY" -I -B "$ROOT/test/host/check_p5_writes.py" --selftest "$ROOT"
+rs=$?
+[ "$rs" -ge 2 ] && exit 2
+[ "$rc" -ne 0 ] || [ "$rs" -ne 0 ] && exit 1
+exit 0
+)
+note_block $? "P5 1c: every frame write marked (check_p5_writes)"
+
 echo
 if [ -n "$RIG_BLOCKS$FAILED_BLOCKS" ]; then
   echo "FAILED BLOCKS:"

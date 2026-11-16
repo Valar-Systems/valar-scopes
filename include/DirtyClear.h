@@ -85,6 +85,13 @@ inline void MarkRect(Set& s, int x, int y, int w, int h)   // fillRect and drawR
     s.Box(x, y, x + w - 1, y + h - 1);
 }
 inline void MarkHLine(Set& s, int x, int y, int w) { MarkRect(s, x, y, w, 1); }
+// drawString: `w` is the width it drew and `h` the font's height; x +- w and y +- h hold the text under ANY datum.
+inline void MarkText(Set& s, int x, int y, int w, int h)
+{
+    if (w < 0) w = -w;
+    if (h < 0) h = -h;
+    s.Box(x - w, y - h, x + w, y + h);
+}
 
 // The screen indicator's rows and columns, restored on every frame.
 struct Band {

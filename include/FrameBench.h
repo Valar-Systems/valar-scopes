@@ -39,8 +39,10 @@ namespace framebench {
 // which lives only in AircraftManager's FRAME_BENCH region), OUTLINE_MASK the shipping mask. Neither delays anything.
 // P5 1b: SWEEP_OLD blends the wedge with today's per-pixel wxsweep::Blend (only in AircraftManager's FRAME_BENCH
 // region), SWEEP_LUT with the shipping table.
+// P5 1c: CLEAR_OLD copies the whole layer (only in DrawWeatherUnder's FRAME_BENCH region), CLEAR_DIRTY restores the
+// dirty set, CLEAR_CHECK restores and counts the buffer's pixels off the layer (untimed: the count reads 115 KB).
 enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, OUTLINE_8COPY = 4, OUTLINE_MASK = 5,
-                      SWEEP_OLD = 6, SWEEP_LUT = 7, kKinds };
+                      SWEEP_OLD = 6, SWEEP_LUT = 7, CLEAR_OLD = 8, CLEAR_DIRTY = 9, CLEAR_CHECK = 10, kKinds };
 constexpr int kLevel = 40;      // C1's level: a scene's default, and Level() outside a scene
 constexpr int kTableMax = 60;   // the rows TBL-HOST verifies (tbl_host_lv.py: i < 60); Allocate() refuses a level above
 struct Scene {
@@ -57,7 +59,8 @@ struct Scene {
 #error "SPEED_P5_BENCH measures the shipping shape: image B, with the push task"
 #endif
 #define FRAMEBENCH_IMAGE_B {OUTLINE_8COPY}, {OUTLINE_MASK}, {OUTLINE_8COPY}, {OUTLINE_MASK}, \
-                           {SWEEP_OLD}, {SWEEP_LUT}, {SWEEP_OLD}, {SWEEP_LUT}
+                           {SWEEP_OLD}, {SWEEP_LUT}, {SWEEP_OLD}, {SWEEP_LUT}, \
+                           {CLEAR_CHECK}, {CLEAR_OLD}, {CLEAR_DIRTY}, {CLEAR_OLD}, {CLEAR_DIRTY}
 #else
 #define FRAMEBENCH_IMAGE_B {C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}
 #endif
@@ -72,8 +75,8 @@ static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
 static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "outline-8copy", "outline-mask",
-                                        "sweep-old", "sweep-lut"};
-constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0};
+                                        "sweep-old", "sweep-lut", "clear-old", "clear-dirty", "clear-check"};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0, 0, 0};
 // A kind without an entry in both tables fails the build (docs/speed-p5p6.md section 0, "the kind tables").
 static_assert(sizeof(kKindName) / sizeof(kKindName[0]) == kKinds, "kKindName needs one entry per Kind");
 static_assert(sizeof(kPushDelayMs) / sizeof(kPushDelayMs[0]) == kKinds, "kPushDelayMs needs one entry per Kind");
@@ -141,6 +144,7 @@ struct State {
     uint16_t wxRows = 0, wxCols = 0;
     uint8_t wxCoarsen = 0;
     uint32_t fbSubmits = 0;      // enrichment submits for the table's hexes in this scene (must be 0)
+    uint32_t clearFrames = 0, clearOffPx = 0;   // P5 1c's device backstop (CLEAR_CHECK scenes)
     bool noting = false;
     int nNoted = 0;
     Noted noted[kMaxKeys];
@@ -175,6 +179,15 @@ inline int Level() { return InScene() ? (int)kScenes[S().scene].level : kLevel; 
 inline bool OutlineOld() { return InScene() && kScenes[S().scene].kind == OUTLINE_8COPY; }
 // P5 1b: blend the wedge with today's per-pixel wxsweep::Blend (the OLD path) in this scene.
 inline bool SweepOld() { return InScene() && kScenes[S().scene].kind == SWEEP_OLD; }
+// P5 1c: copy the whole layer (the OLD path) in this scene; or restore and count what is off the layer.
+inline bool ClearOld() { return InScene() && kScenes[S().scene].kind == CLEAR_OLD; }
+inline bool ClearCheck() { return InScene() && kScenes[S().scene].kind == CLEAR_CHECK; }
+inline void NoteClear(uint32_t offPx)
+{
+    State& s = S();
+    ++s.clearFrames;
+    s.clearOffPx += offPx;
+}
 inline int MaxLevel()
 {
     int m = 0;
@@ -511,6 +524,11 @@ inline void EndMeasure()
     s.dumpPos = 0;
     s.dumpScene = s.scene;
     Serial.printf("[frame-bench] scene S%d end frames=%d over-cap=%d\n", s.scene, s.n, s.overflowFrames);
+    if (s.scene >= 0 && kScenes[s.scene].kind == CLEAR_CHECK) {   // P5 1c's backstop: predicted 0 px off
+        Serial.printf("[speed-p5] clear S%d frames %lu mismatched-px %lu\n", s.scene, (unsigned long)s.clearFrames,
+                      (unsigned long)s.clearOffPx);
+        s.clearFrames = s.clearOffPx = 0;
+    }
     uint32_t pn;
     uint64_t pu, su;
     static uint16_t hist[200];

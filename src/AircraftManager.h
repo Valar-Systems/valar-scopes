@@ -697,6 +697,10 @@ private:
     bool wxNeedsRebuild = false;     // a new crop (or view) has not been built into the layer yet
     wxs2::Look wxLook = wxs2::Look::A;   // the user's look ("wx-look", K1); A by default, Daniel's choice
     LGFX_Sprite wxSprite;             // wraps wxLayer565 (setBuffer): pushed in place of the frame clear
+    // P5 1c (docs/speed-p5p6.md 4o): one dirty set per M3 buffer, and the layer's generation, bumped by every write
+    // into the layer (RebuildWeatherLayer), so a buffer drawn over an older layer restores in full.
+    dirtyclear::Set wxDirty[2];
+    uint32_t wxLayerGen = 1;
     bool wxSpriteReady = false;       // wxSprite holds the layer built for the inputs below
     wxpolicy::Show wxShowing = wxpolicy::Show::Nothing;   // this frame's decision, made in DrawWeatherUnder
     double wxBuiltLat = 0, wxBuiltLon = 0, wxBuiltRadLat = 0, wxBuiltRadLon = 0;   // ProjectAt's inputs at the build
@@ -926,7 +930,7 @@ private:
     uint32_t copyScan0Us = 0;
     int8_t layerCopyCheck = -1;   // -1 not yet, 0 differs, 1 identical, 2 could not check (no PSRAM for the copy)
     void ReportSweep();
-    void CheckLayerCopy(LGFX_Sprite& sp, uint8_t* dst);
+    void CheckLayerCopy(BandCanvas& canvas, uint8_t* dst);   // P5 1c: takes the canvas, so it marks its own write
 #endif
     // Worst single loop pass since the last health report (0.1 ms units). The
     // avg/p95 above are computed only over the last FRAME_SAMPLES frames (~a few
@@ -1389,6 +1393,13 @@ public:
     // radar scope, with a crop WxPolicy allows, it pushes the cached layer and returns true; otherwise false, and
     // the frame is cleared as before.
     bool DrawWeatherUnder(BandCanvas& canvas);
+    // P5 1c: the dirty set for M3 buffer `i` (0 or 1), made on first use; main.cpp attaches it to the frame's canvas.
+    dirtyclear::Set* WxDirty(int i)
+    {
+        dirtyclear::Set& s = wxDirty[i & 1];
+        if (s.w == 0) s.Init(SCREEN_SIZE, SCREEN_SIZE);
+        return &s;
+    }
     // The sweep over the weather (docs/wx-device.md, WD6): main.cpp calls this in place of DrawRadarSweep. Over a
     // layer pushed THIS frame it blends the wedge (look 3 or 4) and draws today's beam, returning true; otherwise
     // false, and today's opaque wedge draws -- so with the layer off nothing changes.
