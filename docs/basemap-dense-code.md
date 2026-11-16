@@ -880,8 +880,9 @@ The NE lake L (Natural Earth 10 m lakes), and U, the US polygon (Natural Earth a
 
 ### The two homes, the view, and what is counted
 
-- **The homes:** Buffalo (42.886, −78.879), on Lake Erie where the border enters it; Rouses Point (44.994, −73.365), at Lake
-  Champlain's north end, where the border crosses it.
+- **The homes:** Buffalo (42.89, −78.88), on Lake Erie where the border enters it; Rouses Point (44.99, −73.36), at Lake
+  Champlain's north end, where the border crosses it (rounded here; the counts were made at the exact test points, held off-repo
+  and named by sha in scratch-record's WITHHELD manifest).
 - **The package:** the client's query (r 162 km, ε 201,168 mm, water, rivers, roads, places and terrain, its three levels), built by
   pq4c with the code PR's knobs (`Q4_LADDER=b`, `Q4_D2=1`, `Q4_TP=1`, `Q4_PROV=1`), terrain included, so the rung and the water set's
   tolerance are the real package's.
@@ -1085,8 +1086,8 @@ Both edited scripts compile. Nothing has been fetched or built.
 **The stop: `lake-render.py BUFFALO b` exited 1, on its own assertion,** before any count was computed. No SEAM or SPILL was read.
 
 **The cause: my renderer.**
-- The route rounds a query's lat and lon to two decimals (`query.ts:62-63`). So the package is centred on **(42.89, −78.88)**, not on
-  the home **(42.886, −78.879)**.
+- The route rounds a query's lat and lon to two decimals (`query.ts:62-63`). So the package is centred on **(42.89, −78.88)**, the home
+  rounded to two decimals, not on the home itself, under 0.5 km away.
 - The device draws a package about its OWN home: WxBasemap's `Mapper::ToScreen` places package units through the package's centre and
   cosine, then into a view centred on `homeLat`/`homeLon`. The client's r includes the 0.8 km margin for exactly this offset.
 - My renderer mapped package units as if the package's centre were the view's. Its assertion that the two coincide caught it.
