@@ -11,6 +11,11 @@
 // (vTaskDelay: the push task outranks the loop on its core, so a spin would preempt the loop), and with the loop's
 // +10 ms (I-6).
 //
+// S2b (-DFRAME_BENCH_S2B, env blipscope-s3-128-framebench-v20-s2b; docs/frame-time-bench.md, "S2b's registration"):
+// RP5's 18-scene run on its two pinned recordings, at v20's own defaults (FrameBenchS2b.h holds the table). Every S2b
+// piece sits under that macro, with the existing text byte for byte in its #else, so no other env's preprocessed text
+// changes (S2B-ISO proves it from the images).
+//
 // PER FRAME (Rec): fr and p2p in 10 us units; tracked and drawn; flags: bit 0 the weather layer rebuilt on this frame,
 // bit 1 the loop's planted delay, bit 2 the weather crop shown (wxShowing == Crop), bit 3 the map enabled, bit 4 the
 // night clock's night; and `pres`, the presents since the previous record (M3-2: 1 in lockstep). FT's Addition 2 adds
@@ -33,7 +38,12 @@
 
 namespace framebench {
 
-enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, C1_PUSH60_DROP = 4, FT_MAP = 5, FT_WX = 6 };
+enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, C1_PUSH60_DROP = 4, FT_MAP = 5, FT_WX = 6
+#if defined(FRAME_BENCH_S2B)
+                      // S2b (docs/frame-time-bench.md, "S2b's registration"): RP5's five kinds, after every other
+                      , CTRL_IL = 7, REPLAY = 8, FIXED = 9, LIVE_APT = 10, LIVE_OWN = 11
+#endif
+};
 // FT's roles (docs/frame-time-bench.md, "THE REBUILD ROW"): KORD's A/A pair 1 first (its margins frozen), the timer
 // plant, the graded pairs, KORD's A/A pair 2 last (graded against pair 1's margins).
 enum Role : uint8_t { GRADED = 0, PAIR1 = 1, PLANT = 2, PAIR2 = 3 };
@@ -42,9 +52,15 @@ struct Scene {
     uint8_t pkg = 0;      // FT: the index into the row's pinned packages (FrameBenchFt.h); C1: unused
     uint8_t rungMi = 0;   // FT: the scene's rung; 0 is kRungMi (C1's scenes)
     uint8_t role = GRADED;
+#if defined(FRAME_BENCH_S2B)
+    uint8_t home = 0;     // S2b: RP5's home (0 Bend / KSFO, else an index into kAptCode)
+    uint8_t level = 0;    // S2b: RP5's fixed traffic level (0 for the recordings and live)
+#endif
 };
 #if defined(FRAME_BENCH_FT)
 #include "FrameBenchFt.h"   // the FT row's pinned packages and its scene table (kScenes)
+#elif defined(FRAME_BENCH_S2B)
+#include "FrameBenchS2b.h"   // S2b: RP5's 18-scene table, its constants and the generated recordings (kScenes)
 #elif defined(BLIPSCOPE_PUSH_TASK)
 #if defined(FRAME_BENCH_PROOF_DROP)
 // THE PACKAGE's proof image only (env c1b-proof): image B's four scenes, then S4, push60 with ONE dropped update
@@ -56,8 +72,15 @@ static const Scene kScenes[] = {{C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}};   
 static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
+#if defined(FRAME_BENCH_S2B)
+// S2b: RP5's kind names for its five kinds (the reader's TABLE row reads them); no push delay in any S2b scene
+static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "C1+push60drop", "FT-MAP", "FT-WX",
+                                        "CTRL-IL", "REPLAY", "FIXED", "LIVE-APT", "LIVE-OWN"};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 60, 0, 0, 0, 0, 0, 0, 0};
+#else
 static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "C1+push60drop", "FT-MAP", "FT-WX"};
 constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 60, 0, 0};
+#endif
 static const char* const kRoleName[] = {"graded", "pair1", "plant", "pair2"};
 // THE PACKAGE's M3-2 (docs/frame-time-bench.md): an exact count per scene, the span boundary carried by a tag.
 // FT-HR's window is the longest scene list: 6 + 1 + 36 + 6 = 49.
@@ -152,6 +175,15 @@ struct State {
     bool ftHome = false;
     double ftLat = 0.0, ftLon = 0.0;
     char ftLatS[16] = {}, ftLonS[16] = {};
+#if defined(FRAME_BENCH_S2B)
+    // S2b: RP5's per-scene state (b417d80cd4c5's State), outside FB-REC's span
+    char url[112] = {0};
+    char radius[8] = {0};
+    uint32_t sceneStartMs = 0;   // the scene's settle start (the replay times its polls from it)
+    bool keep[kNumKeep] = {};    // the KEEP-CURRENT members' initializers (SnapshotKeep), in kKeepKeys' order
+    bool keepTaken = false;
+    uint32_t submits = 0;        // enrichment submits since the scene's settle began (RequestCloudEnrich's region)
+#endif
 };
 
 // FT's rebuild record, filled at DrawMapBase's call site from the composer's laps and BuildInfo, so this header needs
@@ -206,10 +238,82 @@ inline bool InScene()
     return s.scene >= 0 && !s.done;
 }
 
+#if defined(FRAME_BENCH_S2B)
+// S2b: RP5's customer defaults and scene answers (b417d80cd4c5), unchanged but for the local homes' names.
+// Every key a scene does not set: nullptr (the board's own) for kOwnKeys; the snapshotted initializer for a KEEP-CURRENT
+// key; "" for every other key, which Initialise()'s own parse turns into its default.
+inline const char* CustomerDefault(const char* key)
+{
+    const State& s = S();
+    for (const char* own : kOwnKeys)
+        if (strcmp(key, own) == 0) return nullptr;
+    for (int i = 0; i < kNumKeep; ++i)
+        if (strcmp(key, kKeepKeys[i]) == 0) return !s.keepTaken ? nullptr : (s.keep[i] ? "true" : "false");
+    return "";
+}
+
+// Initialise()'s entry region, ONCE, before the first parse: the KEEP-CURRENT members' initializers, in kKeepKeys' order.
+inline void SnapshotKeep(const bool* v)
+{
+    State& s = S();
+    if (s.keepTaken) return;
+    for (int i = 0; i < kNumKeep; ++i) s.keep[i] = v[i];
+    s.keepTaken = true;
+    Serial.printf("[frame-bench] keep defaults: %s=%d %s=%d %s=%d %s=%d %s=%d %s=%d\n", kKeepKeys[0], s.keep[0],
+                  kKeepKeys[1], s.keep[1], kKeepKeys[2], s.keep[2], kKeepKeys[3], s.keep[3], kKeepKeys[4], s.keep[4],
+                  kKeepKeys[5], s.keep[5]);
+}
+
+// The keys Initialise() reads, answered for the current scene; nullptr means "the board's own setting".
+inline const char* OverrideS2b(const char* key)
+{
+    const State& s = S();
+    if (s.scene < 0 || s.done) return nullptr;
+    const Scene& sc = kScenes[s.scene];
+    if (sc.kind == LIVE_OWN) return nullptr;   // (iv): every key is the board's own
+    if (sc.kind == REPLAY || sc.kind == LIVE_APT) {
+        // the airport home, the cloud source; the radius is the scene's (100 mi, the shipping default, for REPLAY by
+        // (Z) and for LIVE-APT)
+        if (strcmp(key, "latitude") == 0) return kAptLat[sc.home];
+        if (strcmp(key, "longitude") == 0) return kAptLon[sc.home];
+        if (strcmp(key, "radius") == 0) return s.radius;
+        if (strcmp(key, "radius-unit") == 0) return "mi";
+        if (strcmp(key, "data-source") == 0) return "";
+        if (strcmp(key, "local-url") == 0) return "";
+        if (strcmp(key, "local-details") == 0) return "";
+        return CustomerDefault(key);
+    }
+    // CTRL-IL and the packed rows: the local feed (fixed_traffic.py on the bench PC)
+    if (strcmp(key, "latitude") == 0) return kS2bHomeLat[sc.home];
+    if (strcmp(key, "longitude") == 0) return kS2bHomeLon[sc.home];
+    if (strcmp(key, "radius") == 0) return s.radius;
+    if (strcmp(key, "radius-unit") == 0) return "mi";
+    if (strcmp(key, "data-source") == 0) return "local";
+    if (strcmp(key, "local-url") == 0) return s.url;
+    if (strcmp(key, "local-details") == 0) return "";   // Off: no detail lookups
+    return CustomerDefault(key);
+}
+
+inline const char* HomeName(int k)
+{
+    const Scene& sc = kScenes[k];
+    return (sc.kind == REPLAY || sc.kind == LIVE_APT) ? kAptCode[sc.home] : kS2bHomeName[sc.home];
+}
+// (Z): the rung a REPLAY scene zooms the default board's ladder to; 0 for every other scene, and for a REPLAY scene at
+// the shipping radius (the ladder's Top, the default view, which culls nothing).
+inline uint8_t ViewRung(int k)
+{
+    return (kScenes[k].kind == REPLAY && kScenes[k].rungMi < kShippingRadiusMi) ? kScenes[k].rungMi : 0;
+}
+#endif
+
 // The scene's keys, answered in RAM; nullptr means "the board's own setting" (recorded, never changed). Called only
 // through ConfigurationWebServer::GetStoredString's region, which reads and never writes.
 inline const char* Override(const char* key)
 {
+#if defined(FRAME_BENCH_S2B)
+    return OverrideS2b(key);   // S2b: RP5's answers; C1's and FT's below compile in its env but are never reached
+#endif
     if (!InScene()) return nullptr;
     const State& st = S();
     static char rung[8];
@@ -272,6 +376,8 @@ inline void PrintNoted(int k)
 // map's buffers are never allocated in any arm.
 #if defined(FRAME_BENCH_FT)
 inline bool MapOff() { return false; }   // FT: the map ON, its pinned package swapped per scene (docs/frame-time-bench.md)
+#elif defined(FRAME_BENCH_S2B)
+inline bool MapOff() { return false; }   // S2b: the map as shipped, wherever MapEnabled() holds (the cloud scenes)
 #else
 inline bool MapOff() { return true; }
 #endif
@@ -357,7 +463,14 @@ inline uint32_t PushDelayMs()
 inline bool DelayOn()
 {
     State& s = S();
+#if defined(FRAME_BENCH_S2B)
+    // S2b's CTRL-IL (RP5's F3, moved onto the PACKAGE's loop plant): the plant on in alternate 10 s blocks of the
+    // MEASURED span, the first block off; off in every other scene and in the settle
+    s.delayed = s.scene >= 0 && !s.done && kScenes[s.scene].kind == CTRL_IL && s.measuring &&
+                ((millis() - s.phaseStartMs) / 10000u) % 2u == 1u;
+#else
     s.delayed = s.scene >= 0 && !s.done && kScenes[s.scene].kind == C1_LOOP10;
+#endif
     return s.delayed;
 }
 
@@ -390,8 +503,21 @@ inline void Record(uint32_t frameUs, size_t tracked, uint8_t stateFlags)
     s.delayed = false;
 }
 
+#if defined(FRAME_BENCH_S2B)
+// S2b: RP5's spans (LIVE-OWN and LIVE-APT measure 300 s; every settle is 100 s)
+inline uint32_t MeasureMs(int k)
+{
+    switch (kScenes[k].kind) {
+    case LIVE_OWN: return MEASURE_OWN_MS;
+    case LIVE_APT: return MEASURE_APT_MS;
+    default: return MEASURE_MS;
+    }
+}
+inline uint32_t SettleMs(int) { return SETTLE_MS; }
+#else
 inline uint32_t MeasureMs(int) { return MEASURE_MS; }
 inline uint32_t SettleMs(int) { return SETTLE_MS; }
+#endif
 
 // FT's rebuild row: one record per map rebuild while a scene runs, labelled by its part. The steady window's rebuilds
 // are counted (expected 0: an airports-fetch arrival is the named exception). The residue is the total minus the four
@@ -437,12 +563,30 @@ inline uint8_t TakeMapRebuilt()
     return v;
 }
 
+#if defined(FRAME_BENCH_S2B)
+// S2b: RP5's replay-env PrepareScene (b417d80cd4c5). The packed rows ask fixed_traffic.py by home and level; (Z): a
+// REPLAY scene configures the shipping radius, so its live GET is the recorded query (r=161), and is zoomed to its rung
+// after Initialise() as a swipe does (ViewRung); every other scene configures its rung.
+inline void PrepareScene(int k)
+{
+    State& s = S();
+    snprintf(s.url, sizeof s.url, "http://%s/aircraft.json?home=%s&n=%u", FRAME_BENCH_HOST,
+             kScenes[k].home == 0 ? "bend" : "ksfo", (unsigned)kScenes[k].level);
+    snprintf(s.radius, sizeof s.radius, "%u",
+             (unsigned)(kScenes[k].kind == REPLAY ? kShippingRadiusMi : kScenes[k].rungMi));
+    s.sceneStartMs = millis();
+    s.submits = 0;
+    s.fbSubmits = 0;
+    s.nNoted = 0;
+}
+#else
 inline void PrepareScene(int)
 {
     State& s = S();
     s.fbSubmits = 0;
     s.nNoted = 0;
 }
+#endif
 
 // TBL-DEV, once at boot: the device's libm against fixed_traffic.py at kTblT.
 inline void PrintTable()
@@ -507,6 +651,62 @@ inline void OnCloudPoll(JsonDocument& doc, Rows& rows, long& dataEpoch, Parse pa
     else
         Serial.println("[frame-bench] table served FAILED");
 }
+
+#if defined(FRAME_BENCH_S2B)
+// S2b's P2 (docs/frame-time-bench.md, "AMENDMENT to P2"): RP5's replay serve, a function of its own so the shared
+// OnCloudPoll above and its call site stay byte for byte as they are in every other env.
+// CRC-32 (IEEE, zlib's), bitwise: the replay's CRC is computed ON THE DEVICE over the body it deserialized.
+inline uint32_t RecCrc32(const char* p, size_t n)
+{
+    uint32_t c = 0xFFFFFFFFu;
+    for (size_t i = 0; i < n; ++i) {
+        c ^= (uint8_t)p[i];
+        for (int k = 0; k < 8; ++k) c = (c >> 1) ^ (0xEDB88320u & (0u - (c & 1u)));
+    }
+    return ~c;
+}
+// THE REPLAY (on the fetch task, core 0), in the SETTLE and the measured span alike (F1; FB-R9): the live GET has been
+// made and parsed as shipped; its content is replaced by the recorded body at the same elapsed time since the scene's
+// settle began, so the settle's trails are the recording's own. Every other S2b scene keeps its live content.
+// latSent/lonSent are the request's own 2-dp strings (wireloc::Center), RP5's signature; the replay does not read them.
+template <typename Doc, typename Rows, typename Parse>
+inline void OnCloudPollS2b(Doc& doc, Rows& rows, long& dataEpoch, const char* latSent, const char* lonSent,
+                           Parse parse)
+{
+    (void)latSent;
+    (void)lonSent;
+    State& s = S();
+    const int k = s.scene;
+    if (k < 0 || s.done) return;
+    const Scene& sc = kScenes[k];
+    if (sc.kind != REPLAY) return;
+    const int ai = sc.home == 0 ? 0 : 1;
+    const RecPoll* rp = kRecPolls[ai];
+    const uint32_t el = millis() - s.sceneStartMs;
+    int pick = 0;
+    for (int i = 0; i < kRecN[ai]; ++i)
+        if (rp[i].ms <= el) pick = i;
+    const uint32_t t0 = micros();
+    doc.clear();
+    deserializeJson(doc, rp[pick].body);
+    const long age = rp[pick].epoch - doc["t"].template as<long>();   // the recording's own data age
+    doc["t"] = (long)time(nullptr) - age;
+    Rows tmp;
+    long e2 = 0;
+    const bool parsed = parse(doc, tmp, e2);
+    if (parsed) {
+        rows.swap(tmp);
+        dataEpoch = e2;
+    }
+    const uint32_t crc = RecCrc32(rp[pick].body, strlen(rp[pick].body));
+    const uint32_t us = micros() - t0;
+    if (parsed)
+        Serial.printf("[frame-bench] served A%u %d crc %08lx us %lu\n", (unsigned)sc.home, rp[pick].seq,
+                      (unsigned long)crc, (unsigned long)us);
+    else   // the live picture stands this poll: counted as a miss (the replay's condition 3)
+        Serial.printf("[frame-bench] served A%u %d replay FAILED\n", (unsigned)sc.home, rp[pick].seq);
+}
+#endif
 
 // THE WEATHER FIELD (ConsumeWeather's region, before `whole` is decided): a whole 200's body is replaced by the fixed
 // field; its header (the real frame time and geometry) is kept. Returns the new length (the caller sets `claimed` to
@@ -599,6 +799,25 @@ inline void SelfTime()
     s.measuring = keepM;
     Serial.printf("[frame-bench] record cost %lu ns/frame\n", (unsigned long)((t1 - t0) / 10));
 }
+
+#if defined(FRAME_BENCH_S2B)
+// S2b's half of RP5's I-5 report: Override() on a key it does not answer (the per-frame "scanline" read), 10,000
+// calls. RP5 timed it inside SelfTime(); here SelfTime() is FB-REC's pinned text, so this runs just after it.
+inline void SelfTimeOverride()
+{
+    State& s = S();
+    volatile int hits = 0;
+    const int keepScene = s.scene;
+    s.scene = 0;   // a scene is active, so Override() walks its whole compare list for an unknown key
+    const uint32_t t0 = micros();
+    for (int i = 0; i < 10000; ++i)
+        if (Override("scanline") != nullptr) hits = hits + 1;
+    const uint32_t t1 = micros();
+    s.scene = keepScene;
+    Serial.printf("[frame-bench] override cost %lu ns/call\n", (unsigned long)((t1 - t0) / 10));
+    (void)hits;
+}
+#endif
 
 inline void EndMeasure()
 {

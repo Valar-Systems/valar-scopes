@@ -951,6 +951,17 @@ bool enqueueEnrich(QueueHandle_t queue, EnrichRequest* req)
 
 void AircraftManager::Initialise()
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#if defined(FRAME_BENCH_S2B)
+    {   // S2b's customer defaults (RP5's item 2): the KEEP-CURRENT members' initializers, before any parse can change them
+        const bool keepNow[framebench::kNumKeep] = {displayInfoText, displayTriangles, displayAirports, displayTrails,
+                                                    displayAltColor, displayHighlight};
+        framebench::SnapshotKeep(keepNow);
+    }
+#endif
+#endif
+    // THE FRAME BENCH END
     // get centre point + radius
     const String latStr = configServer.GetStoredString("latitude");
     const String lonStr = configServer.GetStoredString("longitude");
@@ -2332,6 +2343,18 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
         static bool announced = false;
         if (!announced) {
             announced = true;
+#if defined(FRAME_BENCH_S2B)
+            // S2b: RP5's announce line (the reader's BOOT mark), the push task named after it; no table (no C1 scene)
+            Serial.printf("[frame-bench] the frame bench: %d scenes, settle %lu s, measure %lu s; S2b, push task %s\n",
+                          framebench::kNumScenes, (unsigned long)(framebench::SETTLE_MS / 1000),
+                          (unsigned long)(framebench::MEASURE_MS / 1000),
+#if defined(BLIPSCOPE_PUSH_TASK)
+                          "on, presents counted");
+#else
+                          "off");
+#endif
+        }
+#else
             Serial.printf("[frame-bench] the frame bench C1: %d scenes, settle %lu s, measure %lu s, push task %s\n",
                           framebench::kNumScenes, (unsigned long)(framebench::SETTLE_MS / 1000),
                           (unsigned long)(framebench::MEASURE_MS / 1000),
@@ -2342,6 +2365,7 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 #endif
             framebench::PrintTable();
         }
+#endif
         uint8_t mapDrew = 0;   // FT's Addition 2, per frame: step C's own mapFrameDrawn (the composite copied this frame)
 #ifdef BLIPSCOPE_MAP_FETCH
         mapDrew = mapFrameDrawn ? 32 : 0;
@@ -2351,6 +2375,50 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
         const uint8_t mapTag = framebench::TakeMapRebuilt();   // S2b: bit value 64 on the frame a map rebuild drew
         framebench::Record(frameUs, trackedAircraft.size(), (uint8_t)(stateFlags | mapTag));
         const uint32_t nowMs = millis();
+#if defined(FRAME_BENCH_S2B)
+        // S2b: RP5's item 2 record, after a scene's Initialise(): what this scene draws with (counts and booleans
+        // only), RP5's fields in RP5's order, then v20's map (MapEnabled(): the cloud scenes) appended
+        auto drawingLine = [&](int k) {
+            unsigned long fields = 0;
+            for (size_t i = 0; i < infoFieldEnabled.size() && i < 32; ++i)
+                if (infoFieldEnabled[i]) fields |= 1UL << i;
+#ifdef FEATURE_CLOUD_FEED
+            const int wx = wxLayerEnabled ? 1 : 0, look = (int)wxLook, lb = lbEnabled ? 1 : 0;
+#else
+            const int wx = -1, look = -1, lb = -1;
+#endif
+            Serial.printf("[frame-bench] drawing S%d: infotext=%d triangle=%d airports=%d apmin=%d trail=%d altcolor=%d "
+                          "highlight=%d scanline=%d fade=%d wx=%d look=%d mil=%d heli=%d spc=%d milvis=%d emgvis=%d "
+                          "visnight=%d nightclock=%d radarup=%d follow=%d followtrack=%d lookup=%d logbook=%d lb=%d "
+                          "autodim=%d bright=%u mqtt=%d ntfy=%d milalert=%d emgalert=%d lookalert=%d tones=%d kiosk=%d "
+                          "watch=%u fields=%lx meta=%d unit=%s zoom=%d/%d map=%d\n",
+                          k, displayInfoText, displayTriangles, displayAirports, (int)airportsMin, displayTrails,
+                          displayAltColor, displayHighlight, displaySweep, displayFade, wx, look, showMilitary,
+                          showHelicopters, showSpecial, (int)milVisual, (int)emgVisual, visualNightOverride,
+                          nightClockEnabled, radarUpDeg, followTarget.isEmpty() ? 0 : 1, followDrawTrack, showOverhead,
+                          logbookEnabled, lb, autoDim, (unsigned)configuredBrightness, mqttEnabled,
+                          ntfyTopic.isEmpty() ? 0 : 1, alertMilitary, alertEmergency, alertOverhead, tonesEnabled,
+                          kioskOn, (unsigned)watchlist.size(), fields, metadataNeeded, rangeUnit.c_str(), zoomIdx + 1,
+                          zoomLadder.n, MapEnabled() ? 1 : 0);
+        };
+        auto applyScene = [&](int k) {
+            Initialise();
+            // (Z): a REPLAY scene below the shipping radius zooms the default ladder to its rung, as a swipe does: the
+            // view culls (ZoomCulled) and the fetch keeps the shipping query (RadarZoom.h)
+            const uint8_t vr = framebench::ViewRung(k);
+            for (int i = 0; vr > 0 && i < zoomLadder.n; ++i)
+                if (fabsf(zoomLadder.step[i] - (float)vr) < radarzoom::SAME_STEP_EPS) {
+                    ApplyZoom(i, radarzoom::Edge::None, "bench");
+                    break;
+                }
+            drawingLine(k);
+        };
+        auto printStart = [&](int k) {
+            Serial.printf("[frame-bench] scene S%d %s home=%s level=%u rung=%umi settle\n", k,
+                          framebench::kKindName[framebench::kScenes[k].kind], framebench::HomeName(k),
+                          (unsigned)framebench::kScenes[k].level, (unsigned)framebench::kScenes[k].rungMi);
+        };
+#else
         auto applyScene = [&](int k) {
 #if defined(FRAME_BENCH_FT)
             // FT: the scene's package and weather, and its home -- the package's own centre, by bmpk's own reading
@@ -2392,8 +2460,20 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                           framebench::kRungMi);
 #endif
         };
+#endif
         auto advance = [&](uint32_t atMs) {
             framebench::EndMeasure();
+#if defined(FRAME_BENCH_S2B)
+            {   // S2b: RP5's item 2 (a): enrichment over the scene, and the tracked contacts it has filled (counts only)
+                unsigned withType = 0, withRoute = 0;
+                for (const auto& [icao, t] : trackedAircraft) {
+                    withType += t.typeCode.isEmpty() ? 0 : 1;
+                    withRoute += t.routeOrigin.isEmpty() ? 0 : 1;
+                }
+                Serial.printf("[frame-bench] enrich S%d: submits %lu tracked %u type %u route %u\n", fb.scene,
+                              (unsigned long)fb.submits, (unsigned)trackedAircraft.size(), withType, withRoute);
+            }
+#endif
             const int next = fb.scene + 1;
             if (next < framebench::kNumScenes) {
                 fb.scene = next;
@@ -2411,6 +2491,9 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
             if (fb.scene < 0) {
                 if (nowMs >= framebench::START_AFTER_MS && framebench::Allocate()) {
                     framebench::SelfTime();
+#if defined(FRAME_BENCH_S2B)
+                    framebench::SelfTimeOverride();   // S2b: RP5's override cost, beside FB-REC's pinned SelfTime()
+#endif
                     fb.scene = 0;
                     framebench::PrepareScene(0);
                     fb.measuring = false;
@@ -3454,10 +3537,19 @@ void AircraftManager::RunFetchTask()
                 Serial.println("[WARN] Blipscope Cloud: blips schema mismatch; keeping current picture");
             // THE FRAME BENCH BEGIN
 #ifdef FRAME_BENCH
+#if !defined(FRAME_BENCH_S2B)
             // THE (a) HOOK: after the REAL GET's parse, the table's content at the device's UTC second
             if (res->ok)
                 framebench::OnCloudPoll(doc, res->aircraft, res->dataEpoch,
                                         [](JsonDocument& d, auto& r, long& e) { return CloudFeed::ParseBlips(d, r, e); });
+#else
+            // S2b's P2: RP5's replay serve after the REAL GET's parse (the recorded body at the scene's elapsed time),
+            // with RP5's arguments: the request's own 2-dp lat/lon, exactly as sent
+            if (res->ok)
+                framebench::OnCloudPollS2b(doc, res->aircraft, res->dataEpoch, wireloc::Center(req->lat).c_str(),
+                                           wireloc::Center(req->lon).c_str(),
+                                           [](JsonDocument& d, auto& r, long& e) { return CloudFeed::ParseBlips(d, r, e); });
+#endif
 #endif
             // THE FRAME BENCH END
         }
@@ -3741,12 +3833,14 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
     // and is passed to the policy at its claimed size, so (b) refuses it for size rather than as an error.
     // THE FRAME BENCH BEGIN
 #ifdef FRAME_BENCH
+#if !defined(FRAME_BENCH_S2B)   // S2b: the weather is live, as shipped (Q-S2b-L); C1's fixed field is never applied
     // THE WEATHER FIELD: a whole 200's body replaced by the fixed one-cell field; its header (the real frame
     // time and geometry) kept, so the shipping Validate, OnResponse and rebuild run unchanged
     if (status == 200 && len > 0 && len == claimed) {
         len = framebench::WxField(wxLanding, len);
         claimed = len;
     }
+#endif
 #endif
     // THE FRAME BENCH END
     wxcrop::Header h;
@@ -11389,6 +11483,9 @@ void AircraftManager::RequestCloudEnrich(const String& icao24, const String& cal
     // THE FRAME BENCH BEGIN
 #ifdef FRAME_BENCH
     if (framebench::IsSceneHex(icao24)) framebench::S().fbSubmits++;   // must stay 0
+#if defined(FRAME_BENCH_S2B)
+    framebench::S().submits++;   // S2b: RP5's item 2 (a), enrichment submits counted per scene
+#endif
 #endif
     // THE FRAME BENCH END
 }
