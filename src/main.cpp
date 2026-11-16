@@ -133,9 +133,6 @@ uint32_t     Tag()                   { return g_fbTag; }
 // at run time writes the SPI bus, EXCEPT the two restart screens, which call Quiesce() first.
 // =====================================================================================================
 #include <esp_cache.h>
-#if defined(M3_BENCH)
-#include <esp_async_memcpy.h>
-#endif
 namespace pushtask {
 constexpr size_t kBytes = (size_t)SCREEN_SIZE * SCREEN_SIZE * 2;   // one RGB565 frame
 static_assert(!variant::BANDED_RENDER, "M3 needs whole-frame buffers: BANDED_RENDER must be false");
@@ -156,32 +153,26 @@ constexpr uint32_t kReportEvery = 750;                              // ~30 s at 
 
 #if defined(M3_BENCH)
 // ---- M3-9's COHERENCY SELF-CHECK (bench only: env blipscope-s3-128-m3bench; docs/m3-push-task.md) ----------------
-// Every kCheckEvery-th push, right after it, the same PSRAM frame is read again by a second DMA (esp_async_memcpy)
-// into an internal buffer, chunk by chunk, and compared with what the CPU sees. A mismatch means the DMA read bytes
-// the CPU had not written back: the fault behind a stale band. The plant (-DM3_SELFCHECK_PLANT) skips the cache
-// write-back on exactly the checked frames, and must be caught, or the check is not believed.
+// Every kCheckEvery-th push, AFTER the push's cache write-back and BEFORE its DMA starts, the frame is compared chunk
+// by chunk: the CPU's view (through the cache) is copied to an internal buffer, those cache lines are invalidated
+// (msync M2C: no write-back), and the same bytes are read again, now from PSRAM -- which is what the DMA is about to
+// read. A mismatched byte is one the DMA would send stale: the fault behind a stale band. The plant
+// (-DM3_SELFCHECK_PLANT) skips the write-back on exactly the checked frames, and must be caught, or the check is not
+// believed. RE-REGISTERED 2026-11-16: the first version re-read with esp_async_memcpy, which (IDF 5.5.4,
+// async_memcpy_gdma.c:379-386) writes the source's cache back BEFORE its DMA read, so it could never see a stale line
+// (the plant read 0 of 450).
 constexpr uint32_t kCheckEvery = 30;
-constexpr size_t kChunk = 4096;
-async_memcpy_handle_t g_mcp = nullptr;
+constexpr size_t kChunk = 3200;   // 100 data-cache lines (32 B on this build), and 36 chunks make exactly one frame
+static_assert(kBytes % kChunk == 0, "the chunks must tile the frame exactly");
+static_assert(kChunk % 64 == 0, "an invalidate must cover whole cache lines (32 or 64 B)");
 uint8_t* g_chunk = nullptr;
-SemaphoreHandle_t g_chunkDone = nullptr;
-uint32_t g_checks = 0, g_badFrames = 0, g_badChunks = 0, g_checkErr = 0;
-
-static bool IRAM_ATTR OnChunkDone(async_memcpy_handle_t, async_memcpy_event_t*, void* arg)
-{
-    BaseType_t woken = pdFALSE;
-    xSemaphoreGiveFromISR((SemaphoreHandle_t)arg, &woken);
-    return woken == pdTRUE;
-}
+uint32_t g_checks = 0, g_badFrames = 0, g_badChunks = 0, g_checkErr = 0, g_badBytes = 0, g_maxBytes = 0;
 
 void CheckInit()
 {
-    async_memcpy_config_t cfg = ASYNC_MEMCPY_DEFAULT_CONFIG();
-    if (esp_async_memcpy_install(&cfg, &g_mcp) != ESP_OK) g_mcp = nullptr;
-    g_chunk = (uint8_t*)heap_caps_aligned_alloc(64, kChunk, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-    g_chunkDone = xSemaphoreCreateBinary();
-    Serial.printf("[m3-bench] self-check: async memcpy %s, chunk %u B internal %s, every %lu pushes%s\n",
-                  g_mcp ? "ok" : "FAILED", (unsigned)kChunk, g_chunk ? "ok" : "FAILED", (unsigned long)kCheckEvery,
+    g_chunk = (uint8_t*)heap_caps_aligned_alloc(64, kChunk, MALLOC_CAP_INTERNAL);
+    Serial.printf("[m3-bench] self-check: cpu-vs-psram (msync M2C), chunk %u B internal %s, every %lu pushes%s\n",
+                  (unsigned)kChunk, g_chunk ? "ok" : "FAILED", (unsigned long)kCheckEvery,
 #if defined(M3_SELFCHECK_PLANT)
                   "; PLANT: the checked frames skip the cache write-back"
 #else
@@ -190,21 +181,29 @@ void CheckInit()
     );
 }
 
-void Check(const uint8_t* frame)
+void Check(uint8_t* frame, uint32_t push)
 {
-    if (!g_mcp || !g_chunk || !g_chunkDone) { g_checkErr++; return; }
-    bool bad = false;
+    if (!g_chunk) { g_checkErr++; return; }
+    uint32_t bytes = 0, chunks = 0;
     for (size_t off = 0; off < kBytes; off += kChunk) {
-        const size_t n = (kBytes - off < kChunk) ? kBytes - off : kChunk;   // the last chunk is 2,512 B
-        if (esp_async_memcpy(g_mcp, g_chunk, (void*)(frame + off), n, OnChunkDone, g_chunkDone) != ESP_OK ||
-            xSemaphoreTake(g_chunkDone, pdMS_TO_TICKS(50)) != pdTRUE) {
-            g_checkErr++;
+        memcpy(g_chunk, frame + off, kChunk);                                   // the CPU's view, through the cache
+        if (esp_cache_msync(frame + off, kChunk, ESP_CACHE_MSYNC_FLAG_DIR_M2C) != ESP_OK) {
+            g_checkErr++;                                                       // an error is never a check
             return;
         }
-        if (memcmp(g_chunk, frame + off, n) != 0) { g_badChunks++; bad = true; }
+        uint32_t b = 0;
+        for (size_t k = 0; k < kChunk; ++k) b += (g_chunk[k] != frame[off + k]);   // PSRAM's view: what the DMA reads
+        if (b) { bytes += b; chunks++; }
     }
     g_checks++;
-    if (bad) g_badFrames++;
+    if (bytes) {
+        g_badFrames++;
+        g_badChunks += chunks;
+        g_badBytes += bytes;
+        if (bytes > g_maxBytes) g_maxBytes = bytes;
+        Serial.printf("[m3-bench] mismatch push=%lu bytes=%lu chunks=%lu\n", (unsigned long)push,
+                      (unsigned long)bytes, (unsigned long)chunks);
+    }
 }
 #endif  // M3_BENCH
 
@@ -224,6 +223,9 @@ void Task(void*)
         if (!checkThis)   // M3-9's control: the checked frames skip the write-back, and the check must catch them
 #endif
         if (esp_cache_msync(p, kBytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M) != ESP_OK) g_syncErr++;
+#if defined(M3_BENCH)
+        if (checkThis) Check(p, g_pushes + 1);   // after the write-back, before the DMA reads PSRAM
+#endif
         const uint32_t t1 = micros();
         tft.startWrite();
         tft.pushImageDMA(0, 0, SCREEN_SIZE, SCREEN_SIZE, (const lgfx::swap565_t*)p);
@@ -231,9 +233,6 @@ void Task(void*)
         while (tft.dmaBusy()) vTaskDelay(1);
         tft.endWrite();
         const uint32_t t2 = micros();
-#if defined(M3_BENCH)
-        if (checkThis) Check(p);   // before the buffer is freed, so nothing redraws it during the re-read
-#endif
         // FrameDone moves HERE (doc, section 5): map-client's p2p is timed from it, and it must stay
         // "present to present". Left in the loop it would time the loop, not the glass.
         framebuf::SetPhase(framebuf::kPhasePushed);
@@ -255,9 +254,10 @@ void Task(void*)
             g_pushUsMax = 0;
             g_waitUsMax = 0;
 #if defined(M3_BENCH)
-            Serial.printf("[m3-bench] checks=%lu bad_frames=%lu bad_chunks=%lu check_err=%lu\n",
+            Serial.printf("[m3-bench] checks=%lu bad_frames=%lu bad_chunks=%lu bad_bytes=%lu max_bytes=%lu "
+                          "check_err=%lu\n",
                           (unsigned long)g_checks, (unsigned long)g_badFrames, (unsigned long)g_badChunks,
-                          (unsigned long)g_checkErr);
+                          (unsigned long)g_badBytes, (unsigned long)g_maxBytes, (unsigned long)g_checkErr);
 #endif
         }
     }
