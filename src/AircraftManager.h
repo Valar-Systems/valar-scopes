@@ -53,7 +53,6 @@
 #endif
 // THE MAP DRAW END
 #include "OverlapCount.h" // what collides with what on the radar (pure)
-#include "AirportLabel.h" // where an airport's code may go without landing on traffic (pure)
 #include "RadarZoom.h" // swipe-to-zoom: the ladder, one step, the idle test (pure)
 #include "LongPressPolicy.h" // long press to toggle zoom: ring, threshold, rejoin (pure)
 #include "TouchWedgeCap.h" // the touch-wedge reboot cap's driver, shared with Weatherscope (host-tested)
@@ -337,23 +336,9 @@ private:
     // direction that reads as good news.
     static constexpr int OVERLAP_RECT_CAP = 192;
     overlapcount::Frame<OVERLAP_RECT_CAP> overlapFrame;
-
-    // What an airport CODE must not land on, beyond overlapFrame's text boxes (docs/v20-label-collision.md, Z-a):
-    // each aircraft symbol, plus the traffic text overlapFrame does not hold (the emergency descriptor, LOOK UP, the
-    // watchlist and pinned callsigns). Each is recorded at the call that drew it. SEPARATE from overlapFrame, so
-    // #310's counter is unchanged. Per contact at most a symbol and four texts; the cap is asserted in DrawRadar.
-    static constexpr int AIRPORT_OBSTACLE_CAP = 5 * 64 + 8;
-    using AirportObstacleList = airportlabel::Obstacles<AIRPORT_OBSTACLE_CAP>;
-    AirportObstacleList airportObstacles;
-
-    // The airports whose MARK this frame drew, and where each code goes. Decided once, on the first band; every band
-    // draws the same decision.
-    struct AirportMark {
-        int16_t x, y;                 // the mark's centre
-        const char* code;             // stable for the frame: the baked table or the loaded cloud list
-        airportlabel::Placement at;   // Right / Left / Dropped
-    };
-    std::vector<AirportMark> airportMarks;
+    // The airport label's own state (what a code must not land on beyond overlapFrame, and this frame's marks) is NOT
+    // a member: it lives in its own translation unit, include/AirportLabelFrame.h, so this class's layout is what it
+    // was before v20 (#719 row (d)).
     unsigned long lastMetadataLookup = 0;
 
     // Watchlist: aircraft whose callsign/icao/registration/type starts with one
@@ -1008,8 +993,8 @@ private:
     // Fixed airport markers (baked Airports.h table culled to the scan box),
     // drawn under the aircraft layer so blips always win the ink.
     // MARKS ONLY since v20: each visible airport's code is placed after the traffic pass (DrawAirportLabels), so it
-    // can yield to what the traffic drew. `marks`, when given, collects the visible airports for that.
-    void DrawAirports(BandCanvas& backbuffer, std::vector<AirportMark>* marks) const;
+    // can yield to what the traffic drew. `record` (the first band) collects the visible airports for that.
+    void DrawAirports(BandCanvas& backbuffer, bool record) const;
     void DrawAirportLabels(BandCanvas& backbuffer, bool firstPass);
     std::pair<int, int> ProjectCoordinateToScreen(float predLat, float predLon) const;
     // The projection with the scale passed in. ProjectCoordinateToScreen is this at
@@ -1164,9 +1149,8 @@ private:
     bool ShowPostFlightCard() const;
     /// The nearest airport code to home, from the data already on the device.
     void ResolveHomeField();
-    // `rec`, when given, records the marker dot and the descriptor text as airport-label obstacles (v20).
-    void DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked,
-                            AirportObstacleList* rec) const;
+    // `record` (the first band) records the marker dot and the descriptor text as airport-label obstacles (v20).
+    void DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, bool record) const;
     void DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked);
     /// The one-glyph preview of which Follow face this card opens onto.
     void DrawFollowFaceGlyph(BandCanvas& backbuffer, const TrackedAircraft& tracked);
@@ -1366,8 +1350,8 @@ private:
     bool SendFlyoverNotification(const TrackedAircraft& tracked, bool military = false);
     bool SendOverheadNotification(const TrackedAircraft& tracked);
     bool SendEmergencyNotification(const TrackedAircraft& tracked);
-    // `rec`, when given, records the LOOK UP text as an airport-label obstacle (v20).
-    void DrawOverheadAlert(BandCanvas& backbuffer, int x, int y, AirportObstacleList* rec) const;
+    // `record` (the first band) records the LOOK UP text as an airport-label obstacle (v20).
+    void DrawOverheadAlert(BandCanvas& backbuffer, int x, int y, bool record) const;
 
     // Visual alert layer: scan the picture for alerting classes + fire flash
     // burst edges (loop task, once per frame), and draw the resulting overlay

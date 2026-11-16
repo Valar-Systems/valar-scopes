@@ -375,6 +375,32 @@ fi
 )
 note_block $? "airport label (yields to traffic text and symbols)"
 
+# --- the airport label's frame unit, linked as built (#719 row (d), docs/v20-label-collision.md) ------------------
+#
+# The label fix's state and decision live in their own translation unit, src/AirportLabelFrame.cpp, so
+# AircraftManager.cpp keeps only calls. This links that very file: what DrawRadar records reaches the decision, the
+# counter's text and the caller's width are what Decide uses, and each frame starts clean. Its sabotages are
+# test/host/sabotage_airport_label_frame.py (planted in a copy of the unit), run by hand before a PR.
+echo "== airport label frame unit (src/AirportLabelFrame.cpp, linked) =="
+(
+  fail=0
+if ! "$CXX" $FLAGS $INCLUDES "-I$ROOT/include" "$ROOT/test/host/test_airport_label_frame.cpp" \
+      "$ROOT/src/AirportLabelFrame.cpp" -o "$OUT/test_airport_label_frame.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the airport label frame test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_airport_label_frame.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "airport label frame unit (src/AirportLabelFrame.cpp, linked)"
+
 # --- the coordinate boxes a customer actually types into (2026-09-17) -------
 #
 # Found by the fresh-boot acceptance stalling at step 2 on an iPhone: the lat/lon
