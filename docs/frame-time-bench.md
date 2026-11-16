@@ -3417,6 +3417,45 @@ changed three of them, and two readings are recorded beside them.
   11-12 v19 baseline, which reads the same shape (183 frame lines among 488 `[health]` lines). So CADENCE and the
   windows read unchanged.
 
+**THE FINDING BEHIND R6 AND R7: on image B, p2p sits on a 1 ms grid.** Read offline from the sibling's own proof window
+(`cap10/trace-v20-P`, image B), by reader b's own `parse()`, before any S2b reader code:
+
+| scene (proof window, image B) | p2p a whole ms | most common p2p (ms) | p95(p2p) − p95(fr) |
+|---|---|---|---|
+| S0 C1 plain | 48.0 % | 70.00, 69.99, 71.00, 70.99 | +0.19 |
+| S1 C1+push10 | 68.0 % | 70.00, 71.00, 69.99 | −0.16 |
+| S2 C1+push60 | 91.6 % | 84.00, 83.99 | −2.25 (`pres != 1` on 2.24 %: the excluded scope) |
+| S3 C1+loop10 | 48.5 % | 80.00, 79.99, 81.00 | +0.16 |
+| S4 C1+push60drop | 92.4 % | 84.00, 83.99 | −2.02 (`pres != 1` on 2.17 %) |
+
+- **The control is image A,** the 11-12 v19 baseline: 0.9 to 1.6 % of p2p values are a whole ms in each of its first six
+  scenes, as a `micros()` difference should be.
+- **The values that are not a whole ms sit one 10 µs unit below one** (69.99, 70.99). So every p95(p2p) on B reads a
+  whole millisecond: 73.00, 84.00, 83.00 and 84.00 in that window.
+- **The likely mechanism, named and not relied on:** the push task presents on the 1 ms tick. No row below depends
+  on it. (The orchestrator passed it to p4 as a design observation for M3, not as a ruling on this bench.)
+
+**(R6) FIX-g ON IMAGE B: [−1.0, +2.0] ms** (accepted 2026-11-16 ~05:48Z; was [0, +2.0], derived on image A).
+- On B a whole-millisecond p95(p2p) is read against a continuous p95(fr), so their difference jitters by up to one
+  grid step from quantization alone. B's own scenes without a 60 ms push read −0.16 to +0.19.
+- The band moves its lower edge down by exactly one grid step (1 ms). The upper edge is unchanged.
+- This is a calibration from a proof-window trace, NOT from S2b's graded run, so it is not a re-fit.
+- **The alternative, named:** report FIX-g on B without grading it. Not taken: FIX-g is the instrument's consistency
+  check (p2p ≈ fr in lockstep), and that holds on B to within the grid.
+
+**(R7) R-b's CENTRE AND X-b's X̂ COME FROM S2** (accepted 2026-11-16 ~05:48Z). v19's line (35.80 + 0.802 n − 2.91) is a
+model of v19, not of v20.
+- **R-b's per-scene centre** = S2's measured p95(p2p) of the SAME scene − 9.5 (C1's answer) + the map term + the
+  weather term, band ± 10 ms. **X̂** = the largest of the six centres (the accepted X̂ rule, applied per scene).
+- **The inputs** are S2's reader output: S2's per-scene p95(p2p), its X, its XA `m` per home and its LIVE-OWN windows.
+  They enter as one reference file, pinned by sha256 after Monday's window and frozen into this section before S2b's.
+  A term with no measurement widens the band by its stated bound, written into the same file.
+- **The live residuals** print against v20's own replay line (XA's), reported only, never against v19's.
+- **IL-a stays as registered.** Its pooled Δp50 band [9.5, 10.5] admits only 10.00 on a whole-ms grid. The proof
+  window's plain and loop10 scenes sit at modes 70 and 80 (+10.00), and THE PACKAGE read +10.00, so IL-a is expected to
+  hold. The read prints the off and on p50 modes beside IL-a, so a grid flip shows as exactly one step. Outcome C still
+  goes to the owner.
+
 ### THE POST-v20 QUEUE: the ~200 ms full redraw (the owner's answer, 2026-11-15; queued, nothing before v20)
 
 - **The owner, verbatim:** "Sea: a. Queue the faster water fill for after v20, and with it, look at the ~200 ms full
