@@ -1,0 +1,77 @@
+S4-2 BEFORE: the renders, the renderer control and S4-3b's BEFORE break counts, registered before any build or render
+(map-server, 2026-11-16; seam25.pred 3382638a1ea2's S4-2 and S4-3b, the BEFORE half only). The pictures go to the owner UNOPENED.
+INPUTS: the six BEFORE packages from s4b_fetch.py (main's builder b282699ac091 over the served store 4c0875738f38, the device's
+request at a configured 100 mi; their sha256 recorded by that run), the frozen S4-1 centres, and the 2024 county file in the
+held cache (read-only, its mtime checked).
+THE TOOLS, by sha256:
+- mirror/s4_lines.py 2218978de7a7, which imports s41_centres.py and s40_box.py unchanged;
+- fbcounts/s4_render.cpp 40d6f0a0dd7d and s4_build.sh c4cc9d709e54, built in WSL with fb_counts' flags against the same tree copy
+  (bench/frame-bench-v20 at 08e68191f7b7); s4_build prints the four header shas, which pin the device code;
+- fbcounts/s4_render_all.sh fdc92176fa14;
+- mirror/s4_plant.mts 2823bf102236, which uses main's own format.ts decode and encode from wt-s4b;
+- mirror/s4_png.py 8d8aecb4d6e3.
+
+THE STEPS AND THEIR PREDICTIONS, each through runlog:
+R1 s4_lines.py:
+- for each county, "line segments" EQUALS S4-1's count (the same algorithm): 38021 1,056; 39167 1,964; 44007 2,077; 56029 5,252;
+  17005 1,235; 19123 1,357;
+- within 100 km of the centre: recorded, each > 0;
+- the county file's mtime unchanged; exit 0.
+R2 s4_build.sh (WSL): exit 0, log 0 B, the binary present. The four header shas are recorded.
+R3 s4_plant.mts:
+- "encode(decode(original)) equal to the original bytes: true";
+- the planted copy differs by sha256; water rings differing 1, same vertex count true, every other section equal true;
+- written; exit 0.
+R4 s4_render_all.sh (WSL), the six BEFORE packages with their lines, then the planted copy:
+- for each of 6 x 3 frames: "FRAME <mi> ok 1 ..." and "wr: ok 1 ... other 0";
+- a BREAK line per centre and rung: the counts are RECORDED, any number. Per seam25, S4-3b is read comparatively against AFTER,
+  never as an absolute;
+- the control's three frames are ok 1 with other 0;
+- every exit 0; frames written 42.
+R5 THE RENDERER CONTROL (the orchestrator's addition): s4_png.py diff, PLANT-44007 against BEFORE-44007:
+- at 10 mi, the all-layers frames DIFF > 0, AND the water + rivers frames DIFF > 0. 500 m is about 3.7 px at 10 mi.
+- at 25 and 50 mi: recorded, any number.
+- If the 10 mi diff is 0, the renderer cannot show the difference, and NO picture is given.
+R6 THE PICTURES:
+- s4_png.py png for the 18 all-layers BEFORE frames, written to C:\Github\_handoffs\map-server\census-2025-pictures\ (absent before)
+  as BEFORE-<county>-<mi>mi.png;
+- each PNG's bytes and sha256 printed. Not opened by map-server.
+
+OUTSIDE THE SET:
+| reading | then |
+|---|---|
+| a package refused by Load, any ok 0, or other > 0 (INSTRUMENT: a pixel no theme colour) | STOP; report |
+| R1's segment counts not S4-1's | STOP; L is not S4-1's line |
+| R3's round trip not equal, or the plant not one ring | STOP; no control, no picture |
+| R5's 10 mi diff 0 | STOP; no picture is given |
+| a build warning or failure | STOP; report it whole |
+| anything else | stop and decide |
+FROZEN 2026-11-16T05:14:42Z
+
+AMENDMENT 1 (ruled (A) by the orchestrator after 2026-11-16T05:21:55Z, before any plant was written or any frame rendered):
+R3 stopped as registered. BEFORE-44007's water section holds 0 rings, so nothing was planted. A read-only probe of all six BEFORE
+packages (main's decode, mirror/s4_sections_probe.mts) found that main's builder, at the device's own 100 mi request, DROPS EVERY
+WATER RING at 39167, 44007, 17005 and 19123: dropped.water 147, 317, 139 and 102 in each package's PROVENANCE, with missing 0. It
+keeps 138 at 38021 (48 dropped) and 55 at 56029 (0 dropped). Rivers are kept at every centre. Both alternatives are excluded:
+encode(decode()) is byte-equal and the other sections decode, so it is not a decode fault; every key was read and PROVENANCE counts
+the rings as dropped, so it is not a missing input. This is what devices show today.
+- R3 RE-POINTED to 38021, the AREAWATER centre with 138 rings. mirror/s4_plant.mts is now c2e6db9f4afb and takes the centre as its argument.
+  - Its ring with the vertex nearest the centre moves 500 m east. That distance is printed in km and must be inside the 10 mi
+    view's 16.09 km, else nothing is written.
+  - The same proofs as before: the round trip byte-equal; the planted copy differs by sha; exactly 1 water ring changed, with the
+    same vertex count, and every other section equal. Written as BEFORE-38021-plant.bmpk.
+- R4's control render is RE-POINTED to that copy (fbcounts/s4_render_all.sh now cf754a97356f): its three frames ok 1, other 0. The six
+  BEFORE renders are unchanged.
+- R5 RE-POINTED: PLANT-38021 against BEFORE-38021. At 10 mi, the all-layers DIFF > 0 AND the water + rivers DIFF > 0; at 25 and
+  50 mi, recorded. A 10 mi diff of 0 is a STOP, and no picture is given.
+- R6 adds README.txt beside the 18 PNGs, exactly these lines, then each PNG's name and sha256:
+    BEFORE = what devices show today: main's builder (b282699ac091) over the served store 4c0875738f38, at the device's 100 mi
+    request, drawn by the device's own maplayer::Build (dark theme, weather off), radar-up at 10, 25 and 50 mi around each census
+    seam centre.
+    Finding: at the 100 mi setting, today's builder drops every lake and pond at 4 of these 6 seams (39167, 44007, 17005, 19123);
+    rivers are kept everywhere.
+- WHAT IT MEANS FOR S4: at those four centres, BEFORE has no water, so BEFORE against AFTER cannot isolate a census seam there;
+  #696's builder (the named confound) dominates. S4's seam question at those four centres is answered from AFTER's own pictures and
+  its seam counts (S4-3), never from a BEFORE comparison. S4-3b's BEFORE break counts there are rivers alone, recorded as such.
+- Everything else in this file stands as frozen.
+FROZEN AMENDMENT 1 2026-11-16T05:23:12Z

@@ -1,0 +1,45 @@
+# WITHHELD-step8_26.txt: files the public record does not carry, named by their bytes.
+# The orchestrator's ruling, 2026-11-16: public record text carries no 3-dp test point, no scratch id in a path,
+# no personal name and no user path. Each file below is held off-repo; its full sha256 proves which bytes a
+# record cites. 'not added': a step-8 tool withheld from this commit; 'removed from HEAD': was public before,
+# removed here (history keeps it).
+# columns: path <TAB> sha256 <TAB> reason(s) <TAB> state
+scratch-record/q-w4/fbcounts/s4_render_after.729d68b877a5.sh	729d68b877a5b725bfa6548fd43f76f40cbebb47324886aedbfc2e1c9b65f837	personal name, user path	not added
+scratch-record/q-w4/fbcounts/s4_render_after.sh	dfec0db3ac42e13dafaa61df271f7f263208382a35f9b3fba3568b1703dcb3dd	personal name, user path	not added
+scratch-record/q-w4/fbcounts/s4_render_cut.sh	4d7d1aa26e4ff2741a9a549cd3d1783aaeead9310978c73abc2dcaef9e2f7055	personal name, user path	not added
+scratch-record/q-w4/bg/bgcheck.bb2f9e9dc836.py	bb2f9e9dc83638f940105a07fa69de75cb73af6869013cbf1e9969525ec5f78b	personal name	not added
+scratch-record/q-w4/bg/bgcheck.py	944e9ad8ce64cb5b96608921c5e05ed54098be44e96eae3ecff9e481ecaa1aea	personal name	not added
+scratch-record/q-w4/bg/bgcheck2.py	0ac6f374f53e1142aebdd4f0b47cdcfd6cce383247aea7c158693d21abc4214f	personal name	not added
+scratch-record/q-w4/mirror/cmp26.pred	51ec317beb629189fd4c1b7778419446d65089d467b16d8df68914df22e39caf	personal name	not added
+scratch-record/q-w4/mirror/d2d3_26.aa521a619965.mts	aa521a6199653c0ae600e948369d58996e889feb918899b617cc3cf73ac95e64	3-dp test point	not added
+scratch-record/q-w4/mirror/d2d3_26.mts	2a9729a4828152a39ce174eec566bffdac698439e5c7c202c85b5034e10fd9f2	3-dp test point	not added
+scratch-record/q-w4/mirror/diskwatch2.sh	dce021139d43ddc1e1c2013dcc62f0e0abbd4359da399bff59e422d414a09117	personal name	not added
+scratch-record/q-w4/mirror/dw3.pred	641710381417bb55bfbc49255120040c89bde8b0a44eeed788a6f2c343ac168f	personal name	not added
+scratch-record/q-w4/mirror/dwtree.py	3dc53c5c27ab97078d8f1f4e9e056783fcf8bad2f92fa7246237fbf511d50123	personal name	not added
+scratch-record/q-w4/mirror/i2_26.py	02f7f769b3a7171cd8d7ad9b918f08a1b5cd58b6f81977d58f99c5fd0b03f61c	3-dp test point, personal name, user path	not added
+scratch-record/q-w4/mirror/inv26.py	bfc0b92df6d705e33e4d1824c5c2e563538348e1864ef8345c620acb2a813052	scratch id in a path, personal name, user path	not added
+scratch-record/q-w4/mirror/kb7c26.mts	cf8f0e28b80b459514977a6d61c184f19300cf44ad74e84f4a5ac3b9507bb748	3-dp test point	not added
+scratch-record/q-w4/mirror/met26.mts	95a07217683f04f673a7bdc84e71f5e093b633b935e80553eb1348867979347c	3-dp test point	not added
+scratch-record/q-w4/mirror/met26b.mts	9851e325ea205845e4fa09e05a5d840c7bcf197960c375421432c4a2876b7c2a	3-dp test point	not added
+scratch-record/q-w4/mirror/mk_5d4.py	3c3dd354a8d184ffed5f0db321fb0ba78cd5f9795f9956461aa8325eec9cec5e	scratch id in a path, personal name, user path	not added
+scratch-record/q-w4/mirror/p5d6_paths.sh	000966301dc6a7f2d78609af913dd6b9b8065e756979582e4785ef994114b77f	scratch id in a path, personal name, user path	not added
+scratch-record/q-w4/mirror/p5d_paths.1b0f5762e7ed.sh	1b0f5762e7edebaf3c23d6b2a92f301fb10ceb4bdea2f0f48495667e2d912e56	scratch id in a path, personal name, user path	not added
+scratch-record/q-w4/mirror/p5d_paths.sh	3f16136919d08d50382223fd92e6feb8d1da9642baeb9a5856ed14611fdd7811	scratch id in a path, personal name, user path	not added
+scratch-record/q-w4/mirror/rehearse_dw3.py	c900d97b3568e11a80a759740686502b947831cc5f341a894e73e2ab319a3db2	personal name, user path	not added
+scratch-record/q-w4/mirror/s4after_cutgrade26.py	d2cd417d078f5b9eaa127165bf48575c774c7e83319880ce3abb782071b2e51f	personal name	not added
+scratch-record/q-w4/mirror/s4after_grade26.6bf01deb7a67.py	6bf01deb7a67e5e5be4a309020332760366f0eb9120f88d22352c75a4c8c36ef	personal name	not added
+scratch-record/q-w4/mirror/s4after_grade26.eb1ceeec58b1.py	eb1ceeec58b18ff6919e08144a414b5774942350cf07dcacd0004bb24c6413e8	personal name	not added
+scratch-record/q-w4/mirror/s4after_grade26.py	bedcbbe704bd263393fbd54fd8bbf2b5066bd5e7194bae427135494c9cb004cb	personal name	not added
+scratch-record/q-w4/mirror/step8_25.pred	83a137caff54b352a3e1f28ba65fd2cb218c18a594483977d55075508bde8b1c	personal name	not added
+scratch-record/q-w4/mirror/tbstore26.mts	5bc1ec9709417063c3bdf3fb873db1e9657f77a3f176d0991f78e18f1c82a975	3-dp test point	not added
+scratch-record/q-w4/mirror/tree25_cmp.py	66630ef80cb2f2a1d4d3cc06748bddb82a6571117a291d281b1974638c467f18	personal name	not added
+scratch-record/q-w4/p2-read.py	7ad9bcdbb63a7098e426fdff209a2486b6a1153c91e3b59706e3fae38d28c6e9	3-dp test point, personal name, user path	not added
+scratch-record/q-w4/cm/dr-cm.mts	3a98e065bd05eff078a5c87284e0970db54696c38868625d9fa528e0cae69ba6	3-dp test point	removed from HEAD
+scratch-record/q-w4/cp-run.mts	2eaa14c2866194a7f2c0c13abeb14200627084a689269f8b5e1a1c7f8b8f87b9	3-dp test point	removed from HEAD
+scratch-record/q-w4/mirror/met.mts	de3ac090e0a73ce6a44008b5c97b1ade32247dfc1cb55aa6fa2314b869858a09	3-dp test point	removed from HEAD
+scratch-record/q-w4/mirror/rehearse_d.out	828dd88af3a404f2a40a0afc76765bc850a1c80b637261fdbc1d33b7d471a1aa	personal name, user path	removed from HEAD
+scratch-record/q-w4/mirror/rehearse_m4.out	c5f81adffa97a987dcc9ad4f93e2550c8d784446e64ff14ac36ea225cbee9988	personal name, user path	removed from HEAD
+scratch-record/q-w4/mirror/rehearse_n6.out	d38939bd5f8e8b9f09de512c5bfb8098004fa5b1489687b896fcdc25f3ac3452	personal name, user path	removed from HEAD
+scratch-record/q-w4/mirror/s01-r7.out	ac010d9d5e9d4018c3a0f006331d67de9a73b81a08e57ba9eaa8b6ddc0b0cede	personal name, user path	removed from HEAD
+scratch-record/q-w4/mirror/step8_26.pred	581d4e87a8fafc14c5b703896dad34c8f1028bc26e2817751ce30cf00cd6c8c0	personal name	removed from HEAD
+scratch-record/q-w4/seafig/sf-run.mts	51c8bf0fca58ce63f1428a47d543bfd1cf97aa46bef49432cc8246292e7fb4cb	3-dp test point	removed from HEAD

@@ -1,0 +1,101 @@
+SEAM-25: step 4, before-and-after pictures of the six counties at the device's views, and a seam count. Registered
+before any code for it (map-server, 2026-11-15). The pictures go to the owner unopened, before anything ships. Host only:
+no board, no network. Every input is read-only. Nothing touches the held cache except reading the county file.
+Heavy steps (store build, package builds) run only outside the owner's sitting (17:30-20:50Z).
+
+S4-0 THE REGION-BOX HYPOTHESIS, as a count, before any picture.
+- What is tested: each county's region box is its 2024 county polygon's bounding box (ingest-basemap.ts:436-440 at 6a11b5a21d0a,
+  tl_2024_us_county.zip). A square reads a county's file only when it meets that box. So a 2025 feature reaching outside
+  its county's 2024 box can be missed by a square that meets the feature but not the box: one seam mechanism.
+- The count, per 2025 file: features; features with any vertex outside the county's 2024 box; the largest overshoot, in
+  whole metres. No coordinate is printed. The county file is read from the held cache, read-only, with its mtime checked.
+- Predicted: 0 features outside the box, in all six.
+- Outside: any > 0 -> the hypothesis is LIVE for that county. Report the counts, and that county gets one extra centre at
+  its largest overshoot (S4-1's rule 2).
+
+S4-1 THE CENTRES, one per county by rule 1 (plus rule 2's, if S4-0 found any). Computed by a script, printed at 2 dp, and
+FROZEN in an addendum to this file BEFORE any package is built.
+- Rule 1: the point on the county's line with a 2024 neighbour that is nearest the county's largest 2025 feature touching
+  that line within 100 m. Largest is by AWATER for water, by length for rivers. If no feature touches the line, the
+  boundary point nearest the largest feature.
+- Rule 2: the overshoot's point, if S4-0 found one.
+- 2 dp is about 1 km, which is <= 5 px at 10 mi. Public geography: county lines.
+
+S4-2 THE PACKAGES AND THE PICTURES. One package per centre and side, requested as the device's MapQuery asks (MapQuery.h), rendered at
+10 / 25 / 50 mi by the device's own maplayer::Build on the host (the sibling's headers, fb_counts.cpp's view), dark theme,
+weather off.
+- BEFORE: main's builder (b282699ac091) over the served store 4c0875738f38 (scratchpad/bm-obj, read-only).
+- AFTER: #696's builder (6a11b5a21d0a, or the head as it then stands) over the new store from step 8's dry run.
+- THE NAMED CONFOUND: AFTER differs from BEFORE by the six's data AND by #696's builder (the ladder, D2, the sea layer the
+  served store does not have). A difference away from the six's lines is expected and is not a seam. The seam count reads
+  AFTER alone.
+- Per centre and rung: BEFORE.png, AFTER.png, and SEAM.png (AFTER, with the county line and any seam pixel marked).
+
+S4-3 THE SEAM: definition, finder, and control.
+- Definition: on the county line L between a 2025 county and a 2024 neighbour (L from the 2024 county file, projected with
+  the same view), inside the disc, a SEAM PIXEL is a pixel within 1 px of L that is land, while the pixels 2 and 3 px from L
+  on BOTH sides, along L's normal, are water or river (a land gap through water at L).
+- Finder: sample L every 0.5 px inside the disc; count seam pixels and samples per picture. Printed as counts only.
+- Predicted: 0 seam pixels in every AFTER picture.
+- CONTROL, the planted offset: a COPY of one AFTER package (the 44007 centre: the largest file). Every water ring whose
+  centroid lies inside 44007's 2024 polygon is shifted 500 m east (about 3.7 px at 10 mi), re-encoded, and rendered.
+  Predicted: > 0 seam pixels at 10 mi on that centre's line. Graded at 10 mi only: at 50 mi, 500 m is under 1 px.
+  The plant is only in the copy, and is proved applied by a changed package sha before it is read.
+- OUTSIDE THE SET:
+  - the control reading 0 at 10 mi -> the finder is blind; no seam reading is given.
+  - any AFTER seam pixel > 0 -> that picture and its counts go to the owner with the rest, flagged; nothing ships without
+    his ruling.
+  - a package not building -> STOP and report.
+  - anything else -> stop and decide.
+
+S4-4 TO THE OWNER, unopened by map-server, through the orchestrator:
+- the pictures;
+- S4-0's counts and S4-3's counts;
+- the control's reading;
+- the confound sentence above;
+- the six sizes, and 39167's 5.5% as the one file whose size moved.
+FROZEN 2026-11-15T16:29:17Z
+
+AMENDMENT 1, S4-3b (the orchestrator's addition, accepted with SEAM-25): the other vintage seam, a break.
+- A BREAK PIXEL: a water or river pixel within 1 px of L, whose mirror across L along the normal, at 1, 2 and 3 px, holds no
+  water or river at any of the three. Water meets land across the line. Counted per picture, in BEFORE and in AFTER, by the
+  same finder (L sampled every 0.5 px inside the disc). Printed as counts only.
+- Predicted, BEFORE: > 0 at most centres. On unchanged data, an oblique river crossing or a shore that meets L makes break
+  pixels by geometry alone, so S4-3b is read COMPARATIVELY, never as an absolute.
+- Predicted, AFTER against BEFORE at the same centre and rung: |AFTER - BEFORE| <= T, T = max(4, ceil(0.25 x BEFORE)), at
+  every centre and rung.
+- The confound, named again: AFTER also carries #696's builder, whose ladder and D2 move shoreline pixels near L. So a count
+  outside T is FLAGGED to the owner with its three pictures, as "AFTER breaks more (or fewer) than BEFORE here". It is not
+  called a seam without the picture.
+- CONTROL: a COPY of the 17005 AFTER package (rivers), where every river polyline with a vertex inside 17005's 2024 polygon is
+  shifted 500 m along L (L's direction at the centre).
+  - Predicted: S4-3b at 10 mi rises by >= 2 over the unshifted AFTER.
+  - The plant is proved by a changed package sha before it is read.
+  - If it does not rise, S4-3b is blind and no S4-3b reading is given.
+AMENDED 2026-11-15T16:48:51Z
+
+AMENDMENT 2, S4-0's instrument checks, added before S4-0 runs (tool mirror/s40_box.py). These are not predictions; either
+failing means the instrument is unreliable, and NO S4-0 reading is given.
+- A, the anchor: the cached 2024 neighbour tl_2024_38045_areawater reads 0 features outside its own 2024 county box. 2024
+  water is clipped to 2024 county lines, so a correct reader cannot find any outside.
+- B, the plant: with every county box shrunk 100 m on each side, at least one of the six files reads > 0 outside. This proves
+  the comparison can fire.
+- The box is computed as the code computes it (ingest-basemap.ts:431-434): the exact bbox of the 2024 polygon's vertices, with
+  no padding.
+- An off reading of S4-0 itself STOPS, and goes to the orchestrator before anything else is done.
+AMENDED 2026-11-15T16:50:06Z
+
+ADDENDUM S4-1, THE CENTRES, FROZEN before any package (run through runlog.sh at 2026-11-15T19:50:45Z, exit 0, stderr 0 B,
+run-logs/s41-centres-20261115T195045Z.out; mirror/s41_centres.py, read-only on the cache, the county file's mtime checked).
+Rule 1 only: S4-0 read 0 overshoots, so rule 2 adds no centre. All six by rule 1's first branch (a feature touching the line
+within 100 m); none fell back to "nearest the largest". 2 dp, public geography (county lines).
+| county | file | 2024 neighbours | line segments | 2025 features | centre (lat, lon) |
+|---|---|---|---|---|---|
+| 38021 | AREAWATER | 6 | 1,056 | 593 | 45.94, -98.17 |
+| 39167 | AREAWATER | 8 | 1,964 | 1,146 | 39.59, -81.68 |
+| 44007 | AREAWATER | 7 | 2,077 | 1,909 | 41.76, -71.38 |
+| 56029 | AREAWATER | 11 | 5,252 | 412 | 44.74, -108.59 |
+| 17005 | LINEARWATER | 4 | 1,235 | 251 | 38.74, -89.50 |
+| 19123 | LINEARWATER | 6 | 1,357 | 516 | 41.27, -92.41 |
+These six points are S4-2's centres, as they stand here. A change to any of them after this line is a re-registration.
+FROZEN S4-1 2026-11-15T19:51:19Z
