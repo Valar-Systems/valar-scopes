@@ -3176,6 +3176,120 @@ predictions were frozen at 19:49:56Z, and they ran in WSL, g++ 13.3:
 The sibling was pushed at `8fb80fef41d1` (from `6f0cdd1381eb`), through the pre-push guard chain, every guard ok. The
 device compile is still not claimed; it waits for S2b's image build.
 
+## S2b's registration: RP5's run on the v20 sibling (DRAFT, before any of its code, 2026-11-16T04:59:55Z)
+
+**What S2b is.** RP5's 18 scenes, on RP5's two pinned recordings, run on the v20 sibling's image (B, the push task) at
+**v20's own customer defaults**. It gives v20's bar number X (the worst p95(p2p) of S1-S6), read against the absolute
+50 ms bar exactly as RP5 reads v19's. This is "identical ground": the same scenes, the same recordings, each image at
+its own defaults (RP5's "For v20" bullet, above). The map-rebuild tag section above is one piece of this registration;
+everything else is here.
+
+**What the sibling lacks (read from its tree at `8fb80fef41d1`, 2026-11-16 ~04:52Z).** Its `include/FrameBench.h`
+descends from C1's `bfcb47e0`, not from RP5's `a37e99b0`. Neither `a37e99b0` nor the replay (`41b317b6`) is an
+ancestor of the sibling. The two headers share the scene driver, `Override`, `OnCloudPoll`, `Record`, `PumpDump`,
+`SelfTime`, `Allocate`, `PrepareScene`, `EndMeasure`, `Present` and `DelayOn`. On the sibling, though, `OnCloudPoll`
+serves C1's and FT's synthetic table, not a recording. Missing, each with the RP5 commit it comes from:
+
+| piece | RP5 commit | on the sibling |
+|---|---|---|
+| P1 the recordings: `framebench_rec_gen.h`, generated at build time by `scripts/framebench_rec.py` from the pinned files, never tracked (FB-R3) | `41b317b6`, `be73655e` | absent |
+| P2 the REPLAY serve: the live GET made and parsed as shipped, then the recorded body at the same elapsed time since the settle, the CRC on the device, `served A<i> <seq> crc … us …` | `41b317b6`, `f7d2acf8` (F1: in the settle too) | absent; the hook exists with another signature |
+| P3 the 18-scene table, its five kinds (CTRL-IL, REPLAY, FIXED, LIVE-APT, LIVE-OWN), `SettleMs`/`MeasureMs` per kind, `HomeName` | `41b317b6`, `f7d2acf8` (F2, F3) | absent: the tables are C1's and FT's |
+| P4 (Z): a REPLAY scene configures the shipping radius and zooms the ladder to its rung with `ApplyZoom(.., "bench")` | `d96e29db` | absent |
+| P5 the customer defaults: `CustomerDefault`, `Override` answering "" for every unset key, the KEEP snapshot (`SnapshotKeep`) at the first `Initialise()`'s entry | `b417d80c` | `Override` exists (C1's); the rest absent |
+| P6 the record lines: `keep defaults: …` once, `drawing S<k>: …` after each scene's `Initialise()`, `enrich S<k>: submits …` at each scene's end, and the submits counter in `RequestCloudEnrich` | `b417d80c` | absent (the drawn counter exists, `AircraftManager.cpp:4900`) |
+| P7 CTRL-IL's plant in alternate 10 s blocks of the measure | `f7d2acf8` (F3) | the plant exists as C1's (the moved loop plant, before `HandOver`); the alternation is absent |
+| P8 the local feed for CTRL-IL and the packed rows (`FRAME_BENCH_HOST`, `fixed_traffic.py` on the bench PC) | `41b317b6` | absent |
+
+**THE PORT (registered before its code).**
+- **Where:** new commits on `bench/frame-bench-v20` itself, so S2b runs the same tree FT and the proof window ran. Every
+  S2b piece sits under a new macro, `FRAME_BENCH_S2B`, set only by a new env, `blipscope-s3-128-framebench-v20-s2b`.
+  The C1, FT and proof envs never define it.
+- **The isolation proof (S2B-ISO), before the image:** each existing bench env's image built from the port's tip is
+  byte-identical to the same env built from `8fb80fef41d1`, apart from the five registered regions (`app_elf_sha256`,
+  the image SHA-256, the checksum, WiFiManager's two build-time strings), by `bindiff_elfhash.py`, "elsewhere 0". The
+  envs: `framebench-v20-ftsea`, `framebench-v20-fthr`, `framebench-c1b-proof`. Each pair is two large builds, so this
+  runs only with C: over 30 GiB (read twice, 60 s apart).
+- **Each piece is RP5's text where v20's code allows it**, and each place it cannot be is named in the commit and here:
+  - P2: the sibling's `OnCloudPoll(doc, rows, dataEpoch, parse)` gains RP5's two sent-coordinate arguments, which
+    only the REPLAY branch compares (FB-R9's text);
+  - P5: the KEEP list is the same six on v20. Read at `8fb80fef41d1`, `AircraftManager.cpp:1085` and `:1100-:1104`
+    are the six `if (!x.isEmpty()) display… = …` parses, the same parse as v19's `:891`, `:901-:905`;
+  - P7: the plant is the PACKAGE's moved loop plant, read IN at true size (+10.00 on p2p, push −0.02); RP5's
+    alternate-block control is moved onto it;
+  - P8: `fixed_traffic.py` `b530faf4df97` and the image's `FRAME_BENCH_HOST` (a boolean in every log), exactly as S2's.
+- **`check_frame_bench.py` gains RP5's rows** for P1-P8 (FB-R3, FB-R9, FB-R10, FB-R11, each with its plant), scoped to
+  `FRAME_BENCH_S2B`. Every existing row stays green, FB-REC included (`425040a3999d`: no piece touches `Record()` or
+  its callees).
+- **draw_pin.py at the port's tip reads UNCHANGED** (every piece sits in a FRAME BENCH region or in `FrameBench.h`).
+
+**THE RUN:** RP5's table unchanged (S0 CTRL-IL, S1-S8 REPLAY at KSFO and LAX, S9-S14 FIXED, S15-S16 LIVE-APT, S17
+LIVE-OWN), 76.5 min, `--choice 5` (LAX).
+
+**v20's defaults, read from its parses (not transcribed), with the differences from v19 printed beside them:**
+- **The weather layer:** absent means ON (`wxlayerswitch::On`, `:1115`), and every bench env builds with
+  `WX_LAYER_SHIPS`. v19's replay ran with it OFF.
+- **The map layer:** on wherever `MapEnabled()` holds (`:3790`: the cloud source, a cloud URL, a location, no
+  allocation failure).
+  - So **REPLAY, LIVE-APT and LIVE-OWN draw the map and the weather as shipped.**
+  - **CTRL-IL and the packed rows draw NEITHER,** because they read the local feed, where `useCloudSource` is false.
+    That is named, and it is the same in kind as RP5's packed rows, which already ran at v19's defaults and were
+    reported, not graded.
+- **The weather picture is live**, for each scene's home at the run's hour, and it is not recorded. Its state per scene
+  is printed: the crop flag (bit 2), the weather-rebuilt frames (bit 0), and the weather showing.
+- Everything else as RP5 lists it, read from the same parses.
+
+**THE READER, `fb_read_s2b.py`:** `fb_read_rp5.py` `e15a94a8a8f6` with these changes, and no others:
+- **BOOT:** `[build] env=blipscope-s3-128-framebench-v20-s2b fw=v19` (the sibling's `FW_VERSION` is still 19), and the
+  18-scene line.
+- **THE TRANSCRIPTIONS:** the same 24 pieces, re-located and re-hashed in the S2b commit's own source. Where a piece's
+  v20 text differs from v19's, the reader transcribes v20's. A v19 copy never grades v20 (RP5's own rule).
+- **I-5:** the sibling's corrected limits for image B (6,400 to 7,300 ns, two-sided; the purpose STOP over 50,000 ns),
+  in place of RP5's ≤ 5,000.
+- **M3-2:** bits 2 and 3 (no present, two presents) are on under 1 % of each scene's measured frames, else that scene is
+  the INSTRUMENT.
+- **THE REBUILD FRAMES (R-r).** RP5's "rebuild-tagged frames 0" holds on v19, where the weather was off and the map did
+  not exist. On v20 both rebuild:
+  - **map (bit 64):** the tag rows above (TAG-AGREE, the 0-1 per window prediction, the PARTIAL rule, IN the p95, with
+    the p95 without rebuild frames printed beside it);
+  - **weather (bit 0):** the same treatment, by Q-S2b-W below. Counted per scene, IN the p95, with the p95 without
+    them printed beside it;
+  - **the attribution on image B:** a rebuild's frames are the tagged record and the next one.
+- **XA:** v20's LIVE-APT residuals from v20's own replay line, by RP5's rule, read against RP5's interval m ± 4.54
+  frozen from S2. **This needs S2's run, Monday,** so S2b's XA numbers are frozen after S2 and before S2b's window.
+- **XCHK:** by Q-S2b-X below.
+- **X FINAL:** RP5's conditions, plus no M3-2 INSTRUMENT and TAG-AGREE in for S1-S6.
+- **Its selftest:** RP5's 28 cases, re-pointed at the S2b commit, plus the tag section's three cases and an M3-2 case
+  (over 1 % reads the INSTRUMENT). Each case gives its exit code and red set, and prints its reason's own words.
+
+**PREDICTED (frozen now; v20's numbers that need S2's data are named as such):**
+- check_frame_bench at the port's tip: every existing row green, plus RP5's rows with their plants; FB-REC
+  `425040a3999d`.
+- S2B-ISO: three pairs, "elsewhere 0".
+- draw_pin: UNCHANGED, exit 0.
+- **X̂ for v20: OVER the bar.** The basis: FT-SEA's steady windows on this same image read p95 73-75 ms at about 14 fps
+  with 40 aircraft and the map on (`ft_abs.py`, `d989b1b1d70c`), and S2b adds the weather. The centre and band are
+  frozen by rule after S2: **X̂_v20 = S2's X − 9.5** (C1's M3 cut, [7.92, 11.00]) **+ the map term + the weather term**,
+  each term written out from a measurement before S2b's window. If a term has no measurement, the band widens by its
+  stated bound rather than the term being guessed.
+- **The escape hatch:** any reading outside these, a piece whose port changes `Record()`, or an S2B-ISO byte outside the
+  five regions: stop, report, and nothing is fixed in place.
+
+**What waits for S2 (Monday 18:15-19:55Z):** RP5's measured X and XA's m. S2b's XA interval, X̂'s centre, and the
+cross-check of the transcriptions' v19-to-v20 differences against a real v19 run.
+
+**Questions, each with the default I take unless ruled:**
+
+| Q | the question | the default |
+|---|---|---|
+| Q-S2b-P | where the port lives | on `bench/frame-bench-v20`, under `FRAME_BENCH_S2B`, proven isolated by S2B-ISO |
+| Q-S2b-W | weather rebuild frames (bit 0) in the p95 | IN, counted, with the p95 without them printed beside it, as for the map |
+| Q-S2b-L | the live weather picture | as shipped, live, and not recorded; its per-scene state printed |
+| Q-S2b-X | XCHK, which needs a release image of the same version | dropped for S2b and named: no v20 release exists. LIVE-OWN is reported against S2's LIVE-OWN, labelled "between sessions" |
+| Q-S2b-A | the A/B/A rule (any v19-v20 delta needs v19 read again in the same window) | no graded cross-image delta in S2b. X against the absolute bar needs no A/B/A. v19's X from S2 is printed beside it, labelled "between sessions; E = max(spread, U95) not measured here". A graded delta would need a v19 replay in S2b's window, about 78 more minutes |
+| Q-S2b-C | CTRL-IL's map and weather | off, by the local feed's construction (above). The control's +10 is the plant's, so its scene's draw content does not change what it controls for |
+| Q-S2b-D | the date | S2b's window opens only after: the port's commits pass, S2B-ISO, the image and its manifest are acknowledged, and S2's numbers are frozen into this section. The target date is the orchestrator's to set |
+
 ### THE POST-v20 QUEUE: the ~200 ms full redraw (the owner's answer, 2026-11-15; queued, nothing before v20)
 
 - **The owner, verbatim:** "Sea: a. Queue the faster water fill for after v20, and with it, look at the ~200 ms full
