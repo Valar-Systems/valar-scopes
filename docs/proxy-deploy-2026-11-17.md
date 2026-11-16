@@ -1,8 +1,12 @@
 # The proxy deploy after #736: plan and predictions, before the deploy (written 2026-11-16)
 
-**The slot is the owner's, and it is not given yet.** The reviewer asks the owner with this plan's sha. When the go
-arrives, it is copied here verbatim, with the slot, before anything in section 2 runs. The uk-data session deploys,
-under its own deploy claim, and runs the checks below.
+**The owner's go (2026-11-16, about 22:21Z, relayed by the reviewer; the owner's selection, verbatim):** "15:00Z Tue
+(7 AM PT) (Recommended)". The option the owner selected read: "Between FT-HR and S2b, with no proxy-using window open;
+~30 min; rollback always allowed. uk-data runs it after #737's CI and my OK." ("my OK" is the reviewer's.)
+
+**The slot: Tuesday 2026-11-17, from 15:00Z, about 30 minutes.** It is a production deploy, so it keeps its time, with
+no early start. The deployer lock is confirmed with the reviewer at 14:45Z (D0.2), and the checks from D0.3 on run at
+15:00Z. The uk-data session deploys, under its own deploy claim, and runs the checks below.
 
 **Why this deploy.** #736 (`00fc75d1`) turns adsbdb off unless a variable says exactly `"true"`. It also gives the
 adsbdb TYPE backfill a switch of its own, off, because adsbdb's aircraft data is PlaneBase-derived and PlaneBase's
@@ -44,9 +48,9 @@ re-registered before the run. A deploy never carries a change nobody predicted.
 
 | step | when | what | predicted |
 |---|---|---|---|
-| D0.1 | before anything | the owner's go and slot, copied here verbatim, and committed | present. Without it, nothing runs |
-| D0.2 | before D1 | the deployer lock, confirmed with the reviewer (a granted slot is not the lock). The reviewer also confirms that no session's window that uses the proxy is open, and that neither the radar deploy nor the route run of 2026-11-18 is in progress | all confirmed. Otherwise no deploy: report, and the slot moves |
-| D0.3 | before D1 | `git ls-remote` for main, then the carried list from `git log 074863fc..<main> -- proxy/`, under section 1's rule. `/healthz` on both still reports `074863fc` | as section 1. A base other than `074863fc` means someone deployed since: stop and re-list from the new base |
+| D0.1 | before the run | the owner's go and slot, above, copied verbatim on 2026-11-16 | present. Without it, nothing runs |
+| D0.2 | 14:45Z, and again at 15:00Z | the deployer lock, confirmed with the reviewer (a granted slot is not the lock). The reviewer also confirms that no session's window that uses the proxy is open, and that neither the radar deploy nor the route run of 2026-11-18 is in progress. **FT-HR:** at 15:00Z, map-client is asked whether FT-HR (from 12:54Z, up to about 212 min, so to about 16:26Z at most) is still drawing through the proxy | all confirmed. If FT-HR is still drawing, the deploy waits for its end, but not past 17:50Z (S2b). If it cannot fit before then, no deploy: report to the reviewer, who goes back to the owner |
+| D0.3 | from 15:00Z | `git ls-remote` for main, then the carried list from `git log 074863fc..<main> -- proxy/`, under section 1's rule. `/healthz` on both still reports `074863fc` | as section 1. A base other than `074863fc` means someone deployed since: stop and re-list from the new base |
 | D0.4 | before D1 | CI at main's sha: a FINISHED run, read twice at least 60 s apart, by full sha | finished, nothing failed. Otherwise wait, or no deploy |
 | D0.5 | before D1 | the rollback targets, from `deployments list --json` through the helper, ids only | one id per environment, written down |
 | D0.6 | before D1 | `/healthz` on both, twice, at least 60 s apart. Written down: `commit`; `upstreams` by id, order, `enabled`, `state` and key set; the routes block; the OPERA products' `source` values | `074863fc`; the seven entries in section 3's C2 table; routes and OPERA values written down for C5 |
