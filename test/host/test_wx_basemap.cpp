@@ -1,12 +1,13 @@
 // Weatherscope 3.5b's device code (docs/weatherscope-stage3.md A10.11, as A12.39 restates it after the rulings since):
 // the BMPK reader (include/BasemapPackage.h), the basemap rasteriser (src/weatherscope/WxBasemap.h) and the fold, the
-// basemap key and the peaks (src/weatherscope/WxScreens.h), held to 98 named cases in 9 families, and nothing else:
-//   PK 32 (A10.11's 28 + A12.15's 2 + S4.29's 2), TX 5, TR 5, FL 7, LN 9, BF 9, BK 7, BW 8 (A12.53: the key's reason), PE 12.
-// Its sabotages: python -I test/host/sabotage_wx_basemap.py (16, each failing exactly its set).
+// basemap key and the peaks (src/weatherscope/WxScreens.h), held to kCases named cases in the families of kFamilies
+// (both below, and checked every run), and nothing else: PK, TX, TR, FL, LN, BF, BK, BW (A12.53: the key's reason), PE.
+// Its sabotages: python -I test/host/sabotage_wx_basemap.py (each failing exactly its set; the driver prints how many).
 //
 //     test_wx_basemap <test/fixtures/wx>
 //
-// Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, or a case count other than 98). Prints no coordinate.
+// Exit 0 all pass, 1 any fail, 2 the rig (a fixture missing, a case count other than kCases, or a family's count other
+// than kFamilies'). Prints no coordinate.
 
 #include <cmath>
 #include <cstdarg>
@@ -36,11 +37,34 @@ using wxscreens::Box;
 constexpr int kCases = 98;
 constexpr int kS = wxraster::kSize;
 
+// The families, in run order, and how many named cases each holds. A row's family is its name's leading capitals.
+// main() checks every run that each family ran exactly its count, that no row falls outside them, and that they sum to
+// kCases (S4.30, docs/weatherscope-stage4.md). That is why no count is typed in a comment in this file: a count typed
+// beside its list goes stale with nothing to say so (the header's "(16, ...)" and "FL 7" did, and S4.29 quoted one).
+// The base set is A10.11 as A12.39 restates it. Added since: PK by A12.15 and S4.29, FL by S4.21, BW by A12.53.
+struct Family {
+    const char* name;
+    int cases;
+};
+const Family kFamilies[] = {{"PK", 32}, {"TX", 5}, {"TR", 5}, {"FL", 11}, {"LN", 9},
+                            {"BF", 9},  {"BK", 7}, {"BW", 8}, {"PE", 12}};
+constexpr int kNFamilies = sizeof kFamilies / sizeof kFamilies[0];
+int familyRan[kNFamilies] = {};
+std::vector<std::string> strays;   // rows whose family is in no kFamilies entry
+
 int checks = 0, failures = 0;
 void check(const char* name, bool ok, const std::string& what)
 {
     ++checks;
     if (!ok) ++failures;
+    std::string fam;
+    for (const char* p = name; *p >= 'A' && *p <= 'Z'; ++p) fam += *p;
+    int f = 0;
+    while (f < kNFamilies && fam != kFamilies[f].name) ++f;
+    if (f < kNFamilies)
+        ++familyRan[f];
+    else
+        strays.push_back(name);
     std::printf("  %s %s %s\n", ok ? "ok  " : "FAIL", name, what.c_str());
 }
 
@@ -126,7 +150,7 @@ bool SameKnownSections(const bmpk::Package& ref, const bmpk::Package& got, int* 
     return true;
 }
 
-// ------------------------------------------------------------------------------------------------ PK (32)
+// ------------------------------------------------------------------------------------------------ PK
 void PK()
 {
     struct Neg {
@@ -215,7 +239,7 @@ void PK()
     }
 }
 
-// ------------------------------------------------------------------------------------------------ TX (5)
+// ------------------------------------------------------------------------------------------------ TX
 void TX()
 {
     struct Tx {
@@ -242,7 +266,7 @@ void TX()
     }
 }
 
-// ------------------------------------------------------------------------------------------------ TR (5)
+// ------------------------------------------------------------------------------------------------ TR
 bool OnDisc(int x, int y)
 {
     const int dx2 = 2 * x + 1 - 240, dy2 = 2 * y + 1 - 240;
@@ -297,7 +321,7 @@ void TR()
               RgbS(p1).c_str(), RgbS(p37).c_str()));
 }
 
-// ------------------------------------------------------------------------------------------------ FL (11)
+// ------------------------------------------------------------------------------------------------ FL
 typedef std::set<std::pair<int, int>> Px;
 typedef std::vector<std::pair<double, double>> Ring;
 
@@ -489,7 +513,7 @@ void FL()
           fmt("CONTROL: the first-endpoint crossing fills %zu px, %zu of the 14 (want 28406, none of them)", o.size(), held));
 }
 
-// ------------------------------------------------------------------------------------------------ LN (9)
+// ------------------------------------------------------------------------------------------------ LN
 struct Scr {
     std::vector<int32_t> qx, qy;
     std::vector<double> x, y, cross;
@@ -539,7 +563,7 @@ void LN()
               ok ? at(noriv, 95, 110) : -1));
 }
 
-// ------------------------------------------------------------------------------------------------ BF (9)
+// ------------------------------------------------------------------------------------------------ BF
 class Rec : public wxraster::Sink {
 public:
     std::vector<Rgb> px = std::vector<Rgb>(kS * kS, Rgb{1, 2, 3});
@@ -616,7 +640,7 @@ void BF()
               withImg.all == without.all ? "byte-identical" : "DIFFERENT"));
 }
 
-// ------------------------------------------------------------------------------------------------ BK (7)
+// ------------------------------------------------------------------------------------------------ BK
 void BK()
 {
     const std::vector<uint8_t> dA = Read("loop/shsr-20240521-210400.wxc"), dB = Read("loop/shsr-20240521-220000.wxc"),
@@ -647,7 +671,7 @@ void BK()
     }
 }
 
-// ------------------------------------------------------------------------------------------------ BW (8)
+// ------------------------------------------------------------------------------------------------ BW
 // The key's reason (A12.53): BaseWhy names the first field that differs, in the order package, place, zoom, mask,
 // terrain; "first" with no valid image; null when the image is still right. Over BK's own keys and geometries.
 void BW()
@@ -681,7 +705,7 @@ void BW()
     }
 }
 
-// ------------------------------------------------------------------------------------------------ PE (12)
+// ------------------------------------------------------------------------------------------------ PE
 class Peaks : public wxscreens::PeakSet {
 public:
     struct P {
@@ -822,11 +846,34 @@ int main(int argc, char** argv)
     BW();
     std::printf("== PE, the peaks ==\n");
     PE();
+    std::string fams = "families:";   // derived from the rows that ran, never typed
+    for (int f = 0; f < kNFamilies; ++f)
+        fams += fmt("%s %s %d", f ? "," : "", kFamilies[f].name, familyRan[f]);
+    std::printf("%s\n", fams.c_str());
     std::printf("%d checks, %d failures\n", checks, failures);
     if (rig) return 2;
     if (checks != kCases) {
         std::printf("the RIG: %d cases ran, A12.39 froze %d\n", checks, kCases);
         return 2;
     }
+    bool familyRig = false;   // S4.30: each family against kFamilies, then the strays, then the table's sum
+    int sum = 0;
+    for (int f = 0; f < kNFamilies; ++f) {
+        sum += kFamilies[f].cases;
+        if (familyRan[f] != kFamilies[f].cases) {
+            std::printf("the RIG: family %s ran %d, kFamilies says %d\n", kFamilies[f].name, familyRan[f],
+                        kFamilies[f].cases);
+            familyRig = true;
+        }
+    }
+    for (const std::string& s : strays) {
+        std::printf("the RIG: %s: its family is not in kFamilies\n", s.c_str());
+        familyRig = true;
+    }
+    if (sum != kCases) {
+        std::printf("the RIG: kFamilies sums to %d, kCases is %d\n", sum, kCases);
+        familyRig = true;
+    }
+    if (familyRig) return 2;
     return failures ? 1 : 0;
 }
