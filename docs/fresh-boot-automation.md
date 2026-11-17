@@ -459,3 +459,32 @@ Two of these rest on run 2's own capture:
 
 **CI at the push:** 34 = 32 pass / 2 skipping (promote, version) / 0 fail. The bench-tools workflow (#735, no path
 filter) adds the 34th.
+
+#### Addendum 3, amendment A (2026-11-17 ~01:05Z): the RED step read OFF, and the fixes re-staged
+
+Addendum 3 above is not edited.
+
+**The RED step** (commit `a37e5f8d9c8e`, read 00:47-00:55Z):
+- **As registered:**
+  - the form: FAIL FO1 and FO2, PASS FO3, and every earlier row PASS;
+  - the acceptance: FAIL A1-A5, ok A6, and every earlier row ok;
+  - the driver: E1, E2, K3, K5, T3, B1-B3, G1, G2 and G4 red; E3, K1, K2, K4, G3 and G5 green, each for its
+    registered reason.
+- **OFF:** the driver's existing rows P1-control, P2-P4 and HB1-HB3 failed. T1 and T2 were red for the wrong reason
+  (exit 2, without the token line).
+- **The cause,** from one dry run, which touches nothing: `STOPPED: the acceptance's own --selftest failed`.
+  - The driver's preflight runs the acceptance's and the form's own `--selftest`.
+  - Both are red by design at the RED step, so every dry-run row of the driver stops at that line.
+  - The registration missed that coupling. It is not a defect in any fix. Nothing was re-graded.
+
+**The re-staging** (ruled 2026-11-17 ~01:00Z):
+1. **Stage 1:** fix 4 (the acceptance) and fix 3's `--on` (the form) land alone. Both selftests must read all green,
+   with every earlier row unchanged.
+2. **The driver's selftest is then run with the driver still OLD.** Predicted:
+   - P1-control, P2-P4 and HB1-HB3 back to PASS;
+   - RED exactly E1, E2, K3, K5, T1, T2, T3, B1, B2, B3, G1, G2 and G4;
+   - T1 red because the dry run exits 0 (no refusal), and T2 red with exit 0 and no presence line;
+   - GREEN exactly E3, K1, K2, K4, G3 and G5;
+   - every other earlier row (W1-W3, P1, P5, HB4) PASS.
+3. **Outside the set:** any other row, any other reason, or an error = OFF. Stop and report, with no reading improvised.
+4. **Stage 2:** the driver's fixes, then every row of all three selftests green.
