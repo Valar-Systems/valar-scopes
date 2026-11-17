@@ -33,7 +33,8 @@
 # preflight refuses unless scripts/fresh-boot-wlan.py reads it listed, disconnected and with both radios on.
 #
 # Exit 0 graded and restored; 1 a check or the restore read red; 2 refused before anything was touched (cadence due,
-# a preflight failed); 3 stopped mid-run (a timeout, a failed POST) -- the report says what state the board is in.
+# a preflight failed); 3 stopped mid-run (a timeout, a failed POST, the cut refused) -- the report says what state the
+# board is in; 4 graded and restored, but K-wifi was VOID (nothing tested there, so never a 0).
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -75,9 +76,18 @@ die() { say "STOPPED: $*"; exit "${2:-3}"; }
 
 # wait_enter: the owner's Enter, from the terminal the script runs in (stdin first: in his own terminal that is the
 # terminal; /dev/tty only when stdin is not one). FBA_ENTER_STDIN (selftest seam): read stdin even when it is not one.
+# ONLY A BARE ENTER (fix 1, Addendum 3). On 2026-11-16 a command the owner typed into this window was taken as R1's
+# Enter. A typed line is now ignored, and only its LENGTH is said: it may be a command carrying a path or a secret.
+# End of input is not an Enter.
 wait_enter() {
-  if [ -t 0 ] || [ -n "${FBA_ENTER_STDIN:-}" ]; then read -r _; return $?; fi
-  read -r _ < /dev/tty 2>/dev/null
+  local line
+  while :; do
+    if [ -t 0 ] || [ -n "${FBA_ENTER_STDIN:-}" ]; then IFS= read -r line || return 1
+    else IFS= read -r line < /dev/tty 2>/dev/null || return 1; fi
+    line="${line%$'\r'}"
+    [ -z "$line" ] && return 0
+    say "That was not a bare Enter (${#line} characters typed here), so it was IGNORED. Commands go in the OTHER window; press Enter alone here."
+  done
 }
 
 # write_r1 <host> <snapshot, as a Windows path> <out.cmd>: R1 as a BATCH FILE he runs by its path. In a batch file
@@ -111,17 +121,42 @@ wait_log() {
 }
 
 # kwifi_grade <log> <after-line> <save-wait-s> <window-s>: K-wifi's verdict, PASS, RED or VOID (fix 1).
+# The window opens at the board's OWN portal save line after <after-line> (the prompt), never at the Enter: on
+# 2026-11-16 the Enter came before the save, and the 90 s it watched graded nothing. That line is printed for every
+# portal save, a wrong password included, and carries the portal's address and the path only, never the network name
+# or the password (include/WiFiManagerHelpers.h, TimePortalRequests: the query and body are never logged). No save line
+# within <save-wait-s> is VOID: nothing was tested, so it is never a pass. Prints the verdict and nothing from the log.
 kwifi_grade() {
-  if wait_log "$1" '\[WiFi\] CONNECTED' "$2" "$4" >/dev/null; then echo RED; else echo PASS; fi
+  local ls
+  ls="$(wait_log "$1" '\[portal\] .*/wifisave served' "$2" "$3")" || { echo VOID; return 0; }
+  if wait_log "$1" '\[WiFi\] CONNECTED' "$ls" "$4" >/dev/null; then echo RED; else echo PASS; fi
 }
 
-# board_addr <host>: the address the skip-reset branch hands the graders as FBA_DEVICE_IP (fix 3).
-board_addr() { printf '%s' "$1"; }
+# board_addr <host>: the board's IPv4 address, from a fetch of its own page by name (fix 3). skip-reset joins nothing,
+# so there is no CONNECTED line to read it from; this asks the same resolver R0's GET by name already used, and keeps
+# the address curl reached. Empty unless the page answered 200 from a dotted IPv4 address. Never printed by callers.
+board_addr() {
+  local r code ip
+  r="$(curl -4 -s -m 20 -o /dev/null -w '%{http_code} %{remote_ip}' "http://$1/" 2>/dev/null)"
+  code="${r%% *}"; ip="${r#* }"
+  if [ "$code" = 200 ] && [[ "$ip" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then printf '%s' "$ip"; fi
+}
 
-# precut_guard <watcher-output> <watcher-pid>: 0 when the power may be cut (fix 3). GUARD_MARKER is the line
-# --grade-cut prints once it is watching; G5 checks the two still agree.
+# precut_guard <watcher-output> <watcher-pid>: 0 only when the power may be cut (fix 3): an address to watch, and a
+# watcher that is still running and has said it is watching. On 2026-11-16 (run 2) the watcher had no address, wrote
+# its result and returned at once, and the power was cut with nothing watching. GUARD_MARKER is the line --grade-cut
+# prints once it is watching; G5 checks the two still agree.
 GUARD_MARKER="step 5: watching"
-precut_guard() { return 0; }
+precut_guard() {
+  [ -n "${FBA_DEVICE_IP:-}" ] || { say "step 5: no device address, so nothing could watch the cut"; return 1; }
+  local end=$(( $(date -u +%s) + ${FBA_GUARD_S:-30} ))
+  while :; do
+    kill -0 "$2" 2>/dev/null || { say "step 5: the watcher has already exited"; return 1; }
+    grep -qF "$GUARD_MARKER" "$1" 2>/dev/null && return 0
+    [ "$(date -u +%s)" -ge "$end" ] && { say "step 5: the watcher never said it was watching within ${FBA_GUARD_S:-30}s"; return 1; }
+    sleep 1
+  done
+}
 
 # get_page <host> <out.html>: the config page, to a file (it carries his settings; never printed). Echoes the status.
 get_page() { curl -s -m 20 -o "$2" -w '%{http_code}' "http://$1/"; }
@@ -308,6 +343,17 @@ if wifi_file_ok "$WIFI_FILE"; then
 else
   say "bench-wifi: absent"; die "step 2 needs the owner's file (docs/fresh-boot-automation.md): it falls back to his phone" 2
 fi
+# The boot count queries the Worker's analytics with a token (fix 2, Addendum 3). On 2026-11-16 run 1 started in a
+# shell without one, and its boots row could only be read afterwards. Asked of the boot-row reader's OWN resolver, so
+# "present" means the query will have a token. Prints present/absent; the reader never prints a value.
+TOK="$(node --experimental-strip-types "$(winpath "$ROOT/scripts/fba-boot-rows.mjs")" --check-token 2>&1)"
+if printf '%s\n' "$TOK" | grep -qx 'analytics token: present'; then
+  say "analytics token: present"
+else
+  say "analytics token: absent"
+  printf '%s\n' "$TOK" | grep -v '^analytics token:' | sed 's/^/    /'
+  die "the boot count needs the analytics token (BLIPSCOPE_TOKEN_FILE's analytics-read line, or CF_API_TOKEN): set it in this shell and start again" 2
+fi
 if [ "$HANDBACK" = "keep" ] && [ -f "$HANDBACK_FILE" ]; then
   die "HAND-BACK: a kept hash already exists; this run would not overwrite it (--drop-handback first, if it is stale)" 2
 fi
@@ -374,15 +420,36 @@ fi
 
 # ------------------------------------------------------------------------------------------------------- step 2
 if [ "$SABOTAGE" = "skip-reset" ]; then
-  IP="$(board_addr "$HOST")"   # still on its own network: no join, so no CONNECTED line to read an address from
+  # Still on its own network: no join, so no CONNECTED line to read an address from. The graders need one exactly as
+  # step 2's join branch exports it (fix 3; run 2, 2026-11-16, stopped for want of it). Never printed.
+  IP="$(board_addr "$HOST")"
+  [ -n "$IP" ] || die "skip-reset: the board's address could not be read from its page; nothing was changed" 3
+  export FBA_DEVICE_IP="$IP"
+  # The logbook to its default, ON (LOGBOOK_DEFAULT_ON, include/ConfigMigration.h): what the skipped factory reset
+  # would have left. His real settings may have it off, and on 2026-11-16 he had to tick it by hand. R1 restores his.
+  s="$(get_page "$IP" "$WORK/sr.html")"; [ "$s" = "200" ] || die "skip-reset: GET / read $s; nothing was changed" 3
+  "${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" body "$WORK/sr.html" "$WORK/sr.body" --on logbook >/dev/null \
+    || die "skip-reset: the logbook-on form could not be built; nothing was changed" 3
+  s="$(post "$IP" /save -H 'Content-Type: application/x-www-form-urlencoded' --data-binary "@$WORK/sr.body")"
+  [ "$s" = "200" ] || die "skip-reset: POST /save (logbook on) read $s; his settings may be partly written: R1 restores them"
+  s="$(get_page "$IP" "$WORK/sr2.html")"
+  [ "$s" = "200" ] && "${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" field-equals "$WORK/sr2.html" logbook on >/dev/null \
+    || die "K-lb: the logbook did not read back ON (GET / read $s); R1 restores his settings"
+  say "skip-reset: the board's address read (IPv4, not printed); the logbook set to its default ON, and read back (K-lb)"
 else
   if [ $CONTROLS -eq 1 ]; then
+    LK="$(wc -l < "$LOG")"   # the save that opens the window must come after this prompt
     say "K-wifi FIRST (rehearsal only). In a second window (PowerShell) the owner runs:"
     say "    powershell -ExecutionPolicy Bypass -File \"$(winpath "$ROOT/scripts/fresh-boot-wifi-join.ps1")\" -Control WrongPassword"
-    say "The board must STAY in its setup portal: no [WiFi] CONNECTED for 90 s after it prints 'save: HTTP 200'. Press Enter here once it has."
+    say "The board must STAY in its setup portal: no [WiFi] CONNECTED for 90 s after its own save line. Press Enter here once it has printed 'save: HTTP 200'."
     wait_enter || die "K-wifi: no terminal to wait on"
-    [ "$(kwifi_grade "$LOG" "$L1" 180 90)" = RED ] && die "K-wifi: the board JOINED on a wrong password" 1
-    say "K-wifi: a wrong password left the board in its portal"
+    say "K-wifi: waiting up to 180 s for the board's own save line, then 90 s from it"
+    KW="$(kwifi_grade "$LOG" "$LK" 180 90)"
+    case "$KW" in
+      RED)  die "K-wifi: the board JOINED on a wrong password" 1 ;;
+      PASS) say "K-wifi: a wrong password left the board in its portal (90 s from its save line)" ;;
+      *)    KWIFI_VOID=1; say "K-wifi: VOID -- no portal save line within 180 s of the Enter, so nothing was tested. The run goes on; it cannot end 0." ;;
+    esac
   fi
   say "STEP 2 IS THE OWNER'S. In the second window (PowerShell) he runs, on the PC adapter \"Wi-Fi\" (pinned in the script):"
   say "    powershell -ExecutionPolicy Bypass -File \"$(winpath "$ROOT/scripts/fresh-boot-wifi-join.ps1")\""
@@ -469,4 +536,6 @@ else
   say "R2: NOT restored: the fields named above differ. The window is NOT closed. The snapshot is kept for the owner at $SNAP."
   exit 1
 fi
-exit $(( GRADE ? 1 : 0 ))
+[ "$GRADE" -ne 0 ] && exit 1
+if [ -n "${KWIFI_VOID:-}" ]; then say "K-wifi was VOID: restored, but this run tested nothing at K-wifi (exit 4)"; exit 4; fi
+exit 0
