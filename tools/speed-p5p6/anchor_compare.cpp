@@ -9,6 +9,10 @@
 //   anchor_compare --equal <g1.fb> <g2.fb> <g3.fb>
 //                                    a scene's byte-equality OUTSIDE the excluded boxes (7g): exit 0 equal, 1 not,
 //                                    2 a grab of the wrong length
+//   anchor_compare --selftest-ab     section 10's marker A/B rows (B-*); exit 0 every row ok, 1 a row failed
+//   anchor_compare --ab <M.fb> <P.fb> <M-lines> <P-lines> <S>
+//                                    section 10's marker A/B (anchorfile::JudgeAB): exit 0 no px differs outside the
+//                                    boxes, 1 differences only inside the region, 2 any outside it, 3 VOID
 //
 // Build (from the repo root): g++ -std=c++11 -Wall -Wextra -Werror -O1 -Iinclude -Itest/host
 //                             tools/speed-p5p6/anchor_compare.cpp -o anchor_compare
@@ -473,6 +477,120 @@ int SelfTestBox()
     return failures ? 1 : 0;
 }
 
+// ---- section 10's marker A/B ----
+
+constexpr int kSMark = 0;   // MARK60, the only scene in SPEED_MARK_BENCH's list
+
+std::string TextAB(const std::vector<Line>& p0, const std::vector<Line>& p1)
+{
+    return std::string(kNoise) + Render(kSMark, 0, p0) + Render(kSMark, 1, p1);
+}
+
+void BRow(const char* id, const anchorfile::AbVerdict& v, int wantCode, const std::string& part, long wantIn = -1,
+          long wantOut = -1)
+{
+    const bool ok = v.code == wantCode && v.reason.find(part) != std::string::npos && (wantIn < 0 || v.in == wantIn) &&
+                    (wantOut < 0 || v.out == wantOut);
+    Row(ok, id, "exit " + Num(v.code) + " (want " + Num(wantCode) + "), in " + Num(v.in) + " out " + Num(v.out) +
+                    " boxed " + Num(v.boxed) + ", '" + v.reason + "' (want '" + part + "')");
+}
+
+int SelfTestAB()
+{
+    const Frame s = Scene();
+    std::unique_ptr<Img> bg = SyntheticBg();
+    std::unique_ptr<Img> m = DeviceFrame(*bg, s);
+    const std::vector<uint8_t> mB = Body(*m);
+    const std::vector<Line> k = LinesOf(s), none;
+    const std::string kt = TextAB(k, k);
+    const std::vector<uint8_t> t = anchor::Footprint(s);
+    const std::vector<uint8_t> zero((size_t)W * W, 0), d1 = anchor::Dilate(t, 1), d2 = anchor::Dilate(t, 2),
+                               d3 = anchor::Dilate(t, 3), d10 = anchor::Dilate(t, 10);
+    // P = M with pixels flipped at the given indices (a negative index flips nothing)
+    auto flip = [&](std::initializer_list<int> at) {
+        std::unique_ptr<Img> p = Copy(*m);
+        for (int i : at)
+            if (i >= 0) p->p[i] ^= 0x0001;
+        return Body(*p);
+    };
+    // the first pixel outside every box, in `in` and not in `out`
+    auto firstOpen = [&](const std::vector<uint8_t>& in, const std::vector<uint8_t>& out) {
+        for (int i = 0; i < W * W; ++i)
+            if (in[i] && !out[i] && !anchor::Excluded(i % W, i / W)) return i;
+        return -1;
+    };
+    std::vector<uint8_t> all((size_t)W * W, 1);
+    const int iMark = firstOpen(t, zero), i2 = firstOpen(d2, d1), i3 = firstOpen(d3, d2), iFar = firstOpen(all, d10);
+    // B-PICKS (control): every pixel the rows below flip exists
+    Row(iMark >= 0 && i2 >= 0 && i3 >= 0 && iFar >= 0, "B-PICKS",
+        "CONTROL: a footprint px " + Num(iMark) + ", distance 2 " + Num(i2) + ", distance 3 " + Num(i3) +
+            ", distance > 10 " + Num(iFar) + " (each >= 0)");
+    BRow("B-IDENT", anchorfile::JudgeAB(mB, mB, kt, kt, kSMark), 0, "", 0, 0);
+    BRow("B-MARK", anchorfile::JudgeAB(mB, flip({iMark}), kt, kt, kSMark), 1, "", 1, 0);
+    BRow("B-EDGE2", anchorfile::JudgeAB(mB, flip({i2}), kt, kt, kSMark), 1, "", 1, 0);
+    BRow("B-EDGE3", anchorfile::JudgeAB(mB, flip({i3}), kt, kt, kSMark), 2, "", 0, 1);
+    BRow("B-BG", anchorfile::JudgeAB(mB, flip({iFar}), kt, kt, kSMark), 2, "", 0, 1);
+    BRow("B-BOTH", anchorfile::JudgeAB(mB, flip({iMark, iFar}), kt, kt, kSMark), 2, "", 1, 1);
+    // B-CLOCK, B-IND: a whole box repainted in P is never judged (the firmware's boxes, as literals)
+    {
+        std::unique_ptr<Img> pc = Copy(*m), pi = Copy(*m);
+        PaintBox(*pc, kFwClock, 0x2222);
+        PaintBox(*pi, kFwIndicator, 0x3333);
+        const anchorfile::AbVerdict vc = anchorfile::JudgeAB(mB, Body(*pc), kt, kt, kSMark);
+        const anchorfile::AbVerdict vi = anchorfile::JudgeAB(mB, Body(*pi), kt, kt, kSMark);
+        BRow("B-CLOCK", vc, 0, "", 0, 0);
+        BRow("B-IND", vi, 0, "", 0, 0);
+        Row(vc.boxed > 0 && vi.boxed > 0, "B-BOXED",
+            "the repaints were seen and set aside: boxed " + Num(vc.boxed) + " and " + Num(vi.boxed) + " (each > 0)");
+    }
+    // the VOID rows
+    {
+        std::vector<Line> kx = k;
+        kx[0].x += 1;
+        BRow("B-ASAME", anchorfile::JudgeAB(mB, mB, kt, TextAB(kx, kx), kSMark), 3, "A-SAME");
+        std::vector<Line> kc = k;
+        kc[2].col ^= 0x0001;
+        BRow("B-ASAME-COL", anchorfile::JudgeAB(mB, mB, kt, TextAB(kc, kc), kSMark), 3, "A-SAME");
+        std::vector<Line> k3(k.begin(), k.end() - 1);
+        BRow("B-ASAME-N", anchorfile::JudgeAB(mB, mB, kt, TextAB(k3, k3), kSMark), 3, "A-SAME");
+        BRow("B-STILL-M", anchorfile::JudgeAB(mB, mB, TextAB(k, kx), kt, kSMark), 3, "A-STILL");
+        BRow("B-STILL-P", anchorfile::JudgeAB(mB, mB, kt, TextAB(k, kx), kSMark), 3, "A-STILL");
+        std::vector<Line> ko = k;
+        ko[1].ovl = 0x001;
+        BRow("B-OVL", anchorfile::JudgeAB(mB, mB, TextAB(ko, ko), TextAB(ko, ko), kSMark), 3, "ovl");
+        std::vector<Line> ku = k;
+        ku[0].up = 90;
+        BRow("B-UP", anchorfile::JudgeAB(mB, mB, TextAB(ku, ku), TextAB(ku, ku), kSMark), 3, "up");
+        std::vector<uint8_t> shortB(mB.begin(), mB.end() - 1);
+        BRow("B-GRAB", anchorfile::JudgeAB(mB, shortB, kt, kt, kSMark), 3, "bytes");
+        BRow("B-EMPTY", anchorfile::JudgeAB(mB, mB, TextAB(none, none), TextAB(none, none), kSMark), 3, "empty");
+        const std::string p0only = std::string(kNoise) + Render(kSMark, 0, k);
+        BRow("B-MISSING", anchorfile::JudgeAB(mB, mB, kt, p0only, kSMark), 3, "missing print");
+    }
+    std::printf("anchor_compare selftest-ab: %d FAIL\n", failures);
+    return failures ? 1 : 0;
+}
+
+int AbMode(char** a)
+{
+    std::string mS, pS, mT, pT;
+    if (!ReadFile(a[2], mS) || !ReadFile(a[3], pS) || !ReadFile(a[4], mT) || !ReadFile(a[5], pT)) {
+        std::printf("VOID: an input file is unreadable\n");
+        return 3;
+    }
+    const anchorfile::AbVerdict v =
+        anchorfile::JudgeAB(std::vector<uint8_t>(mS.begin(), mS.end()), std::vector<uint8_t>(pS.begin(), pS.end()), mT,
+                            pT, std::atoi(a[6]));
+    if (v.code == 3) {
+        std::printf("VOID: %s\n", v.reason.c_str());
+        return 3;
+    }
+    std::printf("ab: contacts %d, region %ld px; px differing outside the boxes: %ld in the region, %ld outside it "
+                "(%ld inside the boxes, not judged) -> exit %d, %s\n",
+                v.contacts, v.region, v.in, v.out, v.boxed, v.code, v.reason.c_str());
+    return v.code;
+}
+
 int EqualMode(char** a)
 {
     std::unique_ptr<Img> g[3];
@@ -506,8 +624,11 @@ int main(int argc, char** argv)
     if (argc == 3 && a1 == "--emit-synthetic") return EmitSynthetic(argv[2]);
     if (argc == 2 && a1 == "--selftest-box") return SelfTestBox();
     if (argc == 5 && a1 == "--equal") return EqualMode(argv);
+    if (argc == 2 && a1 == "--selftest-ab") return SelfTestAB();
+    if (argc == 7 && a1 == "--ab") return AbMode(argv);
     if (argc == 6) return FileMode(argv);
     std::printf("usage: anchor_compare --selftest | --selftest-file | --emit-synthetic <dir> | "
-                "<bg.fb> <8copy.fb> <anchor-lines> <S_bg> <S_8copy>\n");
+                "<bg.fb> <8copy.fb> <anchor-lines> <S_bg> <S_8copy> | --selftest-box | --equal <g1> <g2> <g3> | "
+                "--selftest-ab | --ab <M.fb> <P.fb> <M-lines> <P-lines> <S>\n");
     return 2;
 }

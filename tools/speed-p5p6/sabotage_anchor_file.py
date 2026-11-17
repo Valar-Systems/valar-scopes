@@ -33,8 +33,8 @@ PLANTS = [
      "    if (false && !still) {\n",
      {"F-STILL"}),
     ("FP-NOOVL: a nonzero ovl passes", FILE,
-     "        if (l.ovl != 0) return",
-     "        if (false && l.ovl != 0) return",
+     "        if (l.ovl != 0) return Make(2,",   # Judge's line; JudgeAB's (section 10) returns AbMake(3,
+     "        if (false && l.ovl != 0) return Make(2,",
      {"F-OVL"}),
     ("FP-NOBG: the BG scene may carry contacts", FILE,
      "    if (pb.count != 0) return",
@@ -42,8 +42,8 @@ PLANTS = [
      {"F-BG"}),
     # The host draws every marker white instead of with the device's col.
     ("FP-COLFIXED: col ignored", FILE,
-     "l.dot != 0, (uint32_t)l.col});",
-     "l.dot != 0, (uint32_t)0xFFFFu});",
+     "(float)(l.trk / 10), l.x, l.y, l.dot != 0, (uint32_t)l.col});",   # Judge's; JudgeAB's reads trk / 10.0f
+     "(float)(l.trk / 10), l.x, l.y, l.dot != 0, (uint32_t)0xFFFFu});",
      {"F-PASS", "F-FAIL"}),
     # trk read as whole degrees instead of tenths: contact 0's dart turns from 30 to 300 degrees.
     ("FP-TRKDEG: trk not divided by 10", FILE,

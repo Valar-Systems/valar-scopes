@@ -171,4 +171,82 @@ inline Verdict Judge(const std::vector<uint8_t>& bgBody, const std::vector<uint8
     return v;
 }
 
+// ---- section 10's marker A/B (docs/speed-p5p6.md section 10, accepted 2026-11-17) ----
+//
+// ONE scene grabbed in two images, M (main's marker arithmetic) and P (P5'), with each image's own anchor lines for
+// it. The region is the union of the 8-copy footprints dilated 2 (anchor::Region): a superset of every marker pixel.
+// Pixels inside the clock and indicator boxes are never judged.
+//   code 0  no pixel differs outside the boxes
+//   code 1  differences, every one inside the region
+//   code 2  a difference outside the region (something other than a marker differs: STOP)
+//   code 3  VOID: a grab of the wrong length; a malformed anchor line; a print missing, doubled, or not matching its
+//           count; A-STILL broken in either image; A-SAME broken (M's lines and P's differ in count or in any of
+//           x y trk cat dot up col ovl); the scene prints no contact; a nonzero ovl; an up not 0
+// Section 10 froze 0, 1 and 2 and named the VOID conditions without a code; 3 keeps VOID apart from exit 2's STOP.
+
+struct AbVerdict {
+    int code;
+    std::string reason;
+    long region, in, out, boxed;
+    int contacts;
+};
+
+inline AbVerdict AbMake(int code, const std::string& why)
+{
+    AbVerdict v;
+    v.code = code;
+    v.reason = why;
+    v.region = v.in = v.out = v.boxed = 0;
+    v.contacts = 0;
+    return v;
+}
+
+inline AbVerdict JudgeAB(const std::vector<uint8_t>& mBody, const std::vector<uint8_t>& pBody, const std::string& mText,
+                         const std::string& pText, int s)
+{
+    std::unique_ptr<anchor::Img> m = anchor::NewImg(), p = anchor::NewImg();
+    if (!anchor::Decode(mBody, *m)) return AbMake(3, "M's grab is " + std::to_string(mBody.size()) + " bytes");
+    if (!anchor::Decode(pBody, *p)) return AbMake(3, "P's grab is " + std::to_string(pBody.size()) + " bytes");
+    std::map<std::pair<int, int>, Print> am, ap;
+    std::string why;
+    if (!Parse(mText, am, why)) return AbMake(3, "M: " + why);
+    if (!Parse(pText, ap, why)) return AbMake(3, "P: " + why);
+    Print pm, pp;
+    if (!ScenePrints(am, s, pm, why)) return AbMake(3, "M: " + why);   // A-STILL in M, among the print checks
+    if (!ScenePrints(ap, s, pp, why)) return AbMake(3, "P: " + why);   // and in P
+    if (pm.count == 0 && pp.count == 0) return AbMake(3, "empty: S" + std::to_string(s) + " prints no contact");
+    bool same = pm.count == pp.count;
+    for (int i = 0; same && i < pm.count; ++i) same = SameLine(pm.k[i], pp.k[i]);
+    if (!same)
+        return AbMake(3, "A-SAME: M's and P's S" + std::to_string(s) + " lines differ (" + std::to_string(pm.count) +
+                             " and " + std::to_string(pp.count) + " contacts)");
+    anchor::Frame f;
+    f.up = 0;
+    f.zoomed = false;
+    for (const Line& l : pm.k) {
+        if (l.ovl != 0) return AbMake(3, "ovl: c" + std::to_string(l.c) + " carries an overlay");
+        if (l.up != 0) return AbMake(3, "up: c" + std::to_string(l.c) + " is not north-up");
+        f.k.push_back(anchor::Contact{l.cat, (float)l.trk / 10.0f, l.x, l.y, l.dot != 0, (uint32_t)l.col});
+    }
+    const std::vector<uint8_t> r = anchor::Region(f);   // footprints dilated 2, the boxes already removed
+    AbVerdict v = AbMake(0, "");
+    v.contacts = (int)f.k.size();
+    for (int i = 0; i < anchor::W * anchor::W; ++i) {
+        v.region += r[i];
+        if (m->p[i] == p->p[i]) continue;
+        if (anchor::Excluded(i % anchor::W, i / anchor::W)) {
+            ++v.boxed;
+            continue;
+        }
+        if (r[i])
+            ++v.in;
+        else
+            ++v.out;
+    }
+    v.code = v.out ? 2 : v.in ? 1 : 0;
+    v.reason = v.out ? "a difference OUTSIDE every marker region: STOP"
+                     : v.in ? "differences only inside the marker region" : "no px differs outside the boxes";
+    return v;
+}
+
 }  // namespace anchorfile
