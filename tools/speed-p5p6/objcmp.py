@@ -18,6 +18,9 @@ import sys
 import tempfile
 
 SHF_ALLOC = 0x2
+import re  # noqa: E402
+STAMP_DATE = re.compile(rb'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [ 0-9]\d \d{4}')
+STAMP_TIME = re.compile(rb'\d\d:\d\d:\d\d')
 SHT_NOBITS, SHT_SYMTAB, SHT_REL, SHT_RELA = 8, 2, 9, 4
 
 
@@ -79,6 +82,29 @@ class Elf:
         return {k: sorted(v) for k, v in out.items()}
 
 
+def stamp_only(pa, pb, sec):
+    """True when section `sec` differs between the two objects ONLY inside date/time stamps that sit at the same
+    offsets in both (ruling (B), docs/speed-p5p6.md 8c). A size difference is never a stamp."""
+    xa, xb = Elf(open(pa, 'rb').read()).alloc().get(sec), Elf(open(pb, 'rb').read()).alloc().get(sec)
+    if xa is None or xb is None or [s for s, _ in xa] != [s for s, _ in xb]:
+        return False
+    for (_, a), (_, b) in zip(xa, xb):
+        if a == b:
+            continue
+        if a is None or b is None:
+            return False
+        spans = set()
+        for rx in (STAMP_DATE, STAMP_TIME):
+            sa = {m.span() for m in rx.finditer(a)}
+            spans |= sa & {m.span() for m in rx.finditer(b)}
+        inside = set()
+        for s, e in spans:
+            inside.update(range(s, e))
+        if any(a[i] != b[i] and i not in inside for i in range(len(a))):
+            return False
+    return True
+
+
 def objects(tree):
     out = set()
     for root, ds, fs in os.walk(tree):
@@ -124,7 +150,9 @@ def run(ta, tb, exc):
             same += 1
             continue
         for sec, what in d:
-            (excused if (rel, sec) in exc else unexplained).append((rel, sec, what))
+            ok = (rel, sec) in exc and what.startswith('bytes') and \
+                stamp_only(os.path.join(ta, rel), os.path.join(tb, rel), sec)
+            (excused if ok else unexplained).append((rel, sec, what))
     print(f'objects: {len(oa & ob)} paired, {same} identical; dropped {len(dropped)}, added {len(added)}; '
           f'excused {len(excused)} section(s), unexplained {len(unexplained)}')
     for rel in dropped:
@@ -239,6 +267,41 @@ def selftest(tree):
         code, out = quiet(tree, d)
         row(done is not None and code == 1 and f'UNEXPLAINED {done[0]} [{done[1]}] relocations' in out,
             f'O-RELA: one relocation re-pointed exits 1, naming its section\'s relocations (got {code})')
+        # O-STAMP-IN / O-STAMP-OUT: an excused section differs only inside a stamp (0), or outside it (1)
+        hit = None
+        for rel in sorted(objects(tree)):
+            e = Elf(open(os.path.join(tree, rel), 'rb').read())
+            for s in e.sh:
+                if s['flags'] & SHF_ALLOC and s['type'] != SHT_NOBITS and s['size'] > 0:
+                    m = STAMP_TIME.search(e.d[s['off']:s['off'] + s['size']])
+                    if m:
+                        hit = (rel, s, m)
+                        break
+            if hit:
+                break
+        rel, s, m = hit
+        exc = {(rel, s['nm'])}
+        def quiet_exc(ta, tb):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = run(ta, tb, exc)
+            return code, buf.getvalue()
+        d = copy('stamp-in')
+        p = os.path.join(d, rel)
+        b = bytearray(open(p, 'rb').read())
+        last = s['off'] + m.end() - 1   # the stamp's last digit
+        b[last] = ord('0') + (b[last] - ord('0') + 1) % 10
+        open(p, 'wb').write(bytes(b))
+        code, _ = quiet_exc(tree, d)
+        row(code == 0, f'O-STAMP-IN: {s["nm"]} of {rel} differing only in a stamp digit is excused, exit 0 (got {code})')
+        d = copy('stamp-out')
+        p = os.path.join(d, rel)
+        b = bytearray(open(p, 'rb').read())
+        out_at = s['off'] + (m.start() - 1 if m.start() > 0 else m.end())
+        b[out_at] ^= 0x01
+        open(p, 'wb').write(bytes(b))
+        code, _ = quiet_exc(tree, d)
+        row(code == 1, f'O-STAMP-OUT: the same excused section differing one byte OUTSIDE the stamp exits 1 (got {code})')
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print('SELFTEST PASSED' if not bad else f'SELFTEST FAILED ({bad})')
