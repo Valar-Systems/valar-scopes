@@ -10,6 +10,10 @@ on:
     branches: [main]
   pull_request:
 
+# A read-only token: this workflow uses no secrets and only reads the repository (the step after checkout asserts it).
+permissions:
+  contents: read
+
 # A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
@@ -20,5 +24,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      # The token is read-only: this fails unless a top-level permissions block grants contents: read and nothing else,
+      # as exact lines. It landed before the block (red first), so it is known to fail when the block is missing.
+      - run: |
+          grep -Pzq '\npermissions:\n  contents: read\n(?!  \S)' .github/workflows/bench-tools.yml
       - run: python3 scripts/app-only-write.py --selftest
       - run: python3 scripts/app-only-write.py --sabotage
