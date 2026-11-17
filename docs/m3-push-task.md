@@ -686,6 +686,8 @@ the window registered at `11895bc0407a` stands, with these images in place of A 
   - A′ against B′: 86 bytes, all placed as before.
   - The tracked ini: no `Users/`.
   - 5c's scan of B′ (0 `path`, `lan` equal to v19's; its CONTROL, the old B, still 35) is 5c's gate, reported by 5c.
+  - **RESULT: PASS.** 5c's gate, reported by 5c at 01:48:40Z: [lan] only, 0 path, lan 3 = v19's, 0 user-dir runs;
+    control old B 35.
 - **The window and the predictions are unchanged.** In W1 the flashed image is A′ and the prerelease carries B′.
   P-OTA's banner and P-B's are the same env names.
 
