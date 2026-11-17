@@ -829,6 +829,19 @@ the fix accepted and the script re-accepted by the orchestrator; the text above 
   - **Afterwards:** bgcheck CHECK PASS, 0 running.
 - **The general rule** (the orchestrator, to every bench session): never read a live bench-trace log.
 
+**M3-8, THE DRY RUN CLOSED ON THE FROZEN PATH (2026-11-17, 07:19Z-07:21Z; 5c's question, the orchestrator's ruling).**
+The 07:14Z dry run and planted RED in the section above ran on p4's scratchpad DRAFT. The 07:14:48Z write at the window
+path was the copy of that draft. The draft's mtime (07:13:44Z, before the run) and sha (`e607feea1d92`) say which bytes
+ran, but no artifact named the path.
+- **Closed by re-running both on `_handoffs/p4/m3/win_m38.ps1` itself,** with the sha read by separate commands BEFORE
+  (07:19:58Z) and AFTER (07:20:38Z): both `e607feea1d92`, mtime unchanged.
+  - The dry run exited 0 with every row as predicted, including "REFUSED: live log ... nothing read" [True] and its
+    control.
+  - The planted RED exited 20.
+- **The re-accept of `e607feea1d92` is FINAL** (the orchestrator, 07:21Z).
+- **The rule taken:** a frozen script's dry run runs on the FROZEN PATH, after the copy, with its sha read before and
+  after. `win_a0a.ps1`'s proofs in docs/frame-profile.md were taken that way.
+
 **How M3-8's OTA install is served without touching the fleet.** The path is the one the code already documents
 (`OtaUpdater.cpp:101-104`). A bench image is built with `-DOTA_RELEASE_BASE=https://github.com/Valar-Systems/valar-scopes/releases/download/<bench tag>`,
 pointing at a **prerelease**:
