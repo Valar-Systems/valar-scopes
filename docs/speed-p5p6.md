@@ -2177,3 +2177,79 @@ wholly off screen: it has a line and no pixel.
   makes R-ANCHOR **VOID** by its own clause. It then comes to the reviewer, and the fallback is A3 (b), named.
 
 **Next:** the device code on `bench/speed-p5`, as 7d lists it, with radius 7 and level 20 above.
+
+### 7f. B4' built and identified; the heap bands derived from the three ELFs and frozen (2026-11-17 ~02:1xZ), before the window
+
+**B4', the device code of 7d/7e** (`bench/speed-p5` `c33529a41f3d`, a clean tree):
+- **Build:** compile-only, in a hidden WMI child (`launch.ps1` `d04a1c87f589`), env `blipscope-s3-128-framebench-c1b`,
+  flags `-DSPEED_P5_BENCH -DSPEED_A2_BENCH`. rc 0 after 202 s.
+- **Versions:** PlatformIO Core 6.1.19, platform 55.03.39, esptoolpy 5.3.0.
+- **Warnings:** AircraftManager.cpp's three are the same three B5''s log carries (`addrRowTop`, `live`, a `%02d`
+  truncation). None comes from the new code.
+
+| image | branch @ commit | bin | sha256 | `.dram0.data` | `.dram0.bss` | I-4 names |
+|---|---|---|---|---|---|---|
+| B3' | `bench/speed-base` | 1,966,048 B | `54fc5e28142a` | 36,432 | 44,032 | [frame-bench], [speed-a2] |
+| **B4'** | `bench/speed-p5` `c33529a41f3d` | **1,973,552 B** | **`17d9b2df11cc`** | **37,040** | **49,184** | **[frame-bench], [speed-p5], [speed-a2]** |
+| B5' | `bench/speed-p6` | 1,968,080 B | `7472e902863c` | 36,432 | 44,040 | [frame-bench], [speed-p6], [speed-a2] |
+
+**I-4, as predicted:** `[speed-a2]` and `[frame-bench]` are in all three; `[speed-p5]` is in B4' only; `[speed-p6]` is in
+B5' only.
+
+**The shipping run that must precede any push:** `bench/speed-p5`, env `blipscope-s3-128`, no flags, in a hidden child.
+rc 0 after 185 s, with the same three warnings. **`check-no-bench-hooks.sh` PASSES on that shipping image:** 12 markers
+checked, anchor present.
+
+**B4' − B3', every internal byte named** (`objdump -t`, by section, never by nm letter):
+
+| symbol | section | Δ | what |
+|---|---|---|---|
+| `appManager` | `.dram0.bss` | +3,880 | P5's sets, the same +3,880 4y read |
+| `TheOutlineScratch()::scratch` + its guard | `.dram0.bss` | +348, +8 | the outline scratch |
+| `framebench::S()::s` | `.dram0.bss` | **+912** | the anchor's state: 3 ints and 64 × 14-B records (`static_assert`ed) = 908, plus 4 of alignment |
+| `DrawSweepOverWeather()::sweepLut` | `.dram0.data` | +612 | P5 1b's table |
+
+- The symbols sum to +5,148 of `.bss` against the section's +5,152 (4 B of section alignment), and to +612 of `.data`
+  against the section's +608.
+- **The SECTION deltas are what the heap loses:** −5,760.
+- **The runtime block 5a did not count:** the 1-bit scratch's buffer.
+  - LovyanGFX's `Panel_Sprite::createSprite` allocates `32 × 4 + 1 = 129` B through `heap_alloc_dma`, so
+    `MALLOC_CAP_DMA` (internal), rounded to 132.
+  - By the TLSF rule, `roundclass(132 + 12) + 4` = **148 B**.
+  - B4' allocates it before the graded window: `BenchScratchCheck` at boot + 90 s, and the C1 scenes' outline anyway.
+    B3' never does.
+  - Section 6's B4 band missed these 148 B. They were inside its allowance. Section 6 is re-graded by nothing, as
+    section 7 ruled.
+
+**gdb** (`-batch -nx`, on these ELFs):
+- `sizeof(TrackedAircraft)` = 1,036 in B3' and B4', and 1,040 in B5';
+- `sizeof(labelcache::Entry)` = 336 in B5'.
+
+These are 5a's readings, unchanged.
+
+**The bands, by 5a's method and allowances** (J = 2,048 internal, J_ps = 4,096 PSRAM, each on both sides):
+
+| row | expected change | band |
+|---|---|---|
+| **H-P5'** `free8` and `heap free` (B4' − B3') | **−5,908**: the section deltas −5,760, plus the scratch buffer −148. `TrackedAircraft` is unchanged. | **[−7,956, −3,860]** |
+| **H-P5'** `psram_free` (B4' − B3') | **0**: the anchor's state is static, the scratch is internal, and no record grows | **[−4,096, +4,096]** |
+| **H-P6'** `free8` and `heap free` (B5' − B3') | **−8 to −1,288**, as 5a: `.dram0.bss` +8, down to −1,288 if the map nodes are internal and each steps one class (1,036 → 1,040) | **[−3,336, +2,040]** |
+| **H-P6'** `psram_free` (B5' − B3') | **−14,240 to −15,520**, as 5a: 40 entries × 356 B at C1's level 40, down to −15,520 if the nodes are in PSRAM and step a class | **[−19,616, −10,144]** |
+
+- **Where the graded lines come from:** C1 scenes only, in every image (section 7's rule 4: attach + 120 s, then 10
+  lines, inside S0..S1).
+- No anchor, clear, label or margin code runs in a C1 scene. The anchor prints only while an anchor scene measures.
+- H-NOISE, H-NOISE-PS, H-TLS and H-MARGIN-APART stand as sections 5a and 7 froze them.
+
+**The host side since 7e** (`bench/speed-p5` `2b9a52da2e97`, tools only, so B4''s image is unaffected).
+- **anchor_compare's file mode, red first:** `--selftest-file`'s 15 rows. `sabotage_anchor_file.py`'s 8 plants were
+  each red in exactly their frozen set on the FIRST run, before the control.
+- **The control:** 15 ok, and the file path end to end on emitted files reads exit 0 / 1 / 2 (pass, one changed px, a
+  grab 1 byte short).
+- **The second-path miss, again:** `sabotage_anchor.py`'s copy list lacked the new `anchor_file.h` and read RIG.
+  Fixed, and re-run: 6 plants as predicted, control 8 ok.
+- That is the second copy-list miss in this addendum, after `sabotage_p5_outline.py`'s at the port move. Both were
+  caught by their driver's RIG exit 2, never by a false verdict.
+
+**What the window still needs:** the reviewer's booking (E2:08). Everything 7, 7d, 7e and this section freeze is now in
+place.
