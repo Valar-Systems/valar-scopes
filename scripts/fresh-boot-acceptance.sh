@@ -404,9 +404,15 @@ probe_claim() {
   # FBA_DEVICE_IP overrides the log, for a capture attached to a board that was already running
   # (its boot-time CONNECTED line is not in this log).
   ip="${FBA_DEVICE_IP:-$(grep -a "\[WiFi\] CONNECTED" "$LOG" | tail -1 | sed -n 's/.*IP=\([0-9.]*\).*/\1/p')}"
-  if [ -z "$type" ] || [ -z "$ip" ]; then
-    printf 'probe claim=%s claim_line=%s ip=%s http=0 verdict=NOPROBE first=no\n' "${type:--}" "${cl:-0}" "${ip:--}" > "$(PROBE_FILE)"
-    echo "  probe: no claim or no device IP in the log yet" >&2; return 1
+  # No claim and no ADDRESS are different failures, and only the first is about the claim (fix 4, Addendum 3). On
+  # 2026-11-16 a claim with no address wrote NOPROBE first=no, which --assert-only read as "not the first fetch".
+  if [ -z "$type" ]; then
+    printf 'probe claim=- claim_line=0 ip=%s http=0 verdict=NOCLAIM first=no\n' "${ip:--}" > "$(PROBE_FILE)"
+    echo "  probe: no claim in the log yet" >&2; return 1
+  fi
+  if [ -z "$ip" ]; then
+    printf 'probe claim=%s claim_line=%s ip=- http=0 verdict=NOIP first=no\n' "$type" "${cl:-0}" > "$(PROBE_FILE)"
+    echo "  probe: the claim of $type is in the log, but the board's address is unknown (no CONNECTED line, no FBA_DEVICE_IP)" >&2; return 1
   fi
   # FIRST means first: a config-page load after the claim may already have fetched it.
   first=yes
@@ -471,9 +477,13 @@ fetch_to() { # ip path out
 grade_cut() {
   local ip type miss=0 first_miss="" t_cut="" t_back="" code="" verdict="" tries=0 dl
   ip="$(dev_ip)"; type="$(claim_type)"
-  if [ -z "$ip" ] || [ -z "$type" ]; then
-    printf 'step5 claim=%s ip=%s verdict=NOCLAIM\n' "${type:--}" "${ip:--}" > "$LOG.step5"
-    echo "  step 5: no claim or no device IP in the log" >&2; return 1
+  if [ -z "$type" ]; then
+    printf 'step5 claim=- ip=%s verdict=NOCLAIM\n' "${ip:--}" > "$LOG.step5"
+    echo "  step 5: no claim in the log" >&2; return 1
+  fi
+  if [ -z "$ip" ]; then   # a claim is there: this is the instrument's gap, never "no claim" (fix 4)
+    printf 'step5 claim=%s ip=- verdict=NOIP\n' "$type" > "$LOG.step5"
+    echo "  step 5: the claim of $type is in the log, but the board's address is unknown: nothing to watch" >&2; return 1
   fi
   echo "  step 5: watching $ip for the power cut..."
   dl=$(( $(date +%s) + CUT_WAIT_S ))
@@ -860,6 +870,11 @@ pv() { printf '%s' "$PROBE" | sed -n "s/.* $1=\([^ ]*\).*/\1/p"; }
 r=1; P_WHY=""
 if [ -z "$PROBE" ]; then
   P_WHY="No probe was recorded. Run --probe-claim <log> right after the claim, before anyone opens Collection (guided mode does it after step 3)."
+# The verdicts that mean the probe never fetched are read BEFORE `first`, which they always carry as "no" (fix 4).
+elif [ "$(pv verdict)" = "NOIP" ]; then
+  P_WHY="The probe could not run: the claim of $(pv claim) is in the log, but the board's address was unknown (no CONNECTED line in the capture, and FBA_DEVICE_IP unset). The instrument failed, not the device."
+elif [ "$(pv verdict)" = "NOCLAIM" ] || [ "$(pv verdict)" = "NOPROBE" ]; then
+  P_WHY="The probe could not run: no claim was in the log when it ran. Run --probe-claim right after the claim."
 elif [ "$(pv first)" != "yes" ]; then
   P_WHY="The config page was loaded between the claim and the probe, so the probe was not the first fetch. Redo steps 3-4."
 elif [ "$(pv verdict)" = "CLAIMED" ]; then
@@ -899,6 +914,7 @@ case "$S5V" in
   NOCUT)     W="No power cut was seen: the board never stopped answering ping while --grade-cut watched. Redo step 5." ;;
   NOBACK)    W="The board did not come back on the network after the cut." ;;
   NOCLAIM)   W="No claim in the log, so there was nothing to look for." ;;
+  NOIP)      W="The board's address was unknown, so step 5 could not watch it go quiet or read its page. A claim WAS in the log: the instrument failed, not the device." ;;
   UNCLAIMED|ABSENT) W="After the power cut the owner's Collection page had $S5C $S5V. The customer lost their collection." ;;
   *)         W="BLIND: step 5's page read produced no verdict ($S5V), so there is no evidence either way." ;;
 esac

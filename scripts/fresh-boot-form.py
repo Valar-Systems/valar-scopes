@@ -8,8 +8,9 @@ reset, and compare them after the restore.
 THE BODY CARRIES THE OWNER'S SETTINGS (his location among them). It is only ever WRITTEN TO A FILE the caller names;
 nothing here prints a value. Output is counts and field NAMES.
 
-  python3 scripts/fresh-boot-form.py body <page.html> <out.body> [--drop NAME ...]
-        writes the urlencoded body; prints the field count, what was dropped, and the NAMES of masked secret fields
+  python3 scripts/fresh-boot-form.py body <page.html> <out.body> [--drop NAME ...] [--on NAME ...]
+        writes the urlencoded body; prints the field count, what was dropped, and the NAMES of masked secret fields;
+        --on ticks a checkbox the page has (any other name refuses, exit 2, nothing written)
   python3 scripts/fresh-boot-form.py compare <snapshot.body> <page.html> [--ignore NAME ...]
         the page's current body against a snapshot, field by field: "N of M fields equal", the NAMES that differ;
         exit 0 when all equal (ignored names aside), 1 otherwise
@@ -129,13 +130,22 @@ def read(path):
         return fh.read()
 
 
-def cmd_body(page, out, drop):
-    pairs = form_pairs(read(page))
+def cmd_body(page, out, drop, on=frozenset()):
+    html = read(page)
+    pairs = form_pairs(html)
     if not pairs:
         print("NO FORM: form#cfg was not found or had no fields; nothing written")
         return 2
+    boxes = checkbox_names(html)
+    # --on NAME ticks one checkbox, as a click on it would (fix 3, Addendum 3: skip-reset puts the logbook back to its
+    # default ON). Only a checkbox the page has: a typo must not post a field the form never had.
+    notbox = sorted(set(on) - set(boxes))
+    if notbox:
+        print(f"REFUSED: --on names a field that is not a checkbox in form#cfg: {', '.join(notbox)}; nothing written")
+        return 2
     kept = [(n, v) for n, v in pairs if n not in drop]
-    sent = kept + [("cfg-toggles", ",".join(checkbox_names(read(page))))]   # last, as the page's JS appends it
+    kept += [(n, "on") for n in boxes if n in on and n not in drop and all(k != n for k, _ in kept)]
+    sent = kept + [("cfg-toggles", ",".join(boxes))]   # last, as the page's JS appends it
     with open(out, "w", encoding="utf-8", newline="") as fh:
         fh.write(urllib.parse.urlencode(sent))
     gone = sorted({n for n, _ in pairs} & set(drop))
@@ -387,11 +397,23 @@ def selftest():
     return 0 if not bad else 1
 
 
+def _names_after(argv, flag):
+    """The names after FLAG, up to the next --flag (so --drop and --on can share one command line)."""
+    if flag not in argv:
+        return set()
+    names = []
+    for a in argv[argv.index(flag) + 1:]:
+        if a.startswith("--"):
+            break
+        names.append(a)
+    return set(names)
+
+
 def main(argv):
     if argv[:1] == ["--selftest"]:
         return selftest()
     if len(argv) >= 3 and argv[0] == "body":
-        return cmd_body(argv[1], argv[2], set(argv[argv.index("--drop") + 1:]) if "--drop" in argv else set())
+        return cmd_body(argv[1], argv[2], _names_after(argv, "--drop"), _names_after(argv, "--on"))
     if len(argv) >= 3 and argv[0] == "compare":
         return cmd_compare(argv[1], argv[2], set(argv[argv.index("--ignore") + 1:]) if "--ignore" in argv else set())
     if len(argv) == 3 and argv[0] == "hash-save":
