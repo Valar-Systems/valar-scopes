@@ -1950,3 +1950,150 @@ withholds is unchanged. Its sha256 moves from `eb31148e50ec` to `6741186f03b0`.
     and 10 lines are printed instead of 11.
 
 Section 6's traces were filtered by `eb31148e50ec` and stay so. The new sha applies to addendum 2's window only.
+
+### 7d. The anchor, ruled (2026-11-17 ~01:3xZ) and its input format frozen (~01:5xZ), before any device code
+
+**The reviewer's rulings on the four premises my reading of the code found false.**
+
+| premise | what the code does | ruled |
+|---|---|---|
+| A1: the anchor runs with wx-layer OFF | the 8 copies draw only when `WxOutlineNow()`, which is `WxEnabled()`, so with the layer off the anchor tests no outline | **(1): wx-layer ON** in both anchor scenes. The fixed one-cell field is rebuilt identically in both, so it cancels in the composite, and the outline is drawn by today's production path. (2), forcing `WxOutlineNow()`, is REFUSED: it is a bench branch in a function with other callers. |
+| A2: at the pinned time the contacts hold still | the table is served at `time(nullptr)`, and `PredictPosition` dead-reckons every contact by its ground speed from `millis()` | **ACCEPTED:** in the anchor scenes `OnCloudPoll` computes positions at `kTblT` and serves **gs = 0**, plus the A-STILL row |
+| A3: the anchor has an edge-clipped marker | at the 25 mi rung the table's 1..8 mi radii put every contact within ~38 px of the centre | **(a):** the anchor scenes override `radius` to a small rung, with L and the rung chosen on the host and frozen before the window. (b), the edge untested on glass, is the fallback only if (a) cannot be met, named as such. |
+| A4: the compared region holds only the outline and the marker | 8 kinds of per-contact overlay are drawn after the marker | **ACCEPTED:** each anchor line carries `ovl`, and anchor_compare refuses on a nonzero bit |
+
+**The correction to section 7, written here rather than edited there.** Section 7 item 1 says `FrameBench::Override`
+turns wx-layer off in both anchor scenes. **That is superseded for the anchor scenes by ruling (1): wx-layer is ON.**
+With it off, the row tested nothing. Everything else in item 1 stands.
+
+**A2, stated as the reviewer asked.**
+- `OnCloudPoll` in an anchor scene computes each row at `kTblT` and serves its ground speed as **0**. The wire's `t`
+  stays `time(nullptr)`, as today, so the stale ladder is untouched. The track is still served, so the marker's heading
+  is unchanged.
+- `PredictPosition`'s displacement is velocity × dt, so it is 0.
+- **What I read:** velocity feeds the radar draw only through FAST (highlight, which is overridden off). It is also read
+  by `velocity > 1` checks outside the radar loop.
+- **If gs = 0 changes any OTHER drawn element inside a footprint, it shows as a mismatch:** the alarming direction,
+  never a false PASS.
+
+**The Override set in the two anchor scenes** (`nullptr`, the board's own setting, everywhere else):
+
+| key | answer | why |
+|---|---|---|
+| `wx-layer` | `true` | ruling (1) |
+| `scanline` | `false` | the sweep off: blip brightness 1, nothing repainted between grabs |
+| `infotext`, `trail`, `highlight`, `lookup` | `false` | A4's overlays that have a switch |
+| `radar-up` | `0` | **ADDED, for acceptance:** the host's L/rung pick projects with up 0, so the device must too |
+| `radius` | the frozen rung | A3 (a) |
+| `triangle` | `true` | **ADDED, for acceptance:** so the anchor tests the darts (kTri + kLine), not dots only |
+| `latitude`, `longitude`, `radius-unit`, `data-source`, `local-*` | as every scene | unchanged |
+
+**The anchor line, frozen.** One summary line per print, then one line per drawn contact, in draw order:
+
+    [speed-p5] anchor S<k> p<n> contacts <m>
+    [speed-p5] anchor S<k> p<n> c<i> x <x> y <y> trk <t> cat <c> dot <0|1> up <u> col <hhhh> ovl <hhh>
+
+- `p0` and `p1` are the two prints; `c<i>` counts from 0 in draw order.
+- `x`, `y` are the screen pixels the marker is drawn at. They are not coordinates.
+- `trk` is `lroundf(trueTrack × 10)`; `up` is `radarUpDeg`; `cat` is the emitter category; `dot` is 1 when
+  triangles are off.
+- `col` is the RGB565 that LovyanGFX's own rgb888 → rgb565 conversion gives for `markerColor`, as 4 hex digits.
+  - The device commit names the function. It must be the one the 16-bit backbuffer's writer uses.
+  - The host draws with `col`. A conversion that is not the writer's shows as a mismatch on every marker pixel.
+- `ovl` is 3 hex digits, the device's OWN predicates for this contact at this frame, one bit each:
+
+| bit | overlay | the device's predicate |
+|---|---|---|
+| 0 | special diamond | `SpecialClassOf(tracked) != None` |
+| 1 | NEW flag | `logbookEnabled && tracked.claimable` |
+| 2 | overhead | `showOverhead && IsOverhead(tracked)` |
+| 3 | highlight | `displayHighlight` and the contact is NEAR, HIGH or FAST |
+| 4 | watchlist | `MatchesWatchlist(tracked)` |
+| 5 | follow | the effective target is set and `MatchesFollow(tracked)` |
+| 6 | pin | `icao == pinnedIcao` |
+| 7 | emergency | `isEmergencySquawk(squawk)` |
+| 8 | trail | `displayTrails` (**ADDED**: drawn under the marker, in the footprint) |
+| 9 | label | `displayInfoText` (**ADDED**: the label can sit in a neighbour's footprint) |
+
+Bits 8 and 9 are additions to the reviewer's 8, for acceptance. Their switches are overridden off, so the bits make
+the override itself observable rather than assumed.
+
+**A-STILL's two prints: a deviation from the ruling's wording, for acceptance.** The ruling says "settle start AND
+measure end". I propose **measure start and measure start + 110 s** instead.
+- At settle start, the scene's first poll may not have landed. That would put the PREVIOUS scene's contacts, or none,
+  in `p0`, and fail A-STILL for a reason that is not motion.
+- Measure start is 100 s of settle later. The second print at + 110 s is still in the measure, after the last grab, and
+  before the scene switch can change the table under it.
+- In boot terms:
+  - ANCHOR_BG: `p0` at + 630 s, grabs at + 650/670/690 s, `p1` at + 740 s;
+  - ANCHOR_8COPY: `p0` at + 850 s, grabs at + 870/890/910 s, `p1` at + 960 s.
+  - So both prints bracket all three grabs.
+- **A-STILL:** `p0` and `p1` are identical except for the pass tag, the summary line included.
+
+**anchor_compare's file mode, frozen** (`tools/speed-p5p6/anchor_compare`, on `bench/speed-p5`):
+
+    anchor_compare <bg.fb> <8copy.fb> <anchor-lines> <S_bg> <S_8copy>
+
+- `<anchor-lines>` is the seal's printed output, which passes `[speed-p5]` whole. Nothing else is read.
+- **Exit 0 = PASS:** every precondition below holds, and the composite matches over the region with **mismatch 0**.
+- **Exit 1 = FAIL:** the preconditions hold, and the mismatch is > 0.
+- **Exit 2 = VOID, a refusal, with its reason printed, if:**
+  - a line is malformed, or a grab is not 115,200 bytes;
+  - A-STILL fails in either scene;
+  - `S_bg`'s prints carry any contact;
+  - `S_8copy`'s carry none;
+  - any `ovl` is nonzero;
+  - any `trk` is not a multiple of 10 (the wire's track is whole degrees, so this means the input was not the bench's);
+  - any `up` is not 0;
+  - there is no overlapping pair (two contacts' 8-copy footprints share a pixel);
+  - there is no edge-clipped contact (a primitive of its marker, at any of the 9 positions, reaches past 0..239).
+- The 3 grabs per scene must be byte-equal and `Torn: false`. The window's own step checks that (section 7's
+  R-ANCHOR) and hands this tool one grab per scene.
+
+**The host side, read (on `bench/speed-p5`, local until B4' compiles).**
+- **PORT-MOVE, `27f1a1452f86`:** the move left test_p5_outline's whole output byte-identical (sha256 `1b4ddcc52dc6`,
+  8 ok).
+  - The move also exposed a second path: sabotage_p5_outline.py copies a fixed file list into its clean tree, so
+    without the new header the copy did not compile (RIG exit 2).
+  - That list is fixed. The driver now reads all 5 plants as predicted, its control 8 ok, and its anchors 5/5.
+- **The compare core, `e98166743f70`:** rows A-565, A-BE, A-SCENE (control), A-SELF, A-CMP, A-SHIFT, A-REGION and
+  A-REGION-IN.
+  - The registered A-REGION is split into a pixel at distance exactly 3, which must read 0, and one at exactly 2,
+    which must read 1. Without the second half, a region narrower than registered could pass.
+  - `Composite` is RenderOld's loop without its `Background()` repaint, named in the header as the second path.
+  - A-SELF builds its device frame by a separate route, so the repaint plant reads red.
+  - **6 plants, each red in exactly its frozen set:**
+    - WHOLE {A-REGION};
+    - DIL1 {A-REGION-IN};
+    - BLIND {A-CMP, A-SHIFT, A-REGION-IN};
+    - REPAINT {A-SELF, A-CMP, A-REGION, A-REGION-IN};
+    - 565 {A-565};
+    - LE {A-BE}.
+  - Control: 8 ok (A-SELF over a region of 616 px; A-SHIFT reads 36).
+  - **Stated, not folded in:** the first two driver runs stopped at RIG exit 2, because the WHOLE and BLIND plants left
+    a parameter unused under `-Werror`. The control was therefore READ before the plants had all run. The sets were
+    frozen in the driver before either ran, and they are unchanged.
+- **The scratch self-check, `84a3b1306e2f`:**
+  - `include/OutlineScratchCheck.h` holds the pattern, the comparator and the table.
+    - The pattern is integer vertices of every primitive kind, so no libm. The anchor checks the headings.
+    - The comparison runs over the scratch's own `Row()`, which is what DrawEdge consumes, so it covers the 1-bit
+      raster AND the bit reversal.
+  - `tools/speed-p5p6/scratch_table.cpp` generates the table.
+  - **Red first:**
+    - on the placeholder table, red in exactly the predicted {S-SELF, S-TABLE, S-TABLE-FIRST} (82, 83, 83);
+    - then the emitted table;
+    - then 4 plants, each red in exactly its set: NOCOUNT, HALF, STALE and BYTEORDER.
+  - Control: 5 ok. **S-TABLE, the registered plant, reads 1.**
+
+**Next, in order, none of it on a board:**
+1. The L/rung pick: a host program over `radarproj::Project` and `fbtable::At` at `kTblT`, up 0, with the device's
+   rung → `rLat`/`rLon` arithmetic ported. Its result (the rung, L, and the contact list in screen pixels) is frozen in a
+   later section.
+2. The device code on `bench/speed-p5`:
+   - the ANCHOR kinds and the Override set above;
+   - `OnCloudPoll`'s `kTblT` + gs 0;
+   - the prints;
+   - the scratch check at boot;
+   - B4''s scene list.
+3. anchor_compare's file mode, red first against synthetic lines.
+4. B4' built compile-only, I-4, and the heap bands derived from the three ELFs and frozen.
