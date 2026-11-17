@@ -5067,3 +5067,94 @@ the water this adds. The upload decision comes later."
 - **Outside the set:**
   - a tested base other than 0fc8c1d319cb: STOP, re-derive the count, and write the amendment before anything is graded;
   - any other count, conclusion or job name: STOP, and read which job before anything else.
+
+### Row 5: the staging reading of #696's code on the census store, registered before its slot (2026-11-17)
+
+**What it reads.** Row 5 of `docs/v20-plan.md`: #696's builder and proxy on staging, reading the census store 33d6dc41c749 that row 4
+writes to R2 (`upload26.pred`). It asks one question: do they produce, byte for byte, what step 8 produced offline from the same
+tree, once the builder's commit stamp is accounted for? It is read at 22 points in two labelled sets, graded separately and never
+pooled:
+- **R5-16:** the 16 homes (`cp-run.mts`'s set), whose step-8 packages are R5c-2's (`tb26-out/b/<H>-tb.bmpk`);
+- **R5-S4:** seam25's six S4 centres, the AFTER packages the owner's S4-4 verdict judged (`s4-pkg-after/<fips>-after.bmpk`).
+All 22 use the one query string both adapters used: r=162, eps=201168, water/rivers/roads/places/terrain, levels
+41239440:246, 81808320:244 and 162275520:242.
+
+**The stamp, which is the reason for this form.** A package's PROVENANCE carries the builder's 40-hex commit (`build.ts:249`,
+`builder: blipscope-basemap <commit>`), and the package's CRC-32 (bytes 28..31, `format.ts` `packageCrc`) covers every byte.
+- R5c-2's 16 packages are stamped with FORTY ZEROS (`tbstore26.mts:65`, read in `KBOS-tb.bmpk`).
+- The 6 AFTER packages are stamped e81e794908a6... (`tbafter26.mts`).
+- Staging's builder stamps the commit it was deployed from.
+So no step-8 package can equal a staging package as it stands. "Exactly 40 bytes differ" is not the test either: the CRC moves
+too, and hex digits the two commits share at the same position do not differ.
+
+**Q-R5a, for the orchestrator: which commit goes to staging.** #696 holds from merge until it ships with its store (the owner,
+11-15), so staging must run #696's head, not main. The proposal is H5: #696's head with main merged in at the time, pushed, and its
+CI read. Main is merged so that staging does not lose main's own proxy changes. Since 4e9ee56e6c2b those are in `chain.ts`,
+`adsbdb.ts`, `types.ts` and `photolicense.ts`, and `TYPE_ADSBDB_ENABLED`.
+- **RULED (the orchestrator, 2026-11-17): YES.** "H5 = #696's head with main merged in, pushed, CI read twice." It is a normal merge
+  commit, with its CI count re-derived, and #696 stays held.
+
+**Before the slot (local, no request to staging):**
+- **P5-1, the closure.** `deploy-inputs.mjs set builder staging` at H5 lists what the builder bundles. `git diff e81e794908a6 H5`
+  over exactly that set must be EMPTY: then H5's builder is the code that built step 8's packages. At 56988fbd it is (proxy/src and
+  the configs read unchanged from e81e794908a6, 2026-11-17). Not empty: STOP and re-register.
+- **P5-2, the references, rebuilt STAMPED H5.** `tbstage26.mts` is tbstore26 with only its commit taken from argv and its homes set
+  chosen by name (16 or s4). It runs over tree B and writes 22 packages and their sha256 list. Predicted: 22 builds ok.
+- **P5-3, the proof that only the stamp moved.** `patch26.py` handles each of the 22 in turn. It takes the step-8 package and asserts
+  its builder line occurs exactly once with the old stamp. It replaces those 40 hex with H5's and recomputes the CRC-32 into bytes
+  28..31, little-endian, over the package with that field zeroed. The result must be **byte-identical (`cmp`) to P5-2's reference**:
+  22 of 22, reported 16 and 6 separately.
+  - CONTROL 1: a COPY of one step-8 package with one byte changed outside PROVENANCE and the CRC field, patched the same way, must
+    DIFFER from its reference.
+  - CONTROL 2: the unmodified package patched with a wrong commit must DIFFER.
+  - Either control reading "equal" means the proof cannot fail: VOID.
+- **P5-4, the reader.** It is `up26_staging.sh`'s form: the pinned launch line with BASE exported, refusing unless the helper names
+  staging, and polling through 202s. It requests each point at the 2-dp origin the route rounds to. It first proves, with the
+  dry-clone's own `parseQuery`, that the exact and the 2-dp strings parse to the identical query, and refuses otherwise, so no exact
+  test point leaves the PC. A 200 is graded on sha256(body) against P5-2's list and on the ETag's store id. CONTROL: the comparator
+  run against a COPY of one reference with one byte changed must read "different".
+
+**The slot (under the deploy lock, booked on its own; nothing else stacked):**
+- **WHEN (the orchestrator's constraint, 2026-11-17):** only AFTER Tuesday's 23:00Z production deploy (uk-data, #736) has CLOSED.
+  That deploy puts MAIN on staging too (its C1 reads staging, then production). Before it, H5 would be overwritten mid-row, or
+  would put #696's code in front of uk-data's D0 reads. The slot is also clear of Wednesday's 10:00Z radar deploy and 16:00Z route
+  run. The orchestrator books it once Tuesday's deploy has closed. Staging then runs main's sha, and that sha is S5-0's rollback
+  target.
+- **S5-0:** the staging proxy's and builder's current version ids are recorded as rollback targets (read-only).
+- **S5-1:** H5 is deployed to staging, builder then proxy, through `deploy.sh`, never a typed `wrangler deploy`. `/healthz` must
+  report H5.
+- **S5-2:** `bm/v1/current` is put to the census store's body: the 26 B in the reference TSV's current row, sha256 from upload26
+  P3. It is read back byte-identical. Then bm:store = 33d6dc41c749 is written in staging's ENRICH_KV and read back twice, at least
+  60 s apart. Current comes first and KV second, the MI8 order.
+- **S5-3:** a wait of at least 60 s, so no isolate's store memory or KV cache still names 4c0875738f38.
+- **S5-4, R5-16:** 16 reads. Predicted for each: 200, ETag store 33d6dc41c749, sha256 == the stamped reference. 16 of 16.
+- **S5-5, R5-S4:** 6 reads, the same. 6 of 6.
+- **S5-6, the stamp:** after the first 200, `/healthz`'s basemap commit must be H5, all 40 hex. Read at the slot, not assumed.
+
+**Outcomes:**
+| reading | meaning | then |
+|---|---|---|
+| P5-1 empty, P5-3 22/22 with both controls differing, R5-16 16/16, R5-S4 6/6, S5-6 = H5 | the store in R2 and #696's code on staging make, byte for byte, what step 8 made offline | row 5 as predicted; D4 next, on the owner's OK |
+| P5-1 not empty | H5's builder is not step 8's code | STOP before the slot; re-register |
+| P5-3 any package not equal, or a control "equal" | the stamp is not the only difference, or the proof cannot fail | STOP before the slot |
+| a 503 or 500 at any point, New York's above all | the build failed on staging, possibly SG-B (Exceeded Memory) on the sea path | STOP; D4 waits on it (this doc, SG-B) |
+| a 404 or a 422 | step 8 built these offline | STOP |
+| a 200 whose sha256 differs | a different package | STOP; the package is kept and diffed section by section offline. A package another commit stored is the first suspect (PROVENANCE's builder line says which) |
+| an ETag store other than 33d6dc41c749 | current or KV is not as written | STOP; roll back |
+| S5-6 not H5 | the references carry the wrong stamp | STOP; references rebuilt only on a ruling |
+| anything else | outside the set | STOP and decide before anything else |
+
+**Rollback, at any STOP in the slot:** `current` is put back to 4c0875738f38's 26 B (upload26's saved file, sha256 a8e96fcf8fae),
+bm:store back to 4c0875738f38, and both Workers back to S5-0's versions. Each is read back.
+
+**This registration was accepted** by the orchestrator on 2026-11-17, at 83bcddbfddd1 plus the two rulings above. Nothing in it has
+run.
+
+**CI for this push, predicted before the push.**
+- **The base.** Main is 5c45a67ca109 by fetch at 2026-11-17T01:04:45Z. Since 0fc8c1d319cb, which 56988fbd tested into, the only
+  commit is #738 (docs). No change shapes CI: `.github/`, `skus.yml`, `scripts/skus.py` and `platformio.ini` are unchanged.
+- **Predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0 failed,** with the same job-name set as 56988fbd's
+  run. It is tested on the merge into 5c45a67ca109, read from a job's own checkout log, and read twice at least 60 s apart.
+- **Outside the set:**
+  - a tested base other than 5c45a67ca109: STOP, re-derive the count, and write the amendment before anything is graded;
+  - any other count, conclusion or job name: STOP, and read which job before anything else.
