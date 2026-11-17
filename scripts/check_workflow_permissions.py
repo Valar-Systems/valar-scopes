@@ -113,11 +113,15 @@ def check(root, out=print):
         raise Unreadable("no workflow files under %s" % wf)
     bad, seen = [], set()
     for f in files:
+        text = open(os.path.join(wf, f), encoding="utf-8").read()
+        nm = NAME.search(text)
         try:
-            name, got = read(open(os.path.join(wf, f), encoding="utf-8").read())
+            name, got = read(text)
         except Unreadable as e:
-            out("  RED %s: unreadable: %s" % (f, e))
-            bad.append(f)
+            name = nm.group(1).strip() if nm else f   # one report per workflow, by its name where it has one
+            out("  RED %s: unreadable: %s" % (name, e))
+            bad.append(name)
+            seen.add(name)
             continue
         if name in seen:
             out("  RED %s: a second workflow named %s" % (f, name))
@@ -174,13 +178,13 @@ def selftest():
         ("device-ids loses its top-level block",
          lambda e, wf: e("device-ids", "permissions:\n  contents: read\n", ""), ["device-ids"]),
         ("firmware's top level gains actions: write",
-         lambda e, wf: e("firmware", "permissions:\n  contents: read\n", "permissions:\n  contents: read\n  actions: write\n"),
+         lambda e, wf: e("firmware", "\npermissions:\n  contents: read", "\npermissions:\n  actions: write\n  contents: read"),
          ["firmware"]),
         ("web-renderer's publish job drops to read",
          lambda e, wf: e("web-renderer", "    permissions:\n      contents: write", "    permissions:\n      contents: read"),
          ["web-renderer"]),
         ("workers goes inline write-all",
-         lambda e, wf: e("workers", "permissions:\n  contents: read\n", "permissions: write-all\n"), ["workers.yml"]),
+         lambda e, wf: e("workers", "permissions:\n  contents: read\n", "permissions: write-all\n"), ["workers"]),
         ("a new workflow nobody registered",
          lambda e, wf: open(os.path.join(wf, "zz-new.yml"), "w").write("name: zz-new\npermissions:\n  contents: read\n"),
          ["zz-new"]),
