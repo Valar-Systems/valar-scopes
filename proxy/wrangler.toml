@@ -195,6 +195,12 @@ TYPE_ADSBDB_ENABLED = "false"             # adsbdb type backfill: PlaneBase-deri
 enabled = true
 head_sampling_rate = 1
 
+# Invocation logs OFF (owner ruling, 2026-11-17): the per-request invocation event ("the Request, Response, and
+# related metadata", Cloudflare's words) is not stored. The Worker's own console lines still are. Staging proves it
+# before production; see docs/workers-logs-invocation-off.md.
+[env.staging.observability.logs]
+invocation_logs = false
+
 [[env.staging.kv_namespaces]]
 binding = "ENRICH_KV"
 id = "8b6e92ed802a4192b6b6c1399fdf96aa"
@@ -401,6 +407,11 @@ cpu_ms = 200
 [env.production.observability]
 enabled = true
 head_sampling_rate = 1.0
+
+# Invocation logs OFF (owner ruling, 2026-11-17), as staging above: our own console lines are still stored.
+# See docs/workers-logs-invocation-off.md.
+[env.production.observability.logs]
+invocation_logs = false
 
 [[env.production.kv_namespaces]]
 binding = "ENRICH_KV"
