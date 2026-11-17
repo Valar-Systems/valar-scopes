@@ -29,6 +29,7 @@
 #include <string.h>
 #include <time.h>
 #include <algorithm>
+#include "FrameBenchMargin.h"
 #include "FrameBenchTable.h"
 #include "WxCrop.h"
 #include "variants/Variant.h"   // BLIPSCOPE_PUSH_TASK is a variant HEADER's: included here so every file sees one kScenes
@@ -42,9 +43,21 @@ struct Scene {
     Kind kind;
     uint8_t level = kLevel;   // the (a) table's n in this scene
     bool wx = true;           // this scene's "wx-layer" answer (Override)
+    bool margin = false;      // board addendum 2 (docs/speed-p5p6.md section 7): the margin probe runs while it MEASURES
 };
+// Board addendum 2's lists (docs/speed-p5p6.md section 7): every image opens with the heap-graded C1 pair, and the
+// margin scene runs LAST, so the probe never sits beside a heap-graded or frame-timed scene (the reviewer's rule 3(i)).
+// A branch with its own A2 scenes defines FRAMEBENCH_A2_SCENES first; this is the base image's (B3').
+#if !defined(FRAMEBENCH_A2_SCENES)
+#define FRAMEBENCH_A2_SCENES {C1}, {C1}, {C1, kLevel, true, true}
+#endif
 #if defined(FRAME_PROFILE)
 #include "FrameProfileScenes.h"   // p4's (docs/frame-profile.md): defines kScenes; one owner per line
+#elif defined(SPEED_A2_BENCH)
+#if !defined(BLIPSCOPE_PUSH_TASK)
+#error "SPEED_A2_BENCH runs image B's shape: with the push task"
+#endif
+static const Scene kScenes[] = {FRAMEBENCH_A2_SCENES};
 #else
 #if defined(BLIPSCOPE_PUSH_TASK)
 static const Scene kScenes[] = {{C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}};   // image B
@@ -122,7 +135,10 @@ struct State {
     bool noting = false;
     int nNoted = 0;
     Noted noted[kMaxKeys];
+    int marginProbe = 0;           // A2: probes made in this margin scene's measure
+    uint32_t marginNextMs = 0;     // A2: when the next one is due
 };
+
 inline State& S()
 {
     static State s;
