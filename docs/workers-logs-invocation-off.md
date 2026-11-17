@@ -336,6 +336,19 @@ on at least H1 and H6; both typechecks clean.
   and no sabotage file left behind. **As predicted.**
 - **`typecheck` and `typecheck:scripts`:** both clean, exit 0. **As predicted.**
 
+**The plants, as read (2026-11-17).** Each was planted by a driver that asserts its needle occurs exactly once and that
+the file changed, then restored from a byte copy with its sha256 checked; the tree was clean after each.
+- **S-DEV** (`record()` spreads `...m` again): the whole suite read 2 failed, 1,113 passed, 1 skipped. The failures are
+  exactly {DL4, DL5}. Restored: `0b73187b664d` == the original. **As predicted.**
+- **S-NEWFIELD** (`index.ts` sets an extra `ip = "192.0.2.1"` beside `authPath`): the whole suite read 1 failed, 1,114
+  passed, 1 skipped. The failure is exactly {DL5}. Restored: `2db6ff7a14e6` == the original. **As predicted.**
+  - Its FIRST run (06:20Z) was an INSTRUMENT FAILURE, not a reading. The workers pool crashed on `read ECONNRESET` with
+    0 rows in all 81 files, because TIME_WAIT stood at 4,599 against this repo's rule of under 2,000 before a run; it
+    had been re-read before the first whole-suite run only.
+  - The fix, ruled by the reviewer: wait until TIME_WAIT is under 2,000 on two reads 60 s apart, then run once.
+    TIME_WAIT is now re-read before every whole-suite run. The re-run (06:38Z) gave the reading above, after reads of
+    23, 22 and 32.
+
 ## 9. Record
 
 _Filled in after the slot, below this line, without editing anything above it._
