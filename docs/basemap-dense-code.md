@@ -5190,3 +5190,24 @@ could not be told from a reader that always says "equal".
 - **Outside the set:**
   - a tested base other than 5c45a67ca109: STOP, re-derive the count, and write the amendment before anything is graded;
   - any other count, conclusion or job name: STOP, and read which job before anything else.
+
+### 09cdb962's CI, read; row 5's two added controls, read (2026-11-17)
+
+**Read at 09cdb962ea81** (the section above): 38 = 36 / 2 / 0, as predicted. `promote` and `version` were skipped, and the job names
+equalled 1f7c76fc's. The reads that count were at 01:58:25Z and 01:59:26Z; two at 35 s and 49 s are not counted. Tested on "Merge
+09cdb962ea81... into 5c45a67ca109..." (ff99ada), per run 43997506788's checkout log. The orchestrator's own read at 01:59:45Z
+matched.
+
+**Control (1), P5-2's adapter control: AS PREDICTED** (`mirror/r5ctl26.sh` 6eab261267e1; 01:42:03Z to 01:43:03Z, in the background
+and registered, its check passing with 0 running).
+- `tbstage26.mts` (e703ffba8e4f) with the ZERO stamp on set 16: **16 of 16 byte-identical** (`cmp`) to step 8's `tb26-out/b`.
+- With e81e794908a6... on set s4: **6 of 6 byte-identical** to the AFTER packages.
+- Both builds exited 0 with stderr 0 B, and each summary read storeId 33d6dc41c749 and objects 12,021. The outputs' sha256 list is
+  `run-logs/r5ctl26.shas.txt` (6c1c1efb7da7).
+- So the generated adapter is step 8's. Its H5-stamped output is believed once P5-1 and P5-3 pass.
+
+**Control (2), P5-4's can-fail control: AS PREDICTED** (`mirror/r5canfail26.mts` 535c5c1cb85b, run 01:59:08Z). 22 of 22 points moved
+by 0.01 parse to a DIFFERENT normalised query, with none blind, exit 0 and stderr 0 B. So r5points26's 22-of-22 equality at 2 dp
+(01:22:12Z) is a check that could have failed.
+
+**#696 still HOLDS FROM MERGE.** Row 5's slot comes after Tuesday's 23:00Z production deploy has closed, as ruled.
