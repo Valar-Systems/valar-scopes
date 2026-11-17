@@ -2469,3 +2469,145 @@ Everything else stands as 7, 7d and 7e froze it:
 - child logs read only through `run/childlog.sh`;
 - every launch hidden;
 - a VOID or an instrument failure stops the window.
+
+### 8. P5's open merge condition: the marks compile to nothing where no set can attach (registration, docs only, 2026-11-17 ~04:2xZ, before any code)
+
+**The condition** (4s, restated 4v and 4x): "Before any merge, one of two must hold:
+- the marks compile to nothing in editions that attach no dirty set (B7 − B6 `.bin` ≈ 0); or
+- a Missileer frame-time row."
+
+4v read B7 − B6 = **+1,088 B**, so it stands. The reviewer's GO (04:1xZ) covers this registration: the FIRST branch
+only, docs first, and review before any code. The second branch needs a board and is left alone.
+
+**The design: two declarations change, and no method body.** In `include/BandCanvas.h`, a compile-time switch
+`BANDCANVAS_DIRTY_MARKS`:
+- **The default is 1.** It is **0 when any of the 8 edition flags is defined** (`FEATURE_EAM`, `_SPACE`, `_SEISMIC`,
+  `_BIRDING`, `_FISHING`, `_CLAUDESCOPE`, `_SPEED`, `_WEATHERSCOPE`), the editions main.cpp's radar guard excludes. An
+  explicit `-D` overrides it.
+- **ON (1):** exactly as now.
+- **OFF (0):** the member becomes `static constexpr dirtyclear::Set* dirty_ = nullptr;`, and `SetDirty` becomes
+  `= delete`.
+  - Every method keeps its text, `if (dirty_) dirtyclear::Mark...(*dirty_, ...)`, which folds to false at compile
+    time. `DirtyAll`, `MarkSpan` and `Dirty()` fold the same way.
+  - The object loses its pointer, so its layout equals the base's.
+  - `DirtyClear.h` stays included in both modes. It holds only constants, structs and inline functions, so it adds no
+    code or storage on its own.
+- **Why not `BLIPSCOPE_RADAR_EDITION`:** it exists (main.cpp:492), but it is local to main.cpp and defined after the
+  includes. BandCanvas.h cannot see it.
+- **The directions:**
+  - An edition missing from the list keeps its marks. That costs bytes (today's state) and never pixels.
+  - **The dangerous direction cannot compile:** marks OFF in an image that attaches a set. `SetDirty` is deleted, and
+    its only call sites (main.cpp:1270 and :1272) sit inside the radar guard.
+- **The second path, named:** the 8-flag list repeats the radar guards' edition list. A new edition must join both.
+  Missing it here costs bytes, never pixels, because of the deleted `SetDirty`.
+- **Hosts are untouched:** no host test compiles BandCanvas.h (0 files under `test/host` include it).
+  `check_p5_writes.py`'s W-CANVAS reads method bodies, which do not change.
+
+**The env set, DERIVED, not typed.**
+- **The source:** `platformio project config --json-output` at `bench/speed-p5` `8be4d708315d`, run in a hidden
+  PowerShell child (output sha256 `f576646125d0`), and `skus.yml` at the same commit.
+- **The classifier:** `_handoffs/.../env_classes.py` (sha256 `415fc706e031`) classes each env by the edition flags in
+  its RESOLVED `build_flags`:
+  - class **E** (marks out) has one;
+  - class **R** (marks kept) has none: the radar, and the probes and harnesses with no edition flag.
+- **What is measured:** both sides, for the envs `skus.yml` builds (shipping or build-only).
+- **What is predicted, not read:** the rest. That is the retired editions and every env CI does not build.
+
+| env | edition flag | class | skus.yml | here |
+|---|---|---|---|---|
+| `blipscope-s3-128` | - | R (marks kept) | shipping | MEASURED |
+| `blipscope-s3-128-quiethour` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-b3` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-wxlook` | - | R (marks kept) | build-only | MEASURED |
+| `blipscope-s3-128-joindiag` | - | R (marks kept) | build-only | MEASURED |
+| `blipscope-s3-128-alertbench` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-m3bench` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-m3bench-base` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-m3bench-plant` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-touchbench` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-netfault` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-tlsheap` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-fetchtrace` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-soak` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-densesky` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-cloud` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `probe-s3-128` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `probe-s3-128-heap` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `probe-s3-128-blit` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `probe-s3-128-logbook` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `probe-s3-128-phase2` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-pro-s3-21` | - | R (marks kept) | build-only | MEASURED |
+| `blipscope-s3-146` | - | R (marks kept) | retired | predicted, not read |
+| `blipscope-s3-146-cloud` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `missileer-s3-146` | EAM | E (marks out) | retired | predicted, not read |
+| `missileer-s3-128` | EAM | E (marks out) | build-only | MEASURED |
+| `missileer-photo` | EAM | E (marks out) | build-only | MEASURED |
+| `orbitscope-s3-146` | SPACE | E (marks out) | retired | predicted, not read |
+| `quakescope-s3-146` | SEISMIC | E (marks out) | retired | predicted, not read |
+| `quillscope-s3-146` | BIRDING | E (marks out) | retired | predicted, not read |
+| `reelscope-s3-146` | FISHING | E (marks out) | retired | predicted, not read |
+| `claudescope-s3-146` | CLAUDESCOPE | E (marks out) | retired | predicted, not read |
+| `speedscope-s3-146` | SPEED | E (marks out) | retired | predicted, not read |
+| `blipscope-pro-s3-175-amoled` | - | R (marks kept) | build-only | MEASURED |
+| `gametest-s3-128` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `hwtest-s3-146` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `animtest-s3-128` | - | R (marks kept) | build-only | MEASURED |
+| `animtest-s3-128-globe` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `animtest-s3-128-truetime` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `weatherscope-s3-128` | WEATHERSCOPE | E (marks out) | build-only | MEASURED |
+| `weatherscope-otabench-s3-128` | WEATHERSCOPE | E (marks out) | not in skus.yml | predicted, not read |
+| `weatherscope-touchbench-s3-128` | WEATHERSCOPE | E (marks out) | not in skus.yml | predicted, not read |
+| `weatherscope-bench-s3-128` | - | R (marks kept) | build-only | MEASURED |
+| `probe-s3-128-boottouch` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-otatest` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-otafault` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `probe-s3-128-gesture` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `probe-s3-128-screenstate` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `gametest-s3-128-arm` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-framebench-c1a` | - | R (marks kept) | not in skus.yml | predicted, not read |
+| `blipscope-s3-128-framebench-c1b` | - | R (marks kept) | not in skus.yml | predicted, not read |
+
+counts: 51 envs; E (marks out), MEASURED: 3; E (marks out), predicted, not read: 9; R (marks kept), MEASURED: 7; R (marks kept), predicted, not read: 32
+
+**The predictions** (every class E or R env; the measured ones read by the tool below):
+
+| class | compared | `.bin` size | bytes | behaviour |
+|---|---|---|---|---|
+| **E** (12) | P5' vs the base (`bench/speed-base` `830e7106324a`) | **Δ 0 exactly** | every differing byte in the five build-stamp regions (CLAUDE.md's accounting) | unchanged: the same code |
+| **R** (39) | P5' vs P5 (`8be4d708315d`) | **Δ 0 exactly** | the same | unchanged |
+
+- **The five regions:** `app_elf_sha256` at 0xB0 (32 B); the trailing image SHA-256 (32 B); the checksum byte before
+  it; and WiFiManager's two `HH:MM:SS` stamps (5 + 5 B). An image without WiFiManager differs in fewer.
+- **What closes the merge condition:** class E reading Δ 0 means B7' − B6 = 0.
+- **R-DELETE, the guard shown firing:** one extra build of `blipscope-s3-128` with `-DBANDCANVAS_DIRTY_MARKS=0` **fails
+  to compile, naming `SetDirty`**. A build that succeeds means the dangerous direction is open: **STOP**.
+- **The host rows:**
+  - `check_p5_writes.py` reads W-CANVAS ok unchanged;
+  - its plant (drawLine's mark removed) still reads W-CANVAS red;
+  - `run.sh`'s suites are unchanged.
+
+**The tool, red first: `bincmp.py`** (host).
+- It takes two `.bin`. Exit 2 means the sizes differ.
+- Otherwise it lists each differing byte and accounts it to one of the five regions. A time stamp is a byte inside a
+  `\d\d:\d\d:\d\d` match in BOTH images.
+- Exit 0 means every byte is accounted for; exit 1 means some are not, and it prints them.
+- **Plants:** one byte changed outside the regions reads 1; a size change reads 2; a sha-region change alone reads 0.
+- **The control:** two builds of one source read 0.
+
+**The builds** (the hidden-child route, in PowerShell, ONE at a time, the disk read before each against the 30 GiB
+floor, and the versions recorded). PlatformIO cleans `.pio/build` when its configuration changes (seen 02:05Z), so each
+`.bin` is archived the moment its build ends. In order:
+1. E at the base, in `wt-a2base`: 3 builds.
+2. R at P5 (`8be4d708315d`, BEFORE the change), in `wt-p5b`: 7 builds.
+3. Commit P5' (BandCanvas.h only), and build E and R at it: 10 builds.
+4. R-DELETE: 1 build, expected to fail.
+
+That is 21 builds, about 75 min. Nothing here touches a board.
+
+**Outside the set** (the reviewer's rule): STOP and come to the reviewer, with no re-fit, if:
+- any measured env's size moves where 0 is predicted;
+- any byte falls outside the five regions;
+- R-DELETE compiles;
+- W-CANVAS changes.
+
+**Then** the reading goes in a later section, and P5's merge condition closes or stays open on that reading alone.
