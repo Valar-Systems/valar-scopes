@@ -2097,3 +2097,83 @@ measure end". I propose **measure start and measure start + 110 s** instead.
    - B4''s scene list.
 3. anchor_compare's file mode, red first against synthetic lines.
 4. B4' built compile-only, I-4, and the heap bands derived from the three ELFs and frozen.
+
+### 7e. The anchor's rung and level, picked on the host and frozen (2026-11-17 ~01:5xZ), before the device code
+
+**The rule, pre-registered and accepted by the reviewer before it ran:**
+- for R = 8, 7, 6, 5, 4 mi in that order, take the first R where some L in 20..60 has ≥ 1 overlapping pair AND ≥ 1
+  edge-clipped contact with ≥ 1 on-screen pixel;
+- at that R, the smallest such L;
+- if no R qualifies, A3 (b), named.
+
+Both definitions are `anchor_core.h`'s `OverlapPairs` and `EdgeClipped`, which the file mode uses too.
+
+**Why an edge clip is reachable at all, as the reviewer asked.** `src/CloudFeed.cpp`'s row parse applies no box
+filter, and the radar loop culls only when zoomed in (`ZoomCulled`). So a row beyond the radius box still reaches the
+draw loop, and the 240 × 240 backbuffer clips it.
+- At the bench's 25 mi rung no row gets near the edge.
+- At a small rung, some do. That is what A3 (a) relies on.
+
+**The port** (`tools/speed-p5p6/anchor_pick.cpp`, `bench/speed-p5` `29be96ef520d`):
+- `fbtable::At` at `kTblT`;
+- the wire's `lat4 / 1e4f`;
+- `radLat`/`radLon` from R × 1.609344 / 111.0 and `cos(lat × DEG_TO_RAD)`;
+- the view factor exactly 1.0 at the top of the zoom ladder;
+- `radarproj::Project` at up 0.
+
+The home and `kTblT` are READ from `include/FrameBench.h`, and the home is not printed. The run's output has sha256
+`f66b9ca25527`.
+
+| R | result |
+|---|---|
+| 8 mi | no L in 20..60 qualifies |
+| **7 mi** | **L 20 qualifies:** 20 contacts, 19 with an on-screen pixel, 2 overlapping pairs, 1 edge-clipped |
+
+**FROZEN:**
+- the anchor scenes override `radius` to **7** (mi);
+- **ANCHOR_8COPY serves level 20**;
+- ANCHOR_BG serves an empty table by its KIND, not by a level of 0, because the scene check refuses a level below 1.
+
+**The contacts, as the host predicts them** (table order; screen pixels; all `cat 4`, the table's A3):
+
+| c | x | y | trk ×10 | cat | on screen | edge-clipped |
+|---|---|---|---|---|---|---|
+| c0 | 102 | 119 | 0 | 4 | 1 | 0 |
+| c1 | 209 | 106 | 3510 | 4 | 1 | 0 |
+| c2 | 117 | 165 | 2730 | 4 | 1 | 0 |
+| c3 | 222 | 181 | 310 | 4 | 1 | 0 |
+| c4 | 127 | 46 | 960 | 4 | 1 | 0 |
+| c5 | 114 | 92 | 2580 | 4 | 1 | 0 |
+| c6 | 221 | 120 | 1800 | 4 | 1 | 0 |
+| c7 | 99 | 172 | 1120 | 4 | 1 | 0 |
+| c8 | 130 | -9 | 950 | 4 | 0 | 0 |
+| c9 | 77 | 47 | 2400 | 4 | 1 | 0 |
+| c10 | 116 | 81 | 850 | 4 | 1 | 0 |
+| c11 | 23 | 61 | 2110 | 4 | 1 | 0 |
+| c12 | 154 | 177 | 2390 | 4 | 1 | 0 |
+| c13 | 98 | 119 | 1800 | 4 | 1 | 0 |
+| c14 | 100 | 213 | 2820 | 4 | 1 | 0 |
+| c15 | 74 | 140 | 1560 | 4 | 1 | 0 |
+| c16 | 107 | 242 | 2760 | 4 | 1 | **1** |
+| c17 | 197 | 109 | 3520 | 4 | 1 | 0 |
+| c18 | 105 | 91 | 620 | 4 | 1 | 0 |
+| c19 | 162 | 217 | 660 | 4 | 1 | 0 |
+
+**Overlapping pairs:** (c0, c13) and (c5, c18). **Edge-clipped:** c16, centred 2 px below the bottom edge. c8 is drawn
+wholly off screen: it has a line and no pixel.
+
+**The margin, stated: ONE clipped contact and TWO pairs.**
+- c16's y comes from its latitude and `radLat` alone, with no `cos`.
+- The table's own wire values are checked against the host on the board at boot (TBL-DEV's `sum` at `kTblT`).
+- The two pairs are 4 px and 9 px apart.
+
+**What this predicts on the board: recorded, NOT graded (row A-PREDICT).**
+- The device's S3 prints carry exactly these 20 `(x, y, trk, cat)`, in the device's own draw order, each with `dot 0`,
+  `up 0` and `ovl 000`.
+- Its S2 prints carry 0 contacts.
+- **If the device's set differs, R-ANCHOR still grades on the device's OWN lines.** anchor_compare re-derives the
+  overlap and the clip from them. The difference is recorded and reported, not graded.
+- **Outside the set:** fewer than 20 contacts (a filter I did not find), or no clip, or no pair in the device's lines,
+  makes R-ANCHOR **VOID** by its own clause. It then comes to the reviewer, and the fallback is A3 (b), named.
+
+**Next:** the device code on `bench/speed-p5`, as 7d lists it, with radius 7 and level 20 above.
