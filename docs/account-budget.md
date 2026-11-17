@@ -865,3 +865,43 @@ state). The two ingest states carry different values, so each weight is checked 
 - **The sabotage driver** gains **S-STOR**, the 30/days factor removed. It is predicted red exactly {M-ST1, M-ST2},
   with every existing plant at its registered set.
 - **Outside the set:** any other red, any other cell, or a plant off its set. Stop and report.
+
+### 10.1 Record (2026-11-17), and the re-registration it forced
+
+The text above is left as frozen. One name slip in it: where it says "`--check`", the flag is `--render-check`. The
+prediction is unchanged.
+
+- **Red-first at `474246e0`** (01:22:23Z): red exactly {M-ST1, M-ST2}, with 27 PASS (M-ST0 green) and exit 1. **As
+  predicted.**
+- **The code at `f6020c67`** (01:23:18Z). **As predicted:**
+  - `--selftest` read 29 PASS, exit 0.
+  - `--render-check` read STALE before the re-render, which is the control that it can fail, and current after it.
+  - `--render` changed exactly one row: December's R2 storage, `3.99 (40%)` to `3.86 (39%)` in all six columns.
+- **The sabotage driver** (01:23:53-01:24:00Z): **OFF, a MISS, recorded as read and not re-graded.**
+  - 26 plants read as predicted, S-STOR exactly {M-ST1, M-ST2} among them.
+  - S-MONTH failed {M1, M-ST1, M-ST2}, against a registered {M1}.
+  - S-SEG failed {M2, M-ST2}, against a registered {M2}.
+
+**The cause is this registration's defect.** It said S-MONTH and S-SEG "keep their needles and their registered sets".
+The needles held. The sets could not, because the new rows' arithmetic runs through `weights()`:
+- M-ST1's 4.0 is (days/30) x (30/days). S-MONTH sets the first factor to 1, so it reads 4.0 x 30/31.
+- M-ST2 has one whole-month row (the one-state product's), which S-MONTH breaks, and two segment rows, which S-SEG
+  breaks.
+
+**The alternatives, each excluded:**
+- **Wrong code:** the clean selftest is 29/29, S-STOR reads exactly its set, and the render moved only the predicted row
+  by the predicted amount.
+- **A misparse:** the driver's output prints the M-ST FAIL lines under each of the two plants.
+- **A wrong needle:** both target `weights()` lines that occur once, and the clean run is green.
+
+**Re-registered before the driver runs again** (ruled by the reviewer, 2026-11-17):
+
+| plant | predicted set | why, row by row |
+|---|---|---|
+| S-MONTH | {M1, M-ST1, M-ST2} | M1 as before. M-ST1 is a whole-month weight only. M-ST2 includes a whole-month row |
+| S-SEG | {M2, M-ST2} | M2 as before. M-ST2's two ingest rows are segments; M-ST1 has no segment |
+
+- Every other plant's set is unchanged. S-STOR's is the only per-month line, and the first run read every other plant
+  as registered.
+- The driver runs once more, predicted ALL AS PREDICTED.
+- A second off on these rows goes to the reviewer and the owner.
