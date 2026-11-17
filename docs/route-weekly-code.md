@@ -1286,6 +1286,25 @@ before the run. Steps 0-2 now, per environment, through the real KV and the help
   which predates D1's journal read.
 - **Outside the set:** any other line, count or exit. Stop with nothing further run, and report.
 
+### 4e. The run's T-0 checklist (frozen 2026-11-17, before the run on 2026-11-18 16:00Z)
+
+Each row is read, in order, before 4d's step 0. A row that does not read as written is a STOP: nothing runs, and the
+reviewer is told. 4d's steps and predictions are unchanged.
+
+| # | the check | reads |
+|---|---|---|
+| T0.1 | **W8 passed at main** (section 2s, the owner's order 6). | |
+| | the run itself | 2026-11-16 20:13:30-21:05:43Z at main `3741501b`; baseline 71/81/4/8/11/1 with 0 red; 18 of 18 plants as registered, including the four derived sets (S-GR8, S-VAL, S-JN-W, S-J7); stderr 0; readiness (a) 4/4 and (b) green |
+| | the local record, kept in the session's scratchpad: the driver's log (2,314 bytes, sha256 `344a3de63855`), its meta (sha256 `2ee32dd58f1f`) and its stderr file (0 bytes) | both hashes re-read equal at T-0. Section 7 gets the full write-up in this run's record PR |
+| T0.2 | **W8 still covers the writer.** The writer's inputs, from an esbuild bundle of `scripts/ingest-routes.ts` (11 inputs, 0 under `src/`) and `scripts/routes-backup.ts` (1 input), each compared between `3741501b` and the run's main | none changed. At plan time (main `0fc8c1d3`), the only commit touching `proxy/scripts/` since `7606224c` is #734, and its one file there (`sabotage-wx-opera-fallback.py`) is not an input. Any changed input: STOP until planned (4d's rule) |
+| T0.3 | **the run checkout is LF.** `git worktree add --no-checkout --detach <path> <main sha>`, then `git -C <path> -c core.autocrlf=false -c core.eol=lf reset --hard <main sha>`, then a byte count of CRLF over `proxy/src` and `proxy/scripts` with a planted control (a file of two CRLF lines), then `npm ci` in `proxy/` | the control reads 2; both folders read 0; `npm ci` exits 0; porcelain 0 |
+| T0.4 | **backup readiness (a)**, through the writer's own `backupPathRefusal()`, imported from the run checkout's `scripts/routes-backup.ts` | the two planned paths (`routes-backup-staging-<stamp>.json` and `routes-backup-production-<stamp>.json` beside the token file) are ALLOWED. Both controls are REFUSED: a path inside the run checkout, and the backup folder itself. 4 cases, 0 off. If the writer cannot be imported from the checkout, the reading is BLIND: STOP |
+| T0.5 | **the inputs are present**, one boolean each, in `~/.config/blipscope/routes-first-run/`: the two manifests and the two tarballs of 4d's table. The folder is checked to be outside every git tree | 4 of 4 present; git there says "not a git repository". 4d's step 0 then compares the manifests' sha256 with D10's pins |
+| T0.6 | **`--backup` is in step 3's command line** for each environment, and the target file does not exist yet (BK0 refuses an existing path) | present in both; absent before each write |
+
+**Outside the set:** any other reading. That includes a hash that differs, a changed writer input, a CRLF count above 0
+or a control not reading 2, a readiness case OFF, or an input absent. Each is a stop, with nothing run, and is reported.
+
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 
 **The alternative.** The workflow holds no KV token. It POSTs batches of `[key, value]` and `delete` lists to a
