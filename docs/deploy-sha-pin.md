@@ -179,3 +179,24 @@ _Filled in below this line as each step reads, without editing anything above it
     anchor still holds.
   - `--selftest-guard`: exit 0. DB18 AS PREDICTED.
   - The dry-runs' outdirs in OS temp: 0 left before, 0 after.
+
+**2026-11-17, `ingest_deploy.sh` half:**
+
+- **The harness, built with the ruled rig from the start.** `tools/wx/check_ingest_deploy.sh` is extended as follows:
+  - its mirror is a git repo with a bare origin, C0, C1/C2 (each adding a file under `proxy/`) and CD (`docs/x.md` only);
+  - `assume-unchanged` is set on `tools/wx/ingest_deploy.sh`, in the mirror only;
+  - ID1-ID13 run with `EXPECT_SHA` = C0, their predictions unchanged, and `run_all` resets origin's main to C0 first;
+  - the pin rows IS1-IS5 and IB1-IB6 run through the existing `row()`.
+
+  **IS5 is the dirt control here**: one line appended to the tracked `proxy/wrangler.toml` must still refuse. IDs-f's
+  registered set grew by exactly IS4, IB2 and IB6, the three new rows that reach the deploy. That was predicted before
+  the plants ran.
+- **Red first, 19:10Z, as predicted.** On today's `ingest_deploy.sh`, ID1-ID13 were as predicted, and all 11 new rows were
+  OFF, each reading `0 1 0`: today the script deploys whatever the commit, the dirt or the behind state.
+- **Green, 19:11Z, as predicted:** 24 of 24 rows, and npx-trap hits 0.
+- **Plants, 19:12-19:18Z, as predicted.** The CONTROL had 24 of 24 as predicted. IDs-a through IDs-e were as registered.
+  IDs-f was as registered with its extended set; its trap hits went from 5 to 8. S-IS1, S-IS2, S-IS3, S-IS5, S-IB1,
+  S-IB3, S-IB4 and S-IB5 each reddened exactly its registered row. In all: "ALL AS REGISTERED (14 plants)".
+- `--guard-selftest`: AS PREDICTED (G1 refused, G2 refused, G3 passed, G4 refused by the probe).
+- **CI:** `check-deploy-sha.sh` (the rows, then `--sabotage`) is added to the device-ids job, after the ingest harness and
+  before the workflow-permissions check, which stays last.

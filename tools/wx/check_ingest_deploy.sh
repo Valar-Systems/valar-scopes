@@ -22,6 +22,7 @@ for f in tools/wx/ingest_deploy.sh scripts/session-claim.py proxy/scripts/wrangl
          proxy/wx-ingest.wrangler.toml proxy/wx-ingest-opera.wrangler.toml proxy/wx-ingest-dev.wrangler.toml; do
   cp "$REPO/$f" "$M/$f" && cmp -s "$REPO/$f" "$M/$f" || { echo "RIG: $f did not copy byte-identical"; exit 2; }
 done
+mkdir -p "$M/docs"; echo base > "$M/docs/x.md"
 SCRIPT="$M/tools/wx/ingest_deploy.sh"
 cp "$SCRIPT" "$T/script.orig"
 
@@ -57,6 +58,27 @@ chmod +x "$T/bin/npx"
 # helper ever ran the real wrangler, it would meet a token that is not one, and fail to authenticate rather than deploy
 # (a per-process variable, never a user-level one).
 export CLOUDFLARE_API_TOKEN=not-a-token-check-ingest-deploy
+
+# THE MIRROR'S GIT (docs/deploy-sha-pin.md 2b): C0 is the base and HEAD; C1 and C2 each add a file under proxy/, and CD
+# touches only docs/x.md, on side refs in a bare origin. A row sets origin's main to its tip; the script's own
+# `git fetch` picks it up. RIG (ruled 2026-11-17): a plant edits the mirror's TRACKED ingest_deploy.sh, which would read
+# as dirt and trip the dirty-tree refusal before the pin; assume-unchanged hides ONLY that file, and IS5 proves the
+# refusal still fires on other dirt.
+export GIT_AUTHOR_NAME=harness GIT_AUTHOR_EMAIL=harness@invalid GIT_COMMITTER_NAME=harness GIT_COMMITTER_EMAIL=harness@invalid
+g() { git -c core.autocrlf=false -c core.eol=lf -c init.defaultBranch=main "$@"; }
+g init -q --bare "$T/origin.git" || { echo "RIG: git init --bare"; exit 2; }
+( cd "$M" && g init -q && g add -A && g commit -q -m C0 && g remote add origin "$T/origin.git" && g push -q origin main ) \
+  || { echo "RIG: the mirror's base commit"; exit 2; }
+C0="$(g -C "$M" rev-parse HEAD)"
+g -C "$M" update-index --assume-unchanged tools/wx/ingest_deploy.sh || { echo "RIG: assume-unchanged"; exit 2; }
+g clone -q "$T/origin.git" "$T/side" || { echo "RIG: git clone"; exit 2; }
+( cd "$T/side" && echo c1 > proxy/c1.txt && g add proxy/c1.txt && g commit -q -m C1 && g push -q origin HEAD:refs/heads/s-c1 \
+  && echo c2 > proxy/c2.txt && g add proxy/c2.txt && g commit -q -m C2 && g push -q origin HEAD:refs/heads/s-c2 \
+  && g checkout -q "$C0" && echo docs >> docs/x.md && g commit -q -am CD && g push -q origin HEAD:refs/heads/s-cd ) \
+  || { echo "RIG: the side commits"; exit 2; }
+C1="$(g -C "$T/origin.git" rev-parse s-c1)"; C2="$(g -C "$T/origin.git" rev-parse s-c2)"; CD="$(g -C "$T/origin.git" rev-parse s-cd)"
+tipsha() { case "$1" in C0) echo "$C0";; C1) echo "$C1";; C2) echo "$C2";; CD) echo "$CD";; esac; }
+export EXPECT_SHA="$C0"   # ID1-ID13 run pinned to HEAD; their predictions are unchanged
 
 # THE GUARD, before any row: WRANGLER_RUN_BIN must be the fake, a probe through the MIRROR's helper must land in the
 # fake (one whole recorded line), and `npx` must resolve to the trap. Exit 2 (rig) otherwise.
@@ -135,10 +157,50 @@ ROWS=(
 )
 
 # Runs every row; prints one line each when $1 is "loud"; sets RED to the rows that differ from their prediction.
+
+# THE PIN ROWS (docs/deploy-sha-pin.md 2b), each against wx-ingest-opera.wrangler.toml opuk under a held claim, through
+# row() above. name | origin's tip (C0dirty: C0 plus one line appended to the tracked proxy/wrangler.toml) | EXPECT_SHA
+# (unset|abc123|C1|HEAD) | ALLOW_BEHIND | ALLOW_BEHIND_SHAS (-|C1|C1,C0|C1short) | token | "<exit> <deploy 0|1> <token 0|1>"
+IROWS=(
+  "IS1|C0|unset|-|-|EXPECT_SHA is not set|1 0 1"
+  "IS2|C0|abc123|-|-|EXPECT_SHA must be a full 40-hex sha|1 0 1"
+  "IS3|C0|C1|-|-|HEAD is not EXPECT_SHA|1 0 1"
+  "IS4|C0|HEAD|-|-|pinned: HEAD is EXPECT_SHA|0 1 1"
+  "IS5|C0dirty|HEAD|-|-|uncommitted changes|1 0 1"
+  "IB1|C1|HEAD|1|-|ALLOW_BEHIND=1 is retired|1 0 1"
+  "IB2|C1|HEAD|-|C1|named and behind: <C1:12>|0 1 1"
+  "IB3|C2|HEAD|-|C1|behind and not named: <C2:12>|1 0 1"
+  "IB4|C1|HEAD|-|C1,C0|named but not behind: <C0:12>|1 0 1"
+  "IB5|C1|HEAD|-|C1short|ALLOW_BEHIND_SHAS must list full 40-hex shas|1 0 1"
+  "IB6|CD|HEAD|-|-|pinned: HEAD is EXPECT_SHA|0 1 1"
+)
+srow() {
+  local tipn=$1 expect=$2 ab=$3 abs=$4 token=$5 dirt=0
+  [ "$tipn" = C0dirty ] && { dirt=1; tipn=C0; }
+  g -C "$T/origin.git" update-ref refs/heads/main "$(tipsha "$tipn")" || { echo "RIG: update-ref"; return 2; }
+  [ "$dirt" = 1 ] && echo '# dirt' >> "$M/proxy/wrangler.toml"
+  local ev="" absv=""
+  case "$expect" in unset) ;; HEAD) ev="$C0";; C1) ev="$C1";; *) ev="$expect";; esac
+  case "$abs" in -) ;; C1) absv="$C1";; C1,C0) absv="$C1,$C0";; C1short) absv="${C1:0:12}";; esac
+  local got
+  got="$( if [ "$expect" = unset ]; then unset EXPECT_SHA; else export EXPECT_SHA="$ev"; fi
+          if [ "$ab" = 1 ]; then export ALLOW_BEHIND=1; else unset ALLOW_BEHIND; fi
+          if [ -n "$absv" ]; then export ALLOW_BEHIND_SHAS="$absv"; else unset ALLOW_BEHIND_SHAS; fi
+          row alpha wx-ingest-opuk:production 0 alpha 0 "$OPERA" opuk )"
+  if [ "$dirt" = 1 ]; then g -C "$M" checkout -q -- proxy/wrangler.toml || { echo "RIG: restore"; return 2; }; fi
+  [ -z "$(g -C "$M" status --porcelain -- proxy/ tools/wx/)" ] || { echo "RIG: the mirror is not clean after a row"; return 2; }
+  case "$got" in RIG:*) echo "$got"; return 2;; esac
+  local rc="${got%% *}" calls="${got#* }" up=0 tk=0
+  case "$calls" in *"wrangler deploy -c"*) up=1;; esac
+  grep -qF -- "$(echo "$token" | sed "s/<C1:12>/${C1:0:12}/; s/<C2:12>/${C2:0:12}/; s/<C0:12>/${C0:0:12}/")" "$T/out" && tk=1
+  echo "$rc $up $tk"
+}
+
 RED=""
 run_all() {
   RED=""
   local r name holder covers expired runas drc args want got
+  g -C "$T/origin.git" update-ref refs/heads/main "$C0" || { echo "RIG: update-ref"; exit 2; }
   for r in "${ROWS[@]}"; do
     # The last field, the prediction, keeps its own "|"s: read gives the last name the rest of the line.
     IFS='|' read -r name holder covers expired runas drc args want <<< "$r"
@@ -147,6 +209,16 @@ run_all() {
     case "$got" in RIG:*) echo "$got"; exit 2 ;; esac
     if [ "$got" = "$want" ]; then
       [ "$1" = loud ] && echo "$name: exit ${got%% *}, calls [${got#* }]: as predicted"
+    else
+      RED="$RED $name"
+      [ "$1" = loud ] && { echo "$name: OFF -- got [$got], predicted [$want]"; sed 's/^/    | /' "$T/out" | head -8; }
+    fi
+  done
+  for r in "${IROWS[@]}"; do
+    IFS='|' read -r name tipn exp ab abs token want <<< "$r"
+    got="$(srow "$tipn" "$exp" "$ab" "$abs" "$token")" || { echo "$got"; exit 2; }
+    if [ "$got" = "$want" ]; then
+      [ "$1" = loud ] && echo "$name: [$got] (exit deploy token): as predicted"
     else
       RED="$RED $name"
       [ "$1" = loud ] && { echo "$name: OFF -- got [$got], predicted [$want]"; sed 's/^/    | /' "$T/out" | head -8; }
@@ -178,13 +250,13 @@ if [ "${1:-}" != "--sabotage" ]; then
   : > "$T/npx-trap"
   run_all loud
   echo "npx trap hits: $(wc -l < "$T/npx-trap" | tr -d ' '); fake token in force: $([ "$CLOUDFLARE_API_TOKEN" = not-a-token-check-ingest-deploy ] && echo yes || echo no)"
-  if [ -z "$RED" ] && [ ! -s "$T/npx-trap" ]; then echo "ALL AS PREDICTED (13 rows)"; exit 0; fi
+  if [ -z "$RED" ] && [ ! -s "$T/npx-trap" ]; then echo "ALL AS PREDICTED (24 rows)"; exit 0; fi
   echo "OFF: ${RED:-none}; npx trap hits must be 0"; exit 1
 fi
 
 run_all quiet
 [ -z "$RED" ] || { echo "RIG: the unplanted run is not all as predicted (off: $RED)"; exit 2; }
-echo "CONTROL (unplanted): 13 of 13 as predicted"
+echo "CONTROL (unplanted): 24 of 24 as predicted"
 # name | the whole line | its replacement | the registered red set
 PLANTS=(
   'IDs-a|if ! "$CLAIM_PY" "$CLAIM_TOOL" check deploy --covers "$CLAIM_TARGET"; then|if false; then|ID2 ID3 ID4 ID5 ID6'
@@ -192,7 +264,15 @@ PLANTS=(
   'IDs-c|if [ -n "$REQUIRE_ENV" ] && [ -z "$ENV" ]; then|if false; then|ID7'
   'IDs-d|  wx-ingest.wrangler.toml|wx-ingest-opera.wrangler.toml|wx-ingest-dev.wrangler.toml) ;;|  *) ;;|ID8'
   'IDs-e|exit $rc|exit 0|ID12'
-  'IDs-f|node scripts/wrangler-run.mjs deploy -c "$TOML" ${EARGS[@]+"${EARGS[@]}"} > "$T/dep.out" 2> "$T/dep.err" < /dev/null   # docs/wrangler-run.md|npx wrangler deploy -c "$TOML" ${EARGS[@]+"${EARGS[@]}"} > "$T/dep.out" 2> "$T/dep.err" < /dev/null|ID1 ID9 ID11 ID12 ID13'
+  'IDs-f|node scripts/wrangler-run.mjs deploy -c "$TOML" ${EARGS[@]+"${EARGS[@]}"} > "$T/dep.out" 2> "$T/dep.err" < /dev/null   # docs/wrangler-run.md|npx wrangler deploy -c "$TOML" ${EARGS[@]+"${EARGS[@]}"} > "$T/dep.out" 2> "$T/dep.err" < /dev/null|ID1 ID9 ID11 ID12 ID13 IS4 IB2 IB6'
+  'S-IS1|  fatal "EXPECT_SHA is not set: the deploy plan names the commit it ships (docs/deploy-sha-pin.md)."; exit 1|  :|IS1'
+  'S-IS2|  fatal "EXPECT_SHA must be a full 40-hex sha (got: ${EXPECT_SHA:-})"; exit 1|  :|IS2'
+  'S-IS3|  fatal "HEAD is not EXPECT_SHA: HEAD $HEAD_SHA, the plan names $EXPECT_SHA."; exit 1|  :|IS3'
+  'S-IS5|if [ -n "$DIRTY" ]; then|if false; then|IS5'
+  'S-IB1|  fatal "ALLOW_BEHIND=1 is retired: name the commits behind with ALLOW_BEHIND_SHAS=<full sha>,..."; exit 1|  :|IB1'
+  'S-IB3|    fatal "behind and not named: ${c:0:12} (a merge after the plan; name it in ALLOW_BEHIND_SHAS, or re-plan)"; exit 1|    :|IB3'
+  'S-IB4|    fatal "named but not behind: ${c:0:12} (the plan is stale)"; exit 1|    :|IB4'
+  'S-IB5|      fatal "ALLOW_BEHIND_SHAS must list full 40-hex shas (got: $c)"; exit 1|      :|IB5'
 )
 off=0
 for p in "${PLANTS[@]}"; do
@@ -208,5 +288,5 @@ for p in "${PLANTS[@]}"; do
   if [ "$RED" = "$reg" ]; then echo "$name: red {$RED}: as registered"
   else echo "$name: NOT AS REGISTERED -- red {$RED}, registered {$reg}"; off=$((off + 1)); fi
 done
-[ $off -eq 0 ] && { echo "ALL AS REGISTERED (6 plants)"; exit 0; }
+[ $off -eq 0 ] && { echo "ALL AS REGISTERED (14 plants)"; exit 0; }
 echo "$off NOT AS REGISTERED"; exit 1
