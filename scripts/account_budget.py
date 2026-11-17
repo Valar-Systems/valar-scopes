@@ -226,9 +226,13 @@ def evaluate(b):
     out = {}
     for s, pick in b["scenarios"].items():
         m, w = pick.get("month"), weights(b, s, pick)
+        days = (month_bounds(m)[1] - month_bounds(m)[0]).days if m else 30
         lines, overage = [], 0.0
         for a, al in b["allowances"].items():
-            amt = sum(row_amount(r, m, wt) for r in b["rows"]
+            # Section 10: an allowance billed per month (R2 storage, a GB-month) is the month's average, whatever the
+            # month's length, so a calendar month does not scale it: its weights (days/30, or hours/720) x 30/days.
+            pm = 30 / days if al.get("per_month") else 1.0
+            amt = sum(row_amount(r, m, wt * pm) for r in b["rows"]
                       if r["allowance"] == a and r["state"] != EXCLUDED
                       for st, wt in w[r["product"]] if st == r["state"])
             share = amt / al["included"] if al["included"] else 0.0

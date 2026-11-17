@@ -37,6 +37,10 @@ PLANTS = [  # (name, needle, replacement, the set of controls predicted to FAIL)
     ("S-MONTH a whole-month state weighs 1, not days/30", "else [(st, days / 30)])", "else [(st, 1.0)])", {"M1"}),
     ("S-SEG a segment weighs 1, not its hours / 720", '[(x, h / STEADY_H) for x, h in segments(s, p, st, m, v["states"])]',
      '[(x, 1.0) for x, h in segments(s, p, st, m, v["states"])]', {"M2"}),
+    # Section 10 (registered 2026-11-17 before its code): R2 storage is per GB-month. With the 30/days factor removed,
+    # a per-month allowance scales with the month again, so both December rows fail; M-ST0 (30 days) stays green.
+    ("S-STOR a per-month allowance scaled by the month again", '            pm = 30 / days if al.get("per_month") else 1.0',
+     "            pm = 1.0", {"M-ST1", "M-ST2"}),
     # 9.12, the anchor's rounding allowance (ruled 2026-11-15), predicted here before the first run:
     ("S7a the rounding allowance at k = 1 too", "if k != 1:", "if True:", {"P7k"}),
     ("S7b no rounding allowance", "tol = max(tol, 0.5 * (len(vals) + 1))", "tol = tol", {"P7"}),

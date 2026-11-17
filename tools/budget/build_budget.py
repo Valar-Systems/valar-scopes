@@ -63,7 +63,8 @@ ALLOWANCES = {   # tools/wx/account_cost_read.py PRICE and ROUND_UP (Cloudflare'
     # developers.cloudflare.com/r2/pricing, "Billable unit rounding"
     "r2_class_a": {"label": "R2 Class A (writes)", "included": 1e6, "price": 4.50, "unit": 1e6, "round_up": True},
     "r2_class_b": {"label": "R2 Class B (reads)", "included": 10e6, "price": 0.36, "unit": 1e6, "round_up": True},
-    "r2_storage_gb": {"label": "R2 storage (GB-month)", "included": 10, "price": 0.015, "unit": 1, "round_up": True},
+    "r2_storage_gb": {"label": "R2 storage (GB-month)", "included": 10, "price": 0.015, "unit": 1, "round_up": True,
+                      "per_month": True},   # docs/account-budget.md section 10: billed per GB-month, not scaled by days
     "kv_read": {"label": "KV reads", "included": 10e6, "price": 0.50, "unit": 1e6, "round_up": False},
     "kv_write": {"label": "KV writes", "included": 1e6, "price": 5.0, "unit": 1e6, "round_up": False},
     "kv_list": {"label": "KV lists", "included": 1e6, "price": 5.0, "unit": 1e6, "round_up": False},
