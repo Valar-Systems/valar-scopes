@@ -142,9 +142,9 @@ live stream, which these storage settings do not govern, so it cannot fail on (a
 | **(a)** staging | 0 invocation events for `blipscope-proxy-staging`, with the triggering requests sent inside the window. The stored key is `$metadata.type`; Cloudflare's page names the value `"cf-worker-event"`, which the reader verifies before the slot (below) | the same query counts **> 0** invocation events for the same triggering requests |
 | **(b)** staging | **> 0** `evt:"req"` lines with `ep = "/healthz"` from the anonymous `GET /healthz` requests sent inside the window | the same query counts **> 0** such lines |
 | **(c)** production | (a)'s and (b)'s checks for `blipscope-proxy`, plus **> 0** `evt:"upstream_skip"` lines; `evt:"breaker"`/`evt:"error"` counts printed as information | **> 0** invocation events; **> 0** `evt:"req"` lines; **> 0** `evt:"upstream_skip"` lines |
-| **(d)** both | 0 stored events **of ANY type** carrying any field of the REQUEST ENVELOPE: every `$workers.event.request.headers.*` (among them `user-agent`, `cf-connecting-ip`, `x-real-ip`, `x-blip-device`, `x-blip-key`), every `$workers.event.request.cf.*` (Cloudflare's coarse location, ASN), `$workers.event.request.search.*`, `$workers.event.search.*` and `$workers.event.request.url` (the query string). `$workers.event.request.path` and `.method` are counted as information | the same query counts **> 0** events carrying `$workers.event.request.headers.user-agent` (proving that it can see an envelope field at all) |
+| **(d)** both | 0 stored events **of ANY type** carrying any field of the REQUEST ENVELOPE: every `$workers.event.request.headers.*` field, every `$workers.event.request.cf.*` field, `$workers.event.request.search.*`, `$workers.event.search.*` and `$workers.event.request.url` (the query string). `$workers.event.request.path` and `.method` are counted as information | the same query counts **> 0** events carrying `$workers.event.request.headers.user-agent` (proving that it can see an envelope field at all) |
 | **(e)** W2 and P | 0 `evt:"req"` lines carrying a `dev` field; **> 0** `evt:"req"` lines with `authPath = "device"`, and every one of them carries a `devl` of exactly 8 lowercase hex (count of those WITHOUT one: 0) | **> 0** `evt:"req"` lines carrying `dev`, in production's BEFORE window (staging has no device traffic to show it) |
-| **(f)** A, W2 and P | the line's OWN fields (`source.*`): 0 `evt:"req"` lines with an IP-shaped value (IPv4 dotted quad or an IPv6 form) in any field other than `ep` and `model`. The envelope Cloudflare could attach to the same event (`cf-connecting-ip`, `x-real-ip`, `request.cf.*`) is graded by (d), which counts events of every type; the `ep`/`model` IP-shaped counts printed as information (client-supplied text, not the requester's address) | in the SAME window, the `ep` IP-shaped count is **>= 1**. That is the planted `GET /192.0.2.1` below, a documentation address (RFC 5737), so the matcher is shown to fire on a `req` line field |
+| **(f)** A, W2 and P | the line's OWN fields (`source.*`): 0 `evt:"req"` lines with an IP-shaped value (IPv4 dotted quad or an IPv6 form) in any field other than `ep` and `model`. The envelope Cloudflare could attach to the same event (its request headers and `request.cf`) is graded by (d), which counts events of every type; the `ep`/`model` IP-shaped counts printed as information (client-supplied text, not the requester's address) | in the SAME window, the `ep` IP-shaped count is **>= 1**. That is the planted `GET /192.0.2.1` below, a documentation address (RFC 5737), so the matcher is shown to fire on a `req` line field |
 | **(g)** W2 | the W2 request's `devl` EQUALS the helper's label for the staging test device. The reader compares it in memory and prints only `equal` / `not equal` | the same compare against the label of a DIFFERENT example id must read `not equal` |
 
 **(e)'s `authPath = "device"` count** is what makes its zero `dev` count non-vacuous: such a line exists only for an
@@ -164,7 +164,7 @@ authenticated request. On staging, the W2 request supplies it. In production, de
   - Still open: whether a `"cf-worker"` line carries the request envelope. (d) stays across ANY type for that reason.
 - **(d), two ways, both counts or names only.**
   - (i) A COUNT, across all event types, of events where ANY known name under the five prefixes exists: an OR of
-    `exists` over every such name in the reader's stored-names list, plus `headers.x-forwarded-for`.
+    `exists` over every such name on the reader's own list (kept with its instrument, not here).
   - (ii) A KEYS read over the window: the number of names under the five prefixes must be 0. This catches a name that
     is not on the list. Its control: a window older than retention returns 0 keys, so the endpoint is shown to honour
     the window.
@@ -202,11 +202,9 @@ The counts are stated so that the reader can match them: (b)'s after-count is **
 IP-shaped count is **at least 1** in every window.
 
 **What is not yet known, and how it will be known before the slot.** Cloudflare's page does not say whether a console
-event carries the request envelope. The stored key names show the envelope fields exist today, but not which event type
-carries them; a filter on `$workers.event.request.path` has returned `evt:"req"` lines before. The reader may split the
-names by `$metadata.type` before Wednesday, names only, if the reviewer OKs it. If that split shows console events
-carrying envelope fields today, (d)'s prediction becomes "> 0" BEFORE the slot, by a correction written below this
-section. The owner then decides whether the slot goes ahead.
+event carries the request envelope. The reader may establish it by event type (`$metadata.type`) before Wednesday,
+names only, if the reviewer OKs it. If console events carry envelope fields today, (d)'s prediction becomes "> 0"
+BEFORE the slot, by a correction written below this section. The owner then decides whether the slot goes ahead.
 
 **Predicted:**
 - (a) 0;
