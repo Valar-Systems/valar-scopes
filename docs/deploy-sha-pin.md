@@ -169,3 +169,13 @@ _Filled in below this line as each step reads, without editing anything above it
   - rows: 11 of 11, DC1 included;
   - plants: the CONTROL (an unmodified copy) had every row as predicted, and S-ES1, S-ES2, S-ES3, S-AB1, S-AB3, S-AB4
     and S-AB5 each reddened exactly its registered row.
+- **`deploy-inputs.mjs`'s own selftests, 19:08Z (allowed by the reviewer; they are NOT run in CI).** Run through their
+  entry points only. Before the run: no Cloudflare token variable was present (booleans). `npm ci` ran in `proxy/`, with
+  36G free both before and after (the floor is 30). The predictions were made from the source.
+  - `--selftest`: exit 0. Every printed row read AS PREDICTED. **DB17 is AS PREDICTED with "missing []"**: the new
+    `deploy.sh` calls only listed machinery. The prediction named DB1-DB17; the run also printed DB1-C and DB18, both AS
+    PREDICTED. The two dry-runs reported on stderr: proxy 58 bundled files, set 68; builder 9 bundled files, set 17.
+  - `--selftest-plants`: exit 0. CONTROL red `[]`. All 8 plants were AS REGISTERED, P-CALLEE included, so its `deploy.sh`
+    anchor still holds.
+  - `--selftest-guard`: exit 0. DB18 AS PREDICTED.
+  - The dry-runs' outdirs in OS temp: 0 left before, 0 after.
