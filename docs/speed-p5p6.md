@@ -3297,3 +3297,104 @@ re-reads the gains. (ii) becomes the better choice only if M3 slips past a date 
   - `run.sh` (entries).
 - **Everything else applies clean.**
 - **Any other conflict is outside the set: STOP, decide.**
+
+### 12. Item (2)'s prep, read (2026-11-17 06:4x-07:1xZ; host and builds only, no board)
+
+**The pre-check the reviewer added to section 10, and its re-registration.**
+- **The source read** (`830e7106324a` against main `b4f7e511dc8e`):
+  - `DrawAircraftTriangle` is IDENTICAL (59 lines, sha256 `6e4fa83f8350` on both sides);
+  - BandCanvas.h, LGFX.h and Variant.h are the same;
+  - the s3-128 env and its parents are unchanged;
+  - `s3_128.h` DIFFERS: M3's 14-line `BLIPSCOPE_PUSH_TASK` block.
+- **The rule therefore fired: "M from main".**
+- **Stopped before any build.** Main's #727 compiles `DrawMapBase` into every `WX_LAYER_SHIPS` image. `MapEnabled()` has
+  no user toggle, so E2:08 would draw a map, and the fixed tree draws none: `--ab`'s exit-2 row would fire on the
+  background.
+- **Ruled (a), replacing the source rule:**
+  - M stays on `830e7106324a`;
+  - "M's marker is main's compiled marker" is proven at the OBJECT, with `secmatch.py`.
+  - Pre-registered: identical, M stands; differs, STOP; not found, instrument failure.
+
+**The tools, red first** (bench/speed-p5; g++ 13.3 in WSL Ubuntu-24.04; every exit read through a script file with a
+false/true control, because an inline `wsl -- bash -c '...; echo $?'` read a red stub's exit as 0):
+- **`anchor_compare --ab`** (`1cc2ed25`): exit 0 none differ, 1 only inside the region, 2 any outside it, 3 VOID.
+  - Section 10 named VOID's conditions without a code. 3 keeps VOID apart from exit 2's STOP (accepted).
+  - Against a stub: 19 of 20 rows FAIL, with the control ok and exit 1. Implemented: 20 ok.
+  - `sabotage_anchor_ab.py`: 10 tool plants, each red on exactly its frozen rows. `--control` reads `--ab` end to end
+    as 0 / 1 / 2 / 0 / 3.
+  - Every older anchor driver was re-run as predicted. `sabotage_anchor_file.py`'s anchors guard refused 2 needles
+    that JudgeAB repeats; both were lengthened to Judge's own lines.
+- **`secmatch.py`** (`3547c7f0`): a stubbed compare reads 5 FAIL; the real one 6 ok. A rename or drop plant reads 2
+  (not found); a byte or relocation plant reads 1.
+
+**The images.**
+- P's list: `51890089`, `SPEED_MARK_BENCH` = `{ANCHOR_8COPY, 60, wx false}`.
+- M's port: bench/speed-mark-base `5abdf175`, section 10's bench machinery without P5's scratch check.
+- **Section 10's check before the builds:** FrameBench.h is byte-identical. Of P's 16 bench regions, M's 11 match their
+  counterparts; P's other 5 are P5's own (the scratch check in 3 places, and the 1a/1b/1c OLD paths).
+- **Every build:** from clean, hidden, the disk read first (50.1 / 49.7 / 49.3 GiB), 259 compiled, objects and ELF
+  archived at once, and I-4 by the image's own tree's script.
+
+| image | tree | bin | sha256 | ELF | I-4 names | '[speed-p5] scratch' / 'anchor' / '[speed-a2]' | `kScenes` |
+|---|---|---|---|---|---|---|---|
+| MAIN-SHIP | main `1695645d44b4`, `blipscope-s3-128` | 1,932,688 | `72c55715157c` | `625a955d0d14` | none (clean, 10 markers) | 0 / 0 / 0 | n/a |
+| M-MARK | `5abdf175ba66`, framebench-c1b, `-DSPEED_MARK_BENCH` | 1,967,360 | `4f96ca91653a` | `dea5bb9d3ee6` | [frame-bench] | 0 / 2 / 0 | 4 B `0c 3c 00 00` |
+| P-MARK | `3547c7f06115`, the same | 1,973,088 | `e751334fb32a` | `f9c03528b7d7` | [frame-bench], [speed-p5] | 2 / 2 / 0 | 4 B `0c 3c 00 00` |
+
+**OFF-PREDICTION, recorded (the first on this row).**
+- **The reading:** M-MARK's '[speed-a2]' read 0 where I predicted at least 1, so its I-4 named only [frame-bench].
+- **The cause:** the margin probe's only print sits behind `kScenes[fb.scene].margin`, which is compile-time false in
+  a one-scene list, so GCC dropped the block. My prediction had copied the A2 images' I-4.
+- **The alternative, and how it is excluded:** "the flag never reached the image, so image B's list compiled". The
+  artifact excludes it: `_ZN10framebenchL7kScenesE` is 4 bytes, `0c 3c 00 00`, in all three objects that include
+  FrameBench.h. That is one scene: kind 12, level 60, wx 0, margin 0. Image B's list would be 16 bytes, with kind 0
+  first.
+- **Ruled:** no code change. P's re-frozen predictions were accepted, and P read as them.
+
+**(a), read: IDENTICAL** (`secmatch.py` MAIN-SHIP vs M-MARK, `AircraftManager.cpp.o`, needle `DrawAircraftTriangle`,
+exit 0).
+- Four sections carry the name on each side: the function's `.text` (369 B, 37 relocations) and `.literal` (60 B, 12),
+  and the dart lambda's `.text` (118 B, 2) and `.literal` (4 B, 1).
+- Every byte and every relocation (by symbol name) is equal. **M stands: its marker IS main's compiled marker.**
+
+**Step 1, the ELF reading, graded by its method, frozen 07:10:55Z** (`step1-method.txt`, sha256 `f827e342c12f`).
+- **Read** with objdump 2.43.1 (esp-14.2.0). The method extracts each function's FP instructions and calls in address
+  order. Indirect calls are resolved through their literal-pool words.
+
+| group | B3' (main's: `DrawAircraftTriangle` + its lambda) | B4' (P5: `Heading`, `Build` + its lambda) | per expression | order |
+|---|---|---|---|---|
+| HEADING | `float.s`, `sub.s`, `__extendsfdf2`, `__muldf3`, `__truncdfsf2`, `sinf`, `cosf`, `neg.s` | the same | same | **same** |
+| DART | 2 `float.s`; tipX/tipY `madd.s`; x−dx·base and y−dy·base `msub.s`; leftX/leftY `madd.s`; rightX/rightY `msub.s`; 6 `trunc.s` | the same ops, the same operand roles (d.px at +8, d.py at +12) | **same fusing, every one** | **differs** |
+| CROSS (the heavy's line) | 2 `float.s`, 2 `madd.s`, 2 `msub.s`, 4 `trunc.s` | the same | same | **differs** (the `trunc.s` interleave) |
+
+- **The verdict by the frozen method: OUTSIDE THE RULE.** Every expression is the same operation with the same fusing
+  on both sides; only the emitted order of independent operations differs. The rule's (A) branch asks for "the same
+  order", and the method sends any other combination to the reviewer. **No pixel prediction is claimed.**
+- **The window images agree with B3' and B4'**, as information:
+  - P-MARK's sequence equals B4''s, 60 of 60 rows.
+  - M-MARK's and MAIN-SHIP's equal B3''s, bar one decoded `call12` target at +0x00f0. That is a PC-relative decode
+    whose absolute address moves with the function's link address. Its object bytes (`00 e0 08`) and relocations are
+    equal in MAIN-SHIP and M-MARK.
+
+**Other reads:**
+- `check_frame_bench.py` C1-L reads red on bench/speed-base since `830e7106324a` and on bench/speed-p5 since
+  `c33529a41f3d`, with the same three parts off before and after the list commit. It is pre-existing on bench-only
+  branches, unchanged, and recorded as information.
+- **The bench-trace rule** (the orchestrator, from p4's measurement, about 07:12Z): `bench-trace.ps1`'s `Add-Content`
+  loses lines while any reader holds the log. The control is now in the tool. `childlog.sh` (sha256 `07f89ca19e00`;
+  the predecessor `22f65cebe17b` is kept as `childlog-22f65cebe17b.sh.bak`) refuses with exit 4 unless the child's
+  `.rc` beside the log exists and is non-empty. The launcher (`launch.ps1` `d04a1c87f589`, line 8) removes a stale
+  `.rc` at the child's start, so a missing `.rc` means the child may be alive. Read both ways:
+  - a finished trace's log reads, exit 0;
+  - a log with no `.rc`, or an empty one, is refused, exit 4.
+  - Every in-window cue comes from the board (netread, fbgrab) or from a process exit; trace_filter reads after the
+    trace ends.
+
+**For the booking** (M and P, flashed in turn to E2:08 by the 21-minute plan in section 10):
+
+| image | flashed as | sha256 |
+|---|---|---|
+| M | `art-mark/M-MARK/firmware.bin` | `4f96ca91653a` |
+| P | `art-mark/P-MARK/firmware.bin` | `e751334fb32a` |
+
+- **Before booking:** the reviewer's ruling on step 1's verdict (OUTSIDE THE RULE).
