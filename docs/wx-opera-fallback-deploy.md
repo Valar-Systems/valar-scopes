@@ -206,3 +206,49 @@ are unchanged. What it adds is the hand-off:
   preconditions. The owner is told at that moment.
 - **A deploy that STARTED** (any deploy command run) and then did not complete as predicted counts as a FAILURE: the
   later steps wait for the owner.
+
+### 6d. The commit this deploy ships, and its D0 by procedure (2026-11-17, appended below 6c)
+
+**The owner's words, 2026-11-17 18:53Z (relayed by the reviewer), verbatim, the parts that govern this deploy:** "rule:
+by procedure Wed. One gap to close today: the 10:00Z radar step deploys the proxy too. With #744 and #736 on main, does
+that deploy carry them? If yes, the logs step's "before" readings must be taken before 10:00Z, or the order changes.
+Tell me which, and name each of Wednesday's three commits in the plans."
+
+**The gap: this step carries neither #744 nor #736.** It deploys the ten ingest Workers alone, through
+`tools/wx/ingest_deploy.sh` (the opening of this plan). It does not deploy the proxy. Read 2026-11-17 19:49:17Z, with
+`git log` over the ten's inputs (section 1: the 9 `src/wx` files, `proxy/wx-ingest-opera.wrangler.toml` and
+`proxy/package-lock.json`):
+- `77acc072..4a02123c`: empty;
+- `c7f73d10` (#744), `00fc75d1` (#736), `4a02123c` (#747) and `13a6dab8` (#746): each touches 0 of them;
+- `9673f7d0..4a02123c`: exactly section 1's three commits (`03632992`, `05746dec`, `b2233f0c`);
+- the deploy machinery (`tools/wx/ingest_deploy.sh`, `proxy/scripts/wrangler-run.mjs`, `scripts/session-claim.py`):
+  unchanged since `77acc072`.
+
+So the logs step's BEFORE readings stay where its plan puts them, and the order is unchanged.
+
+**The commit: EXPECT = `4a02123ca992031d60bd9592e3084c9ccf34041f`** (main, read 2026-11-17 19:46Z). R1's LF checkout
+(6a) is made at EXPECT, not at whatever main is at 10:00Z:
+- `git worktree add --no-checkout --detach <path> EXPECT`, then
+  `git -C <path> -c core.autocrlf=false -c core.eol=lf reset --hard EXPECT`;
+- 6a's CRLF count and `npm ci` as written.
+
+No branch is created or moved.
+
+**D0, by procedure.** The owner ruled "by procedure" for Wednesday: the deploy scripts do not yet check this themselves
+(the commit-pin change is not merged before the chain closes). So the deployer PRINTS each of these after R1 and before
+the first R2. Any mismatch means no deploy:
+
+| D0 | prints | predicted |
+|---|---|---|
+| D0-H | `git rev-parse HEAD` in R1's checkout | EXPECT, in full |
+| D0-A | `git ls-remote` for main = M; `git merge-base --is-ancestor EXPECT M` | exit 0 |
+| D0-B | `git log --format='%h %s' EXPECT..M --` over the ten's inputs and the machinery above | empty. A later commit touching other paths is not listed by this read; it is a note, and changes nothing here |
+| D0-D | `git status --porcelain -- proxy/ tools/wx/` in R1's checkout, after `npm ci` | empty |
+
+A commit listed by D0-B (a merge after this plan that touches what the ten ship) means no deploy until it is planned,
+as R0.2 already says.
+
+**Wednesday's three commits, named:**
+- this step: `4a02123ca992031d60bd9592e3084c9ccf34041f`;
+- the logs step: `4a02123ca992031d60bd9592e3084c9ccf34041f` (`docs/workers-logs-invocation-off.md` 7a);
+- the route run: the commit of the tool it runs, named in `docs/route-weekly-code.md`.
