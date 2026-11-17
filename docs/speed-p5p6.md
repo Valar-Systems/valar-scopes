@@ -2611,3 +2611,81 @@ That is 21 builds, about 75 min. Nothing here touches a board.
 - W-CANVAS changes.
 
 **Then** the reading goes in a later section, and P5's merge condition closes or stays open on that reading alone.
+
+### 8a. The two lists become a check that runs (the reviewer's addition, 2026-11-17 ~04:3xZ, before any code)
+
+**Why.** Section 8 named a second path: BandCanvas.h's 8-flag list repeats the edition list behind main.cpp's chain.
+Two lists for one rule are two rules, and the second one goes stale. So the agreement becomes a check that runs.
+
+**The check** goes in `src/main.cpp`, directly after the edition chain's `#endif`, where `BLIPSCOPE_RADAR_EDITION` is
+defined for the radar and only there (`:492`):
+
+    #include "BandCanvas.h"   // already included via DrawHelpers.h (:81); named here because the check reads it
+    #if !defined(BANDCANVAS_DIRTY_MARKS)
+    #error "BANDCANVAS-LISTS: BandCanvas.h's switch is undefined at the check"
+    #elif defined(BLIPSCOPE_RADAR_EDITION) && !BANDCANVAS_DIRTY_MARKS
+    #error "BANDCANVAS-LISTS: the radar edition compiles BandCanvas's marks OUT, but its weather frame attaches a dirty set"
+    #elif !defined(BLIPSCOPE_RADAR_EDITION) && BANDCANVAS_DIRTY_MARKS && !defined(BANDCANVAS_DIRTY_MARKS_DELIBERATE)
+    #error "BANDCANVAS-LISTS: a non-radar edition compiles BandCanvas's marks IN: add its FEATURE_ flag to BandCanvas.h's list"
+    #endif
+
+- **The truth it checks against** is main.cpp's own chain, which picks the edition's `appManager`.
+- **A new edition** added to the chain but not to BandCanvas.h's list FAILS the build (the third line). It no longer
+  merely costs bytes.
+- **`BANDCANVAS_DIRTY_MARKS_DELIBERATE`** is the explicit override for a non-radar edition that wants its marks. No env
+  sets it today.
+- **No override exists for the radar direction.** That is the dangerous one, and the deleted `SetDirty` blocks it
+  independently.
+- **Where the check runs, DERIVED** (each env's resolved `build_src_filter`, applied in order, from the same
+  `pio project config` output, sha `f576646125d0`):
+  - **36 envs compile `src/main.cpp`, so the check runs in them.** Every class E env (12) is among them, plus 24
+    class R.
+  - **15 do not:** `probe-s3-128` and its 7 variants, `gametest-s3-128`, `gametest-s3-128-arm`, `hwtest-s3-146`,
+    `animtest-s3-128` and its 2 variants, and `weatherscope-bench-s3-128`. All are class R (marks kept). The only
+    `SetDirty` call sites are in main.cpp, so no set can attach in them.
+
+**The plant, R-LISTS, red on purpose:**
+- **The plant:** BandCanvas.h's list loses `FEATURE_EAM`.
+- **The build:** `missileer-s3-128` at P5'.
+- **Predicted:** the build FAILS with **exactly 1 compiler `error:`**, in `src/main.cpp`. It is the THIRD `#error`:
+  `BANDCANVAS-LISTS: a non-radar edition compiles BandCanvas's marks IN ...`.
+- **Why one:** EAM picks `EamManager`, so `BLIPSCOPE_RADAR_EDITION` is undefined, and the marks default ON without the
+  flag. EAM never calls `SetDirty`, so nothing else fails.
+- **Then:** the plant is restored from a byte copy, and the file's blob must equal `HEAD`'s again before anything else
+  builds.
+
+**R-DELETE, restated with the check in place:** `blipscope-s3-128` with `-DBANDCANVAS_DIRTY_MARKS=0`.
+- **Predicted:** the build FAILS with **exactly 2 compiler `error:` lines, both in `src/main.cpp`, in this order:**
+  1. the SECOND `#error`: `BANDCANVAS-LISTS: the radar edition compiles BandCanvas's marks OUT ...`;
+  2. `use of deleted function 'void BandCanvas::SetDirty(dirtyclear::Set*)'`: ONE use, because the image has the push
+     task (`BLIPSCOPE_PUSH_TASK`), which compiles only main.cpp's first `SetDirty` line.
+- **Nothing else:** AircraftManager.cpp's `Dirty()`, `DirtyAll()` and `MarkSpan()` compile in OFF mode, so no other
+  file adds an error.
+- **The premise, stated:** GCC keeps compiling after a `#error`. On the host (g++ 11.4), a 6-line file with a `#error`
+  followed by a deleted-function use reads exactly 2 errors, the `#error` first. The device's GCC 14.2 is NOT tested.
+- **Outside the set:**
+  - **1 error** (the `#error` alone) means GCC 14.2 stops at `#error`. The guard still fired first. Recorded as the
+    premise failing; STOP and report.
+  - **Any other count or order:** STOP.
+
+**The bytes: the Δ0 predictions are UNCHANGED.** The check is preprocessor-only: an `#include` of a header already
+included, plus `#if`/`#error`. It emits no code and no data, so section 8's predictions stand as written:
+- class E: P5' vs the base, Δ0 exactly;
+- class R: P5' vs P5, Δ0 exactly;
+- every differing byte in the five stamp regions.
+
+**The builds become 22:**
+- 3 class E at the base;
+- 7 class R at P5, before the change;
+- the P5' commit (BandCanvas.h + the check in main.cpp), then 10 at P5';
+- R-LISTS (1, expected to fail; plant, build, restore by bytes, blob check);
+- R-DELETE (1, expected to fail).
+All are hidden PowerShell children, one at a time, with the disk read before each against the 30 GiB floor.
+
+**Outside the set, added to section 8's:**
+- R-LISTS compiles;
+- R-LISTS fails with anything but that one `#error`;
+- the restore's blob differs from `HEAD`;
+- any of the 36 envs that run the check fails to compile at P5' WITHOUT a plant.
+
+Each means STOP and come to the reviewer, with no re-fit.
