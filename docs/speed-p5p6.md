@@ -3184,3 +3184,116 @@ check-run count, the rebase's re-proofs) comes after the gains, in its own secti
 - step 1's ELF reading, with its prediction recorded before the window;
 - two compile-only builds by the hidden route, the disk read first, I-4 on each;
 - and the reviewer's booking.
+
+### 11. Open item (3): the rebase plan (docs only, 2026-11-17 ~07:0xZ; NO rebase run, nothing built for it)
+
+**The premises, read first** (every number below comes from a command run in this session):
+- **Main moved during the read.** It was `b4f7e511dc8e` at about 06:41Z and `1695645d44b4` at 07:00Z; the one commit
+  between is docs-only. The plan is against `1695645d44b4`.
+- **The merge base** of main and the fixed tree `a0583e88b142` is `4b00c97b3dbd`. Main has **57 commits** since.
+- **The fixed tree's own 8 commits** are on no main: M3 (`be850c9a85cf`, PR #687, draft), M3's 2 bench commits, and
+  C1's 5 frame-bench commits. The 7 bench commits never merge. M3 is the dependency below.
+- **The PR is a fresh change from main** carrying section 9's file list, not a `git rebase` of the bench branch. Its
+  bench regions stay out.
+
+**What main changed in each of the PR's files since the merge base:**
+
+| PR file | P5 part | main's commits since `4b00c97b3dbd` | the merge |
+|---|---|---|---|
+| `include/OutlineMask.h`, `WxSweepLut.h`, `DirtyClear.h` | 1a, 1b, 1c | new files | none |
+| `include/BandCanvas.h` | 1c's marks, section 8's switch | 0 | none |
+| `src/main.cpp` | 1c's `SetDirty`, the BANDCANVAS-LISTS check | 0 | the hunk's block has the same shape on main (read); its `BLIPSCOPE_PUSH_TASK` branch is dead there, so the `#else` (`WxDirty(0)`) is what compiles |
+| `src/AircraftManager.cpp`: `DrawRadar`, `DrawAircraftTriangle`, `DrawOutlineMask` | 1a | function text **unchanged** (sha256 of each body equal at the base and at main) | clean |
+| `DrawSweepOverWeather` | 1b's `sweepLut` | `074863fc90c1` (#727): step C's gate, `if (mapFrameDrawn) return DrawSweepOverMap(...)`, as its first statement | textual. `check_map_draw.py` CD8(b) pins the gate as the first statement, so the LUT path goes after it |
+| `RebuildWeatherLayer` | 1c's `++wxLayerGen` | #727: `++mapWxGen` | mechanical: both counters |
+| `DrawWeatherUnder` | 1c's dirty restore | #727: 30 → 65 lines. `DrawMapBase` replaces the clear on every return path, and before the flat copy | **SEMANTIC**: the hazard below |
+| `src/AircraftManager.h` | 1a's and 1c's members | #727 (+54), `c8140f8a2e39` (#670/#674, +3) | mechanical, read at the rebase |
+| `test/host/run.sh` | P5's host entries | 5 commits (`e152fd30`, `425468f1`, `074863fc`, `26f486ab`, `c8140f8a`) | mechanical: entries appended |
+| `scripts/check-no-bench-hooks.sh` | only if the reviewer keeps `[speed-p5]` (section 9) | 2 commits (the map and card bench markers) | mechanical |
+| P5's new host files (`LgfxPort.h`, `p5_outline_port.h`, the tests, the drivers) | | new files | none |
+
+**THE HAZARD main brings, found by reading (not by a run).**
+- **On main, a radar frame's background can be the MAP's composite:** `DrawMapBase` copies it whole into the canvas
+  buffer with a raw `memcpy`, before the weather layer's flat copy. P5 is not on main, so nothing there marks a dirty
+  set.
+- **1c restores only what its set marks, from `wxLayer565`.** So take a buffer whose last frame was a map frame, and
+  whose next frame is weather-only (the package dropped, or the map refused). Its restore trusts a set that never saw
+  the map's full write, and the map's pixels stay on screen outside the marked spans. A stale picture, silent.
+- **`DrawSweepOverMap`** writes the wedge straight into the buffer too (`px[...]`).
+- **The guard that catches it already runs.** `check_p5_writes.py` W-DIRECT requires every direct canvas-buffer write
+  to sit in a function that marks or calls `DirtyAll()`. **Predicted on the rebased tree before the fix: W-DIRECT red
+  at `DrawMapBase` and `DrawSweepOverMap`, and at nothing else.**
+- **The fix, to be written red first at the rebase:** `canvas.DirtyAll()` in both.
+  - In `DrawMapBase`, it goes BEFORE the `memcpy`. CD8(c) pins the text `memcpy(...); mapFrameDrawn = true;
+    mapFrameWx = ...; return true;` verbatim, so a call placed after the copy turns main's own check red.
+  - A new host row in `test_p5_clear`: a buffer filled whole by a "map" frame, then a dirty restore, must equal a full
+    copy of the layer. It is red against today's code with the map write unmarked, and green with `DirtyAll()`.
+  - A device row: `CLEAR_CHECK` across a map-on to map-off step, using the frame bench's own map-off region (C1-M), on
+    a rebased image. It is registered separately, with its window.
+
+**THE PUSH-TASK DEPENDENCY: the two options and what each costs.** P5 1c's main.cpp attaches ONE SET PER M3 BUFFER
+(`pushtask::g_buf`). Main has no `BLIPSCOPE_PUSH_TASK` and no `pushtask::g_buf`.
+
+**(i) Follow M3 onto main.**
+- **When,** from p4's record (`docs/m3-push-task.md` on `p4/big-screens-plan` `64c303d9`, read about 07:03Z). Still open
+  before M3 merges:
+  - M3-8, at the owner's sitting, Tue 2026-11-17 22:00Z (joint with 5c);
+  - M3-9's glass photos;
+  - the self-check commit `9e5198a43d6d`, still to push to #687;
+  - the 1 ms tick note, which awaits a ruling;
+  - then "review, CI, merge by rule: 0.5 d".
+  - **So the earliest is about 2026-11-18. Any M3-8 STOP moves it.** PR #687 is a draft at `6476252929dd`.
+- **The cost is calendar time, not work.**
+  - At M3's merge, 1c's per-buffer `SetDirty` is re-read against M3's MERGED `main.cpp`. M3's branch has moved since
+    the fixed tree's `be850c9a85cf`: `main.cpp` +141 lines, `FrameBuffer.h` +12, `s3_128.h` 3 lines changed. The names
+    P5 uses (`pushtask::g_buf`, `drawBuf`) are still there, in the same counts (6 and 2).
+- **What carries:**
+  - every device row, since each was read on the M3 tree: R-CLEAR' on the two buffers, R-SCRATCH, R-ANCHOR;
+  - item (2);
+  - the gains from A0a, which p4 reads on the M3 tree, so they describe the shape main would then have.
+  - The heap bands are re-derived on the rebased ELF either way.
+
+**(ii) Adapt 1c to main's single-buffer path now.**
+- **The code is already written.** P5's `#else` branch is `canvas.SetDirty(appManager.WxDirty(0))`. The `#if` branch
+  is dead on main until M3 lands.
+- **The proof is not.** Each of these must be redone:
+  - **R-CLEAR' on a single-buffer image.** Its 0 px over 2,795 frames was read with the push task's two buffers.
+    Every `SPEED_*` bench list `#error`s without `BLIPSCOPE_PUSH_TASK`, so this needs a new list, registered, and a
+    window.
+  - **The heap band H-P5'**, re-derived on main's ELF.
+  - **The gains.** A0a describes the fixed tree's frame, with the push on its own task. Main's push is in the loop, so
+    section 3's predicted gains do not transfer. Either an A0a-equivalent read on a main-shaped image, or P5 ships its
+    speed claim unmeasured, which section 9 rules out.
+  - **Twice.** When M3 later lands, the per-buffer branch needs its own R-CLEAR' again.
+- **So (ii) costs a bench list, at least one R-CLEAR' window, a gains read on main's shape, and a second R-CLEAR' at
+  M3's merge.**
+
+**My recommendation: (i).** It waits about a day on M3 and redoes nothing. (ii) does 1c's device proof twice and
+re-reads the gains. (ii) becomes the better choice only if M3 slips past a date you set.
+
+**Which proofs move with which files, after the rebase** (the hazard's fix included):
+
+| proof | rides on | after the rebase |
+|---|---|---|
+| `test_p5_outline` + `sabotage_p5_outline.py` (1a) | `OutlineMask.h`, `p5_outline_port.h`, `LgfxPort.h` | re-run. Main did not touch the marker's functions, so it is predicted green with its plants as before |
+| `test_p5_blend` + `sabotage_p5_blend.py` (1b) | `WxSweepLut.h` | re-run. Predicted green: main's gate only returns earlier on a map frame |
+| `test_p5_clear` + `sabotage_p5_clear.py` (1c core) | `DirtyClear.h` | re-run, plus the NEW map-transition row, red first |
+| `check_p5_writes.py` W-CANVAS, W-DIRECT, W-GEN | `BandCanvas.h`, `AircraftManager.cpp`, `main.cpp` | predicted: W-DIRECT red at exactly `DrawMapBase` and `DrawSweepOverMap` before the fix, green after; W-CANVAS and W-GEN green |
+| main's `check_map_draw.py` (CD8 b, c, d) | `AircraftManager.cpp` | must stay green with P5 in: the gate first; `DirtyAll()` before the copy; the flags cleared before the first return |
+| section 8's object compare | `BandCanvas.h`, `main.cpp` | redone on the rebased tree, with MAIN's builds as the reference: from clean, one worktree, `objcmp` and `stampscan` |
+| `check-no-bench-hooks.sh` on the shipping image | the image | redone |
+| R-SCRATCH, R-ANCHOR (1a, device) | `OutlineMask.h`, `DrawRadar` | carried: main left the marker's functions unchanged (read) |
+| item (2), the marker A/B | the marker's arithmetic | carried, if it reads (A). Its M is proven to be main's compiled marker (option (a)) |
+| R-CLEAR' (1c, device) | `DrawWeatherUnder`, `DirtyClear.h` | (i) carried for the weather path, plus the map row; (ii) redone on a single buffer, plus the map row |
+| H-P5', H-P6' | the ELF | re-derived on the rebased ELF |
+| the gains (section 3) | A0a | (i) carried; (ii) re-read on main's shape |
+
+**The rebase itself, when ruled** (registered then, predictions first):
+- **The textual conflicts predicted:**
+  - `DrawWeatherUnder` (semantic);
+  - `DrawSweepOverWeather` (the gate);
+  - `RebuildWeatherLayer` (two counters);
+  - `AircraftManager.h` (members);
+  - `run.sh` (entries).
+- **Everything else applies clean.**
+- **Any other conflict is outside the set: STOP, decide.**
