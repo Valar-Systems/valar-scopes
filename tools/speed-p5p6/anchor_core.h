@@ -97,6 +97,55 @@ inline Result Compare(const Img& host, const Img& dev, const std::vector<uint8_t
     return r;
 }
 
+// THE TWO PRECONDITIONS (section 7d), here once so the L/rung pick and the file mode cannot disagree about them.
+// One contact's 8-copy footprint.
+inline std::vector<uint8_t> FootprintOf(const Frame& f, size_t i)
+{
+    Frame one;
+    one.up = f.up;
+    one.zoomed = f.zoomed;
+    one.k.push_back(f.k[i]);
+    return Footprint(one);
+}
+inline bool Overlap(const std::vector<uint8_t>& a, const std::vector<uint8_t>& b)
+{
+    for (int i = 0; i < W * W; ++i)
+        if (a[i] && b[i]) return true;
+    return false;
+}
+// Pairs of contacts whose 8-copy footprints share a pixel.
+inline int OverlapPairs(const Frame& f)
+{
+    std::vector<std::vector<uint8_t> > fp;
+    for (size_t i = 0; i < f.k.size(); ++i) fp.push_back(FootprintOf(f, i));
+    int pairs = 0;
+    for (size_t a = 0; a < fp.size(); ++a)
+        for (size_t b = a + 1; b < fp.size(); ++b) pairs += Overlap(fp[a], fp[b]);
+    return pairs;
+}
+// Edge-clipped: some pixel of the contact is on screen, AND a primitive of its marker, at any of the 9 positions
+// (the centre and the 8 one-pixel offsets), reaches past 0..W-1.
+inline bool EdgeClipped(const Frame& f, size_t i)
+{
+    const std::vector<uint8_t> fp = FootprintOf(f, i);
+    bool onScreen = false;
+    for (int j = 0; j < W * W && !onScreen; ++j) onScreen = fp[j] != 0;
+    if (!onScreen) return false;
+    const Contact& k = f.k[i];
+    const outlinemask::Marker m = k.dot ? outlinemask::BuildDot(k.x, k.y)
+                                        : outlinemask::Build(k.cat, outlinemask::Heading(k.track, f.up), k.x, k.y);
+    for (int p = 0; p < m.n; ++p) {
+        const outlinemask::Prim& q = m.p[p];
+        const int nc = outlinemask::Coords(q.kind);
+        const int r = nc == 2 ? q.v[2] : 0;
+        for (int j = 0; j < nc; ++j) {
+            const int32_t v = q.v[j];
+            if (v - r - 1 < 0 || v + r + 1 > W - 1) return true;
+        }
+    }
+    return false;
+}
+
 // The criterion, whole: composite the contacts onto bg and compare with dev over Dilate(Footprint, kDilate).
 inline Result Anchor(const Img& bg, const Img& dev, const Frame& f)
 {
