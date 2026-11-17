@@ -13,7 +13,7 @@ on:
     types: [ published ]
 
 permissions:
-  contents: write   # needed to upload release assets
+  contents: read    # the three release jobs (build, version, promote) carry their own contents: write
 
 # A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
 concurrency:
@@ -372,6 +372,8 @@ jobs:
 
   build:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write   # gh release upload: the release event's firmware assets
     needs: [skus, customer-entry]
     strategy:
       fail-fast: false
@@ -666,6 +668,8 @@ jobs:
           exit 1   # the run stays red: the leg really is broken
 
   version:
+    permissions:
+      contents: write   # gh release edit --prerelease; gh release upload version.txt
     # Publish the shared version gate once per release -- but ONLY once every
     # PUBLISHING SKU has actually published.
     #
@@ -763,6 +767,8 @@ jobs:
         run: gh release upload "${{ github.event.release.tag_name }}" version.txt --clobber
 
   promote:
+    permissions:
+      contents: write   # gh release edit --prerelease=false
     # PROMOTION WAITS FOR A PERSON. `version` has certified the release and put
     # version.txt on it; this job moves `latest`, which is the moment the fleet
     # starts downloading. The `release` environment has a required reviewer, so
