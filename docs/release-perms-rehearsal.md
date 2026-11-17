@@ -175,3 +175,72 @@ fetch. **Result: no consumer takes a release asset by "newest release" including
 plan does not stop on this check.** **Its limit:** it covers the repositories cloned on this PC. A consumer living only
 somewhere else, such as a third party fetching by tag, cannot be seen from here, and neither can the Releases page's
 human visitors (section 4).
+
+## 8. AMENDED for Thursday 11-19 (the owner, 16:59Z, via the orchestrator; written below the frozen text)
+
+**The owner's words, verbatim:** "rehearsal: ok as visible, Thu. Both marked prerelease and titled "Test, not a
+release"; confirm before publishing that no customer device's update check can see them; assets built by CI only; both
+releases and their tags deleted right after. / promote: can it be rehearsed by re-promoting v19 (already latest)? If p4
+shows from the code that this changes nothing for devices, do that in Thursday's slot. Otherwise as is: its first real
+run is v20, with me present, and a failure there promotes nothing."
+
+**What changes in sections 3-6:**
+- **TITLES:** both releases are titled exactly "Test, not a release" and published with `--prerelease`.
+- **P0 gains a step, at the moment before EACH publish: the device-visibility confirmation, printed into the run log,
+  not stated from memory.**
+  - The line `#define OTA_RELEASE_BASE ".../releases/latest/download"` is read from `src/OtaUpdater.cpp:106` at the
+    commit being tagged. Its own comment (`:93-94`) says that resolves only to the newest non-draft, non-prerelease
+    release.
+  - `gh api .../releases/latest` reads v19, and `releases/latest/download/version.txt` reads `19`, two reads 60 s
+    apart. Each read is printed with its date -u stamp.
+  - Any read off means nothing is published.
+- **ASSETS BUILT BY CI ONLY:** `gh release create <tag> --prerelease --title "Test, not a release" --notes ...` is run
+  with NO files, so the release is created empty. Nothing is uploaded by hand at any point. The prediction gains a row:
+  each rehearsal's asset list equals exactly what its workflow runs uploaded (section 4's lists), and nothing else.
+- **CLEANUP "right after":** each release and its tag are deleted as soon as its jobs finish, not at the end of the
+  slot. A is deleted once `version` has finished, `promote` has been cancelled and web-renderer's `publish` has
+  finished. B is deleted once `version`'s demote and `publish` have finished. Each deletion is verified (the API 404s
+  and `ls-remote` shows no tag), then `latest` and `version.txt` are re-read twice, 60 s apart.
+
+### 8.1 The promote question, answered from the code (main `13a6dab876ce`, read today)
+
+- **What `promote` DOES**, line by line in the firmware workflow:
+  - it runs only on a release event, after a successful `version` (`if:` at :793), behind `environment: release` at
+    :795, which needs daniel-frenkel's review;
+  - `actions/checkout`;
+  - "version.txt on this release must equal FW_VERSION" (:805): a READ (`curl` of THIS release's own
+    `releases/download/<tag>/version.txt`), compared with the tagged source. It writes nothing;
+  - "Promote this release to latest" (:827): ONE write, `gh release edit "$tag" --prerelease=false`. No `--latest`
+    (measured inert), no upload, no asset touched;
+  - "Report the result" (:835): a READ, `gh release view --json isPrerelease`.
+- **Re-promoting v19, already latest, would change nothing devices fetch.** The only write sets
+  `prerelease=false` on a release that already has it. No asset is uploaded, so no byte at `latest/download/*` changes
+  and `version.txt` stays `19`. The `latest` pointer already IS v19.
+  - The only workflows that listen for releases take `release: published` only, so an edit fires none.
+  - Devices read `latest/download` only (`src/OtaUpdater.cpp:106`), and nothing there changes.
+- **BUT IT IS NOT AVAILABLE AS A REHEARSAL OF #746's BLOCK, for two reasons from the code:**
+  1. **No trigger reaches v19.** The firmware workflow's triggers on main are `push` (main), `pull_request` and
+     `release: published`. There is no `workflow_dispatch`, so `promote` runs only on a NEW release being published.
+     v19 is already published, and un-publishing and re-publishing it would move `latest` off v19, which is
+     customer-visible.
+  2. **A re-run of v19's own run would test the OLD block.** A re-run executes the workflow file at the run's original
+     commit: v19's tag, `7b943ae0b5d1`. In that file `contents: write` is TOP-LEVEL (line 16) and `promote` (line 744)
+     carries no block of its own. A green re-run would prove the pre-#746 permissions, and nothing about the block
+     this rehearsal exists to test.
+- **The alternatives, and what excludes each:**
+  - **(a)** Let REH-A's `promote` run. It would make the "Test, not a release" release `latest`, which every device's
+    update check reads. Excluded by "publishes nothing customers can see".
+  - **(b)** A `workflow_dispatch` path that runs `promote` against a named tag. That is a change to the release
+    workflow itself. Excluded here: "no workflow change until approved", and the owner named his fallback instead.
+- **So the owner's fallback stands, and REH-C is NOT added.** `promote`'s first real run is v20's release, with the
+  owner present. A failure there promotes nothing: `promote` failing leaves the release a prerelease and `latest` on
+  v19, as the job's own comment records ("Rejecting leaves the release a prerelease and `latest` where it was").
+- What Thursday DOES prove for `promote`'s scope is REH-B's PATCH: `version`'s demote runs `gh release edit` under a
+  job-level `contents: write` with the default at read. That is the same API and the same scope. The static check
+  proves `promote`'s block present and exact on every push.
+
+### 8.2 The slot
+
+**Proposed: Thursday 2026-11-19, 15:00Z-16:30Z** (A, then B, each about 25 min plus cleanup). The orchestrator moves it
+away from any deploy or OTA observation window on its calendar. Neither rehearsal needs a board, and A's `promote` is
+cancelled by p4, so neither needs the owner.
