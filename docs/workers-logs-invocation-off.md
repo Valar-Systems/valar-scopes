@@ -316,6 +316,125 @@ If one fails or rolls back, the LATER ones wait for him.**
 Each deploy goes through `proxy/scripts/deploy.sh`, under the deploy claim, with the deployer lock confirmed with the
 reviewer first.
 
+### 7a. Amendment before the slot: #736 rides this deploy, its checks kept separate (2026-11-17, appended below 7)
+
+Sections 1-7 above are frozen and are not edited. This section changes four things: what this deploy SHIPS, what it
+CARRIES, the D0 that proves both, and the timeline. It adds #736's own checks, apart from (a)-(g). Every prediction in
+sections 5 and 5a stands.
+
+**The owner's words, 2026-11-17 18:53Z (relayed by the reviewer), verbatim, the parts that govern this deploy:** "#736:
+Wednesday. Keep its checks separate from the logs checks in the plan, so a failure can be traced to one change. rule: by
+procedure Wed. [...] name each of Wednesday's three commits in the plans."
+
+#### 7a.1 The commit this deploy ships
+
+**EXPECT = `4a02123ca992031d60bd9592e3084c9ccf34041f`**, #747's merge commit. Both environments deploy exactly this
+commit, from one detached LF checkout of it (`-c core.autocrlf=false -c core.eol=lf`), and no branch is created or moved.
+
+#### 7a.2 What it carries: every commit from `074863fc` (both environments' `/healthz` stamp) to EXPECT
+
+Read 2026-11-17 19:46Z with `git log --first-parent 074863fc..EXPECT`. Each commit's files under `proxy/`:
+
+| commit | PR | under `proxy/` | in the proxy's input set? | its checks |
+|---|---|---|---|---|
+| `4a02123c` | #747 | `pages/support.html`, `src/pages.generated.ts` | **yes** (the served page) | 7a.5, P-S |
+| `13a6dab8` | #746 | none | no | none |
+| `6beb4310` | #745 | none | no | none |
+| `c7f73d10` | #744 | `wrangler.toml`, `src/devlabel.ts`, `src/index.ts`, `src/metrics.ts`, two scripts, one test | **yes** (this plan's change) | sections 5, 5a, 6 |
+| `1695645d` | #743 | none | no | none |
+| `b4f7e511` | #742 | none | no | none |
+| `4dcf2be3` | #739 | none | no | none |
+| `6164ac93` | #741 | none | no | none |
+| `97c96b4c` | #740 | none | no | none |
+| `5c45a67c` | #738 | none | no | none |
+| `0fc8c1d3` | #735 | none | no | none |
+| `8ffe6641` | #737 (#736's plan) | none | no | none |
+| `00fc75d1` | #736 | `wrangler.toml`, `src/types.ts`, `src/upstreams/adsbdb.ts`, `src/upstreams/chain.ts`, `README.md`, four tests | **yes** | 7a.4 |
+| `3815844f` | #734 | `FEED-SOURCING.md`, one script, one test | no (#736's plan's bundle check: none is an input) | none (C5 below) |
+| `3741501b`, `8e83ec83`, `4e9ee56e`, `e152fd30`, `425468f1` | #731, #733, #732, #730, #729 | none | no | none |
+
+**Three changes are in the bundle:** #744 (the logs), #736 (adsbdb off) and #747 (the support page's words).
+Production's behaviour is predicted unchanged by #736 (its plan's own premise). #747 changes the page's text only.
+
+#### 7a.3 D0, by procedure: printed, and any mismatch means no deploy
+
+The owner ruled "by procedure" for Wednesday: until the deploy scripts check it themselves (the commit-pin change, not
+merged before this chain closes), the deployer PRINTS each of these, in the slot, before the first upload:
+
+| D0 | prints | predicted | on a mismatch |
+|---|---|---|---|
+| D0-H | `git rev-parse HEAD` in the deploy checkout | EXPECT, in full | no deploy |
+| D0-A | `git ls-remote` for main = M; `git merge-base --is-ancestor EXPECT M` | exit 0 | no deploy |
+| D0-B | `git log --format='%h %s' EXPECT..M -- proxy/ scripts/session-claim.py` (the proxy's inputs and machinery, read wide) | empty. A later commit touching only docs or other paths outside these is a NOTE and is printed as one | any commit listed here: no deploy until this plan names it (a merge after the plan) |
+| D0-D | `git status --porcelain -- proxy/` in the deploy checkout | empty | no deploy |
+| D0-S | `/healthz` `commit` on staging and production, each read twice at least 60 s apart | `074863fc` on both | another stamp means someone deployed since: no deploy; re-list 7a.2 from that stamp |
+
+`deploy.sh`'s own behind check reads `EXPECT..origin/main` too, so D0-B and the script agree. A deploy is never run with
+`ALLOW_BEHIND=1`.
+
+#### 7a.4 #736's checks, kept apart from (a)-(g)
+
+These are #736's own plan's checks (`docs/proxy-deploy-2026-11-17.md`, section 3), unchanged in what they grade. That
+plan's Tuesday slot was not used: the owner chose Wednesday. Its drafted override (#749) was closed unmerged, and
+nothing in it applies here.
+
+| step | when | what | predicted |
+|---|---|---|---|
+| **#736-B** (the before-read) | 12:10-12:25Z, before the BEFORE windows | `/healthz` on both environments, twice, at least 60 s apart: `upstreams` by id, order, `enabled`, `state` and key set; the routes block; the OPERA products' `source` values | 7 `upstreams` entries, `adsbdb_ac` absent; written down as the comparison |
+| **#736-S0** (the smoke baseline) | 12:00-12:28Z, before the BEFORE windows | `smoke-prod.sh` against production, and with `BASE=<staging>` against staging, as the test identity; whole output to a file | each run's verdicts saved by name |
+| **#736-C2** | after each environment's C1, BEFORE that environment's next logs window opens | `/healthz` `upstreams`, read twice | 8 entries; entries 1-7 equal to #736-B; entry 8 exactly `{"id":"adsbdb_ac","enabled":false,"state":"closed","reason":"licence"}` |
+| **#736-C3** | each deploy's own output | the two variables | `ROUTE_ADSBDB_ENABLED` and `TYPE_ADSBDB_ENABLED` both `"false"`, or "not observable" (never passed) |
+| **#736-C5** | with #736-C2 | `ok`, the routes block, the OPERA values | equal to #736-B (`ageDays` not compared) |
+| **#736-C4** (the smoke) | staging: after W2's second read; production: after P's second read. Never inside A, W2 or P | `smoke-prod.sh`, whole | every verdict equal to #736-S0 by name |
+
+**Why the smoke stays outside the windows.** It runs as the test identity, so inside a window it would add
+device-authenticated request lines and enter (e)'s and W2's counts. The `/healthz` reads add no device line, but they
+are kept out of the windows too, so that every count in a window comes from that window's own triggering requests.
+
+**#747's one check, P-S:** after each environment's C1 and before its next window, one anonymous `GET /blipscope/support`.
+It must hold "Cloudflare keeps these logs for up to seven days" and must not hold "nothing that identifies your device".
+
+#### 7a.5 Outcomes: each failure names the change it implicates
+
+One deploy carries all three changes, so **a rollback reverts all three**. The row says which change the evidence
+points at, so that the report, and any re-plan, separate them.
+
+| reading | implicates | action |
+|---|---|---|
+| any of section 6's rows | **#744** (the logs) | as section 6 says |
+| #736-C2 reads 7 entries, or no `adsbdb_ac` | the build is not EXPECT's: C1 fails too | roll back that environment |
+| #736-C2's `adsbdb_ac` reads `enabled: true`, or has no `reason` | **#736**: the licence switch is on in that environment | **roll back at once**; report to the reviewer and the owner |
+| #736-C2's entries 1-7 differ in `id`, `enabled`, order or keys | **#736** (a change nobody predicted in the upstream chain) | roll back; report |
+| #736-C3 "not observable" | none (the output's format) | the deploy stands on C1, #736-C2, #736-C4 and #736-C5; report |
+| #736-C4: a smoke verdict passed in #736-S0 and fails now | **the deploy**. The report names the verdict, and its check's subject says which change it touches: routes or enrichment point at #736; nothing in #744 or #747 changes a smoke-graded behaviour | roll back that environment; report |
+| #736-C5: the routes block or the OPERA values moved | **none predicted** (#734's check: no change may move them) | roll back; report |
+| P-S: the old sentence is served, or the new one is absent | **#747** (the page did not ship, or the wrong build did) | roll back that environment; report |
+| anything else | outside the set | stop and decide; nothing is improvised |
+
+#### 7a.6 The timeline, with #736 and #747 added (section 7's table stands except as written here)
+
+| time (Z) | step |
+|---|---|
+| by 12:00 | the deploy checkout at EXPECT (LF, detached); D0-H, D0-D printed |
+| 12:00-12:28 | #736-S0 (smoke, both environments); #736-B (`/healthz`, both, twice) |
+| 12:30-12:40 | the BEFORE windows, both environments, as section 7. Reads 12:50 and 13:00 |
+| 13:00 | the deployer lock confirmed; D0-A, D0-B and D0-S printed; the staging deploy; C1 |
+| after C1 | #736-C2/C3/C5 and P-S on staging (about 3 min). **Window A then opens 2 minutes after the last of them**, not 2 minutes after C1 |
+| about 13:08-13:40 | window A and its two reads; then W2 and its two reads, as section 7 |
+| after W2's second read | #736-C4 on staging (smoke) |
+| not before 14:00, about 14:15 | only if staging read as predicted, on (a)-(g) AND #736-C2-C5 AND P-S: the production deploy; C1; #736-C2/C3/C5 and P-S on production; window P opens 2 minutes after the last of them |
+| after P's second read | #736-C4 on production (smoke) |
+| by about 14:55 | the deploy claim released; the record (section 9) names each change's checks separately |
+
+**If the slot cannot fit** (the 15:00Z end is reached with production not started), production does not start. The owner's
+same-day rule for #747 then applies: its page gets its own slot the same day.
+
+#### 7a.7 Wednesday's three commits, named
+
+- the 10:00Z radar step: the commit its own checklist's amendment names (`docs/wx-opera-fallback-deploy.md`);
+- this step: **`4a02123ca992031d60bd9592e3084c9ccf34041f`**;
+- the 16:00Z route run: the commit of the tool it runs, named in its own checklist (`docs/route-weekly-code.md`).
+
 ## 8. The label code, red first
 
 **Registration (this commit): the tests and a STUB `src/devlabel.ts`, both of whose functions throw.**
