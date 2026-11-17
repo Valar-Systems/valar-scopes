@@ -132,3 +132,30 @@ prints about a device).
 | C3 "not observable" | the deploy output's format changed | the deploy stands on C1, C2, C4 and C5; report C3 as not observable |
 | a smoke verdict moved from the baseline (C4) | the deploy changed behaviour | roll back, report |
 | **anything else** (a reading outside every row above, or an instrument that prints OFF or BLIND) | **the instrument or the prediction is unreliable** | **STOP. Roll back if production changed, report, and decide with the reviewer. No re-run until the ruling** |
+
+## 6. Amendment, before D0: the owner moved the slot (the 15:00Z go above is SUPERSEDED)
+
+The text above is left as frozen. This section changes only the slot and D0.2; everything else stands.
+
+**The owner's go, superseding the 15:00Z one (2026-11-16, about 23:58Z, relayed by the reviewer; the owner's selection,
+verbatim):** "23:00Z Tue (3 PM PT) (Recommended)". The option the owner selected read: "After your sitting; no bench run
+open. The daylight chain FT-HR -> S2 -> S2b keeps its margin before dusk. Production behaviour is unchanged by this
+deploy, so a later time costs nothing."
+
+**Why it moved** (the reviewer). FT-HR, S2 and S2b all draw through the production proxy, and S2 must run in daylight to
+match S2b. A 15:00Z deploy would have pushed S2b toward dusk.
+
+**The slot: Tuesday 2026-11-17 from 23:00Z, about 30 minutes.** It keeps its time, with no early start.
+
+**D0.1:** this go.
+
+**D0.2**, replacing the row above:
+- **When:** 22:45Z (the deployer lock, confirmed with the reviewer) and 23:00Z.
+- **The window rule:** "No proxy-using window open" now means the owner's sitting has RELEASED. The sitting starts at
+  22:00Z, lasts about 40 min, and uses a bench board that fetches through the proxy.
+- **How it is read:** from the sitting's end line, or by asking at 23:00Z.
+- **The FT-HR condition above is replaced by this one.**
+- **If the sitting overruns:** the deploy waits for its end.
+- **If the deploy cannot start by 23:45Z:** no deploy. The report goes to the reviewer, who goes back to the owner.
+
+D0.3 onward run from 23:00Z.
