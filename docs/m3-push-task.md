@@ -668,6 +668,27 @@ and the shared tool-esptoolpy 5.3.0 for image creation only. The log shows no to
    - (c) Did anything else look wrong?
 5. Then nothing: 5c and p4 put v19 back, in about 5 min.
 
+**M3-8, AMENDED: the images replaced before anything is published (2026-11-17, after 01:30Z; the orchestrator's ruling;
+the window registered at `11895bc0407a` stands, with these images in place of A and B).**
+- **The finding (blipscope-5c's binary-strings scan, run early on purpose):** A and B each held 35 user-directory runs,
+  this PC's account path, from the core libraries' `__FILE__`. CI's v19 has 0. B could not go on a public prerelease.
+- **The fix (`6476252929dd`, pushed):** a pre: script scoped to m38a/m38b computes `-fmacro-prefix-map` /
+  `-ffile-prefix-map` (both separator forms) from `$PROJECT_PACKAGES_DIR` → `/pio` AT BUILD TIME. The tracked ini and
+  the script hold no path.
+- **THE IMAGES NOW**, built in PowerShell (C: 45.66 GiB before; the same tool versions as before; no tool install):
+  - **A′** (m38a, FW 17): `658646eac9a4`, 1,936,608 B;
+  - **B′** (m38b, FW 18): `b1ec0b7bfb07`, 1,936,608 B;
+  - both with table `28f336fe57a9`, frozen in `_handoffs/p4/m3/build-m38a-v2` and `build-m38b-v2`.
+  - The old A and B stay LOCAL only: never attached, uploaded or committed.
+- **THE PROOF (registered with the ruling, before the rebuild):**
+  - `verify_m38`: ALL PASS, including 0 user-directory runs, with a pattern whose control reads 35 on the old A and B
+    and 0 on v19. The 35 runs are now exactly 35 `/pio/packages/...`.
+  - A′ against B′: 86 bytes, all placed as before.
+  - The tracked ini: no `Users/`.
+  - 5c's scan of B′ (0 `path`, `lan` equal to v19's; its CONTROL, the old B, still 35) is 5c's gate, reported by 5c.
+- **The window and the predictions are unchanged.** In W1 the flashed image is A′ and the prerelease carries B′.
+  P-OTA's banner and P-B's are the same env names.
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
