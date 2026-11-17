@@ -3035,3 +3035,62 @@ in `wt-p5b`; R's P5 builds, with CTRL-B for `blipscope-s3-128`.
 - **The 41 envs not measured stay "predicted, not read",** as section 8 registered them: the retired editions, the
   bench envs and the probes, none of which CI builds.
 - **The Missileer frame-time branch** of the condition was never needed and was never touched.
+
+### 9. P5's merge readiness, from 7i and 8d (docs only, for review, 2026-11-17 ~06:4xZ; no PR)
+
+**The verdict, first: P5 is proven CORRECT and proven NOT TO COST the other editions anything. It is NOT yet proven
+FASTER.**
+- Section 3 makes the gains a reading of their own, from an A0a read on the fixed tree (4a).
+- No A0a window has happened.
+- So P5 is not merge-ready, and a main PR now would land an unmeasured speed claim.
+
+**What is PROVEN** (each with its record section):
+
+| claim | where | evidence |
+|---|---|---|
+| 1a: the outline mask equals today's 8 black copies, pixel for pixel, across overlaps, the disc's edge and the zoom cull | 4e, 4f, 4q, 4r (host) | `test_p5_outline`'s rows; `sabotage_p5_outline.py`'s 5 plants each red on exactly its rows |
+| 1a's device raster matches the host port's | 7g (R-SCRATCH), 7i (R-ANCHOR, R-SCRATCH again) | the scratch: 128 bytes, 0 mismatches (twice). The anchor: the port's 8 copies composited onto the device's own background equal the device's 8-copy frame, mismatch 0 over 3,713 px (20 contacts, one pair overlapping, one clipped). A-PREDICT: 20/20 contacts exact. |
+| 1b: the sweep LUT equals today's per-pixel blend | 4k, 4l (host) | `sabotage_p5_blend.py` "P5 BLEND PLANTS AS PREDICTED" |
+| 1c: the dirty restore equals a full layer copy | 4m, 4n (host core); 4o, 4p (the firmware wiring and its static row); 7g (device) | **R-CLEAR': 0 mismatched px over 2,795 CLEAR_CHECK frames on E2:08**; `check_p5_writes.py`'s three rows and its plants |
+| P5's internal statics cost what was derived, and the handshake keeps its margin | 7f, 7g | H-P5' `free8` −6,040 in band, `psram_free` 0 in band; the margin 14,976 in B3', B4' and B5' alike |
+| BandCanvas's marks cost nothing where no dirty set can attach (4s/4v's open merge condition) | 8–8d | at object level, the three editions CI builds equal the base bar compile stamps, and the radar class is unchanged; the two-list check and the deleted `SetDirty` were each shown firing |
+| P5 ships no bench code | 4s I-3, 7f, 8d | `check-no-bench-hooks.sh` PASSES on the shipping images (`blipscope-s3-128` at P5 and at P5') |
+
+**What is "predicted, not read":**
+- **The 41 envs section 8 did not measure** (retired editions, bench envs, probes). None of them is built by CI.
+- **H-P6' `free8`** is P6's, not P5's. It closed as NO VERDICT under the frozen guard (7g).
+
+**The OPEN items, in the order they block a merge:**
+1. **The gains (section 3).**
+   - Each frame-time row's predicted gain, from A0a's `outline`, `sw_blend`, `under` and `lbl_layout` at 20, 40 and
+     60, with its band. Then the bench read through S1 (drawn == N).
+   - **It waits on an A0a read on the fixed tree** (`a0583e88b142`, 4b/4c), which is p4's.
+   - If A0a moves a premise, the order is re-ruled before anything is built (section 3).
+2. **The "one compiled body" question (4e), a DEVICE question.**
+   - Moving `DrawAircraftTriangle`'s arithmetic into `outlinemask::Heading` and `Build` (noinline) may move a shipping
+     pixel compared with MAIN, because float contraction can differ.
+   - R-ANCHOR does NOT answer this: both of its sides use `Build`.
+   - It needs a reading of the marker's pixels at P5 against main's on the same board, registered on its own.
+3. **The rebase.**
+   - The bench branches sit on `a0583e88b142`, and main has moved since.
+   - The PR is a fresh change from main, so every proof above must be re-established on the rebased code, or shown
+     unaffected by what main changed: at least the host suites, the compile-out compare, and the bench-hook check.
+
+**What a main PR would contain** (shipping code only; from `bench/speed-p5` `8e73d3d5e718`, against `a0583e88b142`):
+
+| part | files |
+|---|---|
+| 1a | `include/OutlineMask.h`; the `DrawOutlineMask` and `DrawAircraftTriangle` changes in `src/AircraftManager.cpp`/`.h` |
+| 1b | `include/WxSweepLut.h`; `DrawSweepOverWeather`'s `sweepLut` |
+| 1c | `include/DirtyClear.h`; `include/BandCanvas.h` (the marks, and section 8's switch); `WxDirty`, the restore in `DrawWeatherUnder`, the dirty sets in `AircraftManager`; `src/main.cpp`'s `SetDirty` and its BANDCANVAS-LISTS check |
+| host tests | `test/host/LgfxPort.h`, `p5_outline_port.h`, `test_p5_outline.cpp`, `test_p5_blend.cpp`, `test_p5_clear.cpp`, `check_p5_writes.py`, the three `sabotage_p5_*.py`, and `run.sh`'s entries |
+
+**Left OUT of the PR:**
+- `include/FrameBench.h` and `FrameBenchMargin.h`, `OutlineScratchCheck.h`, `test_a2_margin.cpp`;
+- every `// THE FRAME BENCH` region;
+- `tools/speed-p5p6/`;
+- the bench markers in `check-no-bench-hooks.sh`. Those markers stay only if the bench code they guard against still
+  exists somewhere that could ship. That is the reviewer's call at the PR.
+
+**No PR is opened by this section.** It is for the reviewer's review. The PR's own registration (its predictions, CI's
+check-run count, the rebase's re-proofs) comes after the gains, in its own section.
