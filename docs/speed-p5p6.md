@@ -1881,3 +1881,34 @@ That is **about 66 min, with the hard end at start + 85**.
 **Outside the set**, as sections 5 and 5a: stop, report, and no fix before a ruling. Plus:
 - a trace that ends without its end lines means VOID and an immediate restore (the 11-17 ruling);
 - anything none of these covers means the instrument is unreliable at this scale: stop and decide.
+
+### 7a. The launcher's line, frozen from map-client's numbers, and my own dry run's predictions (2026-11-17 ~01:2xZ, before the run)
+
+**map-client's measurement**, read at 01:07-01:09Z on this machine, three launchers each, interleaved with controls:
+- `Win32_ProcessStartup.CreateFlags = CREATE_NO_WINDOW` (0x08000000) is **rejected**: `Create` returns 21 and nothing is
+  created.
+- **`ShowWindow = [uint16]0` works:** ReturnValue 0, **+0** OpenConsole/WindowsTerminal processes, and the child's
+  redirected log written.
+- The flagless control reads **+1** every time, so an unflagged WMI child gets a visible tab.
+- **That proves the mechanism EXISTS. It does not prove that it killed section 6's B4 trace,** which stays "most likely,
+  not proven".
+
+**The line.** Every WMI child is created with `ProcessStartupInformation = New-CimInstance -ClassName
+Win32_ProcessStartup -Namespace root/cimv2 -ClientOnly -Property @{ ShowWindow = [uint16]0 }`.
+- Any nonzero ReturnValue is refused with exit 10: nothing is launched, and no waiter is left to time out.
+- The launcher keeps a `-Visible` switch for the control below ONLY.
+- The files and their sha256: `launch.ps1` `f007aa63b5c9`, the harness `console_dry.ps1` `56b81883c9f7`, the child
+  runner `py_child.ps1` `b7d63fc7636f`.
+
+**The dry run, my launcher's own shape** (`cmd /c powershell -File py_child.ps1`, running an argv-printing script).
+- Each run counts NEW OpenConsole/WindowsTerminal process ids for 8 s after `Create`. map-client's grading: conhost
+  counts are noisy.
+- It then waits up to 30 s for the child's rc and reads its log.
+
+| run | predicted |
+|---|---|
+| HIDDEN-1, HIDDEN-2 | launch exit 0 (ReturnValue 0); new OpenConsole/WT ids **0**; log `argc 2`; rc 0 |
+| CONTROL (`-Visible`) | launch exit 0; new ids **≥ 1**; log `argc 2`; rc 0. It proves the counter can see a tab. |
+| BAD-DIR (a non-existent `CurrentDirectory`) | ReturnValue nonzero; launch **exit 10**, `REFUSED`; no log; rc none |
+
+**Outside the set** means stop, report, and use no WMI child for a build or a window until it is ruled.
