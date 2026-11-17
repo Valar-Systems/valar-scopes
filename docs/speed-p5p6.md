@@ -2408,3 +2408,64 @@ board touch):
 6. **The rest of R-ANCHOR stands as 7d/7e froze it:** the pick, A-STILL, `ovl`, the VOIDs.
 
 **Cleanup:** E2:08 is on v19, unreserved. 0 window processes; bgcheck PASS (0 running).
+
+### 7h. R-ANCHOR's re-registration, accepted, its code proven, and the re-run's plan (2026-11-17 ~04:0xZ, before any board touch)
+
+**Accepted by the reviewer:**
+- 7g's proposal, items (1) to (6), unchanged;
+- the firmware read verified on `bench/speed-p5`. The reviewer recorded that the code excludes the poll- or age-driven
+  alternatives: the only thing drawn in that box is the clock;
+- H-P6' `free8` closes as NO VERDICT under the H-NOISE guard, with NO re-read. Psram answers P6's prediction, and no
+  v20 gate names the internal half.
+
+**The code** (`bench/speed-p5` `8be4d708315d`, tools only, so B4' `17d9b2df11cc` is unaffected):
+- **The files:** `anchor_core.h` blob `c0c8e4c35f5b`, `anchor_compare.cpp` `0cfc754066c2`, `sabotage_anchor_box.py`
+  `aa2e4b4f76fe`.
+- **The boxes live ONCE**, in `anchor_core.h`, as named constants with their file:line:
+  - `kClockBox` {105, 134, 210, 217};
+  - `kIndicatorBox` {99, 141, 221, 227}.
+- **Two users, one rule:** `Region()` is the dilated footprints less the boxes, and `EqualOutside()` is a scene's
+  byte-equality outside them. Both use the one `Excluded()`.
+- **The equality moved:** the scene check is now `anchor_compare --equal g1 g2 g3` (0 equal, 1 not, 2 a bad grab), so
+  `fbgrab.py` carries no second copy of the boxes. Its whole-frame sha is information only.
+- **The fixture paints the FIRMWARE's boxes as literals**, never anchor's constants. Before any run I found that my
+  first draft painted with `anchor::kClockBox`: the coupling that cost `grade_heap2.py` its off-prediction. A plant
+  moving the constant would have moved the fixture with it.
+
+**Red first:** 3 plants, each red in exactly its frozen set on the first run. The control, X-C14, was red under none.
+
+| plant | red |
+|---|---|
+| XP-NOBOX (nothing excluded) | X-COST, X-EDGE, X-CLOCK, X-EQUAL, X-EQUAL-IND |
+| XP-SHIFT (the clock box 1 px right) | X-COST, X-EDGE, X-CLOCK, X-EQUAL, X-EQUAL-OUT |
+| XP-WHOLE (whole-frame equality) | X-EQUAL, X-EQUAL-IND |
+
+**Then the control:**
+- `--selftest-box`: 7 ok. X-COST reads the frozen cost: 5 footprint px removed, a region of 3,713 px.
+- `--equal` end to end on emitted grabs reads 0 / 0 / 1 / 2: identical; the clock box changed; one px just outside;
+  a short grab.
+- The core suite (6 plants, control 8) and the file-mode suite (8 plants, control 15 and its file path) re-read
+  unchanged after `Anchor()` moved to `Region()`.
+
+**The re-run, for a window the reviewer books** (E2:08; B4' only; about 24 min; hard end start + 40):
+
+| step | what | budget |
+|---|---|---|
+| 0 | Reserve. S19 twice, 60 s apart. `--check-tool`, `--selftest`. | 3 min |
+| 1 | B4' through `app-only-write`; N-BOOT (the framebench env within 180 s) | ~1.5 min |
+| 2 | One trace, from ~boot + 25 s to boot + 980 s (8COPY's `p1` is at + 960 s). The grabs run through `fbgrab.py` at + 650/670/690 and + 870/890/910 s, as frozen. | 16.5 min |
+| 3 | Close. Restore v19. Two reads 60 s apart, within 300 s. Release. | ~3 min |
+
+**Graded after the window, with no board:**
+1. **The equality:** `anchor_compare --equal` on each scene's three grabs. Not equal, or a bad grab, means R-ANCHOR
+   **VOID**, its SECOND outside-the-set, which goes to the owner.
+2. **The comparison:** the file mode on grab 1 of each scene, with the seal's lines, S2 and S3. Exit 0 PASS, 1 FAIL,
+   2 VOID, as 7d froze it.
+3. **The identity line:** R-SCRATCH is re-read only to show B4' is running.
+4. No heap row is graded. It is one image.
+
+Everything else stands as 7, 7d and 7e froze it:
+- the seal: `trace_filter.py` `6741186f03b0`;
+- child logs read only through `run/childlog.sh`;
+- every launch hidden;
+- a VOID or an instrument failure stops the window.
