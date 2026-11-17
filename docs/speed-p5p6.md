@@ -1912,3 +1912,26 @@ Win32_ProcessStartup -Namespace root/cimv2 -ClientOnly -Property @{ ShowWindow =
 | BAD-DIR (a non-existent `CurrentDirectory`) | ReturnValue nonzero; launch **exit 10**, `REFUSED`; no log; rc none |
 
 **Outside the set** means stop, report, and use no WMI child for a build or a window until it is ruled.
+
+### 7b. The launcher's dry run, read (2026-11-17 01:14-01:16Z)
+
+| run | read | against 7a |
+|---|---|---|
+| HIDDEN-1 | ReturnValue 0; new OpenConsole/WT ids **0**; log `argc 2`; rc 0 | as predicted, except the launch-exit field (below) |
+| HIDDEN-2 | the same | the same |
+| CONTROL (`-Visible`) | ReturnValue 0; new ids **1**; log `argc 2`; rc 0 | as predicted: the counter sees a tab |
+| BAD-DIR | `REFUSED: Create returned 8`; launch **exit 10**; no log; rc none | as predicted |
+
+**One field outside its wording, stated rather than folded in.** 7a predicted "launch exit 0" for the three successful
+launches, and all three read it **EMPTY**.
+- The launcher's success path ran off the script's end without `exit 0`, so PowerShell leaves `$LASTEXITCODE` unset.
+  `bench-trace.ps1` documents the same trap.
+- ReturnValue 0 and the children's rc 0 still showed the launches succeeding. The empty field is an instrument slip,
+  not a reading against the launcher.
+- **The fix** is one explicit `exit 0` at the end of `launch.ps1`, which is now sha256 `d04a1c87f589`.
+- **Re-proven with that exact file** (01:15:58-01:16:29Z):
+  - HIDDEN-3: ReturnValue 0, launch **exit 0**, new ids **0**, `argc 2`, rc 0;
+  - BAD-DIR-2: exit 10, REFUSED.
+
+**So the launcher every build and window uses is `launch.ps1` `d04a1c87f589`:** hidden by `ShowWindow = 0`, refusing a
+nonzero ReturnValue with exit 10, and exiting 0 explicitly. bgcheck read PASS (0 running) after both runs.
