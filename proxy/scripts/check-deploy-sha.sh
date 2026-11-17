@@ -53,11 +53,11 @@ import { appendFileSync, writeFileSync } from "node:fs";
 const a = process.argv.slice(2);
 const s = a.join(" ");
 if (a[0] === "deploy" && a.includes("--dry-run")) {
-  appendFileSync(process.env.FAKE_CALLS, "wrangler deploy --dry-run\n");
+  appendFileSync(process.env.FAKE_CALLS, "dry-run\n");
   writeFileSync(a[a.indexOf("--metafile") + 1], JSON.stringify({ inputs: { "src/index.ts": { bytes: 1 } } }));
   process.exit(0);
 }
-appendFileSync(process.env.FAKE_CALLS, ["wrangler", ...a].join(" ") + "\n");
+appendFileSync(process.env.FAKE_CALLS, a.join(" ") + "\n");
 if (s.startsWith("secret list")) { process.stdout.write('[{"name":"DEVICE_KEY_SECRET","type":"secret_text"}]\n'); process.exit(0); }
 if (s.startsWith("deploy ")) { process.stdout.write("fake deploy\n"); process.exit(0); }
 process.stderr.write("fake wrangler: unexpected call\n"); process.exit(99);
@@ -100,12 +100,13 @@ row() {
   local rc=$?
   if [ "$dirt" = 1 ]; then g -C "$M" checkout -q -- proxy/src/index.ts || { echo "RIG: restore"; exit 2; }; fi
   [ -z "$(g -C "$M" status --porcelain -- proxy/)" ] || { echo "RIG: the mirror is not clean after a row"; exit 2; }
-  local up=0; grep -q '^wrangler deploy --env staging --define' "$T/calls" && up=1
+  # The upload field is a COUNT of the recorded upload calls (ruling (A)): a pass row predicts exactly 1, a refusal 0.
+  local up; up="$(grep -c '^deploy --env staging --define' "$T/calls")"
   local tk=0; grep -qF -- "$(echo "$token" | sed "s/<C1:12>/${C1:0:12}/; s/<C2:12>/${C2:0:12}/; s/<C0:12>/${C0:0:12}/")" "$T/out" && tk=1
   echo "$rc $up $tk"
 }
 
-# name | tip | EXPECT_SHA | ALLOW_BEHIND | ALLOW_BEHIND_SHAS | token | predicted "<exit> <upload> <token>"
+# name | tip | EXPECT_SHA | ALLOW_BEHIND | ALLOW_BEHIND_SHAS | token | predicted "<exit> <upload calls> <token>"
 ROWS=(
   "ES1|C0|unset|-|-|EXPECT_SHA is not set|1 0 1"
   "ES2|C0|abc123|-|-|EXPECT_SHA must be a full 40-hex sha|1 0 1"

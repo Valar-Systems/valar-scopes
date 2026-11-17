@@ -191,7 +191,8 @@ srow() {
   [ -z "$(g -C "$M" status --porcelain -- proxy/ tools/wx/)" ] || { echo "RIG: the mirror is not clean after a row"; return 2; }
   case "$got" in RIG:*) echo "$got"; return 2;; esac
   local rc="${got%% *}" calls="${got#* }" up=0 tk=0
-  case "$calls" in *"wrangler deploy -c"*) up=1;; esac
+  # The deploy field is a COUNT of the recorded deploy calls (ruling (A)): a pass row predicts exactly 1, a refusal 0.
+  up="$(printf '%s\n' "$calls" | tr '|' '\n' | grep -c 'deploy -c')"
   grep -qF -- "$(echo "$token" | sed "s/<C1:12>/${C1:0:12}/; s/<C2:12>/${C2:0:12}/; s/<C0:12>/${C0:0:12}/")" "$T/out" && tk=1
   echo "$rc $up $tk"
 }
