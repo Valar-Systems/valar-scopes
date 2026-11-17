@@ -300,7 +300,7 @@ export const leaderboardHtml = `<!DOCTYPE html>
 
 <footer>
   <div class="wrap">
-    Opt in from your Blipscope’s config page. Your counts, your spotter name and the aircraft types you have logged — no location or flight data leaves your device.<br>
+    Opt in from your Blipscope’s config page. The leaderboard gets your counts, your spotter name and the aircraft types you have logged. It never gets your location or the flights you saw.<br>
     <a href="https://valarsystems.com/blipscope">About Blipscope</a> · Valar Systems, Bend, Oregon
   </div>
 </footer>
@@ -1018,7 +1018,8 @@ export const supportHtml = `<!DOCTYPE html>
        were about. The report is a short line of digits, sent at most once an hour
        on a connection the device was already using. Each report is kept against the
        device's identifier, so the counts belong to a device rather than being
-       anonymous.</p>
+       anonymous. That identifier is a fixed code made from the device's hardware
+       address (never the address itself), the same one the leaderboard uses.</p>
     <p>This changed in firmware 9. Earlier versions collected none of it and said so
        here; we would rather say plainly that it changed than quietly reword the old
        promise. If you would prefer not to send it, run the device against your own

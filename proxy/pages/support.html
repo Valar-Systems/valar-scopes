@@ -535,7 +535,8 @@
        were about. The report is a short line of digits, sent at most once an hour
        on a connection the device was already using. Each report is kept against the
        device's identifier, so the counts belong to a device rather than being
-       anonymous.</p>
+       anonymous. That identifier is a fixed code made from the device's hardware
+       address (never the address itself), the same one the leaderboard uses.</p>
     <p>This changed in firmware 9. Earlier versions collected none of it and said so
        here; we would rather say plainly that it changed than quietly reword the old
        promise. If you would prefer not to send it, run the device against your own

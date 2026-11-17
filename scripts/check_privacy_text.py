@@ -8,7 +8,9 @@ Each phrase in RETIRED was a public privacy statement found false, and replaced:
   - "not where you are": the radar's requests carry the location, rounded to about 1 km;
   - "operational telemetry only": there are usage counts too;
   - "(its API key and hardware model)": the device identifier and firmware version are sent and kept too;
-  - "Counts only — no location" (the leaderboard page): a submission also carries the spotter name and the types.
+  - "Counts only — no location" (the leaderboard page): a submission also carries the spotter name and the types;
+  - "no location or flight data leaves your device" (the leaderboard page): in cloud mode the radar sends a rounded
+    location (the owner, 2026-11-17).
 This check fails if any of them comes back in any of FILES, in any letter case or line wrapping.
 
 A check that finds nothing proves nothing on its own, so each file also has two controls:
@@ -45,6 +47,7 @@ RETIRED = (
     "operational telemetry only",
     "its api key and hardware model)",
     "counts only — no location",
+    "no location or flight data leaves your device",
 )
 
 
