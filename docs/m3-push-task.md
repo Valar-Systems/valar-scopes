@@ -746,6 +746,53 @@ ran, and the orchestrator accepted the re-registration; the text above stands as
 - **The page link for the owner's save** is written to `cap-m38\open-board-page.url` (local) and is not pasted in chat,
   because the host name carries the MAC's last bytes. The owner opens that file in place of a pasted link.
 
+**M3-8, THE SCRIPT RE-FROZEN AND RE-ACCEPTED; THE EXIT-22 ROWS; THE PREFLIGHT READ; THE VISIBLE CONTROL (2026-11-17,
+02:44Z-07:01Z; the orchestrator's rulings; the text above stands as written).**
+- **The rulings on the three additions (02:44Z):**
+  - **(a), T0 accepted, NARROWED.** The predicted value is the trace's own clean verdict. The pre-registered alternate
+    is the attach burst: every detector line of the first 5 s arriving within 2 s of the attach, and at most ONE rst
+    line in that burst (the write's or read-mac's own reset). The burst exempts only ROM/boot lines. A crash line
+    anywhere, burst included, is C1's FAIL, and a second rst in the burst counts in C2.
+  - **(b), the port-drop branch, accepted.** B is graded there by B0, its page saying firmware v18. B1-B3 are read but
+    not graded.
+  - **(c), the page link, accepted.** It goes only in `cap-m38\open-board-page.url`, never in chat.
+- **THE SCRIPT, RE-FROZEN** because (a) as ruled needs code: `win_m38.ps1` sha256 `8ca056b152d7` (614 lines),
+  re-accepted 02:48:40Z. `be19801359ab` is superseded and never ran against a board.
+  - **What changed:**
+    - T0 prints its branch: "clean, the predicted value", "the attach burst, the pre-registered alternate", or
+      "neither";
+    - C2 exempts only the first rst in the burst;
+    - one `Detector()` is shared by the dry run (predicted not red) and `-VisibleControl` (predicted RED);
+    - exit 12 means the control could not read red.
+  - **Proofs:**
+    - the burst helpers, pulled from the frozen file's own AST and run on synthetic traces: one rst → alternate True;
+      two → False; a ROM line at +4 s → False (3 of 3 as predicted);
+    - a planted root (one byte of A′ flipped): `W0 A' firmware.bin 747b0f18 [False]`, exit 20;
+    - the real root: every W0 row True, `the detector reads RED [False] (predicted False)`, exit 0.
+- **W1 EXIT 22, PRE-REGISTERED (accepted 02:48:40Z):**
+  - **In the sitting, W1 exit 22** (refused: otadata selects ota_1, or the table differs) **or 21** (the guard):
+    M3-8 is NOT TAKEN.
+    - Nothing has been written. E2:08 is released at once.
+    - 5c is told "no swap", the owner is told, and the sitting is run 2 only.
+  - **Exit 23:** `-Stage flashrestore`, then not taken.
+  - **NOT IMPROVISED:** no full upload, no OTA detour, no second attempt. Making ota_0 selected later is a new
+    registered item.
+- **THE PREFLIGHT READ (~21:30Z, the orchestrator's adjustment):** the slot evidence in the LAST E2:08 hand-back before
+  21:30Z, in either form.
+  - `running=app0 @0x020000` (any state selecting app0), or "board boots ota_0" from its final app-only write:
+    proceed.
+  - `running=app1`, or anything selecting ota_1: NOT TAKEN, announced before 22:00Z.
+  - No slot evidence at all: ask the orchestrator before 21:45Z. W1's own check stays the backstop.
+- **THE VISIBLE CONTROL, RUN ONCE (2026-11-17 07:00:21Z-07:00:34Z, date -u; the owner away; no port, no board):**
+  - `win_m38.ps1 -VisibleControl` on `8ca056b152d7`, the sha re-read at 07:00:06Z.
+  - `VC visible child (pid 71664) alive at the snapshot [True]`.
+  - `VC OpenConsole 9 -> 10, WindowsTerminal 1 -> 1, new top-level windows 0`.
+  - **`VC the detector reads RED on a visible launch [True] (predicted True)`**, exit 0.
+  - A visible console app opened a Windows Terminal tab (an OpenConsole host), and the detector saw it. The dry run's
+    "not red" around a hidden child is therefore a reading from a detector seen to fail.
+  - **After:** the tab closed with the child (OpenConsole back to 9 at 07:00:40Z), and pid 71664 was gone. bgcheck
+    CHECK PASS at 07:00:50Z, 0 running.
+
 **How M3-8's OTA install is served without touching the fleet.** The path is the one the code already documents
 (`OtaUpdater.cpp:101-104`). A bench image is built with `-DOTA_RELEASE_BASE=https://github.com/Valar-Systems/valar-scopes/releases/download/<bench tag>`,
 pointing at a **prerelease**:
