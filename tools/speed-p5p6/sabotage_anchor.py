@@ -22,7 +22,10 @@ FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1"]
 
 CORE = "tools/speed-p5p6/anchor_core.h"
 MAIN = "tools/speed-p5p6/anchor_compare.cpp"
-COPIED = [CORE, MAIN, "test/host/p5_outline_port.h", "test/host/LgfxPort.h", "include/OutlineMask.h"]
+# anchor_file.h too: anchor_compare.cpp includes it since the file mode landed (its omission read RIG at 02:05Z, the
+# same second-path miss the port move found in sabotage_p5_outline.py).
+COPIED = [CORE, "tools/speed-p5p6/anchor_file.h", MAIN, "test/host/p5_outline_port.h", "test/host/LgfxPort.h",
+          "include/OutlineMask.h"]
 ALL = ["A-565", "A-BE", "A-SCENE", "A-SELF", "A-CMP", "A-SHIFT", "A-REGION", "A-REGION-IN"]
 
 PLANTS = [
