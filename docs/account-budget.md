@@ -808,3 +808,60 @@ before the second build).**
   now writes k to six places, since the anchor only asks whether k is 1. **A third build is predicted** to equal the
   second exactly, except k: r-7d 4.285714 and MTD-1114 2.264151, with r-silent, r-24h and x10 unchanged. Validation
   passes, and the rendered table does not change (k is not rendered). Outside that: STOP.
+
+## 10. R2 storage is billed per GB-month, so a calendar month does not scale it (registered 2026-11-17, before any code)
+
+**The ruling** (the reviewer, 2026-11-15; for the next budget PR, not #726's own): R2 storage is billed per GB-month,
+so it is not scaled by days. Predict December's storage first at 3.863, not 3.992.
+
+**Where it happens.** In a calendar-month scenario, `weights()` gives a steady row:
+- days/30 when the state covers the whole month (9.8 i);
+- or its segment's hours / 720 (9.9 a).
+
+That is right for an allowance that accrues with time: requests, CPU, operations, KV. It is wrong for a GB-month, which
+is the month's average whatever the month's length.
+
+**Read from the real file at main `5c45a67c`, before any change:**
+
+| scenario | R2 storage today | 30/days of it |
+|---|---|---|
+| the four 30-day scenarios | 3.463 or 3.863 | the same |
+| the six November ones (30 days) | 3.700 | 3.700 |
+| the six December ones (31 days) | **3.992** | **3.863** |
+
+So the defect touches December alone, and 3.863 is the ruling's figure.
+
+**The change, after this registration:**
+- **The flag.** An allowance may carry `"per_month": true`.
+- **The scaling.** For such an allowance, `evaluate()` multiplies each row's weight by 30/days in a calendar-month
+  scenario. A whole-month state then weighs 1, and a segment weighs its share of that month's own hours. A 30-day
+  scenario is untouched.
+- **The real file.** `r2_storage_gb` gets the flag, in `tools/budget/build_budget.py`'s allowance table and in
+  `docs/account-budget.json`.
+  - Both are edited by hand, one key each, because rebuilding the file needs the registered reads.
+  - Nothing compares the two today.
+- **`weights()` itself does not change.** So the sabotage driver's S-MONTH and S-SEG keep their needles and their
+  registered sets.
+
+**Red-first rows**, added to `--selftest` with this registration, on synthetic data.
+
+The synthetic per-month rows are 3.0 (a product with one state), 1.0 (the ingest's silent state) and 2.0 (its running
+state). The two ingest states carry different values, so each weight is checked on its own.
+
+| row | the test | against the current code |
+|---|---|---|
+| **M-ST0** (control) | a 30-day scenario with the ingest silent: the per-month rows read 3.0 + 1.0 = 4.0 | green, before and after |
+| **M-ST1** | a December scenario, whole month, ingest silent: the per-month rows read 4.0, not 4.133 (x 31/30). In the same row, `cpu_ms` still reads x 31/30 (M1's rule, untouched) | **red** |
+| **M-ST2** | December with the ingest running from 2026-12-16T00:00:00Z: 3.0 + 1.0 x 360/744 + 2.0 x 384/744 = 4.516, not 3.1 + 1.0 x 360/720 + 2.0 x 384/720 = 4.667 | **red** |
+
+**Predicted:**
+- **At the registration commit:** `--selftest` reads red exactly {M-ST1, M-ST2}, and the other 26 rows plus M-ST0 are
+  green.
+- **After the code:**
+  - `--selftest` reads all green.
+  - `--render`: the six December R2-storage cells go from `3.99 (40%)` to `3.86 (39%)`. No other cell in any table
+    changes, and every scenario stays $0.
+  - `--check` passes.
+- **The sabotage driver** gains **S-STOR**, the 30/days factor removed. It is predicted red exactly {M-ST1, M-ST2},
+  with every existing plant at its registered set.
+- **Outside the set:** any other red, any other cell, or a plant off its set. Stop and report.
