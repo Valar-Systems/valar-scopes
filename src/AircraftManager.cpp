@@ -2192,6 +2192,8 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     fb.phaseStartMs = nowMs;
                     fb.n = 0;
                     fb.overflowFrames = 0;
+                    fb.marginProbe = 0;   // A2: a margin scene's first probe is due as its measure starts
+                    fb.marginNextMs = nowMs;
                     Serial.printf("[frame-bench] scene S%d measure\n", fb.scene);
                 }
             } else if (nowMs - fb.phaseStartMs >= framebench::MeasureMs(fb.scene)) {
@@ -2212,6 +2214,20 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     Initialise();
                 }
             }
+        }
+        // A2's margin probe (docs/speed-p5p6.md section 7, rule 3(i)): ONLY while a margin scene measures, 3 probes
+        // 30 s apart, each the largest internal block CanAllocate grants on the 64-B grid, less the handshake's bytes.
+        if (fb.measuring && fb.scene >= 0 && framebench::kScenes[fb.scene].margin &&
+            fb.marginProbe < framebench::kMarginProbes && (int32_t)(nowMs - fb.marginNextMs) >= 0) {
+            const uint32_t L = framebench::MarginSearch((uint32_t)heaphealth::TLS_HANDSHAKE_BYTES, framebench::kMarginHi,
+                                                        [](uint32_t b) { return heaphealth::CanAllocate(b); });
+            if (L)
+                Serial.printf("[speed-a2] heap margin S%d p%d %lu\n", fb.scene, fb.marginProbe,
+                              (unsigned long)(L - heaphealth::TLS_HANDSHAKE_BYTES));
+            else
+                Serial.printf("[speed-a2] heap margin S%d p%d none\n", fb.scene, fb.marginProbe);
+            fb.marginProbe++;
+            fb.marginNextMs = nowMs + framebench::kMarginEveryMs;
         }
         framebench::PumpDump();
     }
