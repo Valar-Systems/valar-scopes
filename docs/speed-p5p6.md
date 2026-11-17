@@ -2253,3 +2253,158 @@ These are 5a's readings, unchanged.
 
 **What the window still needs:** the reviewer's booking (E2:08). Everything 7, 7d, 7e and this section freeze is now in
 place.
+
+### 7g. Board addendum 2, read (E2:08, 2026-11-17 02:47:29Z to 03:49:35Z)
+
+**The window.**
+- **Ruling:** the owner's "Tue morning", relayed at 02:44Z. The hard end was the earlier of start + 85 and 11:45Z, so
+  04:12:29Z.
+- **Board:** E2:08 was reserved by weatherscope at 02:47:29Z (it was unreserved) and released at 03:49:35Z.
+- **Tools:** every esptool call went through `app-only-write.py` at main `0fc8c1d319cb` (blob `fa9d102be291`, read twice,
+  20 s apart, with a clean tree).
+- **Children:** every write and trace ran in a hidden WMI child (`launch.ps1` `d04a1c87f589`). Each one read MSYSTEM ''
+  and 0 msys PATH entries.
+- **Reading:** traces were read only through the seal (`trace_filter.py` `6741186f03b0`). One slip is below.
+
+**Step 0: as predicted.**
+- S19 was read at 02:47:51Z and 02:48:51Z.
+- `CHECK-TOOL PASSED` (esptool 5.2.0, tree `84c878702a70`).
+- `SELFTEST PASSED`.
+
+**The writes, boots and traces: all as predicted.** Every write read `checks ok: table matches (6 entries), board
+boots ota_0, image <bytes> B fits ota_0 @ 0x20000 (6553600 B). Writing ota_0 only.` Then: write attempt 1 verified,
+reset ok.
+
+| image | write ended | N-BOOT | trace | seal | verdict |
+|---|---|---|---|---|---|
+| B3' (1,966,048 B) | 02:49:50Z | +10 s | 02:50:24–03:03:54Z (13 min) | `abc70034881e` | clean, exit 0 |
+| B4' (1,973,552 B) | 03:04:43Z | +10 s | 03:05:21–03:29:21Z (24 min) | `c902ef9ea5e7` | clean, exit 0 |
+| B5' (1,968,080 B) | 03:30:08Z | +10 s | 03:30:42–03:47:12Z (16.5 min) | `a7ce4c382354` | clean, exit 0 |
+| v19 (1,931,840 B) | 03:47:54Z | see RESTORE | none | | |
+
+**The rows.**
+
+| row | read | verdict |
+|---|---|---|
+| R-SCRATCH (B4') | exactly one `[speed-p5] scratch bytes 128 mismatches 0` (03:06:13Z, boot + 90 s) | **AS PREDICTED** |
+| R-CLEAR' (B4') | exactly one `[speed-p5] clear S4 frames 2795 mismatched-px 0` | **AS PREDICTED** |
+| R-LABELS' (B5', control) | exactly one `[speed-p6] labels S2 checked 223760 mismatches 0` | **AS PREDICTED** |
+| R-MARGIN | 3 probes per image, every one **14976**, all > 0. B4' − B3' = 0. | as predicted; the values are recorded, not graded |
+| R-ANCHOR (B4') | the BG grabs were NOT byte-equal (below) | **VOID** (the reviewer, 03:22Z). anchor_compare was not run and no result was read. The anchor lines were only counted: 40. |
+| H-SAMPLE, H-TLS, H-MARGIN-APART | 10 graded lines per image; `tlsOk=1` on all 30; every graded line precedes its image's first margin line | as predicted |
+| H-NOISE / H-NOISE-PS | `free8` spread: B3' 8, B4' 20, **B5' 2,504 (FIRED)**. `psram_free` spread 0 in all three. | B5''s internal halves: no verdict |
+| **H-P5'** `free8`, `heap free` | **−6,040** (derived centre −5,908) | **IN BAND** [−7,956, −3,860] |
+| **H-P5'** `psram_free` | **0** | **IN BAND** [−4,096, +4,096] |
+| **H-P6'** `psram_free` | **−14,240**: the derived 40 × 356 B, to the byte, as in section 6 | **IN BAND** [−19,616, −10,144] |
+| **H-P6'** `free8`, `heap free` | −98, recorded only | **NO VERDICT**: the pre-registered H-NOISE guard, not an off-prediction |
+| RESTORE | `firmware v19` and S19 at 03:48:24Z and 03:49:24Z, 60 s apart, at +30 s and +90 s | **AS PREDICTED** |
+
+- The grader is `grade_heap2.py` `de83a6871705`, red-tested before any reading (below).
+- Medians: `free8` B3' 75,704, B4' 69,664, B5' 75,606. Largest block 31,732 / 25,588 / 31,732, recorded.
+
+**What it means.**
+- **P5 1c's dirty restore equals the full layer copy on the device:** 0 mismatched pixels over 2,795 CLEAR_CHECK frames.
+  That is the device reading section 6 lost.
+- **The outline scratch's 1-bit raster and its `Row()` equal the host port's table**, all 128 bytes.
+- **P6's cache equals a fresh layout again:** 223,760 checks, 0 mismatches.
+- **P5's statics cost what was derived,** inside the band, and the handshake's margin is unchanged (14,976 in all three
+  images).
+- **P6's entries land in PSRAM, as derived.** The psram half alone excludes the internal alternative, as 5a stated:
+  internal entries would put `psram_free` near 0 to −1,280, nowhere near −14,240.
+
+**The hand-back (the ruled slot evidence).** The restore write's own otadata read, quoted:
+- `checks ok: table matches (6 entries), board boots ota_0, image 1931840 B fits ota_0 @ 0x20000 (6553600 B). Writing
+  ota_0 only.`, then attempt 1 verified, reset ok.
+- All four writes were app0-only, with otadata never written. Each image's withheld `[ota-slot]` count is 1, kept as
+  a count.
+
+**Two slips, each reported when it happened.**
+1. **The seal (02:50Z).**
+   - A trace child's log mirrors the trace: bench-trace echoes to stdout, and the launcher redirects that into the
+     log. A raw `head` of the B3' child log read three lines the seal withholds; their tags were `[ota-slot]`,
+     `[ota-id]` and `[netwd]`. Their contents are not repeated here.
+   - No `[frame-bench]`, `[health]` or `[speed-*]` line was among them, so nothing graded is contaminated (the reviewer).
+   - **The fix:** child logs are read only through `run/childlog.sh`, a keep-list of the child's own lines and
+     bench-trace's meta lines.
+     - It was red-tested on synthetic lines only: `[ota-id] SYNTHETIC` withheld, the child pid line kept.
+     - With `cat` as the filter, the check reads FAIL, so it can fail.
+   - The child logs live with the raw traces, outside every git tree.
+2. **`grade_heap2.py`'s first off-prediction (03:06Z).**
+   - Plant GP-NOSKIP read red only {S-APART-RED}.
+   - **Cause:** the self-test's fixture built its early transient from `SKIP_S`, the constant the plant moves, so the
+     plant deleted its own evidence.
+   - **Fixed as ruled:** a literal 120, plus a fixture self-check (S-FIXTURE). All five plants then read exactly their
+     unchanged frozen sets, and the control read 10 ok. This was before any real line went through it.
+
+**H-P6' `free8`, as the reviewer asked.**
+- **(a) Does it need a verdict before v20's gate?** The frozen record names no v20 gate, and no merge condition on this
+  half.
+  - The heap row's ruled job (4v) was P5's: whether ~4.5 KB of new internal `.bss` can stay internal. H-P5' answers
+    it.
+  - For P6, the registered prediction was "the entries land in PSRAM". The psram half answers that alone (above).
+  - What `free8` would add is that P6 moves nothing ELSE internally beyond its +8 B of statics. That is unverified
+    through the graded instrument tonight.
+  - So **under the plan as frozen, psram plus the other rows suffice. Whether P6's own change (or v20) wants the
+    internal half first is the reviewer's and the owner's call,** not mine.
+- **(b) If it is wanted, the re-read:**
+  - B3' and B5' again, the same images (`54fc5e28142a`, `7472e902863c`), in one window;
+  - section 7's rule 4 sample, 7f's bands, and the **H-NOISE guard UNCHANGED**. A guard changed now would be fitted to
+    tonight's dip.
+  - **Outside the set:** H-NOISE fires again. Then the instrument is unreliable at this scale for a 2 KB band. Stop and
+    decide (for example, a larger-sample registration), frozen before any board touch.
+- **(c) The shape, without a hypothesis:**
+  - B5''s 10 graded `free8` values, relative to the first: 0, 0, 0, −4, 0, −8, **−2,504**, −12, −20, −12.
+  - **One single-sample dip, at the 7th sample** (attach + 327 s), not a drift.
+  - The largest block is unchanged across all 10.
+  - B3' and B4' have no such sample (spreads 8 and 20).
+
+**R-ANCHOR: the cause, from the firmware** (`bench/speed-p5` `2b9a52da2e97`, read-only).
+- **The box that changed** (13 px, x 129..133, y 210..214, between BG grabs 2 and 3) **is `DrawClock`**:
+  - `src/AircraftManager.cpp:5291`;
+  - the text `"%02d:%02d"` is at `:5300`, the row `cy = SCREEN_SIZE - 30` = 210 is at `:5356`, and the draw is
+    `drawString(out, SCREEN_SIZE_DIV_2 - cw / 2, cy)` at `:5371`;
+  - it is called at `:4233`, AFTER the face and its contacts, on every face but Connect.
+- **The geometry:** a centred 5-character `HH:MM`, at 6 px per character at text size 1 (the default font: a premise,
+  checked by the next window's byte-equality, below), spans x 105..134. The minute-units digit is at x 129..134. The
+  grabs straddled 03:16:00Z.
+- **The reviewer recorded the minute display as a hypothesis.** The code is now the reading: this is the one element
+  that draws there.
+- **The other elements drawn after the contacts on the radar face:**
+  - `DrawScreenIndicator` (`:5266`, called at `:4226`): dots at y 224 (`:5269`), x `cx − (shown − 1)·6 + slot·12`,
+    r ≤ 3 (`:5285`);
+  - `DrawFollowHud` (`:4670`, only while a flight is followed);
+  - `DrawZoomOverlay` and `DrawHoldRing` (`:4221`, `:4222`, only after a zoom step or during a hold);
+  - `DrawVisualAlert` (`:4234`, military or emergency, which `ovl` already refuses);
+  - the toasts.
+  - None of the conditional ones should draw in a bench scene. The dots are static within a scene.
+
+**A FINDING THE CAUSE EXPOSES** (host only, on 7e's frozen contact list, with `anchor_core`'s own footprints):
+- **c14's 8-copy footprint has 5 px inside the clock's box** (23 px of its dilated region).
+- The clock is drawn over the contacts on the device, while the host composite draws c14 over the clock. So even with
+  byte-equal grabs, tonight's frozen criterion could have read **FAIL from the clock alone**. That is the
+  alarming-direction case 7d named for elements drawn after the loop, now located.
+- The indicator's box touches no footprint (0 px).
+
+**R-ANCHOR's re-registration, PROPOSED for a later window** (nothing here runs until accepted and frozen before any
+board touch):
+1. **Two exclusion boxes, from the code above:**
+   - CLOCK, x 105..134 and y 210..217 (`:5300`, `:5356`, `:5371`, font height 8);
+   - INDICATOR, x 99..141 and y 221..227 (`:5269`, `:5285`, shown ≤ 4, r ≤ 3).
+   - The compared region becomes `Dilate(Footprint, 2)` minus both boxes, and each scene's byte-equality is judged
+     outside both boxes.
+2. **The cost, frozen from the host:**
+   - for 7e's list, the boxes remove **5 footprint px (all c14's)** and 23 dilated px, out of a 3,736 px region;
+   - a re-run that removes any other number has a different contact set, which is itself a finding.
+3. **A box too small fails in the alarming direction:** a clock digit outside it breaks the byte-equality, and R-ANCHOR
+   reads VOID again, the SECOND outside-the-set, which goes to the owner. The font premise in item 1 is tested by that,
+   not assumed.
+4. **Grab timing stays as is.** Grabs within one minute were considered and rejected: BG and 8COPY are minutes apart
+   whatever the timing, and the clock is drawn over c14.
+5. **Code before the window, red first:**
+   - `anchor_core`'s compare gains the two boxes as named constants;
+   - plants: box ignored (a synthetic clock change reads FAIL), box shifted 1 px (the c14 overlap reads FAIL), byte
+     equality judged on the whole frame (VOID);
+   - then the control.
+6. **The rest of R-ANCHOR stands as 7d/7e froze it:** the pick, A-STILL, `ovl`, the VOIDs.
+
+**Cleanup:** E2:08 is on v19, unreserved. 0 window processes; bgcheck PASS (0 running).
