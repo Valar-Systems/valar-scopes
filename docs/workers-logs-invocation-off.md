@@ -94,13 +94,14 @@ the map-server session as its own registered instrument with the observability-r
 print **counts only**, never an event, a field value, a key, an id or a URL. `wrangler tail` is excluded: it reads the
 live stream, which these storage settings do not govern, so it cannot fail on (a).
 
-**Windows.**
-- Each deploy's window opens 2 minutes after C1 (the deploy plan's stamp check) shows the new commit on `/healthz`, so
-  that an old isolate's last requests fall outside it.
-- It closes 10 minutes later.
-- Each count is read twice, at window close +10 min and +20 min (ingestion lag). The two reads must agree; a count still
-  moving between them is not a reading.
-- The control windows are the same length, ending before the deploy.
+**Windows.** Every window is 10 minutes long, and every count is read twice, at window close +10 min and +20 min
+(ingestion lag). The two reads must agree; a count still moving between them is not a reading.
+- **BEFORE:** one window per environment, both ending before the staging deploy. It holds the controls.
+- **A:** staging. It opens 2 minutes after C1 (the deploy plan's stamp check) shows the new commit on `/healthz`, so
+  that an old isolate's last requests fall outside it. It holds (a), (b) and (d)'s `user-agent`.
+- **W2:** staging. It opens only after (a) has read 0 on both of A's reads, and holds (d)'s identity headers with (a)
+  and (b) again.
+- **P:** production. It opens 2 minutes after C1 on production, and holds (c) and (d).
 
 | | after the deploy | its control, in the window BEFORE the deploy |
 |---|---|---|
@@ -115,9 +116,11 @@ live stream, which these storage settings do not govern, so it cannot fail on (a
 - **The two identity headers:**
   - **Production:** the window must also hold **> 0** `evt:"req"` lines with a non-empty `dev` (under (i)), or with
     `authPath = "device"` (under (ii)). Devices send those all the time. Production grades the identity headers.
-  - **Staging** has little device traffic. Whether ONE request carrying the test identity is sent there, and only
-    **after** (a) has read 0, is the reviewer's to rule. Without it, staging's identity-header counts are information
-    only.
+  - **Staging** has little device traffic, so this session sends **one request carrying the staging test identity**
+    (ruled by the reviewer, 2026-11-17). It goes into a SECOND staging window, W2, that opens only **after** (a) has
+    read 0 on both reads. (a) is read after window A closes, so the request cannot go into A itself. Its time is
+    recorded in section 8. The two identity headers are then graded on staging, in W2, before production is touched.
+    If (a) is not 0, there is no W2 and no such request: stop and report.
 
 The triggering requests are 5 anonymous `GET /healthz`, at least 30 s apart, sent inside each window by this session.
 They carry no key and no device header. The count is stated so that the reader can match it: (b)'s after-count is
@@ -144,11 +147,18 @@ sampling about one event per request. The account budget reads it at its next sc
 
 ## 7. The slot (proposed; needs the owner's OK through the reviewer)
 
-**Wednesday 2026-11-18, 13:00-14:00Z.** That is clear of the 10:00Z radar deploy and the 16:00Z route run, and it is
-not tonight's 23:00Z deploy of #736, which stays exactly as approved. The slot's steps:
-- the deploy plan's D0 checks, re-listing the carried commits from `/healthz`'s stamp to main;
-- the staging deploy, then (a), (b) and (d) on staging;
-- only if staging reads as predicted, the production deploy, then (c) and (d) on production.
+**Wednesday 2026-11-18, 12:30-15:00Z.** That is clear of the 10:00Z radar deploy, and it leaves the 16:00Z route run
+over an hour of margin. It is not tonight's 23:00Z deploy of #736, which stays exactly as approved. (A 13:00-14:00Z
+slot was proposed first. It cannot hold W2, which must wait for A's two reads.)
+
+| time (Z) | step |
+|---|---|
+| 12:30-12:40 | BEFORE windows, both environments: read-only, plus the anonymous `GET /healthz` requests. Reads 12:50 and 13:00. Any control at 0 is BLIND, and nothing deploys |
+| 13:00 | the deploy plan's D0 checks, re-listing the carried commits from `/healthz`'s stamp to main; the deployer lock confirmed; the staging deploy; C1 |
+| about 13:05-13:35 | window A, then its two reads: (a), (b), (d)'s `user-agent` |
+| about 13:36-14:05 | W2, only if (a) = 0 on both reads; the one staging-identity request; its two reads |
+| not before 14:00, about 14:05 | only if staging read as predicted: the production deploy, C1, window P, its two reads: (c), (d) |
+| by about 14:50 | the deploy claim released; the record below |
 
 Each deploy goes through `proxy/scripts/deploy.sh`, under the deploy claim, with the deployer lock confirmed with the
 reviewer first.
