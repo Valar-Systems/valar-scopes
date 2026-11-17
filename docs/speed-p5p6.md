@@ -2799,3 +2799,72 @@ relative path):
 
 Each means STOP. The control's unnamed difference goes to the owner (the second on this row). The rest come to the
 reviewer.
+
+### 7i. R-ANCHOR's re-run, read (E2:08, 2026-11-17 05:32:05Z to 05:53:44Z): PASS
+
+**The window.**
+- **Ruling:** the owner's "re-run: this morning", relayed at ~05:27Z. The hard end was the earlier of start + 40 and
+  11:45Z, so 06:12:05Z.
+- **Board:** E2:08 was reserved by weatherscope at 05:32:05Z (it was unreserved) and released at 05:53:44Z.
+- **Tools:** read twice, 23 s apart: wt-main `0fc8c1d319cb`, `app-only-write` `fa9d102be291`, bench-trace
+  `2f6ef6486ae9`, a clean tree.
+- **Children:** every write and trace ran hidden. The trace was read only through the seal (`6741186f03b0`), and its
+  child log only through `run/childlog.sh`.
+- **Section 8** was paused at a step boundary (`bench/speed-p5` `91a80d9348bc`, a clean tree). No build ran during the
+  window.
+
+**The sequence: as predicted.**
+- **Step 0:**
+  - S19 was read at 05:32:15Z and 05:33:15Z;
+  - `CHECK-TOOL PASSED` (5.2.0, tree `84c878702a70`);
+  - `SELFTEST PASSED`.
+- **W-B4'** (05:34:05–05:34:30Z): `checks ok: table matches (6 entries), board boots ota_0, image 1973552 B ... Writing
+  ota_0 only.` Then attempt 1 verified, reset ok.
+  - N-BOOT: the framebench env at 05:34:49Z.
+- **The trace:** 05:35:02–05:51:32Z, `VERDICT: clean`, exit 0, seal `0194e5e4b98d`.
+- **The identity line:** exactly one `[speed-p5] scratch bytes 128 mismatches 0` (05:36:01Z).
+- **The anchor prints,** where 7d froze them, both bracketing their grabs:
+
+| scene | `p0` | `p1` |
+|---|---|---|
+| S2, ANCHOR_BG | 05:45:01Z (+631 s), `contacts 0` | 05:46:51Z, `contacts 0` |
+| S3, ANCHOR_8COPY | 05:48:41Z (+851 s), `contacts 20` | 05:50:31Z, `contacts 20` |
+
+- **The grabs** (`fbgrab.py` `ef330a56f66b`, into `grabs-a2r`; section 7g's VOID grabs untouched): all 6 finished, each
+  "late by 0.0 s".
+  - fbgrab's whole-frame verdict is information only (7h).
+  - BG's grab 3 (05:46:00Z, on a minute turnover) differs; 8COPY's three are equal.
+
+**R-ANCHOR, graded after the window in the frozen order** (`anchor_compare`, built at `8be4d708315d`):
+
+| step | read | verdict |
+|---|---|---|
+| `--equal`, BG (S2) | grab 1 vs 2: 0 px. Grab 1 vs 3: **13 px inside the excluded boxes, 0 outside.** | EQUAL, exit 0 |
+| `--equal`, 8COPY (S3) | 0 px and 0 px | EQUAL, exit 0 |
+| the file mode, grab 1 of each scene, S2 and S3 | `contacts 20, overlapping pairs 2, edge-clipped 1, region 3713 px, mismatch 0 -> PASS` | **PASS**, exit 0 |
+
+- **Its preconditions all held:** A-STILL in both scenes; `ovl 000` on all 20 contacts; `up 0`; whole-degree tracks;
+  BG carrying no contact.
+- **The region, 3,713 px, is 7h's frozen cost to the pixel:** 3,736 less the clock box's 23.
+
+**R-ANCHOR: PASS.** The host port's 8-copy outline, composited onto the device's own background grab, equals the
+device's 8-copy frame pixel for pixel over every marker's footprint dilated by 2 px. The clock and the screen indicator
+are excluded. That covers 20 contacts, including an overlapping pair and an edge-clipped marker. So the host rows that
+proved P5 1a's mask against the 8 copies rest on a raster that matches the device's.
+
+**A-PREDICT, recorded and NOT graded:** the device's 20 S3 contacts equal 7e's host prediction exactly, as `(x, y, trk)`
+sets. 20 are in both, none on one side only, and all read `cat 4`, `dot 0`, `up 0`. So the host's port of the table and
+the projection agrees with the device's, to the pixel.
+
+**The hand-back:**
+- **The restore** (05:51:43–05:52:07Z): `checks ok: table matches (6 entries), board boots ota_0, image 1931840 B
+  fits ota_0 @ 0x20000 (6553600 B). Writing ota_0 only.` Then attempt 1 verified, reset ok.
+- **RESTORE:** `firmware v19` with S19 at 05:52:38Z and 05:53:37Z, 59 s apart, at +31 s and +90 s.
+- **Both writes in the window were app0-only,** and otadata was never written.
+- The withheld `[ota-slot]` count is 1, kept as a count.
+
+**Cleanup:** E2:08 is on v19, unreserved. bgcheck PASS (0 running).
+
+**Board addendum 2 is now read in full:**
+- **As predicted:** R-SCRATCH, R-CLEAR', R-LABELS', R-MARGIN, the heap rows, and now R-ANCHOR.
+- **No verdict, by the frozen guard:** H-P6' `free8` only.
