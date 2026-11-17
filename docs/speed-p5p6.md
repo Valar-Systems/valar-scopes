@@ -2689,3 +2689,113 @@ All are hidden PowerShell children, one at a time, with the disk read before eac
 - any of the 36 envs that run the check fails to compile at P5' WITHOUT a plant.
 
 Each means STOP and come to the reviewer, with no re-fit.
+
+### 8b. Section 8's control fell outside the set; the comparison moves to the object level (re-registration, 2026-11-17 ~05:0xZ, before any P5' reading)
+
+**What happened, recorded.**
+- **The images were one build:** CTRL-A (the 02:05Z build) and R0's `blipscope-s3-128` were byte-identical, because R0
+  compiled 0 files. That was caught before any verdict.
+- **CTRL-B,** a clean build of the same source (259 files compiled), was **+16 B** against R0.
+  - The difference was in the segment table: DROM +16, and 16 B of IRAM moved between two IRAM segments.
+  - bincmp read exit 2, and the window stopped.
+- **The reviewer (~05:0xZ):** this is the FIRST outside-the-set on this row.
+  - The causes are recorded as named, none excluded: (a) layout nondeterminism, (b) an unfound input change, (c) an
+    unfound variable-length string.
+  - Excluded: an embedded git id, and the stamps changing length.
+  - CLAUDE.md's 75-byte accounting is a CI-Linux measurement and does not carry to local Windows builds.
+  - **Ruled: option (1), at the OBJECT level,** because the claim, "the marks compile to nothing", is a code claim.
+
+**CTRL-C, built as ruled, read as information only.** It is a second clean build of `blipscope-s3-128` at the same
+source (`wt-p5b`; 259 files compiled; its objects archived before anything else built there). Its `.bin` is **1,936,976
+B**, sha256 `1c041c4bea04`.
+
+| build | when | `.bin` |
+|---|---|---|
+| CTRL-A | 02:05Z, clean | 1,936,976 |
+| CTRL-B | 04:52Z, clean | 1,936,992 |
+| CTRL-C | 04:58Z, clean | 1,936,976 |
+
+Three clean builds of one source give 976 / 992 / 976. That points to per-build noise, (a), rather than input drift,
+(b). **It is not graded.**
+
+**The reference objects, archived before any clean P5' build could delete them** (`scratchpad/art-objs`, `.o` files by
+relative path):
+
+| set | objects |
+|---|---|
+| CTRL-B and CTRL-C | 259 each |
+| R0: `-wxlook`, `-joindiag`, `pro-s3-21`, `pro-s3-175-amoled` | 259 each |
+| R0: `animtest-s3-128` | 165 |
+| R0: `weatherscope-bench-s3-128` | 163 |
+| E0 (`wt-a2base`): `missileer-s3-128`, `missileer-photo` | 280 each |
+| E0: `weatherscope-s3-128` | 255 |
+
+**The tool, `objcmp.py`** (`tools/speed-p5p6/`, red first, after the reviewer's OK of this section):
+- **Input:** two object trees, paired by relative path. An object present in only one tree is red: **exit 2**,
+  DROPPED or ADDED.
+- **Each pair** is parsed as ELF32 little-endian. **The section set is DERIVED from the flags:** every section with
+  `SHF_ALLOC` (0x2).
+  - The allocated section names must match.
+  - For each one: its size, and its bytes (`SHT_NOBITS`: size only).
+  - Sections without `SHF_ALLOC` are excluded by construction: debug, `.comment`, the symbol and string tables, and
+    the `.rela*` sections.
+- **ADDED, for acceptance: the relocations of every allocated section,** compared as `(offset, type, symbol NAME,
+  addend)`.
+  - In a relocatable object the allocated bytes are pre-relocation. Two objects can carry identical `.text` bytes and
+    call different functions.
+  - Symbols are resolved by name (section symbols by their section's name), never by index, which can reorder.
+- **Exit codes:** 0 every pair identical except the frozen exceptions; 1 an unexplained difference (object, section,
+  first offset); 2 an object dropped or added; 3 a parse error.
+- **Red first:**
+  - **O-TEXT:** one byte planted inside a `.text*` section of one object in a copy of CTRL-B's tree reads **exit 1**,
+    naming that object and section.
+  - **O-DROP:** one object deleted from the copy reads **exit 2**, naming it.
+  - **O-NONALLOC:** one byte planted in a non-allocated section (`.comment` or a debug section) reads **exit 0**. That
+    shows the exclusion works and is not a blind spot by accident.
+  - **O-RELA:** one relocation's symbol changed to another existing symbol reads **exit 1**. (This one is for the
+    addition above.)
+  - **The control:** the tree against itself reads exit 0.
+
+**THE CONTROL, first: CTRL-B vs CTRL-C, every object.**
+- **Predicted:** every pair identical, except objects I can NAME with a stated cause (for example WiFiManager's
+  `__DATE__`/`__TIME__` in `.rodata*`).
+- **That exception list is DERIVED from this control** and frozen in a section of its own before any P5' build.
+  - Each entry is an object, a section, and its cause, read from the bytes.
+  - An entry is excused ONLY in the sections and bytes named for it.
+- **If anything differs that I cannot name with a cause: STOP.** That is the SECOND outside-the-set on this row, and it
+  goes to the owner.
+
+**The predictions, at the object level:**
+
+| class | compared | predicted |
+|---|---|---|
+| **E** (3 measured) | P5' (`wt-p5b`, clean) vs the base (E0's archived objects, `wt-a2base`) | every object's allocated sections and relocations identical, minus the frozen exceptions; no object dropped or added |
+| **R** (7 measured) | P5' (`wt-p5b`, clean) vs P5 (R0's archived objects, with CTRL-B's for `blipscope-s3-128`) | the same |
+
+- **The premise for class E, stated:** it compares objects built in two worktree directories. No archived image
+  contains a worktree name: 0 hits for `wt-a2base`, `wt-p5b` and `scratchpad` in all 12 `.bin`.
+- **If a path-dependent string lives in an allocated section of an object anyway,** it shows as an UNNAMED difference:
+  STOP, the alarming direction.
+- **The `.bin` sizes** are reported beside the control's spread (976 / 992 / 976) as information, not graded.
+
+**Unchanged from 8 and 8a:**
+- every P5' build is from CLEAN: the env's build dir deleted after its reference objects are archived, the disk read
+  first, `compiling N` printed with N > 0, and the objects archived the moment the build lands;
+- R-LISTS (exactly 1 error, `#error` (3));
+- R-DELETE (exactly 2 errors, `#error` (2) and then the deleted `SetDirty`);
+- one build at a time, hidden.
+
+**The order, after the reviewer's OK of 8b:**
+1. `objcmp.py` red first.
+2. The control: CTRL-B vs CTRL-C.
+3. Its exception list, frozen in its own section.
+4. Then queue 2.
+
+**Outside the set:**
+- the control shows an unnamed difference;
+- any P5' compare shows a difference outside the frozen exceptions, or an object dropped or added;
+- a P5' build reads `compiling 0`;
+- R-LISTS or R-DELETE reads anything but its frozen errors.
+
+Each means STOP. The control's unnamed difference goes to the owner (the second on this row). The rest come to the
+reviewer.
