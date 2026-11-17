@@ -88,6 +88,18 @@ be the expected result, not a stop.
 - **Outside the set:** `wait` at p50 over 2 ms means the loop is waiting on the push. Either the scene is push-bound, or
   the overlap is not what M3 says it is. Stop.
 
+**(c) AMENDED, the push line (2026-11-17, after 00:49Z; the orchestrator's acceptance; a re-registration before any
+A0a run -- the frozen text above stays as written).** The prediction above, "`push` **25.8 ± 1.0 ms**", is the v19
+in-loop push floor, and C1 has since measured M3's push lower: push − sync **23.69 / 23.72 / 23.72 ms** (`push_avg`
+24.15-24.18, `sync` 0.46), C1's own independent readings (docs/frame-time-bench.md, the v20 sibling's corrected band).
+Left as written, a correct A0a would read off at that row.
+- **AMENDED to: push − sync 23.7 ± 1.0 ms (the sibling's corrected band), REPORTED, not graded.** `sync` stays
+  reported.
+- **Why this is valid:** no A0a run exists yet, and the band comes from C1's earlier measurement, not from any A0a
+  reading.
+- **The reader agrees:** `tools/frameprofile/a0a_read.py` (`ab7ddec8981d`) reports the bench's push average and grades
+  no push row. Neither the reader nor this document grades push.
+
 **(d) THE SCENE AND THE FIELD, re-based on C1's.**
 - Bend, 25 mi, cloud-fed through the (a) hook, map off (C1's bench line).
 - The weather is **C1's fixed field**: code 0, plus ONE code-2 cell 15 mi from home at bearing 135°.
