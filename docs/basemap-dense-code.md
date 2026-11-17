@@ -4964,3 +4964,106 @@ the authority for both rows.
 - Main's coordinate gate, run on this head before the push, must count 0.
 - **A new red from `ship-alert`** reads INSTRUMENT. **P1 BLIND a third time** goes to the project's owner, as registered. Anything
   else outside 34 / 2 / 0: STOP, and read which job before anything else.
+
+### e81e7949's and 006da7e1's CI, read; step 8's readings; S4-4's verdict (2026-11-15 to 11-17)
+
+**The two CI reads this doc owed.** Each was re-read for this commit from GitHub's check runs, before 2026-11-17T00:34:55Z, not copied from notes.
+- **Read at e81e794908a6:** 36 = 34 / 2 / 0, as predicted in its own section above. `promote` and `version` were skipped. Tested
+  on "Merge e81e794908a6... into b282699ac091...", per a job's own checkout log (run 43776804052).
+- **Read at 006da7e1b0c3** (main 4e9ee56e6c2b merged in at 5546ed081da4, then the 2-dp fix to the homes paragraph and the
+  rounding sentence): 37 = 35 / 2 / 0, as predicted in that commit's message. It was e81e7949's 36 plus main's new build-only
+  matrix row `build (blipscope-s3-128-mapbench)`, and `photo-drift` is push-only. The run was read twice, at 19:37:06Z and
+  19:38:48Z on 11-16, and the set of job names equalled the predicted set. Tested on "Merge 006da7e1b0c3... into
+  4e9ee56e6c2b..." (2ec45c4), per a job's own checkout log (run 43938080922).
+
+**Step 8 (step8_26): CLOSED 2026-11-16T18:43:58Z.**
+- **Where the record is.** The registration, its amendments and its readings are `step8_26.pred`, sha256
+  `581d4e87a8fafc14c5b703896dad34c8f1028bc26e2817751ce30cf00cd6c8c0`. Its bytes are held off-repo, because they carry the exact test
+  points and the owner's name. `map-server/scratch-record` at 950ceb045d9e carries two files in `scratch-record/q-w4/mirror/`:
+  - `step8_26.pred.public` (af39170a1d20): the same text, with each of the 38 occurrences of the owner's name reading "the owner";
+  - `WITHHELD-step8_26.txt` (a77a8a752ad1): every withheld file, by full sha256 and reason.
+- **At the close, nothing was uploaded.** No `d1 --go` and no `--resume`; the store was not in R2, and no device had it. The upload
+  was the owner's separate decision. Its registration comes after this section.
+- **Every row's verdict, each read from the row's own log:**
+  - Inputs (the dry-clone at e81e794908a6 and the tool shas): OK. S-0 and S-1: AS REGISTERED. M-4: AS PREDICTED. S-2 A and B:
+    the disk watch's verdict OK both times, and S-2 BYTE-IDENTICAL. EV: AS PREDICTED (only the run's identity keys differ;
+    `index.json` and `sea-regions.json` are byte-equal). M-3: AS PREDICTED, with its controls 4 of 4.
+  - The first region test CRASHED: instrument failure 1, below. Its re-run is R5b-5.
+  - R5a-1 reindex: AS PREDICTED (4,333 moved, same layers). R5a-2 S-4 and S-5: AS PREDICTED. R5a-3 KB7-b: AS PREDICTED (KB7-a
+    PASS, and its control fails as it must).
+  - R5b-0, the block's control: BLOCKED (ECONNREFUSED at the proxy), AS PREDICTED. R5b-1 coverage and R5b-2 tile-bits: byte-equal
+    to `bm-obj`, read by R5b-3 S-3, AS PREDICTED. R5b-4 re-base: AS PREDICTED (+4 files, 0 changed). R5b-5 region test: KBOS and
+    KJAC, AS PREDICTED. R5b-6: S-6 refuses and names the lakes file, S-7 plans 12,021 puts, and the restore verified, AS PREDICTED.
+    R5b-7, the R2 figures: inside the 1M bound, AS PREDICTED.
+  - R5c-1, the store adapter's control: 16 of 16 equal to run 10. R5c-2, the adapter on tree B: 16 of 16 ok. R5c-3 I2: 14 of 14
+    EQUAL, AS PREDICTED (control 21 px). R5c-4 SEA-OWN: OFF, 1 of 14, EXPLAINED below. R5c-5 KB7-c-real: 3 of 3, AS PREDICTED.
+  - D1: controls AS PREDICTED. Of `sea-obj`'s 102 sea cells, 85 differ and 17 are identical. The first run of D2 and D3
+    CRASHED: instrument failure 3. D2 (5c.3): the lakes file's region box explains `files.sea` at KBOS, KSFO, KSEA and KJAC. D3:
+    7 of 7. D4: 11 of 11.
+  - R5d-1, the AFTER packages: 6 of 6 ok. The first run of R5d-2 was NOT APPLIED, from a faulty proof: instrument failure 4.
+    R5d-2 again (5d.2): 44007 APPLIED. 17005 was NOT APPLIED, an OFF and not an instrument failure: 0 of 158 river polylines lie
+    inside the county. R5d-2 at 19123 (5d.4): APPLIED, 7 of 176. R5d-3: 318 frames, exit 0. terrain26: 16 of 16. elig26: both
+    control centres >= 1. R5d-4: anchor 6 of 6; S4-3's control 15 at 10 mi, AS PREDICTED; S4-3 as below; S4-3b's control OFF
+    (BREAK 4 -> 4).
+  - R5d-2c, the cut plant: APPLIED (4 crossing polylines, 4 cuts, 176 -> 180 lines). R5d-3c: 9 frames, exit 0. R5d-4c: FLAT at
+    the graded 10 mi rung (4 -> 4), while the count rose at 25 mi (6 -> 7) and 50 mi (8 -> 11). That is outside the
+    pre-registered set, and went to the owner.
+- **The four instrument failures, each closed:**
+  1. The first region test read regions from tree B's `index.json`, which holds only cells. Closed in 5b: coverage is built
+     first, then met26b reads the regions as d1 merges them (R5b-5 AS PREDICTED).
+  2. R5a-1's background check FAILED on the parent shell's own console host. Closed in 5a.1: each row runs in a registered
+     child, and the console-host listing and the background check run in the parent.
+  3. `d2d3_26.mts:37` resolved the cache path one level too high. Closed in 5c.3 on the owner's word (one line, 2a9729a48281),
+     with rule (b): every input path is checked at the freeze, and first by each row.
+  4. The plant proof paired sections by first-of-type, but a package has 3 terrain sections. Closed in 5d.2 by `one()` plus
+     index pairing, with rule (c): `pairing_check.py` lists every `sections.find`.
+- **SEA-OWN's OFF, EXPLAINED (5c.1 to 5c.3).** The two stores' sea pieces differ (D1: 85 of 102 cells). Tree B's sea files also
+  sort first where `sea-obj`'s sort last. The package's byte budget turns both differences into different drops: roads at 7 of
+  7 points (D3) and inland water at 11 of 11 (D4). The lakes file's region box explains `files.sea` at 4 points (D2).
+- **The VOID family: the inventory found exactly one.** `seaown26:41` compared terrain by first-of-type, so R5c-4's terrain claim
+  was VOID. Re-run by position (terrain26), every terrain level is equal at 16 of 16, and the type census holds at 16 of 16.
+- **The inventory** (the owner's "list every earlier check that compared layers against the first of its kind"): 53 files. Apart
+  from that family, every check compared a type that occurs once per package. `format.ts:248` refuses a duplicate, and all 34
+  builder versions share one emission block (a518b9c89ac0), which writes types 1-5 and 7 once each. Those passes stand
+  (ruling (i)).
+- **S4-3, the seam: 0 at 10 of 15 eligible pictures.** Flagged to the owner: 44007 at 10/25/50 mi, 19/4/2; 19123 at 25 mi, 3;
+  38021 at 25 mi, 1. N/A, with no water at the line: 38021, 17005 and 19123 at 10 mi. The control read 15 at 10 mi.
+- **S4-3b, the break: NO READING, by the owner's word** ("census rivers: no reading."). The registered control could not move the
+  finder, and the cut control was flat at the graded 10 mi rung and rose at 25 and 50 mi. Both are recorded above, and nothing is
+  re-graded. The rivers are judged from the pictures.
+- **17005, Bond IL:** none of the 158 river polylines in that package falls inside the county, so its 2025 river change cannot be
+  seen on the device at that location.
+- **The post-v20 item, as ruled:** one investigation, cause first, read-only, with its predictions frozen before any of it runs.
+  Nothing runs on it now.
+  - **Q1, first, in the owner's words, verbatim:** "For the after-v20 look: the 10-mile count was already 4 before the slide, with
+    4 rivers crossing the line, so check first whether the counter counts every crossing as a break at that view."
+    - The hypothesis: at 10 mi the BREAK counter is SATURATED. AFTER-19123's 4 breaks are the 4 crossings, so cutting the same
+      4 rivers cannot raise the count. Flat is what a working counter would show there.
+    - The separator: map each of AFTER-19123's 4 break pixels at 10 mi to the crossing it sits on. If each is one of the 4
+      crossings, saturation is confirmed. Then check the wider rungs the same way: do the 6 breaks at 25 mi include all 4
+      crossings plus 2 others?
+  - **Q2, map-server's reading, which the counts do not exclude:** at 10 mi the 500 m offset is about 3.7 px, and the break test
+    looks only 1-3 px across the line. The pixels the cut makes may be balanced by break pixels the original crossings already
+    made.
+  - **Q3, the loose end:** comparing the cut copy with the original, 6 river runs differ from every original line, where 8 were
+    expected (4 lines cut once each). Yet the plant's own proofs (+4 lines, 172 unchanged in order) all passed. Noted, not
+    explained.
+
+**S4-4, the census pictures: ACCEPTED by the owner 2026-11-16 20:17Z.** The owner's words, verbatim: "Census pictures: accepted.
+The five seams are 1-19 pixels at county lines (Providence 10 mi is about the size of the planted 500 m test), far smaller than
+the water this adds. The upload decision comes later."
+
+**#696 still HOLDS FROM MERGE** (the owner's 11-15 ruling) until it ships with its store. This commit is docs only.
+
+**CI for this push, predicted before the push.**
+- **The base.** Main is 0fc8c1d319cb by ls-remote at 2026-11-17T00:34:55Z. From 4e9ee56e6c2b, which 006da7e1 tested into, to
+  0fc8c1d319cb is 6 commits. The only change among them that shapes CI is the new `.github/workflows/bench-tools.yml` (#735). It
+  was read at 0fc8c1d319cb: it triggers on `push` to main and on `pull_request`, has no path filter, and has one job,
+  `app-only-write`. `skus.yml`, `platformio.ini` and every other workflow are unchanged.
+- **Predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0 failed.** By workflow: `device-ids` 1, firmware 32
+  (the 2 skipped among them), `no-traffic-captures` 1, `workers` 3, `bench-tools` 1. The job-name set is 006da7e1's 37 plus
+  `app-only-write`. It is tested on the merge into 0fc8c1d319cb, read from a job's own checkout log, and read twice.
+- **Main's coordinate gate** (`check_precise_coords.py --diff` against main), run on this head before the push, must count 0 added.
+- **Outside the set:**
+  - a tested base other than 0fc8c1d319cb: STOP, re-derive the count, and write the amendment before anything is graded;
+  - any other count, conclusion or job name: STOP, and read which job before anything else.
