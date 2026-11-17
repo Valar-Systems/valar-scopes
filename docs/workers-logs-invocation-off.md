@@ -216,6 +216,55 @@ BEFORE the slot, by a correction written below this section. The owner then deci
 - (g) `equal`, with its control `not equal`;
 - every control above 0.
 
+### 5a. Corrections before the slot (2026-11-17, ruled by the reviewer; appended below the frozen section 5)
+
+Section 5 above is frozen and is not edited. The reader verified that text against its instrument before any reading,
+and found three places where the text, as written, could not be read. Each correction is ruled. **None changes a
+prediction**: each restates how a row is read.
+
+**C1. (f)'s two patterns, without lookarounds.** The frozen patterns use lookbehind and lookahead. An RE2-style
+regex engine supports neither, so on the day (f) could come back as an HTTP 400 and be ungradable. They are replaced
+by these forms:
+
+- IPv4: `(^|[^0-9])[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}([^0-9]|$)` (already proven on the reader's API)
+- IPv6: `(^|[^0-9A-Fa-f:])([0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}([^0-9A-Fa-f:]|$)|::`
+
+These are looser than the frozen forms: the IPv4 one also matches `999.1.1.1`, and the IPv6 one matches any `::`.
+That costs nothing where (f) is graded. The graded fields (`colo`, `cache`, `upstream`, `authPath`, `bm`, `devl`,
+`fw`, `evt`) hold no dot and no colon, so neither form can fire on them. `ep` and `model` stay information.
+
+**The rehearsal showed the frozen patterns would have FAILED SILENTLY, not loudly.** The reader's dress rehearsal (2026-11-17
+07:27Z, a past 10-minute staging window, counts only, every multi-filter query AND) found the following:
+- The API ACCEPTED every pattern, the frozen lookaround ones included (HTTP 200).
+- On the same data, the lookaround-free IPv4 form matched 5 events. The frozen IPv4 form matched 0.
+
+So the API's engine accepts lookarounds and does not honour them as written. (f) as frozen would have read 0 in every
+window on Wednesday. That would have been caught only as BLIND, by the IPv4 plant's control. Without the plant it would
+have read as a pass. One observation of 5 events.
+
+The IPv6 form's ability to match is NOT shown before the day, because no IPv6-shaped value appeared in that window. Its
+control on the day is C2's plant, and only that.
+
+**C2. A control for the IPv6 half of (f).** The frozen plant, `GET /192.0.2.1`, controls only the IPv4 pattern, which
+would leave the IPv6 pattern uncontrolled. Each window's triggering requests therefore gain ONE more anonymous request,
+`GET /2001:db8::1`, an address from the documentation prefix (RFC 3849). It is answered 404, and it carries no key and
+no device header. In every window, `ep`'s IPv6-shaped count must be **>= 1**. If it is not, (f)'s IPv6 half is BLIND.
+
+**C3. (d)(ii)'s control: a FUTURE window.** "A window older than retention returns 0 keys" cannot be met: the
+reader's rehearsal found names still stored for 2026-11-01. The control is now a window 24 hours AHEAD, which must
+return 0 keys. That read 0 on both services when rehearsed.
+
+**C4. (e)'s "WITHOUT an 8-hex `devl`: 0", as it is read.** The reader's API has no negated match. So the row is read
+as two counts:
+- (A) the `evt:"req"` lines with `authPath = "device"`;
+- (B) those lines that also have a `devl` matching `^[0-9a-f]{8}$`.
+
+The row is graded on **A - B = 0**, with A > 0 as before.
+
+**Before the slot.** The reader's dress rehearsal sends these corrected patterns to its API against a past window, so
+that each is proven to be accepted. C2's plant cannot be rehearsed on a past window, because no such request was ever
+sent; its own control is the reading on the day.
+
 ## 6. Outcomes, decided before the reading
 
 | reading | meaning | action |
