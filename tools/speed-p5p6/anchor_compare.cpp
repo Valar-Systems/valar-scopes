@@ -5,6 +5,10 @@
 //   anchor_compare --emit-synthetic <dir>   writes bg.fb, 8copy.fb, 8copy-flip.fb, lines.txt (F-PASS's inputs)
 //   anchor_compare <bg.fb> <8copy.fb> <anchor-lines> <S_bg> <S_8copy>
 //                                    section 7d's file mode: exit 0 PASS, 1 FAIL, 2 VOID (anchor_file.h)
+//   anchor_compare --selftest-box    section 7g's excluded boxes (X-*); exit 0 every row ok, 1 a row failed
+//   anchor_compare --equal <g1.fb> <g2.fb> <g3.fb>
+//                                    a scene's byte-equality OUTSIDE the excluded boxes (7g): exit 0 equal, 1 not,
+//                                    2 a grab of the wrong length
 //
 // Build (from the repo root): g++ -std=c++11 -Wall -Wextra -Werror -O1 -Iinclude -Itest/host
 //                             tools/speed-p5p6/anchor_compare.cpp -o anchor_compare
@@ -376,6 +380,122 @@ int FileMode(char** a)
     return v.code;
 }
 
+// ---- section 7g's excluded boxes ----
+
+// 7e's frozen contact list (x, y, trk x 10), all cat 4, up 0: the X-COST row's input.
+Frame Frozen7e()
+{
+    static const int c[20][3] = {{102, 119, 0},    {209, 106, 3510}, {117, 165, 2730}, {222, 181, 310},
+                                 {127, 46, 960},   {114, 92, 2580},  {221, 120, 1800}, {99, 172, 1120},
+                                 {130, -9, 950},   {77, 47, 2400},   {116, 81, 850},   {23, 61, 2110},
+                                 {154, 177, 2390}, {98, 119, 1800},  {100, 213, 2820}, {74, 140, 1560},
+                                 {107, 242, 2760}, {197, 109, 3520}, {105, 91, 620},   {162, 217, 660}};
+    Frame f;
+    f.up = 0;
+    f.zoomed = false;
+    for (const auto& k : c) f.k.push_back(Contact{4, (float)(k[2] / 10), k[0], k[1], false, 0x07E0u});
+    return f;
+}
+
+// THE FIXTURE'S BOXES are where the FIRMWARE draws (7g's file:line reading), as LITERALS -- never anchor's constants:
+// a plant that moves kClockBox must not move the fixture with it (grade_heap2's off-prediction, 03:06Z).
+const anchor::Box kFwClock = {105, 134, 210, 217};
+const anchor::Box kFwIndicator = {99, 141, 221, 227};
+
+void PaintBox(Img& img, const anchor::Box& b, uint16_t v)
+{
+    for (int y = b.y0; y <= b.y1; ++y)
+        for (int x = b.x0; x <= b.x1; ++x) img.p[y * W + x] = v;
+}
+
+int SelfTestBox()
+{
+    // X-COST: the frozen list loses exactly 5 footprint px (all c14's) and keeps a 3,713 px region (3,736 less 23).
+    {
+        const Frame f = Frozen7e();
+        const std::vector<uint8_t> t = anchor::Footprint(f), r = anchor::Region(f);
+        long removed = 0, region = 0;
+        for (int i = 0; i < W * W; ++i) {
+            removed += t[i] && anchor::Excluded(i % W, i / W);
+            region += r[i];
+        }
+        Row(removed == 5 && region == 3713, "X-COST",
+            "7e's list: footprint px removed " + Num(removed) + " (want 5), region " + Num(region) + " (want 3713)");
+    }
+    // c14 alone, the contact under the clock
+    Frame c14;
+    c14.up = 0;
+    c14.zoomed = false;
+    c14.k.push_back(Contact{4, 282.0f, 100, 213, false, 0x07E0u});
+    const std::vector<uint8_t> d14 = anchor::Dilate(anchor::Footprint(c14), anchor::kDilate);
+    int yStar = -1;
+    for (int y = kFwClock.y0; y <= kFwClock.y1 && yStar < 0; ++y)
+        if (d14[y * W + 104] && d14[y * W + 105]) yStar = y;
+    // X-C14 (control): c14's dilated region reaches across the clock box's left edge, so X-EDGE and X-CLOCK test it
+    Row(yStar >= 0, "X-C14", "CONTROL: c14's dilated region covers x 104 and 105 on clock row " + Num(yStar));
+    std::unique_ptr<Img> bg = SyntheticBg();
+    std::unique_ptr<Img> dev = DeviceFrame(*bg, c14);
+    // X-EDGE: x 104 (outside the box) is compared, x 105 (its first column) is not
+    {
+        std::unique_ptr<Img> a = Copy(*dev), b = Copy(*dev);
+        if (yStar >= 0) {
+            a->p[yStar * W + 104] ^= 0x0001;
+            b->p[yStar * W + 105] ^= 0x0001;
+        }
+        const long m104 = anchor::Anchor(*bg, *a, c14).mismatch, m105 = anchor::Anchor(*bg, *b, c14).mismatch;
+        Row(yStar >= 0 && m104 == 1 && m105 == 0, "X-EDGE",
+            "a px changed at x 104 reads " + Num(m104) + " (want 1); at x 105 reads " + Num(m105) + " (want 0)");
+    }
+    // X-CLOCK: the clock drawn over c14 with a different minute than the BG grab's reads PASS
+    {
+        std::unique_ptr<Img> bgGrab = Copy(*bg), devClock = Copy(*dev);
+        PaintBox(*bgGrab, kFwClock, 0x1111);
+        PaintBox(*devClock, kFwClock, 0x2222);   // drawn AFTER the contacts, as DrawClock is
+        std::unique_ptr<Img> host = anchor::Composite(*bgGrab, c14);
+        long whole = 0;
+        for (int i = 0; i < W * W; ++i) whole += host->p[i] != devClock->p[i];
+        const anchor::Result r = anchor::Anchor(*bgGrab, *devClock, c14);
+        Row(whole > 0 && r.mismatch == 0, "X-CLOCK",
+            "CONTROL: the frames differ in " + Num(whole) + " px (want > 0), all in the box; mismatch " +
+                Num(r.mismatch) + " (want 0)");
+    }
+    // X-EQUAL, X-EQUAL-IND, X-EQUAL-OUT: a scene's equality outside the boxes
+    {
+        std::unique_ptr<Img> g1 = SyntheticBg(), g2 = Copy(*g1), g3 = Copy(*g1), g4 = Copy(*g1);
+        PaintBox(*g2, kFwClock, 0x2222);
+        PaintBox(*g4, kFwIndicator, 0x3333);
+        g3->p[212 * W + 135] ^= 0x0001;
+        Row(anchor::EqualOutside(*g1, *g2), "X-EQUAL", "the whole clock box changed: equal outside the boxes");
+        Row(anchor::EqualOutside(*g1, *g4), "X-EQUAL-IND", "the whole indicator box changed: equal outside the boxes");
+        Row(!anchor::EqualOutside(*g1, *g3), "X-EQUAL-OUT", "one px at x 135, y 212 (just right of the clock box): NOT equal");
+    }
+    std::printf("anchor_compare selftest-box: %d FAIL\n", failures);
+    return failures ? 1 : 0;
+}
+
+int EqualMode(char** a)
+{
+    std::unique_ptr<Img> g[3];
+    for (int i = 0; i < 3; ++i) {
+        std::string s;
+        g[i] = anchor::NewImg();
+        if (!ReadFile(a[2 + i], s) || !anchor::Decode(std::vector<uint8_t>(s.begin(), s.end()), *g[i])) {
+            std::printf("VOID: grab %d is unreadable or not %d bytes\n", i + 1, W * W * 2);
+            return 2;
+        }
+    }
+    bool eq = true;
+    for (int i = 1; i < 3; ++i) {
+        long in = 0, out = 0;
+        for (int p = 0; p < W * W; ++p)
+            if (g[0]->p[p] != g[i]->p[p]) (anchor::Excluded(p % W, p / W) ? in : out)++;
+        std::printf("grab 1 vs grab %d: %ld px differ inside the excluded boxes, %ld outside\n", i + 1, in, out);
+        eq = eq && anchor::EqualOutside(*g[0], *g[i]);
+    }
+    std::printf("%s\n", eq ? "EQUAL outside the excluded boxes" : "NOT EQUAL outside the excluded boxes");
+    return eq ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv)
@@ -384,6 +504,8 @@ int main(int argc, char** argv)
     if (argc == 2 && a1 == "--selftest") return SelfTest();
     if (argc == 2 && a1 == "--selftest-file") return SelfTestFile();
     if (argc == 3 && a1 == "--emit-synthetic") return EmitSynthetic(argv[2]);
+    if (argc == 2 && a1 == "--selftest-box") return SelfTestBox();
+    if (argc == 5 && a1 == "--equal") return EqualMode(argv);
     if (argc == 6) return FileMode(argv);
     std::printf("usage: anchor_compare --selftest | --selftest-file | --emit-synthetic <dir> | "
                 "<bg.fb> <8copy.fb> <anchor-lines> <S_bg> <S_8copy>\n");

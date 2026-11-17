@@ -146,11 +146,47 @@ inline bool EdgeClipped(const Frame& f, size_t i)
     return false;
 }
 
-// The criterion, whole: composite the contacts onto bg and compare with dev over Dilate(Footprint, kDilate).
+// THE RE-REGISTRATION (docs/speed-p5p6.md section 7g, accepted 2026-11-17): the two elements the radar face draws AFTER
+// its contacts, read from the firmware on bench/speed-p5 2b9a52da2e97. Their pixels are excluded from the compared
+// region AND from each scene's byte-equality, here ONCE, so the region and the equality cannot disagree about them.
+//   CLOCK      DrawClock: "%02d:%02d" (src/AircraftManager.cpp:5300) at cy = SCREEN_SIZE - 30 (:5356), x =
+//              SCREEN_SIZE_DIV_2 - cw / 2 (:5371), called at :4233. 5 characters x 6 px at text size 1, font height 8.
+//   INDICATOR  DrawScreenIndicator: dots at y = SCREEN_SIZE - 16 (:5269), x = cx - (shown - 1) * 6 + slot * 12, r <= 3
+//              (:5285), called at :4226; shown <= 4.
+// A box too small breaks the byte-equality (the alarming direction), so the font premise is tested, not assumed.
+struct Box {
+    int x0, x1, y0, y1;
+};
+constexpr Box kClockBox = {105, 134, 210, 217};
+constexpr Box kIndicatorBox = {99, 141, 221, 227};
+inline bool InBox(const Box& b, int x, int y) { return x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1; }
+inline bool Excluded(int x, int y) { return InBox(kClockBox, x, y) || InBox(kIndicatorBox, x, y); }
+
+// The compared region: every footprint dilated by kDilate, less the excluded boxes.
+inline std::vector<uint8_t> Region(const Frame& f)
+{
+    std::vector<uint8_t> r = Dilate(Footprint(f), kDilate);
+    for (int y = 0; y < W; ++y)
+        for (int x = 0; x < W; ++x)
+            if (Excluded(x, y)) r[y * W + x] = 0;
+    return r;
+}
+
+// A scene's grabs are equal when every pixel outside the excluded boxes is.
+inline bool EqualOutside(const Img& a, const Img& b)
+{
+    for (int i = 0; i < W * W; ++i) {
+        if (Excluded(i % W, i / W)) continue;
+        if (a.p[i] != b.p[i]) return false;
+    }
+    return true;
+}
+
+// The criterion, whole: composite the contacts onto bg and compare with dev over Region(f).
 inline Result Anchor(const Img& bg, const Img& dev, const Frame& f)
 {
     std::unique_ptr<Img> host = Composite(bg, f);
-    return Compare(*host, dev, Dilate(Footprint(f), kDilate));
+    return Compare(*host, dev, Region(f));
 }
 
 }  // namespace anchor
