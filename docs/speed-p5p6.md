@@ -1679,3 +1679,83 @@ private copy (`python -I -m esptool … read-mac`). The merged script now has th
 - **So the recovery uses it, and no raw esptool call remains anywhere in this window.** That is the reviewer's ruling
   ("via app-only-write (`--read-mac`, the writes) rather than a raw call") applied to the last step that bypassed it.
 - Everything else in sections 5 and 5a stands.
+
+### 6. Board addendum 1, read (E2:08, 2026-11-16 23:45:46Z to 2026-11-17 00:55:19Z)
+
+**The window.**
+- E2:08 was reserved by weatherscope at 23:45:46Z and released at 00:55Z. The hard end was 01:20:46Z.
+- Every esptool call went through `app-only-write.py` at main `0fc8c1d319cb` (blob `fa9d102be291`), from a clean
+  checkout.
+- Every write and trace ran in a WMI-created PowerShell child. Each one read MSYSTEM '' and 0 msys PATH entries.
+- Only the filter's output (`trace_filter.py` `eb31148e50ec`) and the seals were read. No `[frame-bench]` record and
+  no `[health]` timing was read.
+
+**Step 0, T-TOOL: as predicted.**
+- Two network reads, 61 s apart (23:45:46Z and 23:46:47Z), both read `firmware v19 | 'blipscope-s3-128 · v19 · cloud'`.
+  That is **S19**.
+- `--check-tool`: esptool 5.2.0, tree `84c878702a70…`, `CHECK-TOOL PASSED`.
+- `--selftest`: `SELFTEST PASSED` (16 ok). It ran again right before B5, and both passed again.
+
+**An instrument slip, harmless (recorded as such by the reviewer).** At 23:47:07Z a B3 launch passed its arguments joined
+by `_`. `app-only-write` exited **2 (usage) before any esptool call**, and a live read right after it showed v19.
+`py_child.ps1` now joins on `::`. It was proven with an argv-printing script (argc 4) before the real launch.
+
+**The writes and boots: all as predicted.**
+
+| image | write (`app-only-write`) | N-BOOT (network) |
+|---|---|---|
+| B3 | `checks ok: table matches (6 entries), board boots ota_0, image 1965808 B`; attempt 1 verified; reset ok; ended 23:48:35Z | framebench env at +18 s |
+| B4 | the same, at `1971520 B`; ended 23:56:03Z | at +10 s |
+| B5 | the same, at `1967808 B`; ended 00:43:20Z | at +10 s |
+| v19 (restore) | the same, at `1931840 B`; ended 00:52:47Z | see RESTORE |
+
+**The traces.**
+- **B3:** a 6-min trace, `VERDICT: clean`, exit 0. Raw seal `4f6a977898c7`.
+- **B4:** a 40-min trace that **ENDED ABNORMALLY at about 00:21:10Z**, 24.5 min in.
+  - The child left no rc file, no end or verdict line, and no READ ERROR. Its processes were gone, and the board fell
+    into the ROM (a closed port).
+  - **The reviewer recorded it as an INSTRUMENT FAILURE: the trace child was killed from outside.** The most likely
+    mechanism is a closed console tab: a WMI child launched without `CREATE_NO_WINDOW` is handed to Windows Terminal as
+    a visible tab. That is not proven.
+  - Raw seal `846df63f2800`.
+- **B5:** an 8-min trace, `VERDICT: clean`, exit 0. Raw seal `915d2acfd206`.
+
+**The rows.**
+
+| row | read | verdict |
+|---|---|---|
+| R-CLEAR (B4) | no `[speed-p5]` line by the trace's end (CLEAR_CHECK was due about 00:30:35Z) | **VOID**, an instrument failure. No re-run in this window; it goes to addendum 2's window. |
+| R-LABELS (B5) | `[speed-p6] labels S0 checked 232672 mismatches 0` (00:48:30Z), exactly one line | **AS PREDICTED** |
+| H-TLS | `tlsOk=1` on all 20 graded lines of B3 and B5 | as predicted, for those two images |
+| H-NOISE | `free8` spread over the 10 graded lines: B3 3,672, B5 2,356 (allowance 2,048) | **FIRED: UNTRUSTWORTHY at this scale** |
+| H-NOISE-PS | `psram_free` spread: B3 67,592, B5 69,016 (allowance 4,096) | **FIRED: UNTRUSTWORTHY** |
+| H-P6 | medians B5 − B3: `free8` −44, `heap free` −44, `psram_free` **−14,240** | **no verdict** (the noise rows fired). The values are recorded only. |
+| H-P5 | B4's 50 heap lines stay SEALED, as the reviewer ruled | not graded |
+| H-LARGEST | medians: B3 18,420, B5 29,684 | recorded, not graded |
+| RESTORE | `firmware v19 | 'blipscope-s3-128 · v19 · cloud'` at 00:53:17Z and 00:54:18Z, 61 s apart, at +30 s and +91 s after the write | **AS PREDICTED**: S19 matched twice, Wi-Fi rejoined without the portal |
+
+**What it means.**
+- **P6's label cache equals a fresh layout on the device:** 0 mismatches over 232,672 checks. That is the
+  merge-relevant equality row for P6.
+- **P5's dirty restore (CLEAR_CHECK) is still unread on a device.** It needs addendum 2's window.
+- **The heap instrument's first lines carry a start-up transient.** Both images' first one or two `[health]` lines
+  read before the heap settles, then the values sit flat (B3's free8 at 75,764-75,784; B5's at 75,732).
+  - So "the first 10 lines after attach" is too early a sample. The frozen escape caught exactly that, and no band
+    was moved.
+  - H-P6's psram median, −14,240, is the derived center to the byte (40 entries × 356 B). It is recorded, NOT
+    graded: a value read through an instrument its own noise row refused is not evidence.
+  - An after-transient sample is a NEW registration in addendum 2, not a re-grade of this one.
+- **The launcher fix**, also for addendum 2: WMI children launched with `CREATE_NO_WINDOW`, proven hidden by a dry run
+  (a new console count of +0, against a control's +1) before any window.
+
+**Cleanup:** E2:08 was released and is on v19. 0 window processes were left, and bgcheck read PASS with 0 running.
+
+### 6a. S1's status moves (p4, 2026-11-17 00:49Z), outside the window
+
+The gains addendum's S1 row is drawn == the scene's level on every measured frame, a STOP row (4c, `aa006602280e`). It
+is now **implemented with a red plant, and not yet run on a board**.
+- p4's A0a reader landed at `tools/frameprofile/a0a_read.py` on `bench/frame-profile-p1-final`, commit `ab7ddec8981d`
+  (blob `6fdfa05938c6`), as its row I-4 FIX-n: every measured frame's drawn (Rec byte 5) equals the level.
+- Its plant, "one frame drawn 19 at level 20", reads `STOP at I-4`. The clean control reads `READ AS GRADED`: 14 of 14
+  cases as predicted.
+- No A0a window has happened yet, so the gains addendum (section 3) still waits on an A0a reading.
