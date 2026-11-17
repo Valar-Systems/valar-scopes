@@ -85,6 +85,11 @@ jobs:
       # must turn exactly its rows red. IDs-a is the ruled one: without the claim check, the deploy runs without the claim.
       - run: bash tools/wx/check_ingest_deploy.sh
       - run: bash tools/wx/check_ingest_deploy.sh --sabotage
+      # The commit pin (docs/deploy-sha-pin.md): deploy.sh refuses any commit but the plan's (EXPECT_SHA), and deploys past
+      # main only for the commits the plan names (ALLOW_BEHIND_SHAS), in a mirror git repo with a fake wrangler; DC1 proves
+      # the dirty-tree guard still fires; then each plant must turn exactly its row red.
+      - run: bash proxy/scripts/check-deploy-sha.sh
+      - run: bash proxy/scripts/check-deploy-sha.sh --sabotage
       # C1 (docs/ci-concurrency.md): every PR workflow cancels its own superseded runs, and nothing else.
       - run: python3 scripts/check_workflow_concurrency.py
       - run: python3 scripts/check_workflow_concurrency.py --selftest
