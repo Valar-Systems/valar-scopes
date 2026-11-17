@@ -2975,3 +2975,63 @@ R-ANCHOR re-run sat between, with section 8 paused at a step boundary and no bui
   with N > 0, and the objects archived the moment the build lands.
 - Then `objcmp <reference> <P5'> --except exceptions/<env>.txt` per env.
 - Then R-LISTS and R-DELETE as frozen.
+
+### 8d. Section 8 read: the marks compile to nothing in the editions, as predicted (2026-11-17 05:59-06:3xZ)
+
+**Queue 2:**
+- the code: `bench/speed-p5` `8e73d3d5e718` (P5'), in `wt-p5b`;
+- each build FROM CLEAN: its build directory deleted, the disk read first (49.1–50.9 GiB), hidden, one at a time;
+- each build's objects archived the moment it landed.
+
+| env | class | compiled | objects | `.bin` | sha256 |
+|---|---|---|---|---|---|
+| missileer-s3-128 | E | 280 | 280 | 1,733,392 | `c644284063bc` |
+| missileer-photo | E | 280 | 280 | 1,727,088 | `2582b8610e0f` |
+| weatherscope-s3-128 | E | 254 | 255 | 1,889,152 | `8a99fc17910a` |
+| blipscope-s3-128 | R | 259 | 259 | 1,936,992 | `2db0cb374451` |
+| blipscope-s3-128-wxlook | R | 259 | 259 | 1,965,312 | `59d2873b9a1f` |
+| blipscope-s3-128-joindiag | R | 259 | 259 | 1,928,080 | `5df24cb779a5` |
+| blipscope-pro-s3-21 | R | 259 | 259 | 1,929,744 | `11a64ee6f07b` |
+| blipscope-pro-s3-175-amoled | R | 259 | 259 | 1,886,768 | `d04b52bd62dc` |
+| animtest-s3-128 | R | 165 | 165 | 524,976 | `d4fa5c625437` |
+| weatherscope-bench-s3-128 | R | 162 | 163 | 466,528 | `36a98e739270` |
+
+**The graded rows,** `objcmp <reference> <P5'> --except exceptions/<env>.txt`. The references are section 8c's: E's base
+in `wt-p5b`; R's P5 builds, with CTRL-B for `blipscope-s3-128`.
+
+| class | envs | read | verdict |
+|---|---|---|---|
+| **E**, P5' vs the base | 3 | 277 of 280, 277 of 280, 252 of 255 objects identical. The rest are exactly the frozen stamp sections, each differing ONLY inside its stamp's bytes. 0 dropped or added, 0 unexplained. | **AS PREDICTED** |
+| **R**, P5' vs P5 | 7 | 256 of 259 identical in the five radar images, 163 of 165 (animtest), 161 of 163 (weatherscope-bench). Only the frozen stamp sections differ. 0 unexplained. | **AS PREDICTED** |
+
+**The `.bin` sizes, as information:**
+- every measured env reads Δ0 against its reference;
+- the control's spread for comparison was 976 / 992 / 976 (8b);
+- `blipscope-s3-128` reads 1,936,992 against CTRL-B's 1,936,992.
+
+**The guards, shown firing as predicted:**
+- **R-LISTS** (`FEATURE_EAM` dropped from BandCanvas.h's list; `missileer-s3-128`):
+  - the build fails with **exactly 1** compiler error: `src/main.cpp:505: #error "BANDCANVAS-LISTS: a non-radar edition
+    compiles BandCanvas's marks IN ..."`;
+  - the plant was restored from its byte copy; the bytes and the blob equal `HEAD`'s, and porcelain is 0.
+- **R-DELETE** (`blipscope-s3-128` with `-DBANDCANVAS_DIRTY_MARKS=0`): the build fails with **exactly 2** errors, in
+  the predicted order:
+  1. `main.cpp:503: #error "BANDCANVAS-LISTS: the radar edition compiles BandCanvas's marks OUT ..."`;
+  2. `main.cpp:1283: use of deleted function 'void BandCanvas::SetDirty(dirtyclear::Set*)'`.
+  - **The premise held on the device's GCC 14.2:** compilation continues after a `#error`.
+
+**The other rows:**
+- `check_p5_writes.py` reads W-CANVAS unchanged (8c);
+- `check-no-bench-hooks.sh` PASSES on the P5' shipping image (12 markers, anchor present);
+- the push precondition holds: P5' compiles for the device env, including the shipping `blipscope-s3-128`, with
+  `compiling N > 0` in every build.
+
+**What it means:**
+- **P5's open merge condition (4s/4v) is met on its FIRST branch for the editions CI builds.** In `missileer-s3-128`,
+  `missileer-photo` and `weatherscope-s3-128`:
+  - every object's allocated sections and relocations equal the base's, bar compile stamps;
+  - BandCanvas's marks compile to nothing there.
+- **For the radar class,** P5' changes no object at all.
+- **The 41 envs not measured stay "predicted, not read",** as section 8 registered them: the retired editions, the
+  bench envs and the probes, none of which CI builds.
+- **The Missileer frame-time branch** of the condition was never needed and was never touched.
