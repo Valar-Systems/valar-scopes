@@ -57,6 +57,9 @@ struct Scene {
 #error "SPEED_P6_BENCH measures the shipping shape: image B, with the push task"
 #endif
 #define FRAMEBENCH_IMAGE_B {LABELS_CHECK}, {LABELS_TODAY}, {LABELS_CACHE}, {LABELS_TODAY}, {LABELS_CACHE}
+// Board addendum 2's B5' (docs/speed-p5p6.md section 7): the heap-graded C1 pair, LABELS_CHECK as the control (S2),
+// then the margin scene last.
+#define FRAMEBENCH_A2_SCENES {C1}, {C1}, {LABELS_CHECK}, {C1, kLevel, true, true}
 #else
 #define FRAMEBENCH_IMAGE_B {C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}
 #endif
