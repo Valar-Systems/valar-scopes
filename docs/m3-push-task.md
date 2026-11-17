@@ -793,6 +793,42 @@ ran, and the orchestrator accepted the re-registration; the text above stands as
   - **After:** the tab closed with the child (OpenConsole back to 9 at 07:00:40Z), and pid 71664 was gone. bgcheck
     CHECK PASS at 07:00:50Z, 0 running.
 
+**M3-8, THE SCRIPT FIXED BEFORE ANY RUN: it never reads a live trace log (2026-11-17, 07:08Z-07:16Z; found by p4,
+the fix accepted and the script re-accepted by the orchestrator; the text above stands as written).**
+- **The defect, in `8ca056b152d7`:** the script read bench-trace's log WHILE bench-trace wrote it: StartTrace polled every
+  0.5 s for 20 s around the attach burst, and the ota stage's monitor read every 2 s for 15 min. bench-trace appends with
+  Add-Content (`bench-trace.ps1:55`). Windows PowerShell 5.1's Add-Content fails, non-terminating, whenever another
+  handle holds the file open for reading, and bench-trace sets no ErrorActionPreference, so the LINE IS SILENTLY LOST.
+- **The measurement** (`scratchpad\locktest`, 3,000 appends in powershell 5.1, 07:08Z-07:10Z):
+  - CONTROL, the writer alone: 0 errors, 3,001 lines;
+  - a tight FileShare.ReadWrite reader: 2,939 errors;
+  - the same with FileShare.Read: 2,942, so the share flag does not help;
+  - a reader like the monitor (one shared read every 2 s): 10 errors in 3,000.
+  - The alternative, that the writer fails on its own, is excluded by the control.
+- **What it would have done:** dropped trace lines at random, most likely at the attach burst and during the OTA. A lost
+  `[ota]`, `[POST]` or `rst:0xc` line is a false outside-the-set, a false NOT TAKEN or a missing split.
+- **THE FIX, accepted as proposed (1-5):**
+  - ReadShared REFUSES the log of any trace this script launched that is still running ("REFUSED: live log").
+  - StartTrace finds the log by directory listing and proves the open by the process still running after 12 s.
+  - The save cue comes from the BOARD: GET `/` from the launch + 90 s, every 20 s, each GET's time printed, STOPPED at
+    the first page saying "firmware v18". These are the orchestrator's two conditions.
+  - A port drop is the trace ending more than 30 s before its deadline with READ ERROR in its finished log.
+  - Every row is read from FINISHED logs.
+  - Rows, predictions, branches and exit codes are unchanged.
+- **THE SCRIPT, RE-FROZEN:** `win_m38.ps1` sha256 `e607feea1d92` (614 lines), re-accepted 07:16Z. `8ca056b152d7` is
+  superseded and never ran against a board.
+  - **AST identity against `8ca056b152d7`:** 21 functions identical, including Detector and Snap, so the visible
+    control's RED at 07:00:26Z covers this detector. ReadShared and StartTrace changed; AttachOf was added; nothing
+    was removed. The burst helpers, pulled from this file, read 3 of 3 as predicted.
+  - **The dry run** (07:14:00Z-07:14:28Z, exit 0): every W0 row True; the detector not red around a hidden child; a
+    COM250 trace caught as OPEN FAILED. The live-log guard was SEEN FIRING: "REFUSED: live log (guard-071400.log,
+    pid 70224 still writing it); nothing read" [True]. Its control: the same path reads the file once its process has
+    exited [True]. A COM250 trace dies within a second, so the guard row uses a hidden 10 s child registered against
+    a log path, the same lookup.
+  - **The planted RED** (one byte of A′ flipped): `W0 A' firmware.bin 747b0f18 [False]`, exit 20.
+  - **Afterwards:** bgcheck CHECK PASS, 0 running.
+- **The general rule** (the orchestrator, to every bench session): never read a live bench-trace log.
+
 **How M3-8's OTA install is served without touching the fleet.** The path is the one the code already documents
 (`OtaUpdater.cpp:101-104`). A bench image is built with `-DOTA_RELEASE_BASE=https://github.com/Valar-Systems/valar-scopes/releases/download/<bench tag>`,
 pointing at a **prerelease**:
