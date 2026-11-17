@@ -578,6 +578,96 @@ repo's pre-build patch touches only the RGB bus (`platformio.ini:73-75`), not SP
   (1) for good"**. Each candidate is registered with A/B/A bands before any code.
 
 
+**M3-8, REGISTERED before the sitting (2026-11-17, after 00:39Z; the owner's sitting Tue 2026-11-17 22:00Z, joint with
+5c, whose run 2 goes FIRST).** The owner's terms for 5c's test firmware: "bench-only, no customer channel, never
+promoted, board back to v19 after."
+
+**THE IMAGES,** built in PowerShell from the M3 branch at `758cbc3cbfac` (pushed), with epoch 1762862445. C: read
+47.34 GiB before the build. The build used platform 55.3.39, Arduino 3.3.9, libs 5.5.4+sha.735507283d, xtensa 14.2.0,
+and the shared tool-esptoolpy 5.3.0 for image creation only. The log shows no tool install or removal.
+- **A** (`m38a`, FW 17): firmware `37dfc0792595`, 1,937,664 B.
+- **B** (`m38b`, FW 18): firmware `d294de545224`, 1,937,664 B.
+- Both have table `28f336fe57a9`. They are frozen in `_handoffs/p4/m3/build-m38a` and `build-m38b`.
+- **Verified in both images** (`verify_m38.py`):
+  - identity "VSID", board `s3-128`, scope `""`;
+  - the tag's `version.txt` and `firmware-` URLs present once each, and no `releases/latest/download`;
+  - the cpu-vs-psram self-check and `[m3-bench]` present, and no PLANT string.
+- **A against B:** 86 differing bytes, every one placed.
+  - 65 are the three hash regions;
+  - 3 are the env name's last letter (`a` → `b`);
+  - 6 are two copies of one pointer to a one-character literal `"a"`, which the linker tail-merged into the env string
+    in A only (in each image the pointer lands on `"a"`);
+  - 12 are the FW_VERSION constant, 17 against 18, in its encodings (`11/12`, `1x/2x`, `ef/ee` = −17/−18).
+
+**THE BENCH PRERELEASE (5c's; the publish mechanism is the orchestrator's ruling, pending):** tag
+`m3-8-bench-20261117`.
+- **SETUP:** `firmware-s3-128.bin` = B `d294de545224` FIRST, then `version.txt` = `18`.
+- **RESTORE:** the OFFICIAL v19 `firmware-s3-128.bin`, byte-identical and proven by sha, FIRST, then `version.txt` =
+  `19`.
+- No asset order ever lets a `version.txt` point at a binary not yet uploaded.
+
+**THE TOOLS IN THE WINDOW:**
+- Every board call goes through `app-only-write.py` from a detached checkout of main `0fc8c1d319cb` (blob
+  `fa9d102be291`, re-checked before each use), with `--stub-version 2`, on the PRIVATE esptool 5.2.0 copy.
+- Each call is preceded by `esptool_guard.sh` (`4047005479ed`), which runs `--check-tool` and exits 9 otherwise. A 9
+  is an instrument stop: reported, never retried.
+- The serial traces run through `bench-trace.ps1`: single open, never reattached.
+
+**THE WINDOW, in order** (after 5c's line "run 2 ended, R2 57/57, E2:08 released on v19"):
+1. **W0:** the frozen shas, the guard and the blob; reserve `blipscope-bench --by p4`; the port from the serial.
+2. **W1:** flash A app-only; the board resets.
+3. **W2:** trace #1 is opened at once, and USJ's buffer holds the boot lines. A boots; its boot check reads 18 > 17 and
+   installs B while the push task drives the progress screen. The install's own restart drops the port, which ENDS
+   trace #1 by design, with no reattach.
+4. **W3:** once the port is back, and about 25 s after B's boot (so the open cannot land in a boot window), trace #2 is
+   opened.
+5. **W4:** the owner's browser save on B, unchanged, then 30 s more.
+6. **W5:** trace #2 ends; the S3 goes to download mode. 5c swaps the assets (v19 bin, then `version.txt` 19).
+7. **W6:** read-mac's hard reset; B boots, its boot check reads 19 > 18 and installs the official v19 into ota_0.
+8. **W7:** a 3-min trace #3 on v19 (the standard restore read); read-mac; HTTP 200 with v19, read twice 60 s apart;
+   5c's read-only hand-back hash; release.
+
+**PREDICTIONS:**
+- **P-OTA (trace #1):**
+  - A's banner `[build] env=blipscope-s3-128-m3bench-m38a`;
+  - `[ota] channel=s3-128 current=17 latest=18`, then the install and its own restart;
+  - no panic, Guru Meditation, abort or WDT line.
+- **P-B (trace #2):**
+  - B's banner `env=...-m38b` with reset reason SW (the install's own restart);
+  - `[ota] ... current=18 latest=18`;
+  - `[m3-bench]` `bad_frames` 0, `check_err` 0 and `sync_err` 0 throughout.
+- **P-SAVE:**
+  - the page answers "Saved - settings applied.";
+  - in trace #2 there is NO boot banner or `rst:` after the save;
+  - the `[m3-bench]` summary interval that spans the save is at most the trace's median interval + 2 s, so there is
+    no stall over 2 s;
+  - `bad_frames` stays 0 across it.
+- **P-GLASS (the owner's eyes and two slow-motion videos):** no torn frame, and no freeze over about 2 s outside the
+  install's own reboot.
+- **P-RESTORE (trace #3):**
+  - the banner `env=blipscope-s3-128 fw=v19`; CONNECTED, fast join (or autoConnect), 0 portal-START lines;
+  - HTTP 200 with v19, twice;
+  - 5c's hand-back hash is equal.
+- **GRADING:**
+  - a device crash, panic or WDT, or a reboot not explained by the install's own restart (or v19's own quiet-hour
+    cause line), FAILS M3-8;
+  - a script or tool fault (a guard 9, a trace that cannot open) is an instrument failure, never a red;
+  - **OUTSIDE THE SET:** anything else. Stop, and the fix waits for the orchestrator's ruling.
+
+**THE OWNER'S STEPS** (plain words, about 20 min of the sitting):
+1. When p4 says "flashing now", film the round screen in slow motion. You will see the test pattern (numbers in bands),
+   then a green "Updating firmware" screen with a progress bar, then a restart, then the test pattern again. Stop when
+   the test pattern is back (about 2-3 min).
+2. Move that video to `C:\Github\_handoffs\p4\m3\glass\`, named `m38-ota`.
+3. Open the board's page (p4 pastes the link in chat) and change nothing. Start filming the screen, press Save at the
+   bottom, and keep filming for 30 s after the page says "Saved". Move that video too, named `m38-save`.
+4. Three questions:
+   - (a) Did the numbers on the screen ever stop changing for more than about two seconds, not counting the restart?
+   - (b) Did you see a torn or broken picture (one band showing a different number, or the picture split) during the
+     update or the save?
+   - (c) Did anything else look wrong?
+5. Then nothing: 5c and p4 put v19 back, in about 5 min.
+
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
