@@ -318,6 +318,13 @@ on at least H1 and H6; both typechecks clean.
   - The import fix landed while this run was in flight. It is a type-only import, erased at run time, so the rows are
     the same either way.
 
+**The code, as read (2026-11-17).**
+- **The whole proxy suite** (06:06:25Z, 114.5 s, one run): 1,115 passed, 1 skipped (MD2, as before), 0 failed, with
+  DL1-DL6 green. **As predicted.**
+- **The selftest:** H1-H6 PASS; S-DLECHO PASS, because the echoing copy fails H1, H2 and H6; "SELFTEST PASSED", exit 0,
+  and no sabotage file left behind. **As predicted.**
+- **`typecheck` and `typecheck:scripts`:** both clean, exit 0. **As predicted.**
+
 ## 9. Record
 
 _Filled in after the slot, below this line, without editing anything above it._
