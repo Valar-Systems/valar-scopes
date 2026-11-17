@@ -3,8 +3,15 @@
 **The owner's ruling (2026-11-17, about 05:27Z, relayed by the reviewer; verbatim):** "logs: off. Confirm afterwards
 that our own error and breaker log lines still arrive."
 
-**DRAFT. Not pushed.** It waits for the owner's word on section 4, (i) or (ii). The slot in section 7 needs the owner's
-OK through the reviewer. Nothing here deploys on merge: `workers.yml` has no deploy step.
+**The owner's second ruling (2026-11-17, 05:47Z, relayed by the reviewer; verbatim):** "logs: neither as offered.
+Cloudflare's per-request logs go off, and our own log line carries a short label instead of the device ID: the first 8
+hex characters of the ID's SHA-256, no secret needed. Add a small helper that turns a device ID into its label, without
+printing the ID. If that's more than a small change, do "drop device id too". Confirm our own line holds no IP address
+either. logs slot: ok (Wed 12:30-15:00Z). Wednesday's chain rule: radar 10:00Z, logs ~14:00Z, route run 16:00Z; if one
+fails or rolls back, the later ones wait for me."
+
+**DRAFT. Not pushed** until the reviewer has reviewed the predictions. Nothing here deploys on merge: `workers.yml` has
+no deploy step.
 
 ## 1. The setting, from Cloudflare's documentation
 
@@ -75,17 +82,44 @@ upstream failures, and an error is a 500. So:
 - `evt:"breaker"` and `evt:"error"` are counted as information, never graded. A window can honestly hold zero of
   either.
 
-## 4. What the change does NOT do (the owner's ruling, pending)
+## 4. Our own line: a label, not the device id (the owner's ruling)
 
-`evt:"req"` carries `dev`, the authenticated device id, on every authenticated request (`setDeviceAttribution()`;
-never the key). It is our own line, so `invocation_logs = false` keeps storing it. **"No invocation event" is
-therefore not "no device id in Workers Logs".**
+On main, `evt:"req"` carries `dev`, the authenticated device id, on every authenticated request
+(`setDeviceAttribution()`; never the key). It is our own line, so `invocation_logs = false` alone would keep storing
+it. **"No invocation event" is not "no device id in Workers Logs".**
 
-- **(i)** This PR as scoped. The owner accepts `dev` in our `req` line.
-- **(ii)** Also drop `dev` (and `fw`?) from the console line only, keeping them in the Analytics Engine point. This is a
-  code change, with its own tests and red-first registration, outside this PR's present scope.
+Two options went to the owner: (i) keep `dev`, or (ii) drop it. He chose neither (above). The line now carries
+**`devl`, the device LABEL**: the first 8 hex characters of SHA-256 over the normalised device id. There is no secret.
+The change is small:
 
-The owner's word: _pending._
+- **`src/devlabel.ts`** (new). `normDeviceId()` is the ONE rule for what a device id is: trimmed, lowercased, 8-32 hex.
+  It moves out of `setDeviceAttribution()`, so the Worker and the helper cannot disagree. `deviceLabel()` computes the
+  label with `crypto.subtle`.
+- **`src/index.ts`.** One awaited line after `setDeviceAttribution()`, inside the already-async `route()`, sets
+  `meta.devl`. It is failure-safe: a failure leaves the label out and never fails the request, and a missing label shows
+  in (e) below. `record()` is synchronous and the digest is not, and there is no `nodejs_compat` flag; that is why the
+  label is computed here rather than in `record()`.
+- **`src/metrics.ts` `record()`.** The console line spreads the metric WITHOUT `dev`. The Analytics Engine point is
+  unchanged: blob5 is still `dev`.
+- **`scripts/device-label.ts`** (new), the helper. It reads ONE device id from stdin, never from an argument or the
+  environment, and prints only its label. It never prints the id.
+
+**A label is a PSEUDONYM, not anonymity:** device ids come from a small space, so anyone who holds the ids can recompute
+every label. That fits our own logs, which is the intent.
+
+**Other lines of ours still carry a device id**, and are outside this change until the owner rules on them:
+- `enroll.ts` (two `enroll …` lines);
+- `provision.ts` (`provision_mint` / `provision_refused`);
+- `leaderboard.ts` (`lb_clamp`, `incoherent_row`).
+They are per activation, per mint or per submission, not per request.
+
+**No IP address in our `req` line**, read from the code at main `b4f7e511`:
+- The line is `metrics.ts:229`, `{evt:"req", ...m}`. Its fields are `RequestMetric`'s (`metrics.ts:4-33`).
+- No writer reads `cf-connecting-ip`, `x-forwarded-for` or any address in `request.cf`.
+- `colo` is a data-centre code.
+- Two fields are CLIENT-SUPPLIED text: `ep` (the path) and `model` (the raw `X-Blip-Model` header). They carry no
+  address by design, but a scanner's path could be IP-SHAPED. The test below pins the line's EXACT key set, so a new
+  field (an address, or `dev` coming back) turns it red.
 
 ## 5. Predictions, frozen before the deploy
 
@@ -105,28 +139,80 @@ live stream, which these storage settings do not govern, so it cannot fail on (a
 
 | | after the deploy | its control, in the window BEFORE the deploy |
 |---|---|---|
-| **(a)** staging | 0 invocation events (`$cloudflare.$metadata.type = "cf-worker-event"`) for `blipscope-proxy-staging`, with the triggering requests sent inside the window | the same query counts **> 0** invocation events for the same triggering requests |
+| **(a)** staging | 0 invocation events for `blipscope-proxy-staging`, with the triggering requests sent inside the window. The stored key is `$metadata.type`; Cloudflare's page names the value `"cf-worker-event"`, which the reader verifies before the slot (below) | the same query counts **> 0** invocation events for the same triggering requests |
 | **(b)** staging | **> 0** `evt:"req"` lines with `ep = "/healthz"` from the anonymous `GET /healthz` requests sent inside the window | the same query counts **> 0** such lines |
 | **(c)** production | (a)'s and (b)'s checks for `blipscope-proxy`, plus **> 0** `evt:"upstream_skip"` lines; `evt:"breaker"`/`evt:"error"` counts printed as information | **> 0** invocation events; **> 0** `evt:"req"` lines; **> 0** `evt:"upstream_skip"` lines |
-| **(d)** both | 0 stored events carrying ANY request-header field (`user-agent`, `x-blip-model`, `x-blip-key`, `x-blip-device`) | the same query counts **> 0** events carrying the `user-agent` field (proving that it can see a request-header field at all) |
+| **(d)** both | 0 stored events **of ANY type** carrying any field of the REQUEST ENVELOPE: every `$workers.event.request.headers.*` (among them `user-agent`, `cf-connecting-ip`, `x-real-ip`, `x-blip-device`, `x-blip-key`), every `$workers.event.request.cf.*` (Cloudflare's coarse location, ASN), `$workers.event.request.search.*`, `$workers.event.search.*` and `$workers.event.request.url` (the query string). `$workers.event.request.path` and `.method` are counted as information | the same query counts **> 0** events carrying `$workers.event.request.headers.user-agent` (proving that it can see an envelope field at all) |
+| **(e)** W2 and P | 0 `evt:"req"` lines carrying a `dev` field; **> 0** `evt:"req"` lines with `authPath = "device"`, and every one of them carries a `devl` of exactly 8 lowercase hex (count of those WITHOUT one: 0) | **> 0** `evt:"req"` lines carrying `dev`, in production's BEFORE window (staging has no device traffic to show it) |
+| **(f)** A, W2 and P | the line's OWN fields (`source.*`): 0 `evt:"req"` lines with an IP-shaped value (IPv4 dotted quad or an IPv6 form) in any field other than `ep` and `model`. The envelope Cloudflare could attach to the same event (`cf-connecting-ip`, `x-real-ip`, `request.cf.*`) is graded by (d), which counts events of every type; the `ep`/`model` IP-shaped counts printed as information (client-supplied text, not the requester's address) | in the SAME window, the `ep` IP-shaped count is **>= 1**. That is the planted `GET /192.0.2.1` below, a documentation address (RFC 5737), so the matcher is shown to fire on a `req` line field |
+| **(g)** W2 | the W2 request's `devl` EQUALS the helper's label for the staging test device. The reader compares it in memory and prints only `equal` / `not equal` | the same compare against the label of a DIFFERENT example id must read `not equal` |
+
+**(e)'s `authPath = "device"` count** is what makes its zero `dev` count non-vacuous: such a line exists only for an
+authenticated request. On staging, the W2 request supplies it. In production, devices supply it all the time.
+
+**How each row is read (the reader's instrument notes, adopted).**
+- **Field names.** Our line's fields are stored BARE (`evt`, `dev`, `devl`, `ep`, `authPath`, `status`, `ms`, `model`,
+  `colo`, …), and filters use those names. "`source.*`" above is only how the events view nests them in an answer. The
+  event-type key is `$metadata.type`.
+- **(a)'s value.** Nothing read so far shows `$metadata.type`'s values. A guarded values read of that one key before
+  Wednesday (the reviewer's OK) confirms `"cf-worker-event"`, or names the right value. If it names another value, (a)
+  is corrected below this section before the slot. Without that read, a wrong value would surface only on the day, as
+  BLIND.
+- **(d), two ways, both counts or names only.**
+  - (i) A COUNT, across all event types, of events where ANY known name under the five prefixes exists: an OR of
+    `exists` over every such name in the reader's stored-names list, plus `headers.x-forwarded-for`.
+  - (ii) A KEYS read over the window: the number of names under the five prefixes must be 0. This catches a name that
+    is not on the list. Its control: a window older than retention returns 0 keys, so the endpoint is shown to honour
+    the window.
+- **(f)'s two patterns**, applied only to the STRING fields of `evt:"req"` lines (`ep`, `model`, `colo`, `cache`,
+  `upstream`, `authPath`, `bm`, `devl`, `fw`, `evt`). The IPv6 pattern needs `::` or exactly 8 groups, so a time such
+  as `12:30:45` cannot match:
+  - IPv4: `(?<![0-9.])(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(?![0-9.])`
+  - IPv6: `(?<![0-9A-Fa-f:])(?:(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,6})?::(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,6})?)(?![0-9A-Fa-f:])`
+- **A rehearsal before the day.** The reader may run its instrument once against a fixed past window, counts only (the
+  reviewer's OK), so that every filter and control is shown to read > 0 where it should BEFORE the slot.
+
+**The W2 request, for the reader to anchor on:**
+- one `GET /v1/config` to the staging origin, carrying the staging test identity;
+- its time is printed by the sending tool to the second (`W2 request at <UTC>`) and recorded in section 9;
+- expected status **200**;
+- its `evt:"req"` line has `ep = "/v1/config"`, `status = 200`, `authPath = "device"` and a `devl`.
 
 **The non-vacuity control for (d).** A zero count means nothing in a window that held no request carrying the field.
 - **`user-agent`** is carried by this session's own triggering requests, so it is non-vacuous in every window. It is
   graded on staging and on production.
 - **The two identity headers:**
-  - **Production:** the window must also hold **> 0** `evt:"req"` lines with a non-empty `dev` (under (i)), or with
-    `authPath = "device"` (under (ii)). Devices send those all the time. Production grades the identity headers.
+  - **Production:** the window must also hold **> 0** `evt:"req"` lines with `authPath = "device"`. Devices send those
+    all the time. Production grades the identity headers.
   - **Staging** has little device traffic, so this session sends **one request carrying the staging test identity**
     (ruled by the reviewer, 2026-11-17). It goes into a SECOND staging window, W2, that opens only **after** (a) has
     read 0 on both reads. (a) is read after window A closes, so the request cannot go into A itself. Its time is
-    recorded in section 8. The two identity headers are then graded on staging, in W2, before production is touched.
+    recorded in section 9. The two identity headers are then graded on staging, in W2, before production is touched.
     If (a) is not 0, there is no W2 and no such request: stop and report.
 
-The triggering requests are 5 anonymous `GET /healthz`, at least 30 s apart, sent inside each window by this session.
-They carry no key and no device header. The count is stated so that the reader can match it: (b)'s after-count is
-**at least 5** on staging.
+**The triggering requests**, sent inside each window by this session. None carries a key or a device header:
+- 5 anonymous `GET /healthz`, at least 30 s apart;
+- ONE anonymous `GET /192.0.2.1`, answered 404, as (f)'s plant.
 
-**Predicted: (a) 0, (b) at least 5, (c) as (a) and (b) plus upstream_skip above 0, (d) 0, with every control above 0.**
+The counts are stated so that the reader can match them: (b)'s after-count is **at least 5** on staging, and `ep`'s
+IP-shaped count is **at least 1** in every window.
+
+**What is not yet known, and how it will be known before the slot.** Cloudflare's page does not say whether a console
+event carries the request envelope. The stored key names show the envelope fields exist today, but not which event type
+carries them; a filter on `$workers.event.request.path` has returned `evt:"req"` lines before. The reader may split the
+names by `$metadata.type` before Wednesday, names only, if the reviewer OKs it. If that split shows console events
+carrying envelope fields today, (d)'s prediction becomes "> 0" BEFORE the slot, by a correction written below this
+section. The owner then decides whether the slot goes ahead.
+
+**Predicted:**
+- (a) 0;
+- (b) at least 5;
+- (c) as (a) and (b), plus `upstream_skip` above 0;
+- (d) 0;
+- (e) 0 `dev`, with every device-authenticated line carrying an 8-hex `devl`;
+- (f) 0;
+- (g) `equal`, with its control `not equal`;
+- every control above 0.
 
 ## 6. Outcomes, decided before the reading
 
@@ -135,7 +221,12 @@ They carry no key and no device header. The count is stated so that the reader c
 | all as predicted, every control above 0 | invocation logs are off, our lines arrive, and no request-header field is stored | record it; production follows staging in the same slot |
 | (a) > 0 after, its control > 0 | the setting did not take: invocation events are still stored | no rollback (no worse than before); stop and report |
 | (b) or (c)'s `req`/`upstream_skip` = 0 after, its control > 0 | our own lines stopped arriving, which fails the owner's condition | **roll back that environment at once**; report |
-| (d) > 0 after, (a) = 0 | header fields are stored somewhere other than the invocation event | no rollback (no worse than before); stop and report to the owner |
+| (d) > 0 after, (a) = 0 | Cloudflare attaches the request envelope to our console events too, so `invocation_logs = false` alone does not remove it | no rollback (no worse than before); stop and report to the owner, whose call the next step is |
+| (e) `dev` > 0 after | the line still carries the id: the code did not take | no rollback (no worse than before); stop and report |
+| (e) device-authenticated lines without an 8-hex `devl` > 0 | the label failed (the failure-safe path) | no rollback; stop and report |
+| (f) an IP-shaped value in the line's own fields other than `ep`/`model` | an address reached our line | stop and report to the owner |
+| (g) `not equal`, its control `not equal` | the helper and the Worker disagree on the label | stop and report |
+| (g)'s control reads `equal` | the compare cannot tell two labels apart | **BLIND** |
 | any control = 0 | the reader cannot see what it would need to see | **BLIND**: no verdict; stop |
 | anything else, or the two reads disagree | outside the set | stop and decide; nothing is improvised |
 
@@ -145,11 +236,15 @@ the ids read at that slot's D0.5. A rollback is never refused.
 **Information, never graded.** Stored Workers Logs volume should fall by about the invocation events' share, at 100%
 sampling about one event per request. The account budget reads it at its next scheduled read.
 
-## 7. The slot (proposed; needs the owner's OK through the reviewer)
+## 7. The slot (the owner's OK, 05:47Z: "logs slot: ok (Wed 12:30-15:00Z)")
 
 **Wednesday 2026-11-18, 12:30-15:00Z.** That is clear of the 10:00Z radar deploy, and it leaves the 16:00Z route run
-over an hour of margin. It is not tonight's 23:00Z deploy of #736, which stays exactly as approved. (A 13:00-14:00Z
-slot was proposed first. It cannot hold W2, which must wait for A's two reads.)
+over an hour of margin. It is not the 2026-11-17 23:00Z deploy of #736, which stays exactly as approved. (A
+13:00-14:00Z slot was proposed first. It cannot hold W2, which must wait for A's two reads.)
+
+**WEDNESDAY'S CHAIN RULE (the owner, 05:47Z): radar 10:00Z, then logs at about 14:00Z, then the route run at 16:00Z.
+If one fails or rolls back, the LATER ones wait for him.** So this slot starts only if the radar deploy did not fail and
+was not rolled back. If this slot fails or rolls back, the route run waits for the owner.
 
 | time (Z) | step |
 |---|---|
@@ -163,6 +258,66 @@ slot was proposed first. It cannot hold W2, which must wait for A's two reads.)
 Each deploy goes through `proxy/scripts/deploy.sh`, under the deploy claim, with the deployer lock confirmed with the
 reviewer first.
 
-## 8. Record
+## 8. The label code, red first
+
+**Registration (this commit): the tests and a STUB `src/devlabel.ts`, both of whose functions throw.**
+- `test/device-label.test.ts` has DL1-DL6.
+- `scripts/device-label.selftest.mts` has H1-H6 and S-DLECHO.
+- The workers workflow's proxy job gets one step that runs the selftest.
+- EXAMPLE ids only: `0000000000000000`, `0123456789abcdef`, and the suite's fake `TEST_DEVICE`. Their labels
+  (`fcdb4b42`, `9f9f5111`, `b82efc46`) were computed outside this code, with Python's `hashlib`, and checked against
+  Node's `crypto.subtle`.
+
+**Predicted at registration, before running:**
+
+| row | predicted | why |
+|---|---|---|
+| DL1, DL2, DL3 | RED: the stub's "registration stub" error | the functions do not exist yet |
+| DL4 | RED: the line's keys read `colo, dev, devl, ep, evt, fw, model, ms, status` | `record()` still spreads `dev` |
+| DL5 | RED: actual `[200, [authPath, colo, dev, ep, evt, model, ms, status], undefined]` | still `dev`, and no `devl` |
+| DL6 | GREEN | the control: an anonymous line is unchanged |
+| every other row of the proxy suite | GREEN | nothing else changed |
+| the selftest | `H1-H6` FAIL ("does not exist"), `S-DLECHO` FAIL (BLIND: the anchor is not there); `SELFTEST: 2 row(s) off`, exit 1 | there is no helper yet |
+| the proxy typechecks (`typecheck`, `typecheck:scripts`) | clean | the stub has the final signatures |
+
+The fetchMock cascade does not apply: no DL row mocks a fetch, and `/v1/config` and `/healthz` make none.
+
+**Predicted at the code commit:** DL1-DL6 GREEN; every other proxy row GREEN, including `metrics.test.ts`'s
+`setDeviceAttribution` rows, which now run through `normDeviceId()`; the selftest `SELFTEST PASSED`, with S-DLECHO caught
+on at least H1 and H6; both typechecks clean.
+
+**Two plants after the code, each restored from a byte copy and checked by sha256:**
+
+| plant | change | predicted red |
+|---|---|---|
+| S-DEV | `record()` spreads `...m` again, putting `dev` back on the line | exactly {DL4, DL5} |
+| S-NEWFIELD | `index.ts` adds `(meta as unknown as Record<string, unknown>).ip = "192.0.2.1"`, a documentation address, beside `meta.authPath` | exactly {DL5} (DL6's anonymous request never reaches it, and DL4 builds its own metric) |
+
+**The registration, as read (2026-11-17).**
+- **Typecheck: OFF, a MISS, recorded as read.**
+  - `typecheck` exited 2 against a predicted clean, with one line:
+    `test/device-label.test.ts(51,107): error TS2304: Cannot find name 'Env'`.
+  - The cause was DL4's `as unknown as Env`, written without the type's import. `Env` is exported from
+    `src/types.ts`, and every other test imports it.
+  - Excluded alternatives:
+    - main failing already: the only error line is in the new file;
+    - the stub's signatures: it is a missing name, not a mismatch;
+    - the toolchain: `typecheck:scripts`, with the same tsc, is clean.
+  - The fix, ruled by the reviewer (test scaffolding, no row logic): `import type { Env } from "../src/types";`.
+    `typecheck` re-run once: clean, exit 0, **as predicted.**
+- **`typecheck:scripts`:** clean, exit 0. **As predicted.**
+- **The selftest:** "FAIL H1-H6: … does not exist", "FAIL S-DLECHO: … (BLIND …)", "SELFTEST: 2 row(s) off", exit 1,
+  and no sabotage file left behind. **As predicted.**
+- **The whole proxy suite** (05:57:58Z, 89.6 s, one run): 5 failed, 1,110 passed, 1 skipped. **As predicted:**
+  - DL1-DL3 red on the stub's error;
+  - DL4 red, its keys `colo, dev, devl, ep, evt, fw, model, ms, status` (the only difference is `dev`);
+  - DL5 red, actual `[200, [authPath, colo, dev, ep, evt, model, ms, status], undefined]`;
+  - DL6 green;
+  - every other row green.
+  - The one skip is MD2, main's own `it.skipIf` (it runs only with its binding).
+  - The import fix landed while this run was in flight. It is a type-only import, erased at run time, so the rows are
+    the same either way.
+
+## 9. Record
 
 _Filled in after the slot, below this line, without editing anything above it._
