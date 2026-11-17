@@ -101,3 +101,8 @@ jobs:
       - run: python3 scripts/check_wrangler_calls.py --selftest
       - run: python3 scripts/check_wrangler_calls.py
       - run: node proxy/scripts/wrangler-run.mjs --selftest
+      # P1 (docs/workflow-permissions.md): every workflow states its own GITHUB_TOKEN permissions, top level and per
+      # job, exactly as registered, so the repository default can go to read without any workflow changing. Last in
+      # this job, so a red here cannot hide the checks above it.
+      - run: python3 scripts/check_workflow_permissions.py
+      - run: python3 scripts/check_workflow_permissions.py --selftest
