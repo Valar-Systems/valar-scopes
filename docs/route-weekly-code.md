@@ -1314,13 +1314,16 @@ The route run is LAST in the chain. So before T0.1, one more row:
 
 | # | the check | reads |
 |---|---|---|
-| T0.0 | **neither earlier step failed or rolled back.** The radar deploy (10:00Z, `docs/wx-opera-fallback-deploy.md` section 6c), and then the logs slot (12:30-15:00Z, `docs/workers-logs-invocation-off.md`), each closed as predicted with no rollback. Read from each step's own report to the reviewer, not from memory | both closed as predicted, with no rollback |
+| T0.0 | **neither earlier step failed or rolled back.** The radar deploy (10:00Z, `docs/wx-opera-fallback-deploy.md` section 6c), and then the logs slot (12:30-15:00Z, `docs/workers-logs-invocation-off.md`), each closed as predicted with no rollback. Read from each step's own report to the reviewer, not from memory | each closed as predicted with no rollback, or did not start (the reading below) |
 
-- **Either step failed** (a stop, or an outcome other than "as predicted") **or rolled back.** Then the route run
+- **Either step failed** (once it had started: a stop, or an outcome other than "as predicted") **or rolled back.** Then the route run
   **waits for the owner**: nothing runs, the reviewer is told, and T0.1 is not read.
-- **A step that did not run at all** (the radar moved to Thursday for want of R0.1's word, or the logs slot not started)
-  is neither a failure nor a rollback. The rule's words do not cover it, so **whether the route run goes ahead is the
-  reviewer's to rule**, asked before 16:00Z. It is not decided here.
+- **A step that did not run at all because its own precondition held it** (the radar moved to Thursday for want of
+  R0.1's word, or the logs slot not started; nothing deployed, nothing changed in production). **The reviewer's reading,
+  2026-11-17, which the owner may override:** that is neither a failure nor a rollback, so the route run goes ahead on
+  its own preconditions (4e). The owner is told at that moment.
+- **A step that STARTED** (any deploy command run) and then did not complete as predicted counts as a FAILURE: the route
+  run waits for the owner.
 - 4e's rows and 4d's steps are unchanged.
 
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)

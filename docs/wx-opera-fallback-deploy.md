@@ -193,13 +193,16 @@ or rolls back, the later ones wait for me."
 **This deploy is the FIRST in the chain**, so it has no chain precondition of its own. R0.1 and the rest of section 2
 are unchanged. What it adds is the hand-off:
 
-- **The radar deploy FAILS** (an outcome of section 5 that is not "all as predicted", or a stop at any step), **or ANY
-  of the ten Workers is rolled back** (section 4). Then the logs slot (12:30-15:00Z,
+- **The radar deploy FAILS** (once a deploy command has run, from R2 on: an outcome of section 5 that is not "all as
+  predicted", or a stop at any later step), **or ANY of the ten Workers is rolled back** (section 4). Then the logs slot (12:30-15:00Z,
   `docs/workers-logs-invocation-off.md`) and the route run (16:00Z, `docs/route-weekly-code.md` section 4e) **wait for
   the owner**. The reviewer is told at once, with the step and its reading. Neither later step starts on anyone else's
   word.
 - **The radar deploy reads as predicted, with no rollback.** The reviewer is told, with the time, and the logs slot may
   start.
-- **The radar deploy does not run at all** (no R0.1 word, so it moves to Thursday 10:00Z under section 2). That is
-  neither a failure nor a rollback, so the rule's words do not cover it. **Whether the later steps go ahead on Wednesday
-  is the reviewer's to rule, asked before 12:30Z.** It is not decided here.
+- **The radar deploy does not run at all** because its own precondition held it (no R0.1 word, so it moves to Thursday
+  10:00Z under section 2; nothing is deployed and nothing changes in production). **The reviewer's reading, 2026-11-17,
+  which the owner may override:** that is neither a failure nor a rollback, so the later steps go ahead on their own
+  preconditions. The owner is told at that moment.
+- **A deploy that STARTED** (any deploy command run) and then did not complete as predicted counts as a FAILURE: the
+  later steps wait for the owner.
