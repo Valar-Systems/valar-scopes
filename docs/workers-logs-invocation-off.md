@@ -154,10 +154,14 @@ authenticated request. On staging, the W2 request supplies it. In production, de
 - **Field names.** Our line's fields are stored BARE (`evt`, `dev`, `devl`, `ep`, `authPath`, `status`, `ms`, `model`,
   `colo`, …), and filters use those names. "`source.*`" above is only how the events view nests them in an answer. The
   event-type key is `$metadata.type`.
-- **(a)'s value.** Nothing read so far shows `$metadata.type`'s values. A guarded values read of that one key before
-  Wednesday (the reviewer's OK) confirms `"cf-worker-event"`, or names the right value. If it names another value, (a)
-  is corrected below this section before the slot. Without that read, a wrong value would surface only on the day, as
-  BLIND.
+- **(a)'s value, READ (the reader's guarded values read, 2026-11-17 06:16:46Z, window 04:00-05:00Z; exact counts, every
+  multi-filter query stated AND).**
+  - `$metadata.type` takes exactly two values on both services: `"cf-worker-event"` (the invocation events) and
+    `"cf-worker"`.
+  - Every `evt:"req"` line is `"cf-worker"`: on staging, 251 of 251, with 251 invocation events; in production, 2,194
+    of 2,194.
+  - So (a) counts `$metadata.type = "cf-worker-event"`, and our own lines are never among them.
+  - Still open: whether a `"cf-worker"` line carries the request envelope. (d) stays across ANY type for that reason.
 - **(d), two ways, both counts or names only.**
   - (i) A COUNT, across all event types, of events where ANY known name under the five prefixes exists: an OR of
     `exists` over every such name in the reader's stored-names list, plus `headers.x-forwarded-for`.
@@ -243,8 +247,15 @@ over an hour of margin. It is not the 2026-11-17 23:00Z deploy of #736, which st
 13:00-14:00Z slot was proposed first. It cannot hold W2, which must wait for A's two reads.)
 
 **WEDNESDAY'S CHAIN RULE (the owner, 05:47Z): radar 10:00Z, then logs at about 14:00Z, then the route run at 16:00Z.
-If one fails or rolls back, the LATER ones wait for him.** So this slot starts only if the radar deploy did not fail and
-was not rolled back. If this slot fails or rolls back, the route run waits for the owner.
+If one fails or rolls back, the LATER ones wait for him.**
+- This slot starts only if the radar deploy did not fail and was not rolled back. If it fails or rolls back, the route
+  run waits for the owner.
+- **The reviewer's reading, 2026-11-17, which the owner may override.** A step that does not run because its own
+  precondition held it (the radar moved to Thursday for want of R0.1's word: nothing deployed, nothing changed) is
+  neither a failure nor a rollback. The later steps then go ahead on their own preconditions, and the owner is told.
+- A step that STARTED (any deploy command run) and did not complete as predicted is a FAILURE.
+- The same rule stands in the radar checklist (`docs/wx-opera-fallback-deploy.md` 6c) and the route checklist
+  (`docs/route-weekly-code.md` 4f, T0.0).
 
 | time (Z) | step |
 |---|---|
