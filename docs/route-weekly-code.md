@@ -1305,6 +1305,24 @@ reviewer is told. 4d's steps and predictions are unchanged.
 **Outside the set:** any other reading. That includes a hash that differs, a changed writer input, a CRLF count above 0
 or a control not reading 2, a readiness case OFF, or an input absent. Each is a stop, with nothing run, and is reported.
 
+### 4f. T0.0, read before T0.1: Wednesday's chain rule (the owner, 2026-11-17 05:47Z; appended below the frozen 4e)
+
+**The owner's words, verbatim:** "Wednesday's chain rule: radar 10:00Z, logs ~14:00Z, route run 16:00Z; if one fails
+or rolls back, the later ones wait for me."
+
+The route run is LAST in the chain. So before T0.1, one more row:
+
+| # | the check | reads |
+|---|---|---|
+| T0.0 | **neither earlier step failed or rolled back.** The radar deploy (10:00Z, `docs/wx-opera-fallback-deploy.md` section 6c), and then the logs slot (12:30-15:00Z, `docs/workers-logs-invocation-off.md`), each closed as predicted with no rollback. Read from each step's own report to the reviewer, not from memory | both closed as predicted, with no rollback |
+
+- **Either step failed** (a stop, or an outcome other than "as predicted") **or rolled back.** Then the route run
+  **waits for the owner**: nothing runs, the reviewer is told, and T0.1 is not read.
+- **A step that did not run at all** (the radar moved to Thursday for want of R0.1's word, or the logs slot not started)
+  is neither a failure nor a rollback. The rule's words do not cover it, so **whether the route run goes ahead is the
+  reviewer's to rule**, asked before 16:00Z. It is not decided here.
+- 4e's rows and 4d's steps are unchanged.
+
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 
 **The alternative.** The workflow holds no KV token. It POSTs batches of `[key, value]` and `delete` lists to a
