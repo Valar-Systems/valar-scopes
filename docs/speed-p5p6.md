@@ -3094,3 +3094,93 @@ FASTER.**
 
 **No PR is opened by this section.** It is for the reviewer's review. The PR's own registration (its predictions, CI's
 check-run count, the rebase's re-proofs) comes after the gains, in its own section.
+
+### 10. Open item (2): do P5's moved marker arithmetic and main's draw the same shipping pixels? (registration, docs first, 2026-11-17 ~06:5xZ, before any build)
+
+**The question** (4e, restated in 9).
+- P5 moves `DrawAircraftTriangle`'s vertex arithmetic into `outlinemask::Heading` and `Build` (both `noinline`), and
+  the marker calls them.
+- Float contraction (`madd.s` against `mul.s` + `add.s`) can differ between an inlined body and a separate one. So a
+  vertex can round differently, and a SHIPPING marker pixel can move compared with MAIN.
+- **R-ANCHOR cannot answer this:** both of its sides use `Build`.
+
+**Step 1, host only, first: the ELF reading.** It sets the board's prediction by a rule frozen here.
+- **The images:** B3' (`54fc5e28142a`, the base: main's marker arithmetic) and B4' (`17d9b2df11cc`, P5).
+- **The functions:** both ELFs (archived), disassembled with the toolchain's `objdump`.
+  - The base: `AircraftManager::DrawAircraftTriangle`.
+  - P5: `outlinemask::Heading`, `outlinemask::Build`, and P5's `DrawAircraftTriangle`.
+- **The read:** the float-instruction sequence of the dart's vertex expressions in each.
+- **THE RULE:**
+  - The SAME float operations in the same order, fused or unfused alike: the board prediction is **(A), 0 pixels
+    differ**.
+  - Different fusing for the same expression: no pixel prediction. The board reading decides (A) or (B).
+  - The expressions cannot be located in either disassembly: **the instrument fails.** Report it, and the board
+    reading still runs, unpredicted.
+
+**Step 2, the board: one scene, two images, one board (E2:08).**
+- **The scene, MARK60** = `{ANCHOR_8COPY, 60, wx = false}`, which reuses 7d/7e's frozen anchor machinery:
+  - rows at `kTblT` with gs 0;
+  - radius 7 mi, radar-up 0, triangles on;
+  - sweep, labels, trails, highlight and overhead off;
+  - the two prints at measure start and + 110 s (A-STILL).
+  - **With wx-layer OFF no outline draws in either image,** so the frame holds markers only: the shipping marker
+    raster.
+- **The host's coverage at this scene** (the pick's port and arithmetic): 57 of 60 contacts on screen, 51 distinct
+  headings, 12 overlapping pairs, 5,312 visible footprint px.
+  - The alternatives were read before choosing: rung 8 reads 60 on screen and 5,750 px but needs a rung change in the
+    device code. Rung 7 needs none.
+- **The images:**
+  - **P** = `bench/speed-p5` P5' (`8e73d3d5e718`), plus one bench commit: a `SPEED_MARK_BENCH` scene list
+    `{MARK60}`.
+  - **M** = `bench/speed-base` (`830e7106324a`), plus the SAME bench machinery: 7d's anchor kinds, `Override`,
+    `OnCloudPoll`'s `kTblT` + gs 0, and the prints, with the same `SPEED_MARK_BENCH` list.
+    - Ported from `c33529a41f3d` WITHOUT P5's parts: no scratch check, no outline mask, no dirty marks.
+    - So M's marker is MAIN's compiled arithmetic.
+  - **A check before any build:** the two branches' `FrameBench.h` are identical, and their bench regions in
+    `AircraftManager.cpp` differ only where P5 itself differs.
+- **The window** (one board, the two images flashed in turn, about 21 min, hard end start + 35):
+
+| step | what | budget |
+|---|---|---|
+| 0 | reserve; S19 twice, 60 s apart; check-tool; selftest | 3 min |
+| 1 | M: write, N-BOOT; trace from boot + ~20 s to boot + 320 s; grabs at boot + 210, 230 and 250 s | ~7 min |
+| 2 | P: the same | ~7 min |
+| 3 | restore v19; two reads 60 s apart; release | ~3 min |
+
+**The comparison** (a new `anchor_compare --ab` mode, red first):
+- **The inputs:** M's grab 1 and P's grab 1, plus the region from the devices' own anchor lines (the union of the
+  8-copy footprints, dilated 2: a superset of every marker pixel).
+- **What it counts:** pixels that differ OUTSIDE the clock and indicator boxes, split into inside the region and
+  outside it.
+- **Exit codes:** 0 none differ; 1 differences ONLY inside the region; 2 any difference outside the region.
+- **Plants:**
+  - one marker pixel changed reads 1;
+  - one background pixel far from every contact reads 2;
+  - the boxes ignored, with a clock change, reads 2;
+  - an identical pair reads 0.
+
+**The preconditions** (else **VOID**):
+- **A-SAME:** M's and P's anchor lines are identical: count, and every `x y trk cat dot up col ovl`.
+- **A-STILL:** in each image.
+- Each image's three grabs EQUAL outside the boxes (`--equal`).
+- `ovl 000` and `up 0` throughout.
+- **The identity lines:** P carries `[speed-p5] scratch ...` and M does not (M has no P5 code). That shows which image
+  ran.
+
+**The outcomes, all pre-registered:**
+
+| read | means |
+|---|---|
+| **(A)** exit 0, no pixel differs outside the boxes | for these 57 visible contacts and 51 headings, the move preserves main's shipping marker pixels. Item (2) is answered NO for this coverage. |
+| **(B)** exit 1, differences only inside the region | the move CHANGES shipping marker pixels. Item (2) is answered YES. The PR needs a fix, designed and registered separately. This is a finding, not a stop. |
+| exit 2, a difference outside every footprint | something other than the marker differs between the images: **STOP**, to the reviewer |
+| a VOID precondition | no reading; to the reviewer |
+| **Outside the set:** the board reads (B) where step 1's rule predicted (A), or anything this table does not cover | the instrument is unreliable at this scale: STOP, decide |
+
+**Before any build** (each only after the reviewer's OK of this section):
+- the M-side port, as a commit on a new branch `bench/speed-mark-base` from `bench/speed-base`;
+- P's one-line list commit;
+- `--ab`, red first;
+- step 1's ELF reading, with its prediction recorded before the window;
+- two compile-only builds by the hidden route, the disk read first, I-4 on each;
+- and the reviewer's booking.
