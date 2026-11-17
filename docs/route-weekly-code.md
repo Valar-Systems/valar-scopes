@@ -1326,6 +1326,37 @@ The route run is LAST in the chain. So before T0.1, one more row:
   run waits for the owner.
 - 4e's rows and 4d's steps are unchanged.
 
+### 4g. The commit the run uses, named; its D0 by procedure (2026-11-17, appended below 4f)
+
+**The owner's words, 2026-11-17 18:53Z (relayed by the reviewer), verbatim, the parts that govern this run:** "rule: by
+procedure Wed. [...] name each of Wednesday's three commits in the plans."
+
+**The commit: EXPECT = `4a02123ca992031d60bd9592e3084c9ccf34041f`** (main, read 2026-11-17 19:46Z). It replaces 4d's
+"the run [...] takes its checkout from main's sha at that moment": T0.3's LF checkout is made at EXPECT, and T0.2 compares
+the writer's inputs between `3741501b` (W8) and EXPECT. 4d's steps and 4e's other rows are unchanged.
+
+**At plan time** (read 2026-11-17 19:50:16Z), the commits since `3741501b` that touch `proxy/scripts/` or the lockfile
+are two, neither a route tool file:
+- `c7f73d10` (#744): `device-label.ts` and `device-label.selftest.mts`;
+- `3815844f` (#734): `sabotage-wx-opera-fallback.py`.
+
+The `routes-*` files, `ingest-routes.ts`, `verify-routes.ts`, `token-file.ts` and `kv-rest.ts` have 0 commits. T0.2's
+bundle compare at T-0 is still the proof.
+
+**D0, by procedure.** These are printed after T0.0 and before T0.1, and any mismatch is a STOP:
+
+| D0 | prints | predicted |
+|---|---|---|
+| D0-H | `git rev-parse HEAD` in T0.3's checkout | EXPECT, in full |
+| D0-A | `git ls-remote` for main = M; `git merge-base --is-ancestor EXPECT M` | exit 0 |
+| D0-B | `git log --format='%h %s' EXPECT..M -- proxy/scripts/ proxy/package-lock.json` | empty. A commit listed here (a merge after this plan, in the run tool's folder) stops the run until it is planned |
+| D0-D | `git status --porcelain -- proxy/` in T0.3's checkout, after `npm ci` | empty |
+
+**Wednesday's three commits, named:**
+- the radar step: `4a02123ca992031d60bd9592e3084c9ccf34041f` (`docs/wx-opera-fallback-deploy.md` 6d);
+- the logs step: `4a02123ca992031d60bd9592e3084c9ccf34041f` (`docs/workers-logs-invocation-off.md` 7a);
+- this run: `4a02123ca992031d60bd9592e3084c9ccf34041f`.
+
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 
 **The alternative.** The workflow holds no KV token. It POSTs batches of `[key, value]` and `delete` lists to a
