@@ -5211,3 +5211,79 @@ by 0.01 parse to a DIFFERENT normalised query, with none blind, exit 0 and stder
 (01:22:12Z) is a check that could have failed.
 
 **#696 still HOLDS FROM MERGE.** Row 5's slot comes after Tuesday's 23:00Z production deploy has closed, as ruled.
+
+### Row 4: the census store's upload, read (2026-11-17)
+
+**U1, `d1 --go`: SEALED after one repair round** (`mirror/up26_u1.sh` b690c6686db6, in the background and registered; 00:59:03Z to
+04:22:11Z, exit 0). The closing JSON:
+- sealed true; repairRounds 1; missing 0; mismatched 0;
+- puts 12,023; gets 24,040; putFailures 2; calls 36,063; rateLimited 0.
+
+**One field was OFF the prediction, and the predicted set was at fault.** upload26.pred listed "putFailures 0" beside "repairRounds 0
+or 1 or 2". A repair round that follows a failed put has to report putFailures above 0, so the set could not hold both. The "anything
+else" row stopped the run before anything further, and the orchestrator ruled it recorded as off.
+- In the first pass, two puts failed with wrangler's "Failed to fetch": terrain tiles 9/18/129 and 9/507/170. Neither was a 429
+  (rateLimited is 0, and the pacer retries only 429s).
+- The counters agree with one repair of two keys: puts 12,023 = 12,020 objects + 2 repaired + `current`; gets 24,040 = two full passes
+  of 12,020; calls = puts + gets.
+- **Excluded:** that the failures came in the repair round. Under a fresh prefix they would then have been missing at the second
+  verify, giving a second round or an unsealed store; repairRounds 1 with missing 0 rules that out.
+- **Open:** that a put reported as failed actually landed, so the two repaired keys were others. d1 does not print which keys it
+  repaired. It does not bear on completeness: the second verify read all 12,020 clean, and V1 reads every one independently.
+- The repair round is also why U1 ran past its 03:15Z estimate: one extra full pass.
+
+**The restore, under Q-U1 (B):**
+- **S-mid** (04:22:12Z to 04:22:51Z): a 200 on store 33d6dc41c749, ETag and PROVENANCE agreeing, as the staging test identity. Exit
+  1, the registered PASS: the read sees the switch.
+- **U1b** (04:22:51Z to 04:22:54Z): `bm/v1/current` put back from the saved 26 B; put exit 0, read-back exit 0, byte-identical.
+  Graded on that judge. The pred's wording says `--file`; the accepted launcher does `--pipe` from the same file, the path d1 uses for
+  its own seal. The bytes, the key and the judge are the same.
+- **S-post** (04:24:29Z, 95 s after U1b): a 200 on store 4c0875738f38, ETag and PROVENANCE agreeing. Exit 0, as predicted: staging is
+  back on the old store, end to end.
+- Staging named the new store for about 43 s (the seal to U1b), plus at most 60 s of cache, which S-post shows had cleared.
+- The launcher's background check passed with 0 running. The deploy lock was handed back at 04:26:04Z, right after S-post.
+- Class A: 12,023 puts plus U1b's 1, inside the registered worst case.
+
+**V1, the independent read-back: AS PREDICTED** (`mirror/up26_verify.mts` 66024ac43899, `--full` over `mirror/up26-refs-b.tsv`
+3295403976fc, in the background and registered; 04:28:19Z to 05:36:25Z, exit 0, stderr 0 B; its check passing with 0 running).
+- `up26-refs-b.tsv` is the frozen reference with `current`'s row carrying the saved 26 B, as Q-U1 (B) requires. Its 12,020 object
+  rows are `cmp`-identical to `up26-refs.tsv` (7a166b8b8603).
+- The controls came first: C1 presence PASS (the old store's manifest, by its bytes); C2 absence PASS (a key that cannot exist reads
+  missing, by wrangler's exact text); C3 mismatch PASS.
+- FULL 33d6dc41c749: rows 12,021; ok 12,021; missing 0; mismatched 0; blind 0. Of 245 shards, none is short of all ok. 4,085 s,
+  against about 67 min predicted.
+- Information, not graded:
+  - calls 12,025 = 12,021 rows + 2 retries + C1 + C2 (C3 reuses C1's bytes), with rate-limited 0;
+  - a retry is the tool's registered rule: one more read after a non-429 error, and only a second failure counts as blind. Both
+    retried rows ended ok;
+  - U1's putFailures were also 2. Whether they were the same keys is not known and not graded.
+- **V2, by the pred's own definition.** d1's verify before the seal and V1 after it are two code paths: V1 imports neither `d1.ts`
+  nor `ingest-lib.ts`. Each read every object present with its sha256, about an hour apart for each key.
+
+**V3, R2's own count: AS PREDICTED, two reads agreeing** (`scripts/r2-class-a.ts` fd4a2955f018, its storage line for
+blipscope-basemap; both runs pin-checked first).
+- Read 1 (05:39:22Z, exit 0): 3.523 GB, 23,060 objects.
+- Read 2 (06:09:47Z, 30 min 25 s later, in the background and registered, exit 0): 3.523 GB, 23,060 objects.
+- 23,060 = 11,040 (the old store, unchanged since P1 at 00:48Z) + 12,020. `current` is overwritten, not added.
+- Information, not graded: the bucket's month-to-date Class A reads 12,022 on both reads (0 at P1). U1 and U1b attempted 12,024
+  puts, so R2 counts 2 fewer. That is the count the 2 "Failed to fetch" puts would give if they never reached R2 as operations. A
+  count that did not move in 30 min makes lag an unlikely explanation. A SAMPLED operations count is not excluded, so this fits the
+  open alternative's negation without proving it.
+
+**So row 4 reads, by the pred's table: the store is in R2, complete, and static.** U1 sealed (its putFailures 2 recorded off, as
+ruled), V1 read 12,021 ok, and V3 read 23,060 twice.
+
+**#696 still HOLDS FROM MERGE.**
+
+**CI for this push, predicted before the push.** It carries two docs-only commits: dcb7886c (09cdb962's CI read and row 5's two
+controls) and this section.
+- **The base.** Main is b4f7e511dc8e by ls-remote at 2026-11-17T06:27:09Z. Since 5c45a67ca109, which 09cdb962 tested into, four
+  commits landed: #740 and #741 (docs), #739 (bench-tools: read-only workflow permissions) and #742 (budget).
+- **What changed among the paths that shape CI** (`.github/`, `skus.yml`, `scripts/skus.py`, `platformio.ini`): only
+  `.github/workflows/bench-tools.yml`. #739 adds a top-level `permissions: contents: read` block and one step inside its existing job.
+  No job is added or removed, and the triggers are unchanged. The merge of this branch into b4f7e511dc8e is clean (`git merge-tree`).
+- **Predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0 failed,** with the same job-name set as 09cdb962's run.
+  It is tested on the merge into b4f7e511dc8e, read from a job's own checkout log, and read twice at least 60 s apart.
+- **Outside the set:**
+  - a tested base other than b4f7e511dc8e: STOP, re-derive the count, and write the amendment before anything is graded;
+  - any other count, conclusion or job name: STOP, and read which job before anything else.
