@@ -4,6 +4,7 @@ import { deriveDeviceKey } from "./deviceauth";
 import { isRevoked } from "./revocation";
 import { claimActivation, keyGeneration } from "./activation";
 import { SUPPORT_EMAIL } from "./support";
+import { labelOf } from "./devlabel";
 
 /* ===========================================================================
  * DEVICE ENROLLMENT — how a board we did not flash gets its per-device key.
@@ -215,7 +216,8 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
     const refused = gate === "activated" ? "already_activated" : "not_listed";
     // A refused activation is the abuse signal now -- a guessed id lands here -- so it
     // is logged the way a mint is, and COUNTED where scripts/reconcile-fleet.py prints it.
-    console.log(`enroll ${watch ? "watch" : "refused"}=${refused} id=${id} host=${solve.hostname ?? "?"} `
+    // The device LABEL, never the id (the owner's "label too", 2026-11-17; src/devlabel.ts).
+    console.log(`enroll ${watch ? "watch" : "refused"}=${refused} devl=${(await labelOf(id)) ?? "?"} host=${solve.hostname ?? "?"} `
       + `cc=${request.headers.get("CF-IPCountry") ?? "?"}`);
     if (!watch) {
       await bumpRefused(env, day, refused);
@@ -248,7 +250,7 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
   // later from a query nobody runs. With leeway instead of a ceiling upstream,
   // this line is the only thing that will ever say "something is wrong".
   console.log(
-    `enroll ${row.enrollments === 1 ? "new" : "repeat"} id=${id} n=${row.enrollments} `
+    `enroll ${row.enrollments === 1 ? "new" : "repeat"} devl=${(await labelOf(id)) ?? "?"} n=${row.enrollments} `
     + `day_total=${dayTotal} host=${solve.hostname ?? "?"} cc=${country ?? "?"} asn=${asn ?? "?"}`,
   );
 
