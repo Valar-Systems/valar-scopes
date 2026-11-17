@@ -159,3 +159,96 @@ match S2b. A 15:00Z deploy would have pushed S2b toward dusk.
 - **If the deploy cannot start by 23:45Z:** no deploy. The report goes to the reviewer, who goes back to the owner.
 
 D0.3 onward run from 23:00Z.
+
+## 7. Amendment, before D0: the deploy ships `1695645d`, with a named override (registered 2026-11-17)
+
+The text above is left as frozen. **This section is in force only on the owner's answer "#736: override ok".** On
+"#736: Wednesday" it is not merged, and #736 rides Wednesday's logs deploy instead
+(`docs/workers-logs-invocation-off.md`).
+
+**The owner's words, 2026-11-17 17:50Z, verbatim (relayed by the reviewer):** "#736: go as you ruled, from the commit
+just before #744. Two additions: - staging is deployed from that same commit first and checked, and you confirm staging
+isn't already running #744; - the "same content" proof lists every difference in the server code between that commit
+and what I approved, not only #744. Anything unlisted means no deploy tonight. Standing rule: every deploy plan names
+the exact commit sha it ships. A merge that touches the deployed code after the plan is written forces a re-check,
+enforced by a check in the deploy script, not by memory."
+
+**The owner's answer on the override (verbatim, filled in before this merges):** _(pending)_
+
+### 7.1 Why
+
+#744 (`c7f73d10`, the Workers Logs change: invocation logs off, and the request line's label) merged on 2026-11-17,
+after this plan was written and moved. A deploy from main would carry it, and D0.3's rule refuses that. Carried, it would
+make this deploy the logs-off deploy with none of that change's own plan: no before-and-after windows, and none of its
+predictions graded.
+
+The last commit on main before #744 is `1695645d` (#743, docs only). Deploying it, though, needs one override.
+`deploy.sh` refuses a tree that is behind origin/main in anything the target ships, unless `ALLOW_BEHIND=1`, and
+`c7f73d10` changes `proxy/wrangler.toml`, which is in every proxy target's set. Production has never run `c7f73d10`:
+both environments report `074863fc`, which predates it. So the commit the override names reverts nothing in production.
+
+### 7.2 The commit this deploy ships
+
+**D = `1695645d44b46570cf270e82828dcf5e6f54c20b`.** It is an ancestor of main. `git log 074863fc..D -- proxy/` lists
+exactly section 1's two commits, `00fc75d1` (#736) and `3815844f` (#734).
+
+### 7.3 Every difference between what the owner approved and D (the owner's addition)
+
+The owner approved #736 at **`00fc75d1`**, its merge into main. Between `00fc75d1` and D, **`git diff --name-status`
+over the whole repository lists 10 files**:
+
+| status | file | in the proxy target's set? |
+|---|---|---|
+| A | `.github/workflows/bench-tools.yml` | no |
+| M | `docs/account-budget.json` | no |
+| M | `docs/account-budget.md` | no |
+| A | `docs/proxy-deploy-2026-11-17.md` | no (this plan) |
+| M | `docs/route-weekly-code.md` | no |
+| M | `docs/wx-opera-fallback-deploy.md` | no |
+| M | `scripts/account_budget.py` | no |
+| M | `scripts/app-only-write.py` | no |
+| M | `tools/budget/build_budget.py` | no |
+| M | `tools/budget/sabotage_account_budget.py` | no |
+
+**The proxy target's set, named from `proxy/scripts/deploy-inputs.mjs`'s own source.** It is made up of:
+- the bundle's inputs (the dry-run's metafile, anchored on `src/index.ts`);
+- the target's wrangler config, `proxy/wrangler.toml`;
+- `proxy/tsconfig.json`, `proxy/package.json` and `proxy/package-lock.json`;
+- the deploy machinery: `proxy/scripts/deploy.sh`, `proxy/scripts/deploy-inputs.mjs`, `proxy/scripts/wrangler-run.mjs`,
+  `proxy/scripts/confirm-deploy.sh`, `proxy/scripts/healthz-commit.sh` and `scripts/session-claim.py`.
+
+Every member other than `scripts/session-claim.py` is under `proxy/`.
+
+**Measured:**
+- `git diff --quiet 00fc75d1 D -- proxy/` exits 0 (no difference anywhere under `proxy/`);
+- `git diff --quiet 00fc75d1 D -- scripts/session-claim.py` exits 0.
+
+So no file in the set differs, and D ships exactly the server code the owner approved.
+
+**Anything unlisted means no deploy tonight.** At D0.3 the same `git diff --name-status 00fc75d1 D` is run again and
+must equal this table, row for row.
+
+### 7.4 The steps that change (everything else stands)
+
+| step | replaced by | predicted |
+|---|---|---|
+| D0.3 (22:45Z and 23:00Z) | `git ls-remote` for main = M. `git merge-base --is-ancestor D M`. `git log 074863fc..D -- proxy/`. 7.3's diff, again. `git log D..M -- proxy/` | exit 0; exactly `00fc75d1` and `3815844f`; equal to 7.3's table; exactly `c7f73d10`. Any other proxy/ commit after D: no deploy |
+| **D0.6a** (new: the owner's addition) | `/healthz` `commit` on staging AND production, each read twice at least 60 s apart, and for each stamp `git merge-base --is-ancestor c7f73d10 <stamp>` | both `074863fc`; exit 1 for each (neither environment runs #744). Any other stamp, or exit 0: no deploy |
+| D0.4 | CI at D: a FINISHED run, read twice at least 60 s apart, by full sha | 35 = 33 success + 2 skipped (D's docs-only push run). The server code's own CI is `00fc75d1`'s, whose tree under `proxy/` is identical (7.3): 37 = 35 + 2, with `test (proxy)` and `manifest-drift` green |
+| D0.8 | the LF checkout at D: `git worktree add --no-checkout --detach <path> D`, then `reset --hard D` with `-c core.autocrlf=false -c core.eol=lf`; the CRLF count with its control. No branch is created or moved | the control reads 2, `proxy/src` and `proxy/scripts` read 0 |
+| **D0.9** (new) | the behind decision, read BEFORE any upload: `node proxy/scripts/deploy-inputs.mjs check proxy staging` in D0.8's checkout. This is the guarded dry-run `deploy.sh` itself runs: it uploads nothing, and prints its argv | exit 1. Exactly one blocking commit: `deploy-inputs: 1 commit(s) behind origin/main touch what the proxy ships:`, then the single line for `c7f73d10d2e7`. No `note: <sha> ... outside proxy's bundle` line. One `note: N commit(s) ... touch nothing under proxy/` line, with N the count of non-proxy/ commits in D..M (2 at `13a6dab8`). Anything else: no deploy |
+| D1 and D3 | `ALLOW_BEHIND=1`, then `deploy.sh staging` (D1) and `deploy.sh production` (D3), from D0.8's checkout, under the claim. **Staging first, checked (D2), as the plan already orders** | each prints D0.9's decision unchanged, then `ALLOW_BEHIND=1 -- deploying a tree behind origin/main; the commits listed above are being REVERTED.`, then exit 0 with the stamp. If a printed list differs from D0.9's, the upload has happened: the plan's rollback rule applies at once |
+| C1 | `/healthz` `commit`, read twice at least 60 s apart, after each environment | a prefix of D's full sha of at least 7 hex, predicted `1695645d` |
+
+**Outside the set:** any reading not predicted above stops the deploy before the first upload. After an upload, the
+plan's own rollback rule (section 4) applies.
+
+### 7.5 What this means for Wednesday
+
+After this deploy, both environments' `/healthz` report D. That is the baseline for the logs plan's BEFORE windows. Its
+carried list from D to main is:
+- `c7f73d10` (#744): the logs plan's own change;
+- `6beb4310` (docs) and `13a6dab8` (#746: workflows, docs, a script): no input;
+- #747 (the support page), when merged.
+
+#748 stays held until Wednesday's logs deploy has closed.
