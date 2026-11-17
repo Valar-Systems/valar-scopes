@@ -26,8 +26,11 @@ FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "
 HEADER = "include/OutlineMask.h"
 TEST = "test/host/test_p5_outline.cpp"
 PORT = "test/host/LgfxPort.h"
+# The OLD renderer, moved verbatim out of TEST (board addendum 2's PORT-MOVE, docs/speed-p5p6.md section 7): TEST
+# #includes it, so a clean tree without it does not compile.
+OLD = "test/host/p5_outline_port.h"
 AM = "src/AircraftManager.cpp"
-COPIED = [HEADER, TEST, PORT, AM]
+COPIED = [HEADER, TEST, PORT, OLD, AM]
 
 EDGE = {"H-EDGE@40", "H-EDGE@60"}
 OVERLAP = {"H-OVERLAP@40", "H-OVERLAP@60"}
