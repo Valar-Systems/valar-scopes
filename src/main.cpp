@@ -492,6 +492,19 @@ AircraftManager appManager(configServer, authHandler, http, tft);
 #define BLIPSCOPE_RADAR_EDITION 1
 #endif
 
+// BANDCANVAS-LISTS (docs/speed-p5p6.md 8a): BandCanvas.h decides BANDCANVAS_DIRTY_MARKS from the edition flags; the
+// chain above decides the edition. They must agree, or the build fails here: the radar attaches a dirty set (its
+// weather frame, below) and must compile the marks; every other edition must compile them out, unless
+// BANDCANVAS_DIRTY_MARKS_DELIBERATE says so. A new edition added above and not to BandCanvas.h's list fails here.
+#include "BandCanvas.h"   // already included via DrawHelpers.h; named here because the check reads its switch
+#if !defined(BANDCANVAS_DIRTY_MARKS)
+#error "BANDCANVAS-LISTS: BandCanvas.h's switch is undefined at the check"
+#elif defined(BLIPSCOPE_RADAR_EDITION) && !BANDCANVAS_DIRTY_MARKS
+#error "BANDCANVAS-LISTS: the radar edition compiles BandCanvas's marks OUT, but its weather frame attaches a dirty set"
+#elif !defined(BLIPSCOPE_RADAR_EDITION) && BANDCANVAS_DIRTY_MARKS && !defined(BANDCANVAS_DIRTY_MARKS_DELIBERATE)
+#error "BANDCANVAS-LISTS: a non-radar edition compiles BandCanvas's marks IN: add its FEATURE_ flag to BandCanvas.h's list"
+#endif
+
 // The offset the quiet-hour schedule runs on: explicit `tz-offset`, else the
 // nominal zone from longitude (include/LocalOffset.h). ONE function, called by
 // both the boot print and the firing decision -- see the note at the call site.

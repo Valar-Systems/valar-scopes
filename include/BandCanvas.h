@@ -3,6 +3,20 @@
 #include "DirtyClear.h"
 #include "LGFX.h"
 
+// P5 1c's MARKS COMPILE ONLY WHERE A DIRTY SET CAN ATTACH (docs/speed-p5p6.md sections 8 and 8a): the radar edition,
+// whose weather frame attaches one (src/main.cpp, SetDirty). Every edition with its own FEATURE_ flag compiles them
+// out: dirty_ becomes a constant nullptr, so every `if (dirty_)` below folds away and the object keeps no pointer,
+// and SetDirty is deleted, so an image that attaches a set with the marks out does not compile. main.cpp checks
+// this list against its own edition chain (BANDCANVAS-LISTS): the two lists cannot disagree and build.
+#if !defined(BANDCANVAS_DIRTY_MARKS)
+#if defined(FEATURE_EAM) || defined(FEATURE_SPACE) || defined(FEATURE_SEISMIC) || defined(FEATURE_BIRDING) || \
+    defined(FEATURE_FISHING) || defined(FEATURE_CLAUDESCOPE) || defined(FEATURE_SPEED) || defined(FEATURE_WEATHERSCOPE)
+#define BANDCANVAS_DIRTY_MARKS 0
+#else
+#define BANDCANVAS_DIRTY_MARKS 1
+#endif
+#endif
+
 // Banded-rendering facade over a single band-height LGFX_Sprite.
 //
 // The radar/list/detail draw code is written in absolute 240x240 screen coordinates.
@@ -31,7 +45,11 @@ public:
     int offsetY() const { return oy_; }
 
     // P5 1c: the dirty set this frame marks into (nullptr: none), and the two ways a direct write reports itself.
+#if BANDCANVAS_DIRTY_MARKS
     void SetDirty(dirtyclear::Set* s) { dirty_ = s; }
+#else
+    void SetDirty(dirtyclear::Set*) = delete;   // marks compiled out: attaching a set must not compile (section 8)
+#endif
     dirtyclear::Set* Dirty() const { return dirty_; }
     void DirtyAll() { if (dirty_) dirty_->All(); }
     void MarkSpan(int x0, int x1, int y) { if (dirty_) dirty_->Span(x0, x1, y); }
@@ -117,5 +135,9 @@ public:
 private:
     LGFX_Sprite& s_;
     int oy_;
+#if BANDCANVAS_DIRTY_MARKS
     dirtyclear::Set* dirty_ = nullptr;
+#else
+    static constexpr dirtyclear::Set* dirty_ = nullptr;   // every `if (dirty_)` folds away; no per-object pointer
+#endif
 };
