@@ -42,10 +42,18 @@ namespace framebench {
 // region), SWEEP_LUT with the shipping table.
 // P5 1c: CLEAR_OLD copies the whole layer (only in DrawWeatherUnder's FRAME_BENCH region), CLEAR_DIRTY restores the
 // dirty set, CLEAR_CHECK restores and counts the buffer's pixels off the layer (untimed: the count reads 115 KB).
+// Board addendum 2 (sections 7, 7d, 7e): ANCHOR_BG serves an EMPTY table (its grab is the device's own background);
+// ANCHOR_8COPY serves kAnchorLevel contacts with today's 8 copies. Both: positions at kTblT with gs 0 (they hold
+// still), radius kAnchorRungMi, and the Override set in Override(); each prints its contacts twice ([speed-p5] anchor).
 enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, OUTLINE_8COPY = 4, OUTLINE_MASK = 5,
-                      SWEEP_OLD = 6, SWEEP_LUT = 7, CLEAR_OLD = 8, CLEAR_DIRTY = 9, CLEAR_CHECK = 10, kKinds };
+                      SWEEP_OLD = 6, SWEEP_LUT = 7, CLEAR_OLD = 8, CLEAR_DIRTY = 9, CLEAR_CHECK = 10, ANCHOR_BG = 11,
+                      ANCHOR_8COPY = 12, kKinds };
 constexpr int kLevel = 40;      // C1's level: a scene's default, and Level() outside a scene
 constexpr int kTableMax = 60;   // the rows TBL-HOST verifies (tbl_host_lv.py: i < 60); Allocate() refuses a level above
+constexpr int kAnchorLevel = 20;      // 7e's pick (tools/speed-p5p6/anchor_pick.cpp): L 20 ...
+constexpr int kAnchorRungMi = 7;      // ... at R 7 mi
+constexpr uint32_t kAnchorP1Ms = 110000;   // 7d: the second print, measure start + 110 s (after the last grab)
+constexpr int kAnchorCap = 64;        // contacts one print records; a print of more says so in its count
 struct Scene {
     Kind kind;
     uint8_t level = kLevel;   // the (a) table's n in this scene
@@ -63,6 +71,10 @@ struct Scene {
 #define FRAMEBENCH_IMAGE_B {OUTLINE_8COPY}, {OUTLINE_MASK}, {OUTLINE_8COPY}, {OUTLINE_MASK}, \
                            {SWEEP_OLD}, {SWEEP_LUT}, {SWEEP_OLD}, {SWEEP_LUT}, \
                            {CLEAR_CHECK}, {CLEAR_OLD}, {CLEAR_DIRTY}, {CLEAR_OLD}, {CLEAR_DIRTY}
+// Board addendum 2's B4' (docs/speed-p5p6.md sections 7, 7d, 7e): the heap-graded C1 pair, the anchor (S2 BG, S3
+// 8COPY), CLEAR_CHECK (S4), then the margin scene last.
+#define FRAMEBENCH_A2_SCENES {C1}, {C1}, {ANCHOR_BG}, {ANCHOR_8COPY, kAnchorLevel}, {CLEAR_CHECK}, \
+                             {C1, kLevel, true, true}
 #else
 #define FRAMEBENCH_IMAGE_B {C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}
 #endif
@@ -88,8 +100,9 @@ static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
 static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "outline-8copy", "outline-mask",
-                                        "sweep-old", "sweep-lut", "clear-old", "clear-dirty", "clear-check"};
-constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0, 0, 0};
+                                        "sweep-old", "sweep-lut", "clear-old", "clear-dirty", "clear-check",
+                                        "anchor-bg", "anchor-8copy"};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 // A kind without an entry in both tables fails the build (docs/speed-p5p6.md section 0, "the kind tables").
 static_assert(sizeof(kKindName) / sizeof(kKindName[0]) == kKinds, "kKindName needs one entry per Kind");
 static_assert(sizeof(kPushDelayMs) / sizeof(kPushDelayMs[0]) == kKinds, "kPushDelayMs needs one entry per Kind");
@@ -163,7 +176,19 @@ struct State {
     Noted noted[kMaxKeys];
     int marginProbe = 0;           // A2: probes made in this margin scene's measure
     uint32_t marginNextMs = 0;     // A2: when the next one is due
+    // Board addendum 2's anchor prints (7d): stage 0 none, 1 p0 due, 2 p0 printed, 3 p1 due, 4 both printed. The
+    // radar loop records each drawn contact while a print is due; AnchorFlush prints them after the loop. In .bss
+    // (14 B x kAnchorCap = 896 B), so it is a section delta the heap bands can see, not a runtime allocation.
+    int anchorStage = 0;
+    uint32_t anchorP1Ms = 0;
+    int anchorN = 0;   // contacts drawn in the recording frame (may exceed kAnchorCap; the count says so)
+    struct AnchorRec {
+        int16_t x, y, trk10, up;
+        uint8_t cat, dot;
+        uint16_t col, ovl;
+    } anchorRec[kAnchorCap];
 };
+static_assert(sizeof(State::AnchorRec) == 14, "the anchor record is 14 B, as the heap bands assume");
 
 inline State& S()
 {
@@ -191,8 +216,23 @@ inline bool InScene()
 // C1-L: the current scene's level (kLevel outside a scene), the list's largest, and whether every level is one
 // TBL-HOST verified.
 inline int Level() { return InScene() ? (int)kScenes[S().scene].level : kLevel; }
-// P5 1a: draw today's 8-copy outline (the OLD path) in this scene.
-inline bool OutlineOld() { return InScene() && kScenes[S().scene].kind == OUTLINE_8COPY; }
+// Board addendum 2: this scene is one of the anchor's two; ANCHOR_BG's table is empty by its kind.
+inline bool AnchorScene()
+{
+    return InScene() && (kScenes[S().scene].kind == ANCHOR_BG || kScenes[S().scene].kind == ANCHOR_8COPY);
+}
+inline bool AnchorBg() { return InScene() && kScenes[S().scene].kind == ANCHOR_BG; }
+// The radius scene k is served at: the anchor's rung in its two scenes, the bench's everywhere else.
+inline int RungMi(int k)
+{
+    return (kScenes[k].kind == ANCHOR_BG || kScenes[k].kind == ANCHOR_8COPY) ? kAnchorRungMi : kRungMi;
+}
+// P5 1a: draw today's 8-copy outline (the OLD path) in this scene. ANCHOR_8COPY too: the anchor compares the host
+// port's 8 copies with the device's (sections 7 and 7d).
+inline bool OutlineOld()
+{
+    return InScene() && (kScenes[S().scene].kind == OUTLINE_8COPY || kScenes[S().scene].kind == ANCHOR_8COPY);
+}
 // P5 1b: blend the wedge with today's per-pixel wxsweep::Blend (the OLD path) in this scene.
 inline bool SweepOld() { return InScene() && kScenes[S().scene].kind == SWEEP_OLD; }
 // P5 1c: copy the whole layer (the OLD path) in this scene; or restore and count what is off the layer.
@@ -203,6 +243,50 @@ inline void NoteClear(uint32_t offPx)
     State& s = S();
     ++s.clearFrames;
     s.clearOffPx += offPx;
+}
+
+// Board addendum 2's anchor prints (7d, frozen format). A print is due at the anchor scene's measure start (p0) and
+// at measure start + kAnchorP1Ms (p1); the radar loop records each drawn contact in draw order (AnchorAdd, then
+// AnchorSetCol once markerColor is known), and AnchorFlush prints the summary line, then one line per contact.
+inline bool AnchorDue()
+{
+    const int st = S().anchorStage;
+    return AnchorScene() && (st == 1 || st == 3);
+}
+inline int AnchorAdd(int x, int y, float trueTrack, int cat, bool dot, int up, uint16_t ovl)
+{
+    State& s = S();
+    const int i = s.anchorN++;
+    if (i >= kAnchorCap) return -1;
+    State::AnchorRec& r = s.anchorRec[i];
+    r.x = (int16_t)x;
+    r.y = (int16_t)y;
+    r.trk10 = (int16_t)lroundf(trueTrack * 10.0f);
+    r.up = (int16_t)up;
+    r.cat = (uint8_t)cat;
+    r.dot = dot ? 1 : 0;
+    r.col = 0;   // set by AnchorSetCol on the marker's path; an emergency contact keeps 0 (and its ovl bit 7)
+    r.ovl = ovl;
+    return i;
+}
+inline void AnchorSetCol(int i, uint16_t col565)
+{
+    if (i >= 0 && i < kAnchorCap) S().anchorRec[i].col = col565;
+}
+inline void AnchorFlush()
+{
+    State& s = S();
+    const int pass = s.anchorStage == 1 ? 0 : 1;
+    Serial.printf("[speed-p5] anchor S%d p%d contacts %d\n", s.scene, pass, s.anchorN);
+    const int n = s.anchorN < kAnchorCap ? s.anchorN : kAnchorCap;
+    for (int i = 0; i < n; ++i) {
+        const State::AnchorRec& r = s.anchorRec[i];
+        Serial.printf("[speed-p5] anchor S%d p%d c%d x %d y %d trk %d cat %u dot %u up %d col %04x ovl %03x\n", s.scene,
+                      pass, i, r.x, r.y, r.trk10, (unsigned)r.cat, (unsigned)r.dot, r.up, (unsigned)r.col,
+                      (unsigned)r.ovl);
+    }
+    s.anchorN = 0;
+    s.anchorStage = s.anchorStage == 1 ? 2 : 4;
 }
 inline int MaxLevel()
 {
@@ -223,7 +307,17 @@ inline const char* Override(const char* key)
 {
     if (!InScene()) return nullptr;
     static char rung[8];
-    snprintf(rung, sizeof rung, "%d", kRungMi);
+    snprintf(rung, sizeof rung, "%d", RungMi(S().scene));
+    // Board addendum 2's anchor scenes (section 7d's table, ruled and accepted): the sweep, labels, trails,
+    // highlight and overhead off (the overlays with a switch), the picture north-up (the host's pick projects with
+    // up 0), the darts on. wx-layer is the scene's own answer below (on: ruling (1)); the radius is RungMi above.
+    if (AnchorScene()) {
+        if (strcmp(key, "scanline") == 0 || strcmp(key, "infotext") == 0 || strcmp(key, "trail") == 0 ||
+            strcmp(key, "highlight") == 0 || strcmp(key, "lookup") == 0)
+            return "false";
+        if (strcmp(key, "radar-up") == 0) return "0";
+        if (strcmp(key, "triangle") == 0) return "true";
+    }
     if (strcmp(key, "latitude") == 0) return kHomeLat;
     if (strcmp(key, "longitude") == 0) return kHomeLon;
     if (strcmp(key, "radius") == 0) return rung;
@@ -400,9 +494,14 @@ inline void OnCloudPoll(JsonDocument& doc, Rows& rows, long& dataEpoch, Parse pa
     JsonArray a = doc["a"].to<JsonArray>();
     uint32_t crc = 0;
     char line[96];
-    const int n = Level();
+    // Board addendum 2 (7d, A2): in the anchor scenes the rows are computed at kTblT and served with gs 0, so
+    // PredictPosition's displacement (velocity x dt) is 0 and the contacts hold still; the wire's "t" stays `now`, so
+    // the stale ladder is untouched. ANCHOR_BG serves no rows at all, by its kind.
+    const bool anchor = AnchorScene();
+    const int n = AnchorBg() ? 0 : Level();
     for (int i = 0; i < n; ++i) {
-        const fbtable::Row r = fbtable::At(lat0, lon0, i, (double)now);
+        fbtable::Row r = fbtable::At(lat0, lon0, i, anchor ? (double)kTblT : (double)now);
+        if (anchor) r.gs = 0.0;
         JsonArray e = a.add<JsonArray>();
         e.add(static_cast<const char*>(r.hex));
         e.add(static_cast<const char*>(r.flight));

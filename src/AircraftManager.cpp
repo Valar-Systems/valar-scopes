@@ -2,6 +2,10 @@
 // THE FRAME BENCH BEGIN
 #ifdef FRAME_BENCH
 #include "FrameBench.h"   // the frame-time bench, C1 (docs/frame-time-bench.md)
+#include "OutlineScratchCheck.h"   // board addendum 2's scratch self-check (docs/speed-p5p6.md sections 7, 7d)
+namespace {
+void BenchScratchCheck();   // defined beside the scratch it checks (TheOutlineScratch), in this unnamed namespace
+}
 #endif
 // THE FRAME BENCH END
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
@@ -2177,13 +2181,14 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
             if (fb.scene < 0) {
                 if (nowMs >= framebench::START_AFTER_MS && framebench::Allocate()) {
                     framebench::SelfTime();
+                    BenchScratchCheck();   // board addendum 2: once, before S0 (R-SCRATCH: exactly one line)
                     fb.scene = 0;
                     framebench::PrepareScene(0);
                     fb.measuring = false;
                     fb.phaseStartMs = nowMs;
                     Serial.printf("[frame-bench] scene S0 %s home=Bend level=%d wx=%s rung=%dmi settle\n",
                                   framebench::kKindName[framebench::kScenes[0].kind], (int)framebench::kScenes[0].level,
-                                  framebench::kScenes[0].wx ? "on" : "off", framebench::kRungMi);
+                                  framebench::kScenes[0].wx ? "on" : "off", framebench::RungMi(0));
                     applyScene(0);
                 }
             } else if (!fb.measuring) {
@@ -2194,6 +2199,10 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     fb.overflowFrames = 0;
                     fb.marginProbe = 0;   // A2: a margin scene's first probe is due as its measure starts
                     fb.marginNextMs = nowMs;
+                    // board addendum 2 (7d): an anchor scene's p0 is due on the next frame, its p1 kAnchorP1Ms later
+                    fb.anchorStage = framebench::AnchorScene() ? 1 : 0;
+                    fb.anchorP1Ms = nowMs + framebench::kAnchorP1Ms;
+                    fb.anchorN = 0;
                     Serial.printf("[frame-bench] scene S%d measure\n", fb.scene);
                 }
             } else if (nowMs - fb.phaseStartMs >= framebench::MeasureMs(fb.scene)) {
@@ -2203,10 +2212,11 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     fb.scene = next;
                     framebench::PrepareScene(next);
                     fb.phaseStartMs = nowMs;
+                    fb.anchorStage = 0;   // no anchor print is due in a settle
                     Serial.printf("[frame-bench] scene S%d %s home=Bend level=%d wx=%s rung=%dmi settle\n", next,
                                   framebench::kKindName[framebench::kScenes[next].kind],
                                   (int)framebench::kScenes[next].level, framebench::kScenes[next].wx ? "on" : "off",
-                                  framebench::kRungMi);
+                                  framebench::RungMi(next));
                     applyScene(next);
                 } else {
                     fb.done = true;
@@ -2215,6 +2225,8 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                 }
             }
         }
+        // Board addendum 2 (7d): the anchor's p1, once, kAnchorP1Ms after its measure started (after the last grab).
+        if (fb.measuring && fb.anchorStage == 2 && (int32_t)(nowMs - fb.anchorP1Ms) >= 0) fb.anchorStage = 3;
         // A2's margin probe (docs/speed-p5p6.md section 7, rule 3(i)): ONLY while a margin scene measures, 3 probes
         // 30 s apart, each the largest internal block CanAllocate grants on the 64-B grid, less the handshake's bytes.
         if (fb.measuring && fb.scene >= 0 && framebench::kScenes[fb.scene].margin &&
@@ -4411,6 +4423,25 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         // THE FRAME BENCH BEGIN
 #ifdef FRAME_BENCH
         if (firstPass) framebench::S().drawn++;   // DRAWN (A2): this frame's drawn aircraft
+        // Board addendum 2's anchor (7d): while a print is due, record this drawn contact in draw order, with the
+        // device's OWN predicates for every overlay drawn on it below (ovl; anchor_compare refuses any nonzero bit).
+        // These are the same calls the overlay code below makes; if one of those conditions changes, change it here.
+        int anchorIdx = -1;
+        if (firstPass && framebench::AnchorDue()) {
+            uint16_t ovl = 0;
+            if (SpecialClassOf(tracked) != SpecialAircraft::Class::None) ovl |= 1u << 0;
+            if (logbookEnabled && tracked.claimable) ovl |= 1u << 1;
+            if (showOverhead && IsOverhead(tracked)) ovl |= 1u << 2;
+            if (displayHighlight && (icao == nearestIcao || icao == highestIcao || icao == fastestIcao)) ovl |= 1u << 3;
+            if (MatchesWatchlist(tracked)) ovl |= 1u << 4;
+            if (!EffectiveFollowTarget().isEmpty() && MatchesFollow(tracked)) ovl |= 1u << 5;
+            if (icao == pinnedIcao) ovl |= 1u << 6;
+            if (isEmergencySquawk(tracked.state.squawk)) ovl |= 1u << 7;
+            if (displayTrails) ovl |= 1u << 8;
+            if (displayInfoText) ovl |= 1u << 9;
+            anchorIdx = framebench::AnchorAdd(x, y, tracked.state.trueTrack, tracked.state.category, !displayTriangles,
+                                              radarUpDeg, ovl);
+        }
 #endif
         // THE FRAME BENCH END
 
@@ -4463,6 +4494,17 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
                        : (displayAltColor ? altitudeColor(tracked.state.baroAltitude)
                                           : lgfx::color888(0, 255, 0)));
             const uint32_t markerColor = scaleColor(baseColor, blip);
+            // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+            // Board addendum 2 (7d): `col`, the RGB565 the 16-bit backbuffer's writer stores for markerColor (a
+            // uint32_t, so LovyanGFX's rgb888 path: color_convert<swap565_t, rgb888_t>), byte-swapped into the
+            // big-endian order /diag/fb serves.
+            if (anchorIdx >= 0) {
+                const uint16_t sw = (uint16_t)lgfx::color_convert<lgfx::swap565_t, lgfx::rgb888_t>(markerColor);
+                framebench::AnchorSetCol(anchorIdx, (uint16_t)((sw >> 8) | (sw << 8)));
+            }
+#endif
+            // THE FRAME BENCH END
 
             // While the layer is on, every plane gets a 1 px black edge in both looks (WD5; WD4 addendum 2; look B
             // too since the avionics ruling of 2026-11-06), so a faded plane is never the same colour as the cell
@@ -4599,6 +4641,12 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             backbuffer.drawString(cs, x - (int)backbuffer.textWidth(cs) / 2, y + 13);
         }
     }
+
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (firstPass && framebench::AnchorDue()) framebench::AnchorFlush();   // board addendum 2 (7d): p0 or p1
+#endif
+    // THE FRAME BENCH END
 
     // THE FRAME IS FINISHED BEING WRITTEN ON -- harvest it. Per frame rather
     // than incrementally, because a MAX needs a frame to be a unit: summing as
@@ -5944,6 +5992,24 @@ OutlineScratch& TheOutlineScratch()
     static OutlineScratch scratch;
     return scratch;
 }
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+// Board addendum 2's scratch self-check (docs/speed-p5p6.md sections 7, 7d): the fixed pattern drawn into THIS
+// scratch through outlinemask::Draw, read back through its own Row(), against the host port's table. On the loop task,
+// where DrawEdge runs, so nothing draws into the scratch meanwhile; DrawEdge's Begin() clears it after.
+void BenchScratchCheck()
+{
+    OutlineScratch& s = TheOutlineScratch();
+    if (!s.Begin()) {
+        Serial.println("[speed-p5] scratch none");
+        return;
+    }
+    scratchcheck::DrawPattern(s);
+    Serial.printf("[speed-p5] scratch bytes %d mismatches %d\n", scratchcheck::kBytes,
+                  scratchcheck::Mismatches(s, scratchcheck::kTable));
+}
+#endif
+// THE FRAME BENCH END
 }  // namespace
 
 void AircraftManager::DrawOutlineMask(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const
