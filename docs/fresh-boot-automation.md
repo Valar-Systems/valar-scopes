@@ -345,3 +345,117 @@ folder.
 cadence check from its own tree (`( cd "$ROOT" && ... )`), so a launch from any folder works. Red first: from his home
 folder the old driver refused with INSTRUMENT (exit 2); the fix passed both from there and from inside the tree. A `cd`
 first is still harmless.
+
+### Addendum 3 (2026-11-17 ~00:50Z): the rehearsal graded, and fixes 1-4 registered before their code
+
+Nothing above is edited.
+
+**The rehearsal, 2026-11-16 19:25-20:07Z, on `2c555062482d`.** All three runs took `--handback check`, and the hand-back
+hash read equal before each one.
+
+- **Run 1 (`--controls`): 10 PASS.**
+  - Nine rows passed at the run.
+  - The boots row was read afterwards (20:10Z): ONE_POWERON, with one anchor row. The owner's shell had no analytics
+    token during the run, so `--grade-boots` could not query then. The re-read used the kept step files, with its
+    prediction frozen first.
+  - **K-wifi was VOID in the driver.** The Enter came before the wrong-password save, so the 90 s window graded
+    nothing. Read by hand from the capture instead: no `[WiFi] CONNECTED` in the 97 s after the save (19:31:49-19:33:26Z).
+    The reviewer ruled that reading to stand.
+  - R2: 57 of 57.
+- **Run 2 (`--sabotage skip-reset`): INCOMPLETE.**
+  - His real settings had the logbook off. Step 1 was skipped, so nothing turned it on, and the owner ticked it by hand
+    (19:53:50Z, ruled).
+  - The driver exported the board's address only in step 2's join branch. With no address, `--grade-cut` wrote
+    `NOCLAIM` and returned at once. The driver then cut the power with no watcher, and step 6's GET read `000`
+    mid-reboot. The run stopped there.
+  - Restored by hand: 57 of 57.
+  - A post-hoc `--assert-only` on its capture, predictions frozen first: both step-1 rows FAIL, as predicted.
+- **Run 3 (`--sabotage skip-off`):** 8 PASS, plus the two predicted step-6 FAILs. Boots ONE_POWERON. R2: 57 of 57.
+
+**RH6, corrected here, not edited above.** RH6 predicted that in S-noreset "the rest pass". Two rows cannot, because
+both depend on the reboot that step 1 causes:
+- **The build banner.** The capture attaches to a running board and ends at the cut, so it holds no boot. Run 2's
+  capture has no `[build]` line.
+- **The boot count's anchor.** The anchor is a boot of this device in the hour before the cut.
+
+The re-run's predictions below carry both rows.
+
+**The four fixes** (the reviewer's merge bar, 2026-11-16 20:08Z). Every row is a selftest, and the order is fixed:
+1. The rows go in first, with seams that keep the OLD behaviour.
+2. The selftests run, and must show exactly the RED set below.
+3. The fixes land, and every row must then read GREEN.
+4. Every selftest row that existed before must stay as it was.
+
+| fix | row | what it checks | old code | fix |
+|---|---|---|---|---|
+| 1 | E1 | `wait_enter`: a typed line is ignored (its text never printed), and the next empty line returns, consuming both | RED: returns at the typed line | GREEN |
+| 1 | E2 | a typed line, then end of input, is not an Enter: non-zero | RED: returns 0 | GREEN |
+| 1 | E3 | control: a bare CRLF Enter returns 0 | GREEN | GREEN |
+| 1 | K1 | `kwifi_grade`: a portal save line and no CONNECTED within the window -> PASS | GREEN | GREEN |
+| 1 | K2 | a save line, then a CONNECTED appended inside the window -> RED | GREEN | GREEN |
+| 1 | K3 | THE PLANT: an Enter with no save line -> VOID | RED: PASS | GREEN |
+| 1 | K4 | run 1's shape: the Enter first, the save line appended 3 s later, no CONNECTED -> PASS, the window opened at the save | GREEN | GREEN |
+| 1 | K5 | a save line BEFORE the prompt does not open the window -> VOID | RED: PASS | GREEN |
+| 2 | T1 | the dry run with no analytics token (neither `CF_API_TOKEN` nor `BLIPSCOPE_TOKEN_FILE`) refuses: exit 2, `analytics token: absent` | RED: exit 0 | GREEN |
+| 2 | T2 | with a sentinel in `CF_API_TOKEN`: exit 0, `analytics token: present`, and the sentinel nowhere in the output | RED: no presence line | GREEN |
+| 2 | T3 | `fba-boot-rows.mjs --check-token`: a token file with a sentinel `analytics-read=` line reads present (exit 0, the sentinel not printed); a file without that line reads absent (exit 3) | RED: usage, exit 2 | GREEN |
+| 3 | B1 | `board_addr`: a local listener answering 200, by name -> its IPv4 address | RED: the old branch used the name itself | GREEN |
+| 3 | B2 | a closed port -> empty (the run refuses) | RED | GREEN |
+| 3 | B3 | a listener answering 501 -> empty | RED | GREEN |
+| 3 | G1 | `precut_guard`: no `FBA_DEVICE_IP` -> refuses, no cut | RED: old waits 5 s and cuts | GREEN |
+| 3 | G2 | the watcher already exited (its no-address line) -> refuses | RED | GREEN |
+| 3 | G3 | control: an address, and a live watcher that printed its marker -> passes | GREEN | GREEN |
+| 3 | G4 | a live watcher that never prints its marker within the guard's wait -> refuses | RED | GREEN |
+| 3 | G5 | the marker the guard waits for is the one `--grade-cut` prints (run whole, through its seams) | GREEN | GREEN |
+| 3 | FO1 | `fresh-boot-form.py body --on logbook`, on a page with it unticked, posts `logbook=on`, and `cfg-toggles` still declares it | RED: no `--on`, logbook absent | GREEN |
+| 3 | FO2 | `--on` a name that is not a checkbox refuses (exit 2) and writes nothing | RED: exit 0 | GREEN |
+| 3 | FO3 | control: `--on logbook`, on a page with it ticked, posts it exactly once | GREEN | GREEN |
+| 4 | A1 | `--probe-claim`: a claim and no address -> `verdict=NOIP` | RED: NOPROBE | GREEN |
+| 4 | A2 | `--probe-claim`: no claim -> `verdict=NOCLAIM` | RED: NOPROBE | GREEN |
+| 4 | A3 | `--assert-only` with a `NOIP` probe: step 4 says the address was unknown, and never "not the first fetch" | RED | GREEN |
+| 4 | A4 | `--grade-cut`: a claim and no address -> `verdict=NOIP` | RED: NOCLAIM | GREEN |
+| 4 | A5 | `--assert-only` with step 5 `NOIP`: says the address was unknown, and never "No claim in the log" | RED: the BLIND text | GREEN |
+| 4 | A6 | control: `--grade-cut` with no claim -> `NOCLAIM` | GREEN | GREEN |
+
+The RED set on the old code is every row whose "old code" cell is not GREEN. The controls are the rest. If the reds or
+the greens differ in any row, that is OFF: stop, and report before any fix lands.
+
+**Where each fix is wired.** These run only on a board:
+- **Fix 1.** K-wifi (`--controls` only) waits up to 180 s after the Enter for the portal's `/wifisave` line, counted
+  from the prompt, then watches 90 s from there.
+  - A VOID K-wifi is reported as VOID and ends the run with exit 4 after R2: a control that tested nothing is never a
+    pass.
+  - R1's Enter goes through `wait_enter` too, so a command typed into the driver's window is ignored instead of being
+    taken as the Enter (run 2, 2026-11-16).
+- **Fix 2.** The preflight prints `analytics token: present` or `analytics token: absent`, and refuses on absent (exit
+  2) before anything is touched. It asks the boot-row reader's own resolver, so presence means "the query will have a
+  token", not "a variable is set".
+- **Fix 3.** In `skip-reset`, after R0:
+  - The address comes from a fetch of the board's own page by name, over IPv4 (curl's `remote_ip`, never printed). It
+    is exported as `FBA_DEVICE_IP`, exactly as step 2's join branch does. If it cannot be read, the run refuses (exit
+    3) with nothing changed.
+  - The logbook goes to its default, ON (`LOGBOOK_DEFAULT_ON`, which is what a factory reset leaves), by a `/save` of
+    the page's own values plus the box. It is read back (K-lb).
+  - Before EVERY cut, `precut_guard` requires an address, and requires the watcher to be alive and to have printed its
+    watching line. Otherwise the run stops with exit 3 and the power NOT cut.
+- **Fix 4.** The acceptance only.
+
+**At the sitting (2026-11-17 22:00Z): run 2's re-run, `--sabotage skip-reset --handback check`.**
+
+| row | predicted | if not |
+|---|---|---|
+| **RR0** | preflight passes, including `analytics token: present`, and the hand-back hash reads equal | stop (exit 2), nothing touched |
+| **RR1** | skip-reset: the address is read (IPv4, not printed), and the logbook set ON and read back (K-lb) | stop (exit 3). After a failed K-lb, the logbook may be on, and R1 restores it |
+| **RR2** | step 2b POST 200 and K-loc equal. Step 3: his tap. Step 4: the probe CLAIMED, `first=yes` | stop, as RH4 and RH5 |
+| **RR3** | `precut_guard` passes and the cut is made. Step 5 CLAIMED. Step 6: OFF and CLAIMED | a red is a FINDING, as RH5 |
+| **RR4** | `--assert-only`: FAIL exactly the banner and both step-1 rows. PASS: step 3, both step-4 rows, step 5, both step-6 rows. Boots: UNTRUSTWORTHY with `anchor=0` if E2:08 did not boot in the hour before the cut (expected), or ONE_POWERON with `anchor>=1` if it did. The two are told apart by the same query's anchor count | any other boots verdict (WRONG, NONE, UNSTABLE, a failed query), or any other FAIL: stop and report, with no reading improvised |
+| **RR5** | R1 by his file. R2 equal, `cfg-toggles` ignored. No `fba-*` work dir left | as RH7 |
+| escape | anything the rows above do not name | stop and report, with E2:08 left as it is |
+
+Two of these rest on run 2's own capture:
+- **Step 1's second row FAILs.** A `/save` that turns the logbook on mid-session prints no `[logbook] loaded` line: run
+  2's capture holds 0 of them after his tick.
+- **The banner row FAILs.** That capture holds 0 `[build]` lines.
+
+**CI at the push:** 34 = 32 pass / 2 skipping (promote, version) / 0 fail. The bench-tools workflow (#735, no path
+filter) adds the 34th.
