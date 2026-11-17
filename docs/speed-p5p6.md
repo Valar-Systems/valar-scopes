@@ -1935,3 +1935,18 @@ launches, and all three read it **EMPTY**.
 
 **So the launcher every build and window uses is `launch.ps1` `d04a1c87f589`:** hidden by `ShowWindow = 0`, refusing a
 nonzero ReturnValue with exit 10, and exiting 0 explicitly. bgcheck read PASS (0 running) after both runs.
+
+### 7c. The seal gains `[speed-a2]` (2026-11-17 ~01:3xZ), its own commit as section 7 ruled
+
+`tools/speed-p5p6/trace_filter.py` now passes `[speed-a2]` lines whole (addendum 2's margin probe). Everything else it
+withholds is unchanged. Its sha256 moves from `eb31148e50ec` to `6741186f03b0`.
+
+- **Selftest: 30 ok, 0 FAIL.** One row was added: a synthetic `[speed-a2] heap margin S2 p0 50048` line passes whole.
+  The printed count is now exactly 11.
+- **Three sabotages, each red:**
+  - HEALTH-WHOLE (`[health]` passed whole): 7 FAIL;
+  - FB-PASS (`[frame-bench]` passed): 3 FAIL;
+  - **A2-DROP (`[speed-a2]` removed from the pass list): 3 FAIL.** The keep row fails, the withheld counts change,
+    and 10 lines are printed instead of 11.
+
+Section 6's traces were filtered by `eb31148e50ec` and stay so. The new sha applies to addendum 2's window only.
