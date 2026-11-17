@@ -842,6 +842,66 @@ ran, but no artifact named the path.
 - **The rule taken:** a frozen script's dry run runs on the FROZEN PATH, after the copy, with its sha read before and
   after. `win_a0a.ps1`'s proofs in docs/frame-profile.md were taken that way.
 
+**M3 TO MAIN: THE ROUTE AND THE CLEAN PR's LOCAL BUILD (2026-11-17, 07:33Z-08:33Z; the orchestrator's rulings; the
+text above stands as written).**
+- **THE ROUTE (ruled ~07:35Z):** after M3-8 tonight and M3-9's glass photos (an owner sitting of about 10 min, asked for
+  11-18), a CLEAN PR from main carries be850c9a's change ALONE. It is merged by rule after its CI prediction and
+  blipscope-5c's read of the shared `main.cpp` change. #687's branch stays the bench branch: no force-push, and no bench
+  env reaches main.
+- **THE CHANGE, local only:** branch `p4/m3-clean` at `89477764ead6` = main `1695645d44b4` + be850c9a cherry-picked
+  `-x`. Its `git patch-id --stable` equals be850c9a's (`b2d68a099660`), so it is the same patch byte for byte.
+  - merge-tree onto main exits 0, and again onto `c7f73d10d2e7` (#744, which touched only proxy/ and the Workers
+    workflow).
+  - It stays LOCAL until M3-8 and M3-9 pass.
+- **REGISTERED BEFORE ANY BUILD** (`_handoffs/p4/m3main`):
+  - **`PREDICTIONS.txt`** (`87943cd9329c`):
+    - the 12 envs come from `skus.py --build-envs`;
+    - REACHED (5) and PLACED (7) come from PlatformIO's resolved config against s3_128.h's guard. An early classifier
+      of mine that read FEATURE_CLOUD_FEED as an edition flag was caught before freezing.
+    - P1: all 24 builds exit 0.
+    - P2: each PLACED image is the same length, its differing bytes only in app_elf_sha256, the image SHA-256 and the
+      checksum.
+    - P3: each REACHED image grows by 3,000-10,000 B, the five agreeing within 64 B.
+    - P4: `pushtask` is in the REACHED ELFs only, with the base ELFs as the control.
+  - **`AMENDMENT-1.txt`** (`a1393b481632`, 07:38:24Z, the orchestrator's ruling, before any comparison):
+    - P2-alt and P3-alt run weatherscope's `objcmp.py` (blob `d203cbd789f0`, read from bench/speed-p5) on EVERY
+      object.
+    - It runs with NO exception list, since SOURCE_DATE_EPOCH pins every stamp on both sides (ruled).
+    - The base half's first run deleted build dirs, so it was stopped before its first env finished and restarted to
+      keep every object.
+  - **`CI-PREDICTION.txt`** (`f962e1618867`): 37 check-runs = 34 success + 3 skipped (version, promote, web-renderer
+    publish). It is derived from main's workflows and the check-runs of #744 and #727, and is re-derived at push.
+  - **The grader** (`grade_m3main.py` `5cc2e4e0a1bb`) passed its selftest 7 of 7 on synthetic images plus copies of real
+    objects. Its first selftest had failed on its own parser, which was fixed before use.
+- **THE RUN:** one worktree path, epoch 1762862445, PowerShell, hidden, one build at a time, each from clean, every
+  build dir archived.
+  - Base: 07:38:47Z-08:05:43Z. Change: 08:06:08Z-08:31:30Z.
+- **THE GRADE** (08:31:58Z, `grade.out`): 41 rows, 5 False, so OUTSIDE THE SET, and stopped.
+  - **P1:** 24 of 24.
+  - **P2:** 7 of 7, 65 differing bytes per PLACED pair, all in the three regions, elsewhere 0.
+  - **P3-alt:** 5 of 5. The five D spread 80 B, and objcmp found only `src/main.cpp.o` and
+    `src/ConfigurationWebServer.cpp.o` differing, with 257 of 259 objects identical (259 of 261 in mapbench), so the
+    spread is link layout.
+  - **P4:** 24 of 24, with its control.
+  - **P3's BAND MISSED, 5 of 5:** D = +1,744 (s3-128), +1,728 (wxlook), +1,760 (mapbench), +1,808 (joindiag) and
+    +1,760 (cardbench) B, against the predicted 3,000-10,000.
+- **THE RULING on the miss (the orchestrator; received between p4's date -u reads at 08:32:57Z and 08:34:20Z):**
+  1. P3's band is OFF, and it is MY miss. Its basis was wrong: M3-0's bench pair differed in all the bench-only code
+     under the macro (`2a937f75`..`64762529`), which be850c9a does not carry, and the 3,000 floor was a guess.
+     - Recorded as INFORMATION, computed AFTER seeing the result: the two touched objects' allocated bytes grow by
+       main.cpp.o +2,315..+2,327 and ConfigurationWebServer.cpp.o −276..−280, and the image grows 239-311 B less than
+       that (link-time GC and merging).
+     - The alternatives are excluded: (a) a partial compile, by P4, objcmp's two-TU confinement and per-object deltas
+       equal within 12 B; (b) the base rebuilt, by HEAD `89477764`, new shas and the mark present; (c) link noise,
+       which is tens of bytes against about 1.2 KB.
+     - It is a first miss on this row, not a red on the tree.
+  2. NO REBUILD. The tree's correctness is carried by what held as registered: P1, P2, P3-alt and P4.
+  3. Any FUTURE build of this PR (for instance if main touches src/ before the push) registers a band derived from THIS
+     measurement before that run: D +1,700..+1,850 B, the differing objects ⊆ the two TUs, P2 unchanged. That is a new
+     run's prediction, never this run's re-fit.
+- **AT PUSH:** merge-tree against main as it is then, a rebuild per (3) only if firmware paths have moved, and the CI
+  prediction re-derived.
+
 **How M3-8's OTA install is served without touching the fleet.** The path is the one the code already documents
 (`OtaUpdater.cpp:101-104`). A bench image is built with `-DOTA_RELEASE_BASE=https://github.com/Valar-Systems/valar-scopes/releases/download/<bench tag>`,
 pointing at a **prerelease**:
