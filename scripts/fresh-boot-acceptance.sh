@@ -262,6 +262,33 @@ L
   gscase two          "$T/rows-two"   1500 WRONG       3
   gscase one          "$T/rows-one"   1500 ONE_POWERON 2
   gscase after-window "$T/rows-after" 1200 ONE_POWERON 2
+  # A1-A6 (fix 4; docs/fresh-boot-automation.md Addendum 3, registered at 0170a04110ef): a missing ADDRESS is not a
+  # missing CLAIM, and the probe's verdict is read before `first`. On 2026-11-16 (run 2) a claim with no address read
+  # as "not the first fetch" at step 4 and "No claim in the log" at step 5: both wrong, both about the instrument.
+  arow() { if [ "$2" -eq 0 ]; then printf '  ok    %s\n' "$1"; else printf '  FAIL  %s\n' "$1"; st=1; fi; }
+  rvf() { sed -n "s/.* verdict=\([^ ]*\).*/\1/p" "$1" 2>/dev/null; }
+  base | sed '/CONNECTED/d' > "$T/a1.log"
+  env -u FBA_DEVICE_IP bash "$0" --probe-claim "$T/a1.log" >/dev/null 2>&1; v="$(rvf "$T/a1.log.probe")"
+  arow "A1 probe: a claim and no address -> NOIP (got ${v:-<none>})" "$([ "$v" = NOIP ] && echo 0 || echo 1)"
+  base | sed '/CONNECTED/d; /\[claim\]/d' > "$T/a2.log"
+  env -u FBA_DEVICE_IP bash "$0" --probe-claim "$T/a2.log" >/dev/null 2>&1; v="$(rvf "$T/a2.log.probe")"
+  arow "A2 probe: no claim -> NOCLAIM (got ${v:-<none>})" "$([ "$v" = NOCLAIM ] && echo 0 || echo 1)"
+  mk a3 "" "probe claim=E75L claim_line=8 ip=- http=0 verdict=NOIP first=no"
+  out="$(bash "$0" --assert-only "$T/a3.log" 2>&1)"
+  arow "A3 assert: a NOIP probe fails step 4 saying the address was unknown, never 'not the first fetch'" \
+    "$(printf '%s' "$out" | grep -q "FAIL  $S4" && printf '%s' "$out" | grep -q 'address was unknown' && ! printf '%s' "$out" | grep -q 'not the first fetch' && echo 0 || echo 1)"
+  base | sed '/CONNECTED/d' > "$T/a4.log"
+  env -u FBA_DEVICE_IP FBA_POLL_S=0 FBA_CUT_WAIT_S=1 FBA_BACK_WAIT_S=1 FBA_LB_WAIT_S=1 bash "$0" --grade-cut "$T/a4.log" >/dev/null 2>&1
+  v="$(rvf "$T/a4.log.step5")"
+  arow "A4 grade-cut: a claim and no address -> NOIP (got ${v:-<none>})" "$([ "$v" = NOIP ] && echo 0 || echo 1)"
+  mk a5 "" "$probe_ok" "step5 claim=E75L ip=- verdict=NOIP"
+  out="$(bash "$0" --assert-only "$T/a5.log" 2>&1)"
+  arow "A5 assert: step 5 NOIP fails saying the address was unknown, never 'No claim in the log'" \
+    "$(printf '%s' "$out" | grep -q "FAIL  $S5" && printf '%s' "$out" | grep -q 'address was unknown' && ! printf '%s' "$out" | grep -q 'No claim in the log' && echo 0 || echo 1)"
+  base | sed '/\[claim\]/d' > "$T/a6.log"
+  env -u FBA_DEVICE_IP FBA_POLL_S=0 FBA_CUT_WAIT_S=1 FBA_BACK_WAIT_S=1 FBA_LB_WAIT_S=1 bash "$0" --grade-cut "$T/a6.log" >/dev/null 2>&1
+  v="$(rvf "$T/a6.log.step5")"
+  arow "A6 control: grade-cut with no claim -> NOCLAIM (got ${v:-<none>})" "$([ "$v" = NOCLAIM ] && echo 0 || echo 1)"
   rm -rf "$T"
   [ "$st" -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED"
   exit "$st"

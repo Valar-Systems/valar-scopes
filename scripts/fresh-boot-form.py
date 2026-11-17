@@ -359,6 +359,27 @@ def selftest():
               "SENTINEL" not in read(shash) and "12.3456789" not in read(shash) and "loc0-lat\t" in read(shash))
         check("F7-control: the count and names lines still print",
               "fields" in text and "differ: loc0-lat" in text and "FAILED: FileNotFoundError" in text)
+        # FO1-FO3 (fix 3; docs/fresh-boot-automation.md Addendum 3, registered at 0170a04110ef): `--on NAME` ticks one
+        # checkbox, so skip-reset can put the logbook back to its default (ON, what a factory reset leaves) through the
+        # page's own form. On 2026-11-16 (run 2) the owner's real settings had it off and nothing turned it on.
+        unticked = os.path.join(d, "u.html")
+        with open(unticked, "w", encoding="utf-8") as fh:
+            fh.write(SYNTH.replace('<input name="logbook" type="checkbox" checked>', '<input name="logbook" type="checkbox">'))
+        ob, ob2 = os.path.join(d, "o.body"), os.path.join(d, "o2.body")
+        with contextlib.redirect_stdout(io.StringIO()):
+            r1 = guarded(["body", unticked, ob, "--on", "logbook"])
+        sent = urllib.parse.parse_qsl(read(ob), keep_blank_values=True) if os.path.exists(ob) else []
+        check("FO1 --on logbook, on a page with it unticked, posts logbook=on and cfg-toggles still declares it",
+              r1 == 0 and sent.count(("logbook", "on")) == 1 and bool(sent) and sent[-1] == ("cfg-toggles", "logbook,chime"))
+        with contextlib.redirect_stdout(io.StringIO()):
+            r2 = guarded(["body", unticked, ob2, "--on", "nosuchbox"])
+        check("FO2 --on a name that is not a checkbox refuses (exit 2) and writes nothing",
+              r2 == 2 and not os.path.exists(ob2))
+        with contextlib.redirect_stdout(io.StringIO()):
+            r3 = guarded(["body", page, ob, "--on", "logbook"])
+        sent = urllib.parse.parse_qsl(read(ob), keep_blank_values=True)
+        check("FO3 control: --on logbook, on a page with it ticked, posts it exactly once",
+              r3 == 0 and sent.count(("logbook", "on")) == 1)
     finally:
         import shutil
         shutil.rmtree(d, ignore_errors=True)

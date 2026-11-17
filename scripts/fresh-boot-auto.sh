@@ -74,9 +74,9 @@ say() { printf '%s %s\n' "$(date -u +%H:%M:%SZ)" "$*"; }
 die() { say "STOPPED: $*"; exit "${2:-3}"; }
 
 # wait_enter: the owner's Enter, from the terminal the script runs in (stdin first: in his own terminal that is the
-# terminal; /dev/tty only when stdin is not one).
+# terminal; /dev/tty only when stdin is not one). FBA_ENTER_STDIN (selftest seam): read stdin even when it is not one.
 wait_enter() {
-  if [ -t 0 ]; then read -r _; return $?; fi
+  if [ -t 0 ] || [ -n "${FBA_ENTER_STDIN:-}" ]; then read -r _; return $?; fi
   read -r _ < /dev/tty 2>/dev/null
 }
 
@@ -110,6 +110,19 @@ wait_log() {
   done
 }
 
+# kwifi_grade <log> <after-line> <save-wait-s> <window-s>: K-wifi's verdict, PASS, RED or VOID (fix 1).
+kwifi_grade() {
+  if wait_log "$1" '\[WiFi\] CONNECTED' "$2" "$4" >/dev/null; then echo RED; else echo PASS; fi
+}
+
+# board_addr <host>: the address the skip-reset branch hands the graders as FBA_DEVICE_IP (fix 3).
+board_addr() { printf '%s' "$1"; }
+
+# precut_guard <watcher-output> <watcher-pid>: 0 when the power may be cut (fix 3). GUARD_MARKER is the line
+# --grade-cut prints once it is watching; G5 checks the two still agree.
+GUARD_MARKER="step 5: watching"
+precut_guard() { return 0; }
+
 # get_page <host> <out.html>: the config page, to a file (it carries his settings; never printed). Echoes the status.
 get_page() { curl -s -m 20 -o "$2" -w '%{http_code}' "http://$1/"; }
 post() { # post <host> <path> <curl data args...>: echoes the status, never the body
@@ -121,6 +134,9 @@ post() { # post <host> <path> <curl data args...>: echoes the status, never the 
 if [ "$MODE" = "selftest" ]; then
   T="$(mktemp -d)"; bad=0
   ok() { if [ "$2" = "0" ]; then echo "PASS $1"; else echo "FAIL $1"; bad=$((bad + 1)); fi; }
+  # The dry runs below get a made-up analytics token, so the preflight's presence check (fix 2) does not refuse
+  # them; T1 removes it to see that refusal. No real token is ever read here.
+  export CF_API_TOKEN="selftest-not-a-token"; unset BLIPSCOPE_TOKEN_FILE
   # W1: wait_log finds a line written AFTER the wait began, and only after the given line.
   printf 'a\n[WiFi] CONNECTED  IP=192.0.2.10\nb\n' > "$T/log"
   ( sleep 3; printf '[WiFi] CONNECTED  IP=192.0.2.11\n' >> "$T/log" ) &
@@ -173,6 +189,87 @@ if [ "$MODE" = "selftest" ]; then
   ok "HB3 --handback keep over a kept hash refuses (exit 2) and leaves it as it was" "$([ $rc -eq 2 ] && [ "$(cat "$hb")" = "$before" ] && printf '%s' "$out" | grep -q 'already exists' && echo 0 || echo 1)"
   FBA_CFGDIR="$T/cfg" bash "$0" --drop-handback >/dev/null 2>&1; rc=$?
   ok "HB4 --drop-handback removes it (exit 0, file gone)" "$([ $rc -eq 0 ] && [ ! -e "$hb" ] && echo 0 || echo 1)"
+
+  # ---- FIXES 1-4 (docs/fresh-boot-automation.md, Addendum 3): rows registered at 0170a04110ef, before the code ----
+  # E1-E3 (fix 1): wait_enter takes only a bare Enter. On 2026-11-16 a command typed into this window was taken as R1's.
+  printf 'SENTINEL-CMD\n\n' > "$T/in1"
+  out="$( { FBA_ENTER_STDIN=1 wait_enter; echo "rc=$?"; if IFS= read -r _; then echo LEFT; fi; } < "$T/in1" 2>&1 )"
+  ok "E1 a typed line is ignored (its text never printed), and the next empty line returns, consuming both" \
+    "$(printf '%s\n' "$out" | grep -qx 'rc=0' && ! printf '%s' "$out" | grep -q LEFT && ! printf '%s' "$out" | grep -q SENTINEL && echo 0 || echo 1)"
+  printf 'SENTINEL-CMD\n' > "$T/in2"; ( FBA_ENTER_STDIN=1 wait_enter ) < "$T/in2" >/dev/null 2>&1; rc=$?
+  ok "E2 a typed line, then end of input, is not an Enter (exit $rc, want non-zero)" "$([ $rc -ne 0 ] && echo 0 || echo 1)"
+  printf '\r\n' > "$T/in3"; ( FBA_ENTER_STDIN=1 wait_enter ) < "$T/in3" >/dev/null 2>&1; rc=$?
+  ok "E3 control: a bare CRLF Enter returns 0 (exit $rc)" "$([ $rc -eq 0 ] && echo 0 || echo 1)"
+  # K1-K5 (fix 1): K-wifi's window opens at the board's own portal save line, counted from the prompt, never at the
+  # Enter. The line carries the portal's address and the path only (include/WiFiManagerHelpers.h, TimePortalRequests).
+  SV='[portal] t=1 req#2 +900 ms after association: 192.168.4.1/wifisave served in 40 ms'
+  CN='[WiFi] CONNECTED  IP=192.0.2.10  RSSI=-50 dBm'
+  printf 'a\nprompt\n%s\n' "$SV" > "$T/k1"; v="$(kwifi_grade "$T/k1" 2 3 3)"
+  ok "K1 a save line and no CONNECTED within the window -> PASS (got $v)" "$([ "$v" = PASS ] && echo 0 || echo 1)"
+  printf 'a\nprompt\n%s\n' "$SV" > "$T/k2"; ( sleep 1; printf '%s\n' "$CN" >> "$T/k2" ) &
+  v="$(kwifi_grade "$T/k2" 2 3 5)"; wait
+  ok "K2 a save line, then a CONNECTED inside the window -> RED (got $v)" "$([ "$v" = RED ] && echo 0 || echo 1)"
+  printf 'a\nprompt\n' > "$T/k3"; v="$(kwifi_grade "$T/k3" 2 3 3)"
+  ok "K3 THE PLANT: an Enter with no save line -> VOID (got $v)" "$([ "$v" = VOID ] && echo 0 || echo 1)"
+  printf 'a\nprompt\n' > "$T/k4"; ( sleep 3; printf '%s\n' "$SV" >> "$T/k4" ) &
+  v="$(kwifi_grade "$T/k4" 2 9 3)"; wait
+  ok "K4 the Enter first, the save line 3 s later, no CONNECTED -> PASS, opened at the save (got $v)" "$([ "$v" = PASS ] && echo 0 || echo 1)"
+  printf 'a\n%s\nprompt\n' "$SV" > "$T/k5"; v="$(kwifi_grade "$T/k5" 3 3 3)"
+  ok "K5 a save line BEFORE the prompt does not open the window -> VOID (got $v)" "$([ "$v" = VOID ] && echo 0 || echo 1)"
+  # T1-T3 (fix 2): the analytics token's presence, asked of the boot-row reader's own resolver; never its value.
+  out="$(env -u CF_API_TOKEN -u BLIPSCOPE_TOKEN_FILE FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
+  ok "T1 no analytics token: the dry run refuses (exit $rc, want 2), saying 'analytics token: absent'" \
+    "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -q 'analytics token: absent' && echo 0 || echo 1)"
+  out="$(env -u BLIPSCOPE_TOKEN_FILE CF_API_TOKEN=TOKSENTINEL-not-a-token FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
+  ok "T2 a token: exit $rc (want 0), 'analytics token: present', and the sentinel nowhere in the output" \
+    "$([ $rc -eq 0 ] && printf '%s' "$out" | grep -q 'analytics token: present' && ! printf '%s' "$out" | grep -q TOKSENTINEL && echo 0 || echo 1)"
+  printf 'analytics-read=TOKSENTINEL-not-a-token\n' > "$T/tok1"; printf 'kv-read=not-a-token\n' > "$T/tok2"; chmod 600 "$T/tok1" "$T/tok2"
+  o1="$(env -u CF_API_TOKEN BLIPSCOPE_TOKEN_FILE="$(winpath "$T/tok1")" node --experimental-strip-types "$(winpath "$ROOT/scripts/fba-boot-rows.mjs")" --check-token 2>&1)"; r1=$?
+  o2="$(env -u CF_API_TOKEN BLIPSCOPE_TOKEN_FILE="$(winpath "$T/tok2")" node --experimental-strip-types "$(winpath "$ROOT/scripts/fba-boot-rows.mjs")" --check-token 2>&1)"; r2=$?
+  ok "T3 --check-token: an analytics-read line reads present (exit $r1, value not printed); none reads absent (exit $r2, want 3)" \
+    "$([ $r1 -eq 0 ] && printf '%s' "$o1" | grep -q 'analytics token: present' && ! printf '%s' "$o1$o2" | grep -q TOKSENTINEL && [ $r2 -eq 3 ] && printf '%s' "$o2" | grep -q 'analytics token: absent' && echo 0 || echo 1)"
+  # B1-B3 (fix 3): skip-reset's address, from a fetch of the board's page by name over IPv4. Local listeners only.
+  cat > "$T/srv.py" <<'PY'
+import http.server, sys
+code = int(sys.argv[2])
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(code)
+        self.end_headers()
+        self.wfile.write(b"ok")
+    def log_message(self, *a):
+        pass
+s = http.server.HTTPServer(("127.0.0.1", 0), H)
+open(sys.argv[1], "w").write(str(s.server_address[1]))
+s.timeout = 15
+s.handle_request()
+PY
+  serve() { rm -f "$T/port"; "${PY[@]}" "$(winpath "$T/srv.py")" "$(winpath "$T/port")" "$1" & SRV=$!
+            for _ in $(seq 50); do [ -s "$T/port" ] && break; sleep 0.2; done; PORTN="$(cat "$T/port" 2>/dev/null)"; }
+  serve 200; a="$(board_addr "localhost:$PORTN")"; kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null
+  ok "B1 a listener answering 200, by name -> its IPv4 address (got '$a')" "$([ "$a" = 127.0.0.1 ] && echo 0 || echo 1)"
+  a="$(board_addr "localhost:$PORTN")"
+  ok "B2 a closed port -> empty, so the run refuses (got '$a')" "$([ -z "$a" ] && echo 0 || echo 1)"
+  serve 501; a="$(board_addr "localhost:$PORTN")"; kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null
+  ok "B3 a listener answering 501 -> empty (got '$a')" "$([ -z "$a" ] && echo 0 || echo 1)"
+  # G1-G5 (fix 3): before the cut, an address AND a watcher that is alive and watching. On 2026-11-16 the watcher
+  # returned at once (no address) and the power was cut with nobody watching.
+  gs() { # name, address, watcher command, want (0 = may cut, 1 = refuse)
+    local w r
+    bash -c "$3" > "$T/g.out" 2>&1 & w=$!
+    FBA_DEVICE_IP="$2" FBA_GUARD_S=3 precut_guard "$T/g.out" "$w" >/dev/null 2>&1; r=$?
+    kill "$w" 2>/dev/null; wait "$w" 2>/dev/null
+    ok "$1 (returned $r)" "$([ $r -eq "$4" ] && echo 0 || echo 1)"
+  }
+  gs "G1 no FBA_DEVICE_IP -> refuses, no cut" "" "echo '  $GUARD_MARKER 192.0.2.10 for the power cut...'; exec sleep 20" 1
+  gs "G2 the watcher already exited (its no-address line) -> refuses" 192.0.2.10 "echo '  step 5: no claim or no device IP in the log' >&2; exit 1" 1
+  gs "G3 control: an address, and a live watcher that printed its marker -> may cut" 192.0.2.10 "echo '  $GUARD_MARKER 192.0.2.10 for the power cut...'; exec sleep 20" 0
+  gs "G4 a live watcher that never prints its marker -> refuses" 192.0.2.10 "exec sleep 20" 1
+  printf '10:00:10 [WiFi] CONNECTED  IP=192.0.2.10  RSSI=-50 dBm\n10:02:00 [claim] E75L claimed (1/10 types)\n' > "$T/g5.log"
+  printf '%s' '{"types":[{"code":"E75L","claimed":true}]}' > "$T/g5.json"; printf '1\n0\n0\n0\n1\n' > "$T/g5.seq"
+  out="$(env -u FBA_DEVICE_IP FBA_POLL_S=0 FBA_CUT_WAIT_S=3 FBA_BACK_WAIT_S=3 FBA_LB_WAIT_S=1 FBA_ALIVE_SEQ="$T/g5.seq" FBA_LOGBOOK_BODY="$T/g5.json" \
+    bash "$ROOT/scripts/fresh-boot-acceptance.sh" --grade-cut "$T/g5.log" 2>&1)"
+  ok "G5 the marker the guard waits for is the one --grade-cut prints" "$(printf '%s' "$out" | grep -qF "$GUARD_MARKER" && echo 0 || echo 1)"
   rm -rf "$T"
   [ $bad -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED: $bad"
   exit $(( bad ? 1 : 0 ))
@@ -277,14 +374,14 @@ fi
 
 # ------------------------------------------------------------------------------------------------------- step 2
 if [ "$SABOTAGE" = "skip-reset" ]; then
-  IP="$HOST"   # still on its own network: no join, so no CONNECTED line to read an address from
+  IP="$(board_addr "$HOST")"   # still on its own network: no join, so no CONNECTED line to read an address from
 else
   if [ $CONTROLS -eq 1 ]; then
     say "K-wifi FIRST (rehearsal only). In a second window (PowerShell) the owner runs:"
     say "    powershell -ExecutionPolicy Bypass -File \"$(winpath "$ROOT/scripts/fresh-boot-wifi-join.ps1")\" -Control WrongPassword"
     say "The board must STAY in its setup portal: no [WiFi] CONNECTED for 90 s after it prints 'save: HTTP 200'. Press Enter here once it has."
     wait_enter || die "K-wifi: no terminal to wait on"
-    if wait_log "$LOG" '\[WiFi\] CONNECTED' "$L1" 90 >/dev/null; then die "K-wifi: the board JOINED on a wrong password" 1; fi
+    [ "$(kwifi_grade "$LOG" "$L1" 180 90)" = RED ] && die "K-wifi: the board JOINED on a wrong password" 1
     say "K-wifi: a wrong password left the board in its portal"
   fi
   say "STEP 2 IS THE OWNER'S. In the second window (PowerShell) he runs, on the PC adapter \"Wi-Fi\" (pinned in the script):"
@@ -331,6 +428,8 @@ s="$(get_page "$IP" "$WORK/after-claim.html")"; say "step 4: Collection opened a
 bash "$ROOT/scripts/fresh-boot-acceptance.sh" --grade-cut "$LOG" > "$WORK/gcut.out" 2>&1 &
 GPID=$!
 sleep 5
+precut_guard "$WORK/gcut.out" "$GPID" \
+  || { kill "$GPID" 2>/dev/null; wait "$GPID" 2>/dev/null; cat "$WORK/gcut.out"; die "step 5: REFUSED before the cut (above); the power was NOT cut" 3; }
 off="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; "$YKUSH" -d "$HUB_PORT" >/dev/null 2>&1 || die "step 5: the hub did not switch port $HUB_PORT off"
 sleep $CUT_S
 on="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; "$YKUSH" -u "$HUB_PORT" >/dev/null 2>&1 || die "step 5: PORT $HUB_PORT LEFT OFF: the hub did not switch it back on"
