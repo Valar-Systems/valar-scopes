@@ -10,6 +10,10 @@ on:
     branches: [main]
   pull_request:
 
+# A read-only token: this workflow uses no secrets and only reads the repository (the step after checkout asserts it).
+permissions:
+  contents: read
+
 # A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
