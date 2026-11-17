@@ -22,6 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       # The token is read-only: this fails unless a top-level permissions block grants contents: read and nothing else,
       # as exact lines. It landed before the block (red first), so it is known to fail when the block is missing.
-      - run: grep -Pzq '\npermissions:\n  contents: read\n(?!  \S)' .github/workflows/bench-tools.yml
+      - run: |
+          grep -Pzq '\npermissions:\n  contents: read\n(?!  \S)' .github/workflows/bench-tools.yml
       - run: python3 scripts/app-only-write.py --selftest
       - run: python3 scripts/app-only-write.py --sabotage
