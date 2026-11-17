@@ -2868,3 +2868,110 @@ the projection agrees with the device's, to the pixel.
 **Board addendum 2 is now read in full:**
 - **As predicted:** R-SCRATCH, R-CLEAR', R-LABELS', R-MARGIN, the heap rows, and now R-ANCHOR.
 - **No verdict, by the frozen guard:** H-P6' `free8` only.
+
+### 8c. The control read, the exception lists frozen, and P5' committed (2026-11-17 ~05:0x-06:0xZ, before any P5' build)
+
+**What ran, in the order the reviewer ruled** (path count, objcmp red first, the control, the lists, then queue 2; the
+R-ANCHOR re-run sat between, with section 8 paused at a step boundary and no build during the window).
+
+**1. The path count** (read-only; allocated sections only).
+- `wt-a2base` appears in **0** of E0's objects (280, 280, 255). `wt-p5b` appears in **0** of CTRL-B's 259.
+- **The counter's control:** `[build] env=` is found in 1 of CTRL-B's objects, so it is not blind.
+- So the path premise holds, as pre-registered.
+
+**2. `objcmp.py`, red first** (`bench/speed-p5` `bc5d74a71e66`; the stamp rule at `91a80d9348bc`, blob
+`d203cbd789f0`):
+- **6 tool plants, each red in exactly its frozen set:**
+  - NORELA {O-RELA};
+  - ALLSECTIONS {O-NONALLOC};
+  - NODROP {O-DROP};
+  - SIZEONLY {O-TEXT, O-STAMP-OUT}, predicted before the run;
+  - EXCUSEALL {O-STAMP-OUT};
+  - NOEXCUSE {O-STAMP-IN}.
+- **Then `--selftest` on CTRL-B's real objects, 7 of 7:** O-SELF, O-TEXT, O-DROP, O-NONALLOC, O-RELA, O-STAMP-IN and
+  O-STAMP-OUT.
+- **The rule, ruling (B):** an excused section passes only when every differing byte lies inside a date or time stamp
+  at the same offsets in both objects. A size or relocation difference there stays unexplained.
+
+**3. The control: CTRL-B vs CTRL-C, every object.**
+- 259 paired, **256 identical**, 0 dropped or added.
+- **3 differ, ALL NAMED from the bytes, 5 bytes each:**
+  - `chip-debug-report.cpp.o`: the core's `__TIME__`;
+  - `firmware_msc_fat.c.o`: a `__DATE__ __TIME__`;
+  - `WiFiManager.cpp.o` `getInfoData`: the about page's `__DATE__ __TIME__`.
+- **Nothing unnamed,** so nothing goes to the owner.
+- With the objects identical apart from stamps of equal length, the `.bin`'s +16 B arises at LINK. That supports (a);
+  it is information.
+
+**4. A false premise, caught before any E run, and ruled.**
+- PlatformIO names each library's build directory by a hash of its ABSOLUTE path (`piolib.py:232`,
+  `sha1(self.path)[:3]`). So relative-path pairing fails across worktrees: `libafa/` against `libea9/`.
+- **Ruled (A):** E's base was rebuilt **in `wt-p5b`** at `830e7106324a`.
+  - The checkout was detached from porcelain 0, and back on `bench/speed-p5` at `bc5d74a71e66` with porcelain 0.
+  - The only ignored leftovers were Python bytecode caches.
+  - **3 clean builds:**
+
+| env | compiled | objects | `.bin` | sha256 |
+|---|---|---|---|---|
+| missileer-s3-128 | 280 | 280 | 1,733,392 | `7b01b273ff0f` |
+| missileer-photo | 280 | 280 | 1,727,088 | `1c8985aed495` |
+| weatherscope-s3-128 | 254 | 255 (one is an embedded data file) | 1,889,152 | `574d29161ebd` |
+
+**5. The exception lists, by SCAN** (ruling (B); `stampscan.py`, blob `460ba053cd51`).
+- **The scan:** in each reference tree, every object whose ALLOCATED sections hold that build's own compile stamp (its
+  local `__DATE__`, or a `__TIME__` inside the build child's own window).
+- **Its control:** on CTRL-B it reads **exactly the three** entries the control named.
+- **FROZEN here,** before any P5' build. The files are `tools/speed-p5p6/exceptions/<env>.txt` at `c374afdebb57`.
+- Each entry excuses only its own section, and only stamp bytes in it:
+
+- **`missileer-s3-128`** (reference EB-missileer-s3-128; date Nov 16 2026, window 21:14:12-21:18:51 local; 3 entries):
+  - `FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1`
+  - `FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1`
+  - `libc45/WiFiManager/WiFiManager.cpp.o .rodata._ZN11WiFiManager11getInfoDataE6String.str1.1`
+- **`missileer-photo`** (reference EB-missileer-photo; date Nov 16 2026, window 21:18:57-21:24:23 local; 3 entries):
+  - `FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1`
+  - `FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1`
+  - `lib253/WiFiManager/WiFiManager.cpp.o .rodata._ZN11WiFiManager11getInfoDataE6String.str1.1`
+- **`weatherscope-s3-128`** (reference EB-weatherscope-s3-128; date Nov 16 2026, window 21:24:30-21:27:58 local; 3 entries):
+  - `FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1`
+  - `FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1`
+  - `libf5d/WiFiManager/WiFiManager.cpp.o .rodata._ZN11WiFiManager11getInfoDataE6String.str1.1`
+- **`blipscope-s3-128`** (reference CTRL-B-blipscope-s3-128; date Nov 16 2026, window 20:52:36-20:55:20 local; 3 entries):
+  - `FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1`
+  - `FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1`
+  - `libea9/WiFiManager/WiFiManager.cpp.o .rodata._ZN11WiFiManager11getInfoDataE6String.str1.1`
+- **`blipscope-s3-128-wxlook`** (reference R0-blipscope-s3-128-wxlook; date Nov 16 2026, window 20:29:55-20:33:01 local; 3 entries):
+  - `FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1`
+  - `FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1`
+  - `lib528/WiFiManager/WiFiManager.cpp.o .rodata._ZN11WiFiManager11getInfoDataE6String.str1.1`
+- **`blipscope-s3-128-joindiag`** (reference R0-blipscope-s3-128-joindiag; date Nov 16 2026, window 20:33:04-20:36:02 local; 3 entries):
+  - `FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1`
+  - `FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1`
+  - `libc07/WiFiManager/WiFiManager.cpp.o .rodata._ZN11WiFiManager11getInfoDataE6String.str1.1`
+- **`blipscope-pro-s3-21`** (reference R0-blipscope-pro-s3-21; date Nov 16 2026, window 20:36:07-20:40:30 local; 3 entries):
+  - `FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1`
+  - `FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1`
+  - `lib00b/WiFiManager/WiFiManager.cpp.o .rodata._ZN11WiFiManager11getInfoDataE6String.str1.1`
+- **`blipscope-pro-s3-175-amoled`** (reference R0-blipscope-pro-s3-175-amoled; date Nov 16 2026, window 20:40:34-20:44:38 local; 3 entries):
+  - `FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1`
+  - `FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1`
+  - `libbfd/WiFiManager/WiFiManager.cpp.o .rodata._ZN11WiFiManager11getInfoDataE6String.str1.1`
+- **`animtest-s3-128`** (reference R0-animtest-s3-128; date Nov 16 2026, window 20:44:45-20:47:34 local; 2 entries):
+  - `FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1`
+  - `FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1`
+- **`weatherscope-bench-s3-128`** (reference R0-weatherscope-bench-s3-128; date Nov 16 2026, window 20:47:39-20:49:43 local; 2 entries):
+  - `FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1`
+  - `FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1`
+
+- No edition-only stamp object exists. WiFiManager is absent from the two envs that do not compile it.
+
+**6. P5', committed** (`bench/speed-p5` `8e73d3d5e718`, local until queue 2 compiles it).
+- BandCanvas.h's switch and main.cpp's BANDCANVAS-LISTS check, exactly as 8 and 8a froze them. No method body changed.
+- **The host rows read as predicted:** `check_p5_writes.py` W-CANVAS ok (14 drawing methods, none unmarked); W-DIRECT
+  and W-GEN ok; its self-test's three plants each red (W-CANVAS's included).
+
+**Next: queue 2, every P5' build from CLEAN.**
+- For each env: its build dir deleted (the reference objects are archived), the disk read first, `compiling N` printed
+  with N > 0, and the objects archived the moment the build lands.
+- Then `objcmp <reference> <P5'> --except exceptions/<env>.txt` per env.
+- Then R-LISTS and R-DELETE as frozen.
