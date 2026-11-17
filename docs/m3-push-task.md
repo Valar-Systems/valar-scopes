@@ -694,6 +694,58 @@ the window registered at `11895bc0407a` stands, with these images in place of A 
 **OUTSIDE THE SET:** a slower frame anywhere, a changed picture, a torn or stale stripe that (ii) does not cure, or
 Wi-Fi contention. Each stops M3 and goes to the orchestrator, and C1 reads as "failed" until the reason is known.
 
+**M3-8, RE-REGISTERED: the window's trace boundaries (2026-11-17, after 01:54Z; p4 found the defect before anything
+ran, and the orchestrator accepted the re-registration; the text above stands as written, corrected here).**
+- **The defect:** W2's premise, "the install's own restart drops the port, which ENDS trace #1", is false on the
+  s3-128. `ESP.restart()` (`OtaUpdater.cpp:568`, `:769`) is `rst:0xc` RTC_SW_CPU_RST, and a USB-Serial-JTAG port
+  survives it:
+  - p4's own M3-9 restore trace held through v19's quiet-hour `rst:0xc` (4 `[build]` lines, 2 per boot);
+  - the fleet note of 2026-10-07 says one open stayed attached through 11 soft reboots.
+  - The alternative, that an OTA restart is a different reset kind, is excluded: it is the same `ESP.restart()`.
+  - Run as written, trace #2 could not have opened while #1 held the port, and #1's close would have left B in
+    download mode before the save.
+- **THE WINDOW NOW:**
+  - **W2-W5 are ONE trace,** opened at once after the flash, `-Minutes 15`, ending at its own deadline (never a kill).
+    That deadline is W5. W3's reopen is deleted, so nothing is reopened anywhere in the window.
+  - **The graded rows split at its `rst:0xc`:** P-OTA before it; P-B and P-SAVE after it. P-B's "reason SW" is read
+    twice: the ROM's `rst:0xc` and the firmware's `[boot] reset reason=SW`.
+  - **W6/W7:** read-mac (hard reset) and trace #3 in the same run, `-Minutes 6`. It covers B's boot, the 19 > 18
+    check, the v19 install, a second `rst:0xc` and at least 3 min of v19, and P-RESTORE is read after that
+    `rst:0xc`. Then read-mac (trace #3's close leaves download mode), HTTP 200 with "firmware v19" twice 60 s apart,
+    5c's hash, and the release.
+- **NEW ROWS, pre-registered:**
+  - **The port drops at the install** (bench-trace's READ ERROR before its deadline): the old W3 applies. Trace #2
+    opens once the board answers HTTP, plus 25 s, `-Minutes 10`. B's boot lines precede trace #2, so its banner,
+    reason and `current=18` line are read there but not graded; B is proven by its page saying "firmware v18".
+  - **The save cannot land ≥ 60 s before the deadline:** P-SAVE is NOT TAKEN. That is a time instrument, not a red,
+    and the save waits for the orchestrator's ruling.
+  - **A's banner is missing:** not a red alone, since `[ota] ... current=17` proves A.
+  - **T0, added with the script:** bench-trace's own self-reset detector fires on a ROM line within 5 s of its open.
+    Right after a write's or read-mac's reset, output printed before the open arrives in one burst AT the open.
+    - CONTAMINATED with every detector line arriving within 2 s of the attach reads as that earlier reset: not a red.
+    - CONTAMINATED any other way: outside the set.
+- **HIDDEN (the orchestrator's addition):**
+  - Every trace starts through ProcessStartInfo with UseShellExecute = false and CreateNoWindow = true
+    (CREATE_NO_WINDOW), with no redirection, so it has a console with no window and cannot open a terminal tab.
+  - The short calls (python, the bash guard) are direct children and share the script's console. The dry run read
+    that console as present and not visible.
+  - The dry check: no new OpenConsole or WindowsTerminal process and no new top-level window while a hidden child
+    ran. Its CONTROL is that the child was alive at the look.
+- **THE SCRIPT:** `_handoffs/p4/m3/win_m38.ps1`, sha256 `be19801359ab` (565 lines), built like `win_m32.ps1`.
+  - **Stages:** `-Stage ota` (W0-W5), `-Stage restore` (W6-W7), and `-Stage flashrestore` (only if W1's write
+    fails).
+  - **Board calls:** every one goes through `esptool_guard.sh`, then p4-tools-main's app-only-write.
+  - **Rows:** every graded row prints `[True/False]` beside its prediction. They are T0, O2-O5, C1-C3, B1-B4 and
+    S2-S4 for the ota stage, and T0, T1, R1-R9 and C1-C3 for the restore stage.
+  - **Exit codes:** 0 all True; 1 a FAIL row; 40 outside the set; 10/11 a launch or open failure; 20 W0 stop;
+    21 the guard.
+  - **`-GuardDryRun`, on the real root:** every W0 row True, the guard's check-tool PASSED, the hidden-launch rows
+    True, a bench-trace on an absent port caught as OPEN FAILED, exit 0.
+  - **On a planted root** (one byte of A′ flipped): `W0 A' firmware.bin 747b0f18 [False]`, exit 20, nothing touched.
+  - The background check afterwards listed only the registered wake leg.
+- **The page link for the owner's save** is written to `cap-m38\open-board-page.url` (local) and is not pasted in chat,
+  because the host name carries the MAC's last bytes. The owner opens that file in place of a pasted link.
+
 **How M3-8's OTA install is served without touching the fleet.** The path is the one the code already documents
 (`OtaUpdater.cpp:101-104`). A bench image is built with `-DOTA_RELEASE_BASE=https://github.com/Valar-Systems/valar-scopes/releases/download/<bench tag>`,
 pointing at a **prerelease**:
