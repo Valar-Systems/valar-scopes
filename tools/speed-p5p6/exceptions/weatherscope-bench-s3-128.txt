@@ -1,0 +1,3 @@
+# stamp scan: R0-weatherscope-bench-s3-128: date Nov 16 2026, window 20:47:39-20:49:43 local; 2 entries
+FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1  # compile stamp
+FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1  # compile stamp

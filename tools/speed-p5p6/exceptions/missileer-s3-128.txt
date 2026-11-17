@@ -1,0 +1,4 @@
+# stamp scan: EB-missileer-s3-128: date Nov 16 2026, window 21:14:12-21:18:51 local; 3 entries
+FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1  # compile stamp
+FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1  # compile stamp
+libc45/WiFiManager/WiFiManager.cpp.o .rodata._ZN11WiFiManager11getInfoDataE6String.str1.1  # compile stamp

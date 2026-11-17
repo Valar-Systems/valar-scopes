@@ -1,0 +1,4 @@
+# stamp scan: CTRL-B-blipscope-s3-128: date Nov 16 2026, window 20:52:36-20:55:20 local; 3 entries
+FrameworkArduino/chip-debug-report.cpp.o .rodata._Z20printBeforeSetupInfov.str1.1  # compile stamp
+FrameworkArduino/firmware_msc_fat.c.o .rodata.fat_add_root_file.str1.1  # compile stamp
+libea9/WiFiManager/WiFiManager.cpp.o .rodata._ZN11WiFiManager11getInfoDataE6String.str1.1  # compile stamp
