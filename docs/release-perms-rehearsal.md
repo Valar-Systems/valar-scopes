@@ -147,3 +147,31 @@ only.
 
 **Any other result outside the predictions** (a job reading differently, a permissions line not as predicted): stop
 after cleanup and report, with the run's log read before believing either side.
+
+## 7. Who consumes release assets: none would pick up a rehearsal's (swept 2026-11-17 16:56Z-16:58Z, read-only)
+
+The orchestrator's check before any slot: name every consumer of release assets. One that would take an asset from a
+prerelease, or by a tag pattern, stops the plan. Swept: valar-scopes main `13a6dab876ce` (every file but docs, for
+`releases/latest`, `releases/download`, `/releases`, `gh release download|view|list`, the releases API, `tag_name`,
+`prerelease`), and the local clones of the site, the app, the site API, the flasher, the provisioner, the remote, the
+screen and nine other repos. Docs and prose are left out. A hit in them is not a consumer.
+
+| consumer | where | what it reads | a rehearsal asset? |
+|---|---|---|---|
+| **the fleet's OTA** | `src/OtaUpdater.cpp:106` (`OTA_RELEASE_BASE`) | `releases/latest/download/...` only. Per its own comment (`:93-94`), that resolves to the newest **non-draft, non-prerelease** release | **no** |
+| the OTA rule's guard | `scripts/check_ota_url.py:60,121` | refuses any shipping image with a pinned `/releases/download/` URL | n/a (a check) |
+| bench envs | `platformio.ini:518` (`pregate-s3-128-v5`), `:1242` (`ota-preflight-v6`) | ONE named tag each, never `rehearsal-perms-*` | **no** |
+| fleet monitoring | `scripts/ota-download-count.sh:53,112`, `scripts/ota-latest-probe.sh:52-53`, `scripts/reconcile-fleet.py:208` | the `releases/latest` API, or `latest/download` | **no** |
+| release-night verifier | `scripts/verify-release.sh:96-97` (and its named-`$TAG` reads `:77,126`) | its "previous release" keeps `isPrerelease == false` only; otherwise the tag it is given | **no**, and it is run by hand on release night only |
+| the two release workflows | firmware workflow, web-renderer | `github.event.release.tag_name`: the event's OWN tag | only the rehearsal itself (intended) |
+| **the site's renderer** | `valarscopes-site/public/blipscope/scope/v19/*`, with `PROVENANCE.json:8` naming `releases/tag/v19`; `public/blipscope/wasm.js:14,114-116` imports the vendored files | files VENDORED into the site from v19 by name; no runtime fetch from GitHub | **no** |
+| **the app's renderer** | `valarscopes-app/renderer.json:3` (`releases/tag/v19`, with the manifest's SHA-256 pinned), `public/renderer/v19/` | vendored from v19 by name, byte-checked against the pinned manifest | **no** |
+| the flasher | `valar-flasher/valar_flasher.py:160` (`releases/latest`), `:222` | latest, or ONE tag a person names in a local `products.local.json` | **no**, unless someone types the rehearsal's tag into their own config |
+| other clones | `Blipscope-provisioner`, `Blipscope-remote` | older copies of this repo: the same latest-only OTA and the same pinned bench tags | **no** |
+| no hit at all | `valarscopes-site-api`, `valarscopes-screen`, `Skyscope`, `Streetscope`, `missileer-watch`, `Glasscalibur`, `valar-scopes-claim`, `ledger`, `mcp-hub`, `book-v2`, `valar-motion`, `radar-camera` | -- | -- |
+
+`valar-eam-feed`'s single hit (`test/fixtures/game/PIN.json:2`) is a README string about a valar-scopes PR, not a
+fetch. **Result: no consumer takes a release asset by "newest release" including prereleases, or by a tag pattern. The
+plan does not stop on this check.** **Its limit:** it covers the repositories cloned on this PC. A consumer living only
+somewhere else, such as a third party fetching by tag, cannot be seen from here, and neither can the Releases page's
+human visitors (section 4).
