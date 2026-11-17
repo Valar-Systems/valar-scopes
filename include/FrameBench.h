@@ -86,6 +86,14 @@ struct Scene {
 #endif
 #if defined(FRAME_PROFILE)
 #include "FrameProfileScenes.h"   // p4's (docs/frame-profile.md): defines kScenes; one owner per line
+#elif defined(SPEED_MARK_BENCH)
+#if !defined(BLIPSCOPE_PUSH_TASK)
+#error "SPEED_MARK_BENCH runs image B's shape: with the push task"
+#endif
+// Section 10's marker A/B (docs/speed-p5p6.md section 10): MARK60 alone, S0, the SAME line in M and in P. 60 contacts
+// with today's 8 copies at kTblT, gs 0, kAnchorRungMi, wx-layer OFF, so no outline draws and the frame is the shipping
+// marker raster. Measure start near boot + 150 s; the grabs at boot + 210/230/250 s; p1 at boot + 260 s.
+static const Scene kScenes[] = {{ANCHOR_8COPY, 60, false}};
 #elif defined(SPEED_A2_BENCH)
 #if !defined(BLIPSCOPE_PUSH_TASK)
 #error "SPEED_A2_BENCH runs image B's shape: with the push task"
