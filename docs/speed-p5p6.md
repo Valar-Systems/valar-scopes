@@ -3398,3 +3398,166 @@ exit 0).
 | P | `art-mark/P-MARK/firmware.bin` | `e751334fb32a` |
 
 - **Before booking:** the reviewer's ruling on step 1's verdict (OUTSIDE THE RULE).
+
+### 12a. Step 1, RULED: prediction (A) by the dataflow argument (the reviewer, 2026-11-17 ~07:2xZ; a re-registration before any board touch)
+
+**The ruling.**
+- Section 12's frozen method correctly sent step 1 to the reviewer. HEADING is identical in ops and order. DART and
+  CROSS have the same op multiset, the same operand roles and the same fusing for every expression; only the emitted
+  order of independent ops differs.
+- **The extension:**
+  - On this core, each FP op's result depends only on its own operands and the rounding mode.
+  - So two sequences with the same dataflow graph, the same op per node and the same fusing compute bit-identical
+    values, whatever order their independent nodes are emitted in, PROVIDED the rounding mode is not changed in between.
+
+**The argument, applied:**
+
+| group | nodes | the same on both sides |
+|---|---|---|
+| HEADING | `float.s`, `sub.s`, `__extendsfdf2`, `__muldf3`, `__truncdfsf2`, `sinf`, `cosf`, `neg.s` | ops AND order |
+| DART | 2 `float.s`; tipX, tipY `madd.s`; x−dx·base, y−dy·base `msub.s`; leftX, leftY `madd.s`; rightX, rightY `msub.s`; 6 `trunc.s` | op, operand roles and fusing per node |
+| CROSS | 2 `float.s`, 2 `madd.s`, 2 `msub.s`, 4 `trunc.s` | op, operand roles and fusing per node |
+
+**The graph's inputs are the same values in M and in P:**
+- x and y are the integer screen positions.
+- trueTrack and radarUpDeg come from the rows that FrameBench.h's table serves. That header is byte-identical in M and P
+  (section 12), and A-SAME checks the printed form of every contact's `x y trk cat dot up`.
+- tip, base and halfWidth are the same float literals on both sides.
+- The DART's dx, dy, px and py are HEADING's outputs, and HEADING is identical in order.
+
+**The premise, shown from the code as far as the images go:**
+- **The rounding mode (FCR) is never set by either image.** A scan of both window images' whole disassembly (M-MARK
+  466,985 lines, P-MARK 469,402) found FCR and FSR touched by exactly 4 instructions each. All 4 are in
+  `_xt_coproc_exc`, the lazy FPU context switch: `rur.fcr`, `rur.fsr`, `wur.fcr`, `wur.fsr`.
+  - Its `wur.fcr` writes back only a value that this handler earlier read from FCR, so by induction FCR holds only its
+    reset value, in both images, from boot onward. It is constant across the marker's ops.
+  - The scan's own control: its pattern matched those 4, so it is spelled as objdump prints it.
+- **sinf and cosf are in the image** (`.flash.text`, with `__ieee754_rem_pio2f`, `__kernel_sinf` and `__kernel_cosf`).
+  They are covered by the scan, and they write no FCR.
+
+**Named as premises, NOT shown:**
+- **The ROM helpers write no FCR.** `__extendsfdf2` `0x400022a4`, `__muldf3` `0x40002418` and `__truncdfsf2`
+  `0x4000252c` are `*ABS*` ROM symbols, at the same addresses in both images. Their code is not in the image, so it was
+  not read. They are soft-double (integer) routines. Whatever they do, M and P run the same ROM code on the same chip.
+- **The FPU computes each op from its operands and FCR alone**, as the ISA defines. No data-dependent hardware state is
+  assumed.
+- Not relied on: framework-espidf 3.50504's `port.c` zeroes a new task's coprocessor save flags. That copy may not be
+  the source of the prebuilt libraries, and the induction above does not need it.
+
+**PREDICTION: (A), 0 px differ outside the boxes**, on MARK60's coverage: 57 contacts on screen, 51 headings,
+12 overlapping pairs, 5,312 footprint px.
+- **The outside-the-set row stands:** the board reading (B) where (A) is predicted means the instrument is unreliable at
+  this scale. STOP, decide. **The window answers whether the premise holds.**
+
+### 12b. Section 11, RULED: (i), follow M3 (the reviewer, 2026-11-17 ~07:2xZ)
+
+- **Why:** (i) costs about a day and redoes nothing. (ii) would do 1c's device proof twice and re-read the gains.
+- **THE DATE TRIGGER:** if M3 (#687) has not merged to main by **Fri 2026-11-20 23:59Z**, the reviewer re-weighs (ii).
+- **The hazard's fix is accepted as written, for the rebase, red first:**
+  - `canvas.DirtyAll()` in `DrawMapBase` BEFORE the `memcpy`, keeping CD8(c)'s verbatim text, and in
+    `DrawSweepOverMap`;
+  - the new map-transition host row in `test_p5_clear`;
+  - the device map-on to map-off `CLEAR_CHECK` row, registered separately with its window.
+- **The proof-movement table and the predicted conflict set are accepted** (a conflict outside the set: STOP).
+- **No rebase now:** it waits for M3.
+
+### 12c. A correction to two timing figures (found 2026-11-17 ~07:2xZ, before any registration used them)
+
+- **What was wrong:** P's list commit `51890089` (its message, and the comment in FrameBench.h's `SPEED_MARK_BENCH`
+  block, which M carries byte-identical) says "measure start near boot + 150 s; p1 at boot + 260 s". That assumed a
+  50 s scene start. The reviewer's 12a/12b message repeated the + 260.
+- **The source:** `START_AFTER_MS` is 90,000. MARK60 (S0) therefore settles from boot + 90 to + 190 s and measures
+  from + 190 to + 310 s.
+  - p0 falls near + 190 s and p1 near + 300 s.
+  - "Run done" comes near + 310 s.
+- **The check against an earlier read:** 7i's S3 p0 printed at + 851 s, and 90 + 3 × 220 + 100 = 850.
+- **What stands:** section 10's frozen figures. The grabs at + 210/230/250 are p0 + 20/40/60, and the trace end at
+  about + 320 s still covers p1. Only the comment and the commit message were wrong.
+- **Left in place:** the comment, so that the two built commits stay as built. This section is the correction.
+
+### 13. The MARK60 window, registered (docs only, 2026-11-17 ~07:2xZ; nothing run on a board; for the reviewer's review)
+
+**The slot:** E2:08, booked by the reviewer. It is proposed to the owner as Wed 08:00Z after p4's A0a at 07:00Z (or Wed
+07:00Z if A0a goes Tue 23:45Z), clear of the 10:00Z radar deploy. MARK60 reads the live proxy, as A0a does. The hard
+end is start + 35 min.
+
+**The files** (all outside the repo, read twice before the window):
+- **Images:**
+  - `p5p6-board/MK-M/`: firmware `4f96ca91653a` (1,967,360 B), partitions `28f336fe57a9`;
+  - `p5p6-board/MK-P/`: firmware `e751334fb32a` (1,973,088 B), the same partitions;
+  - `v19/` for the restore.
+  - Each firmware.bin was compared byte-for-byte with its build directory's before it was staged.
+- **New scripts:**
+  - `run/grabs_mark.sh` `c37b814efe34`: grabs_r.sh's shape, `fbgrab.py scene … MARK60 <boot> 210 230 250` into
+    `grabs-mark/<M|P>`. It refuses a non-empty folder.
+  - `run/tracerun_mark.sh` `1c9a3e859449`: tracerun.sh's shape, `w3-MK-<img>-trace`, label `p5p6mark-MK-<img>`.
+  - `run/grade_mark.sh` `441ddcc0c202`: the reading, after the window.
+  - `anc/argrun.sh` `1bc3edf7fe00`.
+  - `anc/anchor_compare_mark` `1134e2c57ade`, built by `anc/build_mark.sh` `9eb881b64ddc` with g++ 13.3 from a
+    `git archive` of bench/speed-p5 `3547c7f06115`. All four selftests read 0 FAIL.
+- **Reused, unchanged:**
+  - wt-main `0fc8c1d319cb`: `app-only-write.py` `fa9d102be291`, `bench-trace.ps1`, `board-port.py`;
+  - `launch.ps1` `d04a1c87f589`, `trace_child.ps1` `0d0838d12909`, `py_child.ps1` `b7d63fc7636f`, `pyrun.sh`
+    `835b852b523c`, `boot_confirm.sh` `3eb2521d02a9`, `netread.py` `fbbd7027cee3`, `fbgrab.py` `ef330a56f66b`;
+  - `childlog.sh` `07f89ca19e00`;
+  - the seal, `trace_filter.py` `6741186f03b0`.
+
+**The steps.** The boot epoch is each write's reset (app-only-write's end), as in 7i.
+
+| step | what, and how | budget |
+|---|---|---|
+| 0 | Reserve: `board-port.py --reserve blipscope-bench --by weatherscope --for "MARK60"`. S19 twice, 60 s apart (`netread.py`: `firmware v19`, summary `blipscope-s3-128 · v19 · cloud`). `app-only-write.py --check-tool` (5.2.0) and `--selftest` (`SELFTEST PASSED`), each through `pyrun.sh`. | 3 min |
+| 1 | **M:** resolve the port (`board-port.py blipscope-bench --upload`). Then `pyrun.sh MK-M-write app-only-write.py --port::<P>::--build-dir::<MK-M>`. W-n: `checks ok: table matches (6 entries), board boots ota_0, image 1967360 B`, then attempt 1 verified, reset ok. Record the boot epoch. `boot_confirm.sh blipscope-s3-128-framebench-c1b 180` (N-BOOT). Then `tracerun_mark.sh M <port> 5` and, at once, `grabs_mark.sh <boot epoch> M`. Wait for the trace child's rc and the grabs' exit. | ~7 min |
+| 2 | **P:** the same, with MK-P (image 1973088 B). | ~7 min |
+| 3 | **Restore:** `app-only-write --build-dir <v19>`. S19 twice, 60 s apart, both within 300 s of the write's end. Release. | ~3 min |
+
+**The rules in the window:**
+- Nothing reads a trace or a child log while its child lives. `childlog.sh` refuses without the `.rc`.
+- Every in-window cue comes from the board (netread, fbgrab) or from a process exit.
+- Every launch is hidden. Every background start is registered. The window ends with `bgcheck check`.
+- A trace's close leaves the S3 in the ROM, which is what the next write wants.
+- If the restore cannot reach the chip: `app-only-write.py --read-mac --port <P>` once, then the restore once more.
+- **A VOID or an instrument failure stops the window. Then: restore, release, report.**
+
+**Predictions for the window:**
+
+| row | predicted |
+|---|---|
+| W-M, W-P, W-v19 | as the step table: `checks ok` with the image's bytes, attempt 1 verified |
+| N-BOOT M, P | the framebench env within 180 s |
+| S19 at the restore | twice, within 300 s |
+| the traces | each `VERDICT: clean`, exit 0; one seal each |
+| the grabs | 3 per image, finished, byte-equal by fbgrab |
+
+**Graded after the window by `grade_mark.sh`, in the frozen order:**
+1. The tools' shas, and both trace `.rc` files present.
+2. The seals.
+3. The identity lines: P exactly one `[speed-p5] scratch bytes 128 mismatches 0`, M none.
+4. The anchor summaries, as information. The host's pick predicts 57 contacts printed. Another count is reported,
+   never a VOID: A-SAME is the precondition, not the count.
+5. `--equal` on each image's three grabs.
+6. `--ab` with A-SAME, A-STILL, ovl 000 and up 0 inside it.
+
+**The verdicts:**
+
+| grade_mark exit | means |
+|---|---|
+| **0** | **(A)**, as 12a predicts. Item (2) is answered NO for this coverage: the move keeps main's shipping marker pixels |
+| 1 | (B): a finding, the PR needs a fix. AND, because 12a predicts (A), it is **outside the set: the premise or the instrument is unreliable. STOP, decide** |
+| 2 | a difference outside every marker region: STOP, to the reviewer |
+| 3 | VOID: no reading, to the reviewer |
+| 9 | the rig: no reading, fix and re-grade (nothing on the board is re-run for a rig fault) |
+| anything else | outside the set: STOP, decide |
+
+**`grade_mark.sh`, rehearsed on five synthetic trees** (`--emit-synthetic`'s frames and lines, renumbered to S0;
+predicted, then read):
+
+| case | read |
+|---|---|
+| R1 clean | exit 0 |
+| R2 a marker px | exit 1 |
+| R3 a px far from every contact | exit 2 |
+| R4 a scratch line in M's trace | exit 3, "VOID: identity: P 1, M 1" |
+| R5 P's `.rc` removed | exit 9, the RIG line |
+
+bgcheck PASS, 0 running. The rehearsal ran through the same WSL route the grading uses, with the false/true control.
