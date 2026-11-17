@@ -35,7 +35,7 @@ needs them.
 - **web-renderer's `publish`** (job-level `contents: write`) uploads only `blipscope-web-*` files to this release's tag.
   It reads every other asset on the release before and after, to prove it changed none.
 - **`promote`:** `environment: release`. Its protection rule, read today through the API, is `required_reviewers:
-  [daniel-frenkel]` with no wait timer. It moves `latest`, which IS customer-visible: `gh release edit --prerelease=false`
+  [the owner]` with no wait timer. It moves `latest`, which IS customer-visible: `gh release edit --prerelease=false`
   makes the rehearsal a full release, and `latest` is the moment the fleet starts downloading. **So `promote` MUST NOT
   run, and it provably does not: it waits for the owner's review.** The run is cancelled (`gh run cancel`) once `version`
   has finished, or the owner rejects the review. Either way no step of `promote` executes. A precondition row (P0)
@@ -59,7 +59,7 @@ needs them.
 1. The repository default token is read: `gh api repos/{o}/{r}/actions/permissions/workflow` returns
    `default_workflow_permissions == "read"`. If it were write, a passing job would prove nothing about its own block.
    It read `read` at 16:53Z.
-2. The `release` environment still requires review, with daniel-frenkel as reviewer.
+2. The `release` environment still requires review, with the owner as reviewer.
 3. The release behind `latest` is v19 (`gh api .../releases/latest`), and `latest/download/version.txt` reads `19`.
    Two reads, 60 s apart.
 4. No OTA observation window and no board sitting is open. The orchestrator names the slot.
@@ -206,7 +206,7 @@ run is v20, with me present, and a failure there promotes nothing."
 
 - **What `promote` DOES**, line by line in the firmware workflow:
   - it runs only on a release event, after a successful `version` (`if:` at :793), behind `environment: release` at
-    :795, which needs daniel-frenkel's review;
+    :795, which needs the owner's review;
   - `actions/checkout`;
   - "version.txt on this release must equal FW_VERSION" (:805): a READ (`curl` of THIS release's own
     `releases/download/<tag>/version.txt`), compared with the tagged source. It writes nothing;
@@ -244,3 +244,12 @@ run is v20, with me present, and a failure there promotes nothing."
 **Proposed: Thursday 2026-11-19, 15:00Z-16:30Z** (A, then B, each about 25 min plus cleanup). The orchestrator moves it
 away from any deploy or OTA observation window on its calendar. Neither rehearsal needs a board, and A's `promote` is
 cancelled by p4, so neither needs the owner.
+
+### 8.3 Before Thursday (the orchestrator's review of 445b05bbacf1)
+
+- Three mentions of the reviewer's handle replaced by the role (privacy rule); no prediction changes.
+- **REH-A's `promote` sends the owner a "review pending" notice** when it starts waiting on the `release`
+  environment. THE CONDITION: p4 cancels that run (`gh run cancel <id>`) within 5 min of `promote` entering
+  "waiting", and prints the cancel with its date -u stamp. The orchestrator tells the owner beforehand (in the digest,
+  and at T-30 on Thursday) not to approve it. If `promote` ever runs anyway, the recovery is section 6's step:
+  `gh release edit <tag> --prerelease` first, then the reads.
