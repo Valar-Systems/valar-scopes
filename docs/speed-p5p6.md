@@ -3561,3 +3561,90 @@ predicted, then read):
 | R5 P's `.rc` removed | exit 9, the RIG line |
 
 bgcheck PASS, 0 running. The rehearsal ran through the same WSL route the grading uses, with the false/true control.
+
+### 14. MARK60, read (E2:08, 2026-11-18 05:24:10Z to 05:40:28Z): (A), 0 px. Item (2) is answered NO for this coverage
+
+**The window.**
+- **The slot:** booked by the owner (2026-11-17 15:07Z: "P5 board: Wed 07:00Z + 08:00Z (weatherscope's run only if it's
+  back and frozen)") for 08:00Z.
+  - E2:08 was free from 05:20:56Z, after p4's A0a restored v19. The reviewer offered an early start, with 08:00Z as the
+    latest.
+  - The T-10 re-verify at 05:23:41Z was clean: 20 of 20 files re-hashed equal (section 13's set plus v19
+    `f6d73e391631`); `app-only-write` `fa9d102be291`; the three branches at their heads, equal to upstream, porcelain 0;
+    no window artifact; bgcheck PASS 0.
+- **START** 05:24:10Z. Hard end 05:59:10Z: the earlier of start + 35 and 09:55Z. It was written to
+  `run/mark60-start.txt` at the start.
+- **The board:** E2:08 was reserved by weatherscope at 05:24:32Z and released at about 05:40:2xZ, before the 05:40:28Z
+  check, unreserved on v19.
+- **bgcheck** PASS, 0 running.
+- **The session's own guards:** the hourly wake was suspended for the window, because its "stop what is mine" step must
+  never meet a live trace. A hard-end backstop was armed at 05:57Z. Both were replaced after the window.
+- **Nothing read a trace or a child log while its child lived.** Every cue came from netread, fbgrab or a process's
+  exit code.
+
+| step | read | vs prediction |
+|---|---|---|
+| 0 | S19 at 05:24:32Z and 05:25:32Z. `CHECK-TOOL PASSED` (5.2.0, tree `84c878702a70…`). `SELFTEST PASSED` (40 lines, 0 FAIL rows) | as predicted |
+| W-M | `checks ok: table matches (6 entries), board boots ota_0, image 1967360 B`, attempt 1 verified, `reset: ok`, child exit 05:26:07Z (= the boot epoch) | as predicted |
+| N-BOOT M | the framebench env at 05:26:35Z (boot + 28 s) | as predicted |
+| trace M | 05:26:43Z–05:31:44Z, `VERDICT: clean`, rc 0. Seal `c6c4f81a8256…` (103,923 B) | as predicted |
+| grabs M | + 210/230/250 s, each finished, late 0.0 s. fbgrab's whole-frame verdict: NOT BYTE-EQUAL (`712ad87cc81a` ×2, `303d84399003`) | **the text row read off: see 14a** |
+| W-P | `image 1973088 B`, attempt 1 verified, `reset: ok`, child exit 05:32:22Z | as predicted |
+| N-BOOT P | 05:32:50Z (boot + 28 s) | as predicted |
+| trace P | 05:32:57Z–05:37:57Z, `VERDICT: clean`, rc 0. Seal `b5d7a309f08a…` (104,057 B) | as predicted |
+| grabs P | each finished, late 0.0 s. Whole-frame: grab 1 differs, grabs 2 and 3 are equal (the 05:36:00Z turnover) | information only (14a) |
+| W-v19 | `image 1931840 B`, attempt 1 verified, `reset: ok`, child exit 05:38:33Z | as predicted |
+| S19 | 05:39:03Z and 05:40:03Z, both within 300 s | as predicted |
+
+**The timing, against 12c:**
+
+| image | boot | p0 | p1 |
+|---|---|---|---|
+| M | 05:26:07Z | 05:29:17Z (+190 s) | 05:31:07Z (+300 s) |
+| P | 05:32:22Z | 05:35:33Z (+191 s) | 05:37:23Z (+301 s) |
+
+- The grabs (+ 210/230/250 s) sat between p0 and p1 in both images.
+- P's identity line, `[speed-p5] scratch bytes 128 mismatches 0`, came at 05:33:53Z (boot + 91 s): R-SCRATCH's third
+  clean read.
+
+**Graded after the window by `grade_mark.sh` `441ddcc0c202`** (exit 0; in the frozen order; no board):
+1. The tools' shas and both trace `.rc` files: present.
+2. The seals, as above.
+3. **Identity:** P's scratch lines 1, M's 0.
+4. **The anchor summaries** (information): `contacts 60` in both passes of both images. The host's pick said 57 on
+   screen; the device prints every contact it draws, including the three it clips. Registered as reported, not graded.
+5. **`--equal`:** M EQUAL outside the boxes (grab 1 vs 3: 22 px inside, 0 outside); P EQUAL.
+6. **`--ab`:** contacts 60, region 10,782 px. **0 px differ in the region, 0 outside it.** 26 px differ inside the boxes
+   (the clock: M and P were grabbed in different minutes) and were not judged. **Exit 0.**
+
+**The verdict: (A), as 12a predicted.**
+- P5's moved marker arithmetic (`outlinemask::Heading` and `Build`, noinline) draws main's shipping marker pixels
+  exactly. That holds at MARK60's coverage: 60 contacts from `kTblT`, 51 distinct headings, rung 7 mi, radar-up 0,
+  wx-layer off.
+- (a) proved M's marker is main's compiled marker, so **item (2) is answered NO for this coverage.**
+- The dataflow premise (12a) held on the board.
+- **Not covered,** and not claimed:
+  - other radar-up rotations;
+  - other rungs;
+  - the zoomed cull;
+  - categories outside the table's mix;
+  - wx-layer on, where the outline also draws (R-ANCHOR covers the outline against the 8 copies, not against main).
+
+**P5's open items now:**
+1. the gains (section 3), from an A0a read;
+2. the rebase (section 11, ruled (i)), which waits on M3 (#687), with the trigger at Fri 2026-11-20 23:59Z.
+
+### 14a. A correction below section 13's frozen text: its fbgrab row
+
+- **Section 13's prediction table said:** "the grabs | 3 per image, finished, byte-equal by fbgrab".
+- **That row contradicted the reviewer's ruling of 2026-11-17 04:03Z** (R-ANCHOR's boxes, section 7g/7h). When scene
+  equality moved into `--equal`, outside the clock and indicator boxes, fbgrab's whole-frame sha became INFORMATION
+  ONLY. The ruling governs, and the row should have read: "3 per image, finished; fbgrab's whole-frame verdict
+  information only; `--equal` graded after".
+- **What happened in the window:**
+  - M's grab 3 (05:30:17Z) followed a minute turnover after grab 2 (05:29:57Z). fbgrab read NOT BYTE-EQUAL.
+  - It was reported at 05:30:44Z as an off-prediction, holding at the step boundary.
+  - The named alternative, a change outside the boxes, was excluded by `--equal` on the three grab files: 22 px inside,
+    0 outside.
+- **Ruled (the reviewer, about 05:31Z):** a prediction-TEXT miss on the window table, not an off on a graded row. M's data
+  stands. Continue to P exactly as section 13. The frozen row is not re-worded; this correction sits below it.
