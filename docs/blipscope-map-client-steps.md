@@ -5426,6 +5426,249 @@ gates.
 | Q-T3 | D4's margin | max(1.0 ms, the baseline's measured repeat noise) |
 | Q-T4 | the control's labels on the config page | the owner's own words: "Off", "Subtle", "Strong", "Extra strong", in that order |
 
+### Step D's other half: the map and its town names on by default, registered before any code (2026-11-18)
+
+**What this adds.** Row 4 of [v20-plan.md](v20-plan.md) is all of step D:
+- the map on by default;
+- town names on by default, with their own switch;
+- the terrain setting above (D1-D5, accepted);
+- DO1-DO4 and DOC1-DOC2, the config page, and the off checks;
+- a row asserting that a board saved on v19 comes up with both on.
+
+DO1-DO4 and DOC1-DOC3 are registered as requirements in [blipscope-basemap-client.md](blipscope-basemap-client.md) §6.
+This section registers what §6 leaves to step D, before any code:
+- **(a)** the town-name setting's own rows and plants;
+- **(b)** how DOC2 runs;
+- **(c)** the v19-saved row;
+- **(d)** DO1's writers, and DO2's search with the migration's two outcomes;
+- **(e)** the off checks.
+
+Both migration outcomes are registered here, before the search runs (the orchestrator, 2026-11-18 ~23:05Z). Main at
+`237d5d16` holds none of step D's code: there is no `map-layer` key and no `MAP_DEFAULT_ON`.
+
+**The keys (Q-D1).**
+
+| setting | key | written values | unset or `""` | any other value | its constant |
+|---|---|---|---|---|---|
+| the map | `map-layer` | `"true"`, `"false"` | on | off (`ResolveToggle`) | `MAP_DEFAULT_ON = true` |
+| town names | `map-names` | `"true"`, `"false"` | on | off (`ResolveToggle`) | `MAP_NAMES_DEFAULT_ON = true` |
+| terrain | `map-terrain` | D1's four | Strong | Strong (D1) | D1's resolver |
+
+- **Where the constants live:** both sit beside `LOGBOOK_DEFAULT_ON` in `include/ConfigMigration.h`.
+- **How the toggles are read:** the device and the page read both through `configmigration::ResolveToggle` and nothing
+  else (DO1).
+- **Q-MB7 can still change one default.** Row 4's merge waits on row 2, the owner's look, because Q-MB7 can change
+  towns-on-by-default. If it does, `MAP_NAMES_DEFAULT_ON` changes before the merge, and DO4 still holds.
+
+**What each switch does on the device.**
+- **Map off:** `MapEnabled()` gains the resolved `map-layer`.
+  - No `/basemap` request is made: `mappolicy::ShouldFetch` is passed false.
+  - `DrawMapBase` returns false, so the frame takes today's path, byte for byte.
+  - A package already held stays held in PSRAM. Turned back on, it draws at the next shown frame with no new request,
+    because the query key is unchanged (Q-D3).
+- **Town names off:** the map draws without its names.
+  - `mapcompose::Key` gains `names`, and `Rebuild` skips `DrawNames` when it is false.
+  - `Same()` compares `names`, so a change rebuilds exactly once.
+- **Terrain:** as D1-D4. `Key` gains the resolved {drawn, gain, mid} the same way.
+- **When a change takes effect:** a save applies at `Initialise`, as today. Nothing new needs a reboot.
+
+#### (a) Town names: their own rows, beside DO1-DO4 (Daniel, Q-MC7 (c))
+
+| row | requirement | checked by |
+|---|---|---|
+| **DN1** (DO1) | `MAP_NAMES_DEFAULT_ON = true`. The device and the page read it through `ResolveToggle`. Its writers are (d)'s | DNC1, DW1 |
+| **DN2** (DO2) | `map-names` is new | (d)'s search |
+| **DN3** (DO3) | unset renders ticked | DNC2 |
+| **DN4** (DO4) | hidden wherever the map's box is hidden: the same gate, (b) | (b)'s `check_save_vocab` rows |
+
+| row | check | predicted | control or plant |
+|---|---|---|---|
+| **DNC1** | host: `ResolveToggle` with `MAP_NAMES_DEFAULT_ON`, stored `nullptr`, `""`, `"true"`, `"false"` | on, on, on, **off** | `"false"` is the control. Plant `MAP_NAMES_DEFAULT_ON = false`: exactly the `nullptr` and `""` rows red |
+| **DNC2** | (b)'s page render with no `map-names` key | the box is `checked` | (b)'s plant |
+| **DNP1** | host: the pinned Bend package over D3's sweep (10, 50 and 150 mi; rotations 0 and 90), names off against names on | names off is byte-equal to `maplayer::Build`'s output swapped to the canvas's order, called directly with no names step. Names on differs from it at every view where `nPlaced > 0`. Both counts are printed | plant: `Rebuild` ignores `names` and draws them anyway: red |
+| **DNP2** | host: the composer, names on → off → on, with frames between the changes | exactly one rebuild at each change, and 0 rebuilds on every other frame | plant: `names` left out of `Same()`: 0 rebuilds at the changes, red |
+| **DNC3** | bench, with DOC3 (row 5) | as DOC3, for `map-names` | DOC3's |
+
+#### (b) How DOC2 and DNC2 run: the page's map controls are one pure header
+
+- **The header:** `include/MapSettingsHtml.h`, C++11 with no Arduino types, as `WxLookSelectHtml.h` is for the
+  weather's look.
+  - `mapsettingshtml::Html(storedMap, storedNames, storedTerrain)` returns the section's markup: the two boxes, and the
+    terrain select with Q-T4's labels in order.
+  - The page serves exactly what it returns, so the host test renders exactly what is served.
+- **DOC2:** `Html(nullptr, nullptr, nullptr)` gives `name="map-layer"` with `checked`. A stored `"false"` drops it (the
+  control).
+- **DNC2:** the same, for `map-names`.
+- **D1's page row:** with no stored terrain, `strong` is selected. Each of the four values selects its own option.
+- **Plants:**
+  - the header reads a literal `"false"` in place of `ResolveToggle` for the map: exactly DOC2 red;
+  - the same plant for the names: exactly DNC2 red.
+- **No `%` in its HTML.** The page's placeholder processing would eat one. The config-form check already enforces this
+  for every header the page includes.
+- **A source row in `check_map_draw.py` (DH1):**
+  - the page's map section is `mapsettingshtml::Html(...)`;
+  - no `name=\"map-layer\"`, `name=\"map-names\"` or `name=\"map-terrain\"` literal appears in
+    `ConfigurationWebServer.cpp`.
+  - Plant: a hand-written box in the page: red.
+
+**The page's gate, and a correction to D5.**
+- **The gate:** the section renders, and its saves run, under `#if defined(FEATURE_CLOUD_FEED) &&
+  defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)`. That is `BLIPSCOPE_MAP_FETCH`'s own definition
+  (`src/AircraftManager.h:38`), spelled in `-D` names.
+- **Why not `BLIPSCOPE_MAP_FETCH` itself:** `ConfigurationWebServer.cpp` does not include `AircraftManager.h`, so that
+  macro is never defined there. `check_save_vocab.py` also evaluates `-D` names only, and a gating macro from a header
+  is invisible to it.
+- **The correction:** D5's row reads this gate, not `BLIPSCOPE_MAP_FETCH`.
+- **The saves:** `SaveToggle("map-layer")` and `SaveToggle("map-names")` sit under the same gate. `map-terrain` is saved
+  only if it is sent, as `wx-look` is.
+- **`check_save_vocab.py` gains rows beside its `wx-layer` row G:**
+  - V1 (the shipping env): neither box is live, and LEFT_ALONE is empty;
+  - V2 (`+ WX_LAYER_SHIPS`): both boxes are live, and LEFT_ALONE is empty;
+  - plant: `SaveToggle("map-layer")` outside the gate makes V1's LEFT_ALONE exactly {`map-layer`}: red.
+
+#### (c) The v19-saved row, V19S: a real v19 save, read by the board
+
+- **Why not on the host.** A real v19 save exists only in a board's NVS, and a hand-built NVS is not a v19 save.
+  Daniel's rule keeps NVS bytes off the PC ([crash-dump-bench.md](crash-dump-bench.md), "Why NVS is not read from the
+  PC"): names and counts only, and the board does the comparing. So the board reads it.
+- **The instrument:** a bench key image, `blipscope-s3-128-mapkey`, built from step D's commit the way `wxkey` was.
+  - It prints one boot line, before `ConfigMigration::Apply` and before `Initialise` touches NVS:
+    `[map-key] config keys=<n> cfg-rev=<absent|6|other> map-layer=<absent|true|false|other>
+    map-names=<absent|true|false|other> map-terrain=<absent|off|subtle|strong|xstrong|other>
+    -> map=<on|off> names=<on|off> terrain=<off|subtle|strong|xstrong>`
+  - Every field is a class, never a value. The resolved half comes from the same resolvers the device uses.
+  - The line's formatter is a pure function with its own host rows: each class from a planted value, and `other` for
+    `"TRUE"`, `"1"` and `"strong "`.
+  - Its marker joins `check-no-bench-hooks.sh`'s list.
+- **The board:** E2:08 (`blipscope-bench`), on v19 now.
+  1. Its form is saved on v19, in the window: GET the page, then POST every field back unchanged (WD8e's round trip;
+     want a 200).
+  2. `mapkey` is flashed app-only, so NVS is kept, and its boot line is read once.
+  3. v19 is restored.
+- **Predicted:** `cfg-rev=6`, `map-layer=absent`, `map-names=absent`, `map-terrain=absent`, giving
+  `map=on names=on terrain=strong`.
+- **The control:** `cfg-rev=6` is the read seeing a key that a v19 save holds. If it reads `absent`, the read is blind
+  and nothing is graded.
+- **Why E2:08 stands for a customer's v19 board on these three keys, and only on these.**
+  - Its NVS also holds keys that bench images wrote (`wx-layer`, from #445's windows), so it is not a customer's NVS.
+  - But no image of any kind has code that writes these three keys. (d)'s search covers every published image, and
+    `git grep` over every ref in the repo finds no writer before step D's commit.
+- **The window (Q-D2):** about 25 minutes of no-hands E2:08, outside the owner's look (row 2), before row 4's merge.
+  The key image is built, scanned, and its `[build] env=` named before the window opens.
+
+#### (d) DO1's writers, and DO2's search with the migration's two outcomes
+
+**DO1's writers, named from main at `237d5d16`.** These are the writers of the `config` namespace:
+
+| writer | file | what it does to these keys |
+|---|---|---|
+| the config page's save | `src/ConfigurationWebServer.cpp` | renders through `ResolveToggle`; writes `"true"`/`"false"` only for a box the form declared (`cfg-toggles`) |
+| the migrations | `src/ConfigMigration.cpp` | nothing, unless outcome B below |
+| the factory reset | `src/FactoryReset.cpp` | clears the namespace, keeping only `cloud-key-fac`, so both keys end unset (on) |
+| the website's renderer | `tools/web-renderer/web/web_config.cpp` | `"false"` for both, in writing: (e) |
+
+- **Writers that touch none of them:** provisioning (`include/WiFiManagerHelpers.h`, `lastfail` only) and the OTA
+  updater (its own `ota-mem` and `ota-boot` namespaces).
+- **Not on main:** the Remote edition (its own branch). There is no settings import.
+- **DW1, the check that runs:** `check_map_draw.py` finds the three key literals, in `src/` and `include/`, only in the
+  files above plus `src/AircraftManager.cpp` (the read) and `include/MapSettingsHtml.h` (the page).
+  - Any other file holding one is red until it is named here. So a new writer, the Remote edition included, cannot
+    land unseen.
+  - Plant: `p.putString("map-layer", "false")` in a copy of `src/Logbook.cpp`: red.
+
+**DO2's search, registered before it runs.**
+- **Strings:** `map-layer`, `map-names` and `map-terrain`.
+- **Trees:** `src/` and `include/` at every release tag: 22 tags, read 2026-11-18. Predicted: 0 hits.
+- **Images:** every application image published as a release asset in this repo, prereleases and the factory-manifest
+  scratch included.
+  - That is 116 `firmware*.bin` files in 21 releases, 6 of them factory images. `v13` has none.
+  - The other 18 `.bin` assets (bootloader, `boot_app0`, partition table) hold no application code and are not
+    searched.
+  - Each image is downloaded into a new, empty directory, read as bytes, and deleted after.
+  - Output: counts and tags only.
+- **Each image's own control (its anchor).** Let S be the key literals passed to `SaveToggle`, `putString` or `putBool`
+  anywhere in that release's own tag (`src/` and `include/`).
+  - At least one member of S must be found in the image. This takes the input from the other side: the image's own
+    source.
+  - An image holding none is **BLIND**: it was not read, and the search is not graded.
+- **The planted writer (the orchestrator's control), run first.**
+  - Two copies of v19's `firmware-s3-128.bin`: one with `map-layer`, one with `map-names`, each written over an
+    equal-length run of the image's own bytes.
+  - The search must report each **FOUND**, in its own copy only, before any real image is read.
+- **The outcomes, registered now, before the search runs:**
+
+| outcome | what was read | what follows |
+|---|---|---|
+| **A: clean** | 0 hits in every tree and every image; every image anchored; both plants found | no `CONFIG_REV` bump. DOC1's and DNC1's unset rows, and V19S, prove that an absent key resolves on |
+| **B: a writer** | key K found, in a tree or in an anchored image | stop and report first. Then `CONFIG_REV` 7: `NeedsMapReset(storedRev)` **clears** K for `storedRev < 7`, the logbook's shape (cleared, never forced true), with host rows (rev 6 clears, rev 7 keeps) and a plant. V19S's prediction for K becomes `absent` after `Apply` |
+| **none of the above** | a BLIND image, a plant not found, or a tag whose tree cannot be read | the instrument cannot answer at this scale. Stop and decide; nothing is concluded |
+
+#### (e) The off checks
+
+- **E1, `scripts/check-no-weather.sh`:** its list gains `name="map-layer"`, `name="map-names"` and `name="map-terrain"`,
+  written as `name="wx-layer"` is there.
+  - Predicted: 0 of each in the shipping image.
+  - The control: the `wxlook` image, built with `WX_LAYER_SHIPS`, holds all three.
+  - Its `--selftest` stays as predicted.
+- **E2, `tools/web-renderer/check_wx_off.mjs`, extended to the two toggles:** the website's config map must hold
+  `{"map-layer", "false"}` and `{"map-names", "false"}`. Absent reads on, so absence is red, as for `wx-layer`.
+  - Predicted on the new `web_config.cpp`: exit 0.
+  - Four new plants, each in a copy: either entry removed, either entry set `"true"`. Each gives exit 1, beside today's
+    three cases.
+  - The website's renderer compiles no map (`BLIPSCOPE_MAP_FETCH` needs `!BLIPSCOPE_WEB_RENDERER`). The entries are the
+    ruling's "false" in writing, so a later build that does compile the map cannot inherit on.
+- **E3, the switch is read:** a `check_map_draw.py` row that `MapEnabled()` reads the resolved `map-layer`. Plant: the
+  term removed: red.
+
+#### S8, for the new default look
+
+Strong as the default changes how roads read against the land. So S8 applies ([blipscope-basemap-client.md](blipscope-basemap-client.md)
+§3), and its corridor prediction there is already "band width and crossings unchanged".
+
+- **The pictures:** at 5, 10, 50 and 100 mi, drawn by the device's renderer: the host build of `MapLayer.h` and
+  `MapCompose.h` on the pinned Bend package.
+  - Subtle (today) against Strong, with Off and Extra strong beside them.
+  - They go to the owner before row 2 asks him to decide.
+- **The corridor:** US 97 through Bend, at 10 mi.
+  - Line positions per value are measured as each value's build compared with its own terrain-only build, so blending
+    cannot pass as a move.
+  - On a pixel row or column, the runs of line pixels are the crossings, and their widths are the band width.
+  - The measure runs on **every** row and column of every picture, so the corridor's rows are among them, and a choice
+    of row made after seeing the pictures cannot carry the result.
+  - **Predicted: identical across the four values, on every row and column**, because terrain colours only land pixels.
+  - If the package draws US 97 as one line, the run says so. The prediction does not depend on it.
+
+#### What row 4 does not include
+
+- DOC3 and DNC3 (row 5's bench);
+- D4's frame-time bench row;
+- the owner's look at Strong and Extra strong.
+
+Each runs in an E2:08 window, and nothing here presumes one.
+
+#### The order, after the ruling
+
+1. DO2's search: its plants red first, then outcome A, B or none of the above.
+2. The code: the header, the constants, the device's switches, the page, the saves, the web config, and the checks.
+3. The host rows, under WSL g++ 13, and every sabotage driver.
+4. S8's pictures, to the owner.
+5. V19S, in its window.
+6. The PR. Its merge waits on row 2.
+
+**The outcomes:** every prediction as stated, or stop and report. A second off reading on a row goes to the owner.
+
+| Q | the question | the default I take unless ruled |
+|---|---|---|
+| Q-D1 | the keys and the boxes' labels | `map-layer` "Map" and `map-names` "Town names", in a "Map" section beside "Weather", with Q-T4's terrain select |
+| Q-D2 | V19S's window | about 25 minutes of no-hands E2:08, before row 4's merge, not inside the owner's look |
+| Q-D3 | the map turned off with a package held | kept in PSRAM, which costs no internal heap (CLAUDE.md). Turned on again, it draws with no fetch |
+| Q-D4 | S8's corridor measure on a client render | the line mask above (each value against its own terrain-only build) |
+
+**CI for this PR (docs-only), predicted: 35 check runs: 33 success, 2 skipped, 0 failed.**
+- The baseline is #762's finished docs-only PR run: head `dd57f828d829`, 35 = 33/2/0.
+- That run started at 20:11:34Z, before `e3ccf6b4` (#761, 20:15:23Z), the last change to `.github/workflows/`.
+- #761 changed steps in one workflow file and no job line, so the set of jobs is the same.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
