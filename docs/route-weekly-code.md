@@ -1534,6 +1534,13 @@ Predicted, in order:
 - **None of the above,** if a line appears in a shape not foreseen here: the instrument is unreliable at this step.
   Stop and decide.
 
+**The run checkout (the reviewer's rule, 2026-11-18, the same as Thursday's logs step).** A disk read at prep decides
+T0.3's checkout, and the choice and its reading are written in the run's record:
+- **29.8 GiB or more free:** a fresh LF checkout at EXPECT, as T0.3 says.
+- **Otherwise:** reuse the session's existing checkout at EXPECT, the one 4h's dry runs ran in. Its HEAD must equal
+  EXPECT, its status must be empty including untracked files, T0.3's CRLF control must be re-run (control 2,
+  `proxy/src` and `proxy/scripts` 0), and `proxy/node_modules` must be present. The same commit gives the same evidence.
+
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 
 **The alternative.** The workflow holds no KV token. It POSTs batches of `[key, value]` and `delete` lists to a
