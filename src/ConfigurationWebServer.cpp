@@ -3176,6 +3176,10 @@ void ConfigurationWebServer::Initialise() {
         // ENROLLED and REFUSED by the radar's own rules (see its loader above): enrolled means the FACTORY slot
         // holds a key -- a pasted cloud-key is not enrolled -- and refused is the one bit published by the loop
         // (SetNeedsReverify), false until Weatherscope publishes it, so a false "refused" can never show.
+        // ONE DELIBERATE DIFFERENCE FROM THE DEVICE (docs/weatherscope-stage4.md S4.36, ruling (a), the pasted-key
+        // row): the device's request key follows the radar's precedence (cloud-key, else cloud-key-fac), so a board
+        // with a pasted cloud-key and an empty cloud-key-fac draws Live while this page says "not enrolled" --
+        // which is true of its factory identity.
         const bool enrolled = prefs.getString("cloud-key-fac", "").length() > 0;
         const bool refused = needsReverify;
 #endif
