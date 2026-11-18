@@ -5669,6 +5669,31 @@ Each runs in an E2:08 window, and nothing here presumes one.
 - That run started at 20:11:34Z, before `e3ccf6b4` (#761, 20:15:23Z), the last change to `.github/workflows/`.
 - #761 changed steps in one workflow file and no job line, so the set of jobs is the same.
 
+#### The rulings on Q-D1 to Q-D4 (the orchestrator, 2026-11-18 ~23:24Z; Q-D2 the owner's, 23:25Z)
+
+- **Q-D1: the default.** The keys are `map-layer` "Map" and `map-names` "Town names", in a "Map" fieldset beside
+  "Weather", with Q-T4's terrain select.
+  - The labels are customer-visible. The owner sees them as an FYI, and on glass in row 2's look.
+  - A later label change touches only `MapSettingsHtml.h` and DOC2/DNC2's expected markup.
+- **Q-D3: the default.** Off keeps the package and the buffers in PSRAM, as CLAUDE.md says: don't free PSRAM to make
+  room. Turned on again, the map draws at the next frame with no fetch.
+  - **One host row is added, DM1:** the policy driven off then on (`MapEnabled()` false, then true again, with a
+    package held) makes **zero** requests.
+  - DM1's plant: `held` cleared when the map turns off. One request: red.
+- **Q-D4: the default.** A line mask per value, each value against its own terrain-only build. Runs and widths on every
+  row and column, predicted identical across the four values.
+- **Q-D2: V19S is a bench window, so the owner's.** His answer (23:25Z), verbatim:
+  > "V19S: Sat Nov 21, as early as the board is free, finished by 16:30Z. If it can't start by 16:00Z, it runs after
+  > the restart once the sessions are back. The board ends on v19 with every one of my settings back as it was."
+  - So V19S runs after S2b. It starts once E2:08 is free, ends by 16:30Z, and restores v19.
+  - The proof that his settings are back is the WD8e form: the served page's controls compared by name, type, value
+    and checked state, before against after, by `compare-form-fields.py`, with zero differences.
+  - The restart is at 17:00Z Saturday, so nothing of V19S runs from 16:45Z to 17:15Z.
+
+**CI for this push (docs-only), predicted: 35 check runs: 33 success, 2 skipped, 0 failed.** The baseline is this PR's
+own first head, `dbb896c48e2c`: 35 = 33/2/0, read twice 71 s apart, on the tested merge `726813f` (Merge `dbb896c4`
+into `237d5d16`). No workflow file has changed since.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
