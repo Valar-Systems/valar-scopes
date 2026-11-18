@@ -3080,3 +3080,31 @@ output to its own file, before Thursday's PC quiet (16:20Z):
 - `ProxyWxFeed` itself, the request headers (Ask A), the enrolment change (Ask B), Q126's unavailable pages
   (W7-ALERTS), the factory switch, and D1's extension. Each is its own slice, frozen the same way.
 - The PR waits for those slices and for F1's second rule on main.
+
+### S4.34, 2026-11-18: W7 slice 1, read (23:28:01-23:28:09Z): every row as predicted
+
+- **What ran:** `weatherscope/w7-live` at `eed247ad4eb8`, pushed before the run, against S4.33, which was frozen and
+  pushed at `10a8920bf918` before the run.
+- **How:** WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`, through
+  `p5p6-board/drop1c/w7_run.sh` (`666ee5374ab8`) and its bgcheck-registered wrapper (`eab4351493c0`).
+- **Exits:** all 7 steps exit 0, every stderr 0 B, and the tree's HEAD and porcelain are unchanged before and after.
+
+| step | read | output sha256 |
+|---|---|---|
+| `test_wx_live` | **14 ok, exit 0**, `all WX live checks passed`. Every value as frozen: `K.K.K.K.K.` / `0,2,4,6,8`; `1,4`; `10,…,38`; `nnnnYY`; history `6`; 8 cases 0 wrong; 96 inputs 0 violations; `…/api/v1/blipscope/wx/shsr`; `?lat=10.13&lon=-20.68&r=97` and `?lat=0.00&lon=0.00&r=97` | `404e1d29ea25` |
+| `sabotage_wx_live.py` | **all 7 AS PREDICTED,** each red on exactly its frozen set; the real headers unchanged (`5590a3e053ea`, `4fadd0487fb3`, `27968af7b553`); `W7 LIVE PLANTS AS PREDICTED` | `972cb6bce325` |
+| `--anchors` | 7 plants, 7 anchors, each present exactly once | `bcd77c8b5ae7` |
+| `--control` | `test_wx_live` 14 ok, as the table | `c7bb60e8cfed` |
+| `w7_static.py` | NOSHOW-CTL 1 occurrence; W7-NOSHOW 0 hits in 25 files | `70d0e9531b8a` |
+| `w7_static.py --selftest` | PASSED: the planted call was named at `WeatherscopeManager.cpp:1391` | `040534b5c0bb` |
+
+**What comes next, each frozen the same way before its first run:**
+- **Slice 2, Q126's unavailable pages (W7-ALERTS):** an `available` flag on what a feed returns, with the
+  `ALERTS UNAVAILABLE` / `NO FORECAST` words, and the all-clear test with its control. It needs no Ask.
+- **Slice 3:** `ProxyWxFeed`, the factory switch, D1's extension and the setup screens' drawing.
+  - Its request headers wait on Ask A. blipscope-5c answered (a): one shared header function taking the model, gated
+    by S1 on every radar env, falling back to (b) if any radar image moves.
+  - Its enrolment waits on Ask B: yes, guards only, under S1, with a row on the built image, edition-neutral words, and
+    the activation list as W7-REFUSED's 403 `forbidden`.
+  - Both arrive as one 5c PR.
+- **The PR** waits for slices 2 and 3 and for F1's second rule (uk-data's) on main.
