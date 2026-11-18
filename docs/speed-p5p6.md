@@ -3936,3 +3936,144 @@ Either one nonzero: STOP. No gain is read.
 - FB1/FB2 red.
 
 Any of these: STOP, report, nothing pushed.
+
+### 16. The bench rows: P5's and P6's frame-time gains at 40, registered (2026-11-18 ~07:4xZ; frozen before any window)
+
+**What it grades:** the four frame-time rows of sections 1 and 2, each alternated at 40, against 15a's N = 40 bands in
+absolute ms: **1a outline [3.77, 6.42]; 1b sw_blend [1.53, 3.06]; 1c under [2.20, 4.67]; P6 lbl_layout [3.31,
+5.96].** Plus 15b's rows (P6's one-sided guard with its pixel row; 1c's marks, within the run) and 15c's stop rows.
+
+**The images** (p4, 07:33:07Z; **re-verified by me at 07:33:58Z:** every sha on disk, both remote heads, and both
+heads containing my 15c commits and the profile `1d9e91740e1e`):
+
+| image | branch @ head | env | firmware.bin | elf | table |
+|---|---|---|---|---|---|
+| **G5** | bench/gains-p5 `c58b2d89f493` (= my `2feb035c104a` + the profile merge `8f9692a5` + (A)) | blipscope-s3-128-gains-p5 | `26d917a2baed` (1,976,864 B) | `6f1a290a6aff` | `28f336fe57a9` |
+| **G6** | bench/gains-p6 `10d4517fc7c9` (= my `7220f482f601` + merge `356f869a` + (A)) | blipscope-s3-128-gains-p6 | `ee3f7fd3fe0f` (1,971,216 B) | `23c69d86bdda` | `28f336fe57a9` |
+
+- **Archived:** `_handoffs/p4/gains/build-gains-p5|p6/`.
+- **p4's proof of the images:**
+  - each carries its own list's arm and kind names and its env banner;
+  - A0a's image carries none of them (the control);
+  - the compile plant (kOutlinePlant one short) failed on exactly its static_assert;
+  - p4's `bracket_check` `97495f0724b1` places every OLD and NEW anchor inside its span.
+- **The reader:** `_handoffs/p4/gains/gains_read.py` `ccd198d75058`, `--list g5|g6 --pix none`. Its exit is 0 graded, 1 a
+  graded row off, 4 INSTRUMENT.
+
+**The contract with p4's instrument** (p4, 05:57:15Z, file:line at `1d9e91740e1e`; the full text is in the message
+log):
+- **How a phase is made:** "The loop phases are spans between contiguous micros() marks … Their sum is fr." outline,
+  lbl_layout and lbl_draw "are CYCLE-COUNT spans … added only while the contact loop runs". contacts and rest are
+  remainders. The push task's bursts "land in whichever phase is running".
+- **outline** `fpOutline0`..`AddCyc(A_OUTLINE)` (AircraftManager.cpp:4462-4480): holds 1a's OLD 8 copies and NEW mask.
+- **sw_blend** `B_SWB`..`B_SWM` (:3785-3798): holds `wxsweep::Blend` and the LUT.
+- **under** `B_WAIT`..`B_UNDER` (main.cpp:1270-1305): holds the whole clear, and 1c's restore.
+- **lbl_layout** is around exactly the `LabelLayout(...)` call, at both sites inside the loop.
+- **lbl_draw** (:5865-5873): holds the drawString loop INCLUDING `format()`, so P6's cache moves it out by design (15b-1).
+- **The merges** (p4's REG B3/B4): LoopEnd before AnchorFlush, so the flush lands in `rest`; P6's marks exactly as at
+  1d9e. The profile requires the push task ON. No `-DWX_LOOK_AB`.
+
+**The arms, as built** (FrameProfileScenes.h on both heads, read 07:3xZ; every timed arm is level 40, weather on, A0a's
+keys):
+- **G5**, 18 scenes:
+  - S0 O-CTRL (OUTLINE_8COPY + 2.0 ms planted inside the outline span);
+  - S1-S4 1a: 8COPY, MASK, 8COPY, MASK;
+  - S5-S8 1b: SWEEP_OLD, LUT, OLD, LUT;
+  - S9 1c-CHECK (CLEAR_CHECK, untimed);
+  - S10-S13 1c: CLEAR_OLD, DIRTY, OLD, DIRTY;
+  - S14-S17 MK: CLEAR_OLD, CLEAR_NOMARK, OLD, NOMARK.
+  - In 1a's arms the sweep is LUT and the clear DIRTY; in 1b's, the outline MASK and the clear DIRTY; in 1c's and MK's,
+    the outline MASK and the sweep LUT. **No G5 arm is all-OLD.**
+- **G6**, 8 scenes:
+  - S0 6-CHECK (LABELS_CHECK, untimed);
+  - S1 P-CTRL (LABELS_TODAY + lbl_draw 5.0 ms);
+  - S2-S5: TODAY, CACHE, TODAY, CACHE;
+  - S6 6-STILL-OLD, S7 6-STILL-NEW: the still kinds, weather off, untimed.
+  - G6 carries no P5 code, so 6-OLD is the arm closest to A0a.
+
+**THE READING, in this order; the first failure stops it** (graded after the window, no board):
+1. **The seals** (`trace_filter.py` `6741186f03b0`), one per image. The tools' shas are those at T-10.
+2. **p4's reader, exit 0 on each image:** I-1 to I-11, I-4 being S1 (drawn == 40 on every frame of every timed arm);
+   G5's control O-1 (+2.0 ± 0.5 ms in outline, every other phase |Δ| ≤ 0.5); G6's C-1 (+5.0 ± 0.75 in lbl_draw).
+   - Exit 1: a graded row off. STOP, to the reviewer.
+   - Exit 4: INSTRUMENT. STOP.
+3. **S0, same order:** the image read, not the source. p4's strings proof above, plus my own scan of each flashed
+   `.bin` for its list's kind names (`"clear-nomark"`, `"labels-today-still"`, …).
+4. **The untimed checks** (15c (4)), from the seal's whole `[speed-p5]` / `[speed-p6]` lines:
+   - exactly one `[speed-p5] clear S9 frames N mismatched-px 0` with N > 0;
+   - exactly one `[speed-p6] labels S0 checked N mismatches 0` with N > 0.
+   - Anything else: STOP.
+5. **The rebuild rules (15c-0, NEW):** each timed arm's REPORTED "rebuild frames" ≤ 1, or that arm is VOID; a cut's four
+   arms carry EQUAL counts, or it is the row's first off.
+6. **The base gap (NEW, and chosen after A0a's values reached me at 05:51Z):** for each cut, the mean of its two OLD
+   arms' own-phase p50 against A0a's P1@40 value (outline 7.55, sw_blend 3.83, under 5.49, lbl_layout 6.62). A
+   difference above max(0.20 × A0a's value, 0.5 ms) = **1.51 / 0.77 / 1.10 / 1.32 ms** means the band's base is
+   wrong: STOP, that cut ungraded, to the reviewer.
+7. **Per cut**, from the REPORTED p50s as printed:
+
+| quantity | rule | source |
+|---|---|---|
+| N | \|p50(OLD1) − p50(OLD2)\| of the cut's own phase | CITED speed-p5p6.md:39-40 |
+| g1, g2 | OLD1 − NEW1, OLD2 − NEW2 | NEW |
+| the graded gain | (g1 + g2) / 2 | NEW |
+| a gain counts | g1 > N and g2 > N | CITED :39-40; "both" NEW |
+| the band | the graded gain inside 15a's 40 band: AS PREDICTED | CITED :73, 15a |
+| outside the band | either way: the row's first off, to the reviewer; a second off on the row goes to the owner | the reviewer, at 15 |
+| regression stop | NEW slower than OLD by more than max(N, 0.3 ms) in either pair: the step stops | CITED :55-56 |
+| every other phase | each \|OLDi − NEWi\| ≤ max(N, 0.5 ms) | CITED :57 |
+| P6's lbl_draw | must not RISE by more than max(N, 0.5 ms); its fall is always reported, and attributed to format() only if the pixel row reads EQUAL; otherwise UNEXPLAINED, the row's first off | 15b-1 |
+| P6's pixel row | S6 and S7 each pass `--equal` on their three grabs; then `--pair` of S6 grab 1 against S7 grab 1: 0 EQUAL | 15b-1, 15c (3) |
+| 1c's marks (MK) | for contacts, outline and lbl_draw: (ON1 − OFF1, ON2 − OFF2) each ≤ max(N_MK, 0.5 ms), N_MK = \|ON1 − ON2\| of that phase. **GRADED** | 15b-2 |
+| OLD against A0a | reported for every phase, beside row 6 | information |
+
+**The grader** (mine, written before the window, red first; text here, code after acceptance):
+`tools/speed-p5p6/gains16.py`, on the reader's output (each `R-<arm> … kind …; …; upd=… flush=…; push avg …; rebuild
+frames n` row, as at `gains_read.py:207-210`), the seal and the pair's exit.
+- It prints every row above, in that order, and stops at the first that fails.
+- **Its selftest, on synthetic rows in the reader's own format,** each plant red on exactly its row:
+  - a gain below its band;
+  - a gain above it;
+  - g2 ≤ N;
+  - NEW slower than OLD by more than the stop;
+  - another phase moving by more than its bound;
+  - lbl_draw rising;
+  - lbl_draw falling with the pixel row NOT EQUAL (UNEXPLAINED);
+  - a rebuild count of 2;
+  - unequal counts within a cut;
+  - a base gap over its tolerance;
+  - an MK marks row over its bound;
+  - a missing arm (outside the set).
+- The plants are frozen before its first run, and a clean synthetic set reads every row ok.
+
+**Outside the set:**
+- a missing arm, phase or line;
+- a non-number, or a p50 below 0;
+- a gain above OLD;
+- a control reading blind;
+- a flashed sha other than the table above;
+- a reader exit other than 0, 1 or 4.
+
+Any of these: the instrument is unreliable. STOP, decide; nothing past it is computed.
+
+**The window** (one window of about 115 min, or two; the reviewer books; E2:08; nothing runs without its START):
+
+| step | what | budget |
+|---|---|---|
+| 0 | reserve; S19 twice, 60 s apart; `--check-tool`; `--selftest`; the T-10 re-verify of every sha above and of my tools | 3 min |
+| 1 | G5 through `app-only-write` (build dir `_handoffs/p4/gains/build-gains-p5`); N-BOOT (the gains-p5 env within 180 s); one trace, 72 min (G5 runs boot + 90 to + 4,050 s) | ~75 min |
+| 2 | G6 likewise (`build-gains-p6`), its trace 33 min (boot + 90 to + 1,850 s), and the still arms' grabs at boot + 1,530/1,550/1,570 s (S6) and + 1,750/1,770/1,790 s (S7) | ~36 min |
+| 3 | restore v19 (`f6d73e391631`); S19 twice within 300 s; release | ~3 min |
+
+- **The hard end:** start + 135 min if it is one window. If it is two: G5's start + 95 and G6's start + 55.
+- **The tools,** written and sha'd before T-10, on the MARK60 shapes (section 13):
+  - `run/tracerun_gains.sh` (`w4-<G5|G6>-trace`);
+  - `run/grabs_g6.sh` (the six grabs, `fbgrab.py` scene mode, into `grabs-g6/S6|S7`).
+- **The rules in the window:**
+  - no live trace or child-log reads (`childlog.sh` `07f89ca19e00`);
+  - every cue from the board or a process exit;
+  - every start registered with bgcheck `970ab5fd2dfc`;
+  - a VOID or an instrument failure ends it: restore, release, report.
+- **It avoids:** the proxy deploys (Wed 10:00Z; 12:30-15:00Z), because the bench's real GET reaches the proxy; M3-9
+  (Wed 18:00Z); and Thursday's REH and FT-HR (15:00Z onward).
+- **Proposed:** Wed 2026-11-18, one window, START 15:05Z (the steps sum to about 117 min, so it ends near 17:02Z), with
+  the hard end at 17:20Z, start + 135, which is 40 min before M3-9. Or Thursday, ending before 15:00Z.
