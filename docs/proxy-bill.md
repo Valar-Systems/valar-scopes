@@ -989,3 +989,33 @@ to `docs/account-budget.json` is its own PR, for that file's owner.
 **CI for this push (predicted before it):** docs only, on the PR's merge with today's main: **35 = 33 / 2 / 0**, the
 same as #758's docs-only head. `tools/bill/` is in no workflow's path filter, so the reader's own push predicts the
 same.
+
+### Amendment 4c-1: the point families are seven, not five (2026-11-18T23:20:01Z, below the frozen section; ruled by the reviewer)
+
+**What happened.** Read 1 (2026-11-18T23:18:06Z, reader blob `b9ce4ab4318a`) found ONE index1 value that was neither a
+route nor one of the five families named above. That is the escape row, so the read stopped:
+- read 2 was not run, nothing was graded, and no per-day figure was printed;
+- the reader does not keep an unknown value, so it could not say what the value was.
+
+**The cause, from the source.** The registration took the families from `proxy/src/metrics.ts` alone. Two more are
+written outside it, at the deployed commit (`074863fc`) and on main:
+- **`provision`** (`proxy/src/provision.ts:84`): blobs `provision`, a MAC hash, the operator and a device field, in
+  blob1 to blob4; one double, today's mint count;
+- **`sitefeed`** (`proxy/src/sitefeed/`): blobs `sitefeed` and the event; one double, 1.
+
+Neither carries a blob5, and with one double each, double4 is 0. So neither can enter A, F, B, L, P, E or the request-row
+sums. That is why this amendment is allowed; it is not a re-grade. **The fix comes from the writers' side**, and no
+figure was seen.
+
+**Ruled (the reviewer, 2026-11-18 ~23:25Z): ACCEPTED as written, with one addition.**
+1. The non-route families are **seven**: the five above, plus `provision` and `sitefeed`, cited by file and line as
+   above.
+2. The reader adds those two names, so an index1 outside routes and the seven still fires the escape.
+3. **The addition:** the reader prints the row COUNT for `provision` and for `sitefeed` separately, as information, so
+   the record shows which of them produced read 1's unknown. If neither has rows and an unknown remains, the escape
+   fires, as an eighth family.
+4. **Read 1 is DISCARDED.** Both reads are taken fresh, after this commit, at least 60 s apart.
+5. Every row, band, anchor and the rest of the escape stand exactly as frozen above.
+6. **A second escape on 4c goes to the reviewer before anything else is amended.**
+
+The reader's new blob sha is sent to the reviewer before any query.

@@ -28,7 +28,11 @@ EVENTS = {"2026-11-09": "refresh-data", "2026-11-13": "route refresh (A)", "2026
           "2026-11-16": "refresh-data"}
 BACKGROUND = ["2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08", "2026-11-10", "2026-11-11", "2026-11-12",
               "2026-11-15", "2026-11-17"]
-NONROUTE = ("err5xx", "enrich_gap", "ota", "boot", "usage")          # the five other point families (metrics.ts)
+# The other point families, from every writeDataPoint in proxy/src (amendment 4c-1): five in metrics.ts, plus
+# `provision` (provision.ts:84) and `sitefeed` (proxy/src/sitefeed/). Neither of the two carries blob5 or a double4,
+# so neither can enter a model sum. An index1 outside routes and these seven is still the escape.
+NONROUTE = ("err5xx", "enrich_gap", "ota", "boot", "usage", "provision", "sitefeed")
+INFO_FAMILIES = ("provision", "sitefeed")    # their row counts printed separately, as information (the ruling)
 ENRICH = ("/api/v1/blipscope/enrich", "/v1/enrich")
 SUBMIT = ("/api/v1/blipscope/leaderboard", "/v1/leaderboard")
 PAGES = ("/blipscope/leaderboard", "/blipscope/leaderboard.json", "/blipscope/leaderboard/:id",
@@ -159,6 +163,8 @@ def read(path):
     print("read %s: %d KV groups, %d day(s) of %d; other namespaces %d; non-route index1: known %s, unknown %d" % (
         out["read_at"], len(groups), len(days), (db - da).days, out["other_namespaces"],
         {k: int(v) for k, v in sorted(out["nonroute_known"].items())}, out["nonroute_unknown_count"]))
+    print("information (amendment 4c-1): rows of %s" % ", ".join(
+        "%s %d" % (k, int(out["nonroute_known"].get(k, 0))) for k in INFO_FAMILIES))
     return 0
 
 
@@ -195,8 +201,10 @@ def grade(p1, p2):
         escape.append("AE anchor MISS")
     if not ok_d:
         escape.append("AE anchor devices")
+    print("information (amendment 4c-1): rows of %s" % ", ".join(
+        "%s %d" % (k, int(d["nonroute_known"].get(k, 0))) for k in INFO_FAMILIES))
     if d["nonroute_unknown_count"]:
-        escape.append("%d non-route index1 value(s) outside the five families" % d["nonroute_unknown_count"])
+        escape.append("%d non-route index1 value(s) outside the seven families" % d["nonroute_unknown_count"])
     g = lambda k, day: float(d[k].get(day, 0.0))
     for day in BACKGROUND:
         if kvn(d, day, "write", "prod") == 0 or g("rows", day) == 0:
