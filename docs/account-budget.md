@@ -905,3 +905,104 @@ The needles held. The sets could not, because the new rows' arithmetic runs thro
   as registered.
 - The driver runs once more, predicted ALL AS PREDICTED.
 - A second off on these rows goes to the reviewer and the owner.
+
+## 11. December's Workers Logs is priced by the gigabyte (registered 2026-11-18, before any code)
+
+**Why.** From 2026-12-01, Workers Logs is billed by the gigabyte (5.2):
+- ingest: 50 GB included, then $0.25 a GB;
+- storage: 10 GB included, then $0.10.
+
+This file's month is 2026-12, but its 30-day and December scenarios still price Logs per event, at November's 20 M
+included and $0.60 a million. Sections 5.2 and 5.5 said December's GB allowances join this file "in their own change,
+registered before 12-01". This is that change.
+
+**Where it bites.** The file holds November and December calendar-month scenarios side by side. The per-event price is
+right for November and wrong from December, and the GB price is the reverse. So neither allowance can be in force in
+every scenario.
+
+**The change, after this registration:**
+- **The field.** An allowance may carry `"months"`: `{"from": "YYYY-MM"}`, `{"until": "YYYY-MM"}`, or both, inclusive.
+  A malformed window is refused (exit 2) with a message naming `months`: an unknown key, a month that is not YYYY-MM,
+  or from after until.
+- **Which month a scenario is in.** A calendar-month scenario uses its own month. A 30-day scenario uses the file's
+  month (2026-12), the same month its one-offs count for (9.1).
+- **Out of force.** `evaluate()` gives the line no amount, no mark and no cost. The table and the report print `n/a`.
+  It raises no flag and adds no overage.
+- **What does not change:** `weights()`, the mark line, the excluded-row sum and the per-month line keep their text,
+  so every existing plant keeps its needle. The new rows are built so that no existing plant reaches them (see the
+  table below).
+- **The real file:**
+  - `logs_events` gains `"months": {"until": "2026-11"}`. Its label is unchanged.
+  - Two new allowances follow it directly, both with `"months": {"from": "2026-12"}`:
+    - `logs_ingest_gb`, "Workers Logs ingested (GB, from 2026-12)": 50 included, $0.25 a GB, unit 1, no round-up;
+    - `logs_storage_gb`, "Workers Logs stored (GB-month, from 2026-12)": 10 included, $0.10, unit 1, no round-up,
+      `per_month` true.
+  - On round-up: the pricing 5.2 cites does not state one. None is assumed, and at $0 it cannot matter.
+  - **Rows:** each of the ten `logs_events` rows (read `derived-logs`) gets two rows under a new read,
+    `derived-logs-gb`, with no totals:
+    - ingest GB = its events x 5.5's API bytes per event / 10^9. The proxy's 1,742.60 applies to proxy, proxy-staging,
+      kiosk and basemap-staging (the unmeasured scripts take the proxy's mean, as 5.4 says). The ingests' 819.47 applies
+      to cref, opera-ten, shsr and wx-dev.
+    - storage GB = that ingest figure x 7/30.
+    - These are API bytes, not billed bytes, as 5.2 says.
+  - **How it is made.** `tools/budget/build_budget.py` gains the same allowance entries, and its derived-logs step
+    gains the same two rows. The file is changed by running that step over the current file, not by a rebuild, which
+    needs the registered reads (as section 10 says). The run asserts that every existing row and read is unchanged.
+- **Not in this change:** logs-off (#744), which lowers these figures. Its after-deploy re-read is registered separately
+  and graded after Thursday's deploy.
+
+**Red-first rows,** added to `--selftest` with this registration, on synthetic data. There are two allowances:
+`ev_old`, in force until 2026-11 with a 1.0 M row, and `gb_new`, in force from 2026-12 with a 5.0 row. They are tested
+in the 30-day scenario "today", a December scenario and a November one, with the ingest silent.
+
+| row | the test | against the current code |
+|---|---|---|
+| **M-LG0** (control) | the valid windows are accepted, and `cpu_ms` (no window) has an amount in all three scenarios | green |
+| **M-LG1** | 30-day (the file's month, 2026-12): `ev_old` is n/a, `gb_new` reads 5.0 | **red** |
+| **M-LG2** | November (30 days): `gb_new` is n/a, `ev_old` reads 1.0 M | **red** |
+| **M-LG3** | December: `ev_old` is n/a, `gb_new` has an amount above 0 | **red** |
+| **M-LG4** | a malformed window is refused, naming months: a month 2026-13, an unknown key, from after until | **red** |
+| **M-LG5** | the 30-day table's line is exactly `\| ev old \| 20.000 M \| n/a \| n/a \|` | **red** |
+| **M-LG6** | `ev_old` at 1,000 M (50 times its included amount) in December: no mark, no cost, and the overage equals the same budget's without it | **red** |
+
+**No existing plant reaches the new rows. Plant by plant:**
+- S1 and S2 change marks of lines in force, and the new rows read marks only on a line out of force.
+- S3, S4, S-ONE and S7a-d act on row validation and the anchor; the new rows use neither.
+- S5 replaces `render_current()`, and M-LG5 reads `render()` directly.
+- S6 adds excluded rows, and the new data has none.
+- S-MONTH sets a whole month's weight to 1. M-LG2's November has 30 days, so its weight is 1 either way; M-LG3 checks
+  "above 0" only; and M-LG6 compares two budgets under the same code.
+- S-SEG reaches segments, and the new scenarios have none.
+- S-STOR reaches per-month allowances, and `gb_new` is not one.
+
+**Predicted:**
+- **At the registration commit:** `--selftest` is red exactly {M-LG1, M-LG2, M-LG3, M-LG4, M-LG5, M-LG6}. Every other
+  row is green, M-LG0 included.
+- **After the code:**
+  - `--selftest` is all green.
+  - `--render-check` reads STALE before the re-render (the control that it can fail), and current after.
+- **`--render`:** section 6's tables change in exactly these rows:
+  - Workers Logs events: `n/a` in the 30-day table's four scenario columns and in the six December columns. The six
+    November columns and the observation column ("not read") are unchanged.
+  - Two new rows, ingested and stored. Each is `n/a` in the six November columns and "not read" in the observation
+    column. The other figures, computed now from the current file with the unchanged checker's weights, are below. Each
+    GB figure may differ by ±0.01 from display rounding. A percentage computed at exactly a half (the two 29.5% storage
+    cells) may print either way.
+
+    | scenario | ingest GB (of 50) | storage GB (of 10) |
+    |---|---|---|
+    | before shsr | 11.70 (23%) | 2.73 (27%) |
+    | today | 11.81 (24%) | 2.76 (28%) |
+    | OPERA running | 12.55 (25%) | 2.93 (29%) |
+    | OPERA running + shsr | 12.66 (25%) | 2.95 (30%) |
+    | Dec none, + weather, + Missileer | 12.21 (24%) | 2.76 (28%) |
+    | Dec fallback, + weather, + Missileer | 13.08 (26%) | 2.95 (30%) |
+
+  - No other cell changes: every overage, every flag and the one-off table stay as they are, since Logs costs $0
+    before and after.
+- **The checker** exits 0 on the real file. The anchor holds, because the new read has no totals.
+- **The sabotage driver** gains two plants:
+  - **S-LG**, the in-force test always true: red exactly {M-LG1, M-LG2, M-LG3, M-LG5, M-LG6};
+  - **S-LGV**, the window's validation removed: red exactly {M-LG4}.
+  - Every existing plant stays at its registered set.
+- **Outside the set:** any other red row, any other changed cell, or a plant off its set. Stop and report.
