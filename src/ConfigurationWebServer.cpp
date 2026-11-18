@@ -3831,7 +3831,10 @@ void ConfigurationWebServer::Initialise() {
         SaveToggle("fade");
         SaveToggle("triangle");
         SaveToggle("airports");
-        SaveToggle("wx-layer");
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS)
+        SaveToggle("wx-layer");   // only where its box renders (the same condition): a build that never shows the box
+                                  // never counts it as "left unchanged"
+#endif
 #ifdef FEATURE_CLOUD_FEED
         TrySaveParam("wx-look");   // a shipping setting since 2026-10-29 (docs/wx-device.md K1); absent stays absent
 #endif
