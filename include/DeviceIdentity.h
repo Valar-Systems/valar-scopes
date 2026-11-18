@@ -5,8 +5,11 @@
 #include <esp_mac.h>
 #include <mbedtls/sha256.h>
 
-// Salt for the leaderboard id hash below. A per-build constant (overridable via
-// a build flag) so the public id can't be brute-forced back to a MAC without it.
+// Salt for the leaderboard id hash below. The value here is the public default:
+// a build-flag override exists, but no build uses it (platformio.ini sets none),
+// and the Worker embeds this same value. So the salt gives NO protection against
+// tracing an id back to a MAC: anyone can recompute the id from a known or
+// guessed MAC.
 #ifndef LEADERBOARD_SALT
 #  define LEADERBOARD_SALT "blipscope-lb-v1"
 #endif
