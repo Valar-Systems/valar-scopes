@@ -1268,3 +1268,61 @@ production reads 416,175, writes 2,196, B 19.
 - Read-only and analytics only. It reads exactly two whole days (11-17 for the anchor, 11-18 for the grade).
 - It prints counts only.
 - `grade` refuses reads under 60 s apart, and prints the trigger.
+
+### Amendment 4b2-1: (A), with (B) as its pre-registered fallback (2026-11-18T23:41:25Z, below the frozen section; ruled by the reviewer)
+
+**The ruling** (the reviewer, between 23:37:34Z and this stamp): **(A), justified from the SOURCE, not the data.**
+- (B) is registered in the same amendment, now, as the fallback. It runs only if (A) escapes, so no instrument is chosen
+  after a result is seen.
+- **If (B) also escapes, 4b2 stops.** Then (C), step 2b's whole-window 7.4 with the family table above, becomes the
+  design input, and the owner is told.
+- Reads A and C of the first read are discarded. The fresh reads are taken after this amendment's sha reaches the
+  reviewer, 60 s apart by the reader's guard.
+
+**Why (i) is structural** (`proxy/src` at main `237d5d163eb4`). A non-SKIP `/enrich` request takes this path:
+- `index.ts:361` authenticates it;
+- `index.ts:366` calls `setDeviceAttribution`, which sets `dev` and `fw` from the request's headers
+  (`metrics.ts:59-65`);
+- `index.ts:395` calls `recordFleetFirmware`, its one `fw:` read;
+- only then does `index.ts:429` dispatch it to `handleEnrich`;
+- `index.ts:464` writes its Analytics Engine row through `record`, carrying blob5 = `dev` and blob6 = `fw`
+  (`metrics.ts:248`).
+
+So **every row counted in N is also a row counted in D,** by construction, and its `fw:` read lands in D's term. A
+correlation between D and N is partly N correlating with itself. No data is needed to show it.
+
+**(A), the fit as amended:**
+- **D' = D less N's own rows:** request rows with blob5 and blob6 both non-empty, EXCEPT `/enrich` rows whose blob2 is
+  `HIT` or `MISS`. N is unchanged.
+- **The fit:** `R(h) = alpha x D'(h) + beta' x N(h) + gamma`. Here beta' is the `/enrich` request's own reads: its `fw:`
+  read plus the chain. So the chain is **beta = beta' - alpha**.
+- **The gate:** `corr(D', N)` over the same 207 hours, at most 0.9.
+- **Graded on beta, as frozen:** KE1 (beta in `[5.5, 9.5]`), KE2 (alpha), KE3 (gamma), KE4 (S_low with this beta), KE5
+  (R^2 >= 0.85).
+- **Information:** N's rows with an empty blob6. Those requests do no `fw:` read, so beta' overstates for them by alpha;
+  the count is expected to be near 0.
+
+**(B), the fallback: it runs ONLY if (A)'s gate fires.**
+- **A within-day fit.** On each kept day, R, D' and N are centred on that day's kept-hour means. The fit is
+  `R~ = alpha x D'~ + beta' x N~`, with no intercept. Each day's gamma is
+  `gamma_d = mean R - alpha x mean D' - beta' x mean N`.
+  - This removes (iii), the fleet's growth across days.
+  - (ii), a poll cadence that follows activity, is what remains, and the gate is what tests it.
+- **The gate:** corr of the centred D' and N, at most 0.9.
+- **Rows:** KE1, KE2 and KE4 as in (A); **KE3:** every day's gamma_d in `[-500, 2,000]`; **KE5:** the within-day R^2
+  (variance explained of the centred R) at least **0.70**.
+- **If (B)'s gate fires:** ESCAPE. 4b2 stops, and (C) is the design input.
+- **A limit of (B), named before it runs** (seen on the reader's synthetic control, not on data): gamma_d inherits
+  alpha's error times that day's level of D'. Where D' barely moves within a day, alpha is loosely fixed, and the
+  per-day gammas drift with the fleet's size. Under (B), KE3 is therefore read alongside alpha's standard error.
+
+**The reader's synthetic controls, run on the amended grader before this commit:**
+- a planted truth with separable D' and N goes to (A): beta 6.904 against 7.0;
+- a planted fleet growth that pushes corr(D', N) to 0.971 routes to (B): beta 7.059 against 7.0;
+- D' collinear with N within each day ends in the (B) escape;
+- reads 20 s apart are REFUSED, an anchor off on one day and an empty hour each ESCAPE, and each plant turns only its
+  own row.
+
+**Unchanged:** the window, the 207 hours, the anchors, the 60 s refusal, and every other escape row.
+
+The reader's new blob sha goes to the reviewer before any query.

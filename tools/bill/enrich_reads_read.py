@@ -36,7 +36,10 @@ NONROUTE = ("err5xx", "enrich_gap", "ota", "boot", "usage", "provision", "sitefe
 ENRICH = ("/api/v1/blipscope/enrich", "/v1/enrich")
 AE_ANCHOR_WINDOW, AE_ANCHOR_MISS = ("2026-11-06T00:00:00Z", "2026-11-13T00:00:00Z"), 7239
 KE1, KE2, KE3, KE4, KE5 = (5.5, 9.5), (0.95, 1.5), (-500.0, 2000.0), 0.5, 0.85
+KE5_WITHIN = 0.70        # amendment 4b2-1, (B)'s within-day R^2
 CORR_MAX = 0.9
+# Amendment 4b2-1: (A) fits on D' = D less N's own rows (index.ts:361/366/395/429/464 put every N row inside D);
+# (B), the within-day fit, runs ONLY if (A)'s gate fires; if (B)'s gate fires too, 4b2 stops and (C) is the input.
 MIN_APART_S = 60
 
 _tfs = _ilu.spec_from_file_location("token_file", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token_file.py"))
@@ -103,6 +106,13 @@ def read(path):
     rows = ae("SELECT toStartOfHour(timestamp) AS h, SUM(_sample_interval * double4) AS n FROM %s WHERE %s AND index1 "
               "NOT IN %s AND blob5 != '' AND blob6 != '' GROUP BY h FORMAT JSON" % (DATASET, w, inlist(NONROUTE)), tok)
     out["D"] = {hourkey(r["h"]): float(r["n"]) for r in rows}
+    rows = ae("SELECT toStartOfHour(timestamp) AS h, SUM(_sample_interval * double4) AS n FROM %s WHERE %s AND index1 "
+              "NOT IN %s AND blob5 != '' AND blob6 != '' AND NOT (index1 IN %s AND blob2 IN ('HIT','MISS')) GROUP BY h "
+              "FORMAT JSON" % (DATASET, w, inlist(NONROUTE), inlist(ENRICH)), tok)
+    out["Dp"] = {hourkey(r["h"]): float(r["n"]) for r in rows}
+    nf = ae("SELECT SUM(_sample_interval * double4) AS n FROM %s WHERE %s AND index1 IN %s AND blob2 IN ('HIT','MISS') "
+            "AND blob6 = '' FORMAT JSON" % (DATASET, w, inlist(ENRICH)), tok)
+    out["N_no_fw"] = float(nf[0]["n"]) if nf and nf[0].get("n") is not None else 0.0
     rows = ae("SELECT toStartOfHour(timestamp) AS h, blob2 AS c, SUM(_sample_interval * double4) AS n FROM %s WHERE %s "
               "AND index1 IN %s AND blob2 IN ('HIT','MISS') GROUP BY h, c FORMAT JSON" % (DATASET, w, inlist(ENRICH)), tok)
     out["HIT"], out["MISS"] = {}, {}
@@ -120,24 +130,33 @@ def read(path):
     return 0
 
 
-def solve3(A, y):
-    """Gaussian elimination with partial pivoting on a 3x3 system."""
+def solve(A, y):
+    """Gaussian elimination with partial pivoting on a k x k system."""
+    k = len(y)
     M = [row[:] + [v] for row, v in zip(A, y)]
-    for c in range(3):
-        p = max(range(c, 3), key=lambda r: abs(M[r][c]))
+    for c in range(k):
+        p = max(range(c, k), key=lambda r: abs(M[r][c]))
         if abs(M[p][c]) < 1e-12:
             raise Rig("the normal equations are singular")
         M[c], M[p] = M[p], M[c]
-        for r in range(3):
+        for r in range(k):
             if r != c:
                 f = M[r][c] / M[c][c]
                 M[r] = [x - f * z for x, z in zip(M[r], M[c])]
-    return [M[i][3] / M[i][i] for i in range(3)]
+    return [M[i][k] / M[i][i] for i in range(k)]
 
 
-def inv3(A):
-    cols = [solve3(A, [1.0 if i == j else 0.0 for i in range(3)]) for j in range(3)]
-    return [[cols[j][i] for j in range(3)] for i in range(3)]
+def lsq(cols, y):
+    """Least squares on the given columns: (coefficients, standard errors, residual sum of squares)."""
+    k, n = len(cols), len(y)
+    XtX = [[sum(a * b for a, b in zip(cols[i], cols[j])) for j in range(k)] for i in range(k)]
+    Xty = [sum(a * b for a, b in zip(cols[i], y)) for i in range(k)]
+    coef = solve(XtX, Xty)
+    fit = [sum(coef[i] * cols[i][t] for i in range(k)) for t in range(n)]
+    ssr = sum((a - b) ** 2 for a, b in zip(y, fit))
+    inv = [solve(XtX, [1.0 if i == j else 0.0 for i in range(k)]) for j in range(k)]
+    se = [math.sqrt(ssr / (n - k) * inv[i][i]) for i in range(k)]
+    return coef, se, ssr, fit
 
 
 def stamp(s):
@@ -180,11 +199,15 @@ def grade(p1, p2, p4c):
     if len(kept) != KEPT_HOURS_EXPECTED:
         escape.append("%d kept hours, not %d" % (len(kept), KEPT_HOURS_EXPECTED))
     R = [float(d["R"].get(h, 0)) for h in kept]
-    D = [float(d["D"].get(h, 0.0)) for h in kept]
+    Dp = [float(d["Dp"].get(h, 0.0)) for h in kept]
     N = [float(d["HIT"].get(h, 0.0)) + float(d["MISS"].get(h, 0.0)) for h in kept]
-    empty = sum(1 for r, x in zip(R, D) if r <= 0 or x <= 0)
+    empty = sum(1 for r, x in zip(R, Dp) if r <= 0 or x <= 0)
     if empty:
         escape.append("%d kept hour(s) with no KV reads or no device requests" % empty)
+    if escape:
+        print("ESCAPE: " + "; ".join(escape))
+        print("stop and report, with no reading")
+        return 3
     n = len(kept)
     mean = lambda xs: sum(xs) / len(xs)
     def corr(x, y):
@@ -193,45 +216,62 @@ def grade(p1, p2, p4c):
         sxx = sum((a - mx) ** 2 for a in x)
         syy = sum((b - my) ** 2 for b in y)
         return sxy / math.sqrt(sxx * syy) if sxx > 0 and syy > 0 else float("nan")
-    c = corr(D, N)
-    print("separability: corr(D, N) over %d hours = %.3f (escape above %.1f)" % (n, c, CORR_MAX))
-    if not (c <= CORR_MAX):
-        escape.append("corr(D, N) = %.3f: the fit cannot separate the two kinds (INSTRUMENT)" % c)
-    if escape:
-        print("ESCAPE: " + "; ".join(escape))
-        print("stop and report, with no reading")
-        return 3
-    X = [[a, b, 1.0] for a, b in zip(D, N)]
-    XtX = [[sum(r[i] * r[j] for r in X) for j in range(3)] for i in range(3)]
-    Xty = [sum(r[i] * yv for r, yv in zip(X, R)) for i in range(3)]
-    alpha, beta, gamma = solve3(XtX, Xty)
-    fit = [alpha * a + beta * b + gamma for a, b in zip(D, N)]
-    ssr = sum((yv - f) ** 2 for yv, f in zip(R, fit))
-    sst = sum((yv - mean(R)) ** 2 for yv in R)
-    r2 = 1 - ssr / sst
-    se = [math.sqrt(ssr / (n - 3) * inv3(XtX)[i][i]) for i in range(3)]
+    print("information: N's rows with an empty blob6 (no fw: read): %s" % f"{d['N_no_fw']:,.0f}")
+    g = lambda ok: "HOLDS" if ok else "FAILS"
     hits = sum(float(d["HIT"].get(h, 0.0)) for h in kept)
     miss = sum(float(d["MISS"].get(h, 0.0)) for h in kept)
     m = miss / (hits + miss)
+    c = corr(Dp, N)
+    print("(A) separability: corr(D', N) over %d hours = %.3f (gate %.1f)" % (n, c, CORR_MAX))
+    if c <= CORR_MAX:
+        (alpha, betap, gamma), se, ssr, fit = lsq([Dp, N, [1.0] * n], R)
+        r2 = 1 - ssr / sum((yv - mean(R)) ** 2 for yv in R)
+        branch, ke3_ok, ke5 = "(A)", KE3[0] <= gamma <= KE3[1], (r2, KE5)
+        print("(A) fit: alpha %.3f (se %.3f), beta' %.3f (se %.3f), gamma %.1f (se %.1f), R^2 %.4f" % (
+            alpha, se[0], betap, se[1], gamma, se[2], r2))
+        ke3_text = "gamma %.1f in %s" % (gamma, KE3)
+    else:
+        # (B), the registered fallback: within-day centring, no intercept, one gamma per day.
+        print("(A)'s gate fired: running (B), the registered fallback")
+        days = sorted({h[:10] for h in kept})
+        idx = {dd: [i for i, h in enumerate(kept) if h.startswith(dd)] for dd in days}
+        def centred(xs):
+            out = list(xs)
+            for dd, ii in idx.items():
+                mu = sum(xs[i] for i in ii) / len(ii)
+                for i in ii:
+                    out[i] = xs[i] - mu
+            return out
+        Rc, Dc, Nc = centred(R), centred(Dp), centred(N)
+        cw = corr(Dc, Nc)
+        print("(B) separability: corr of centred D' and N = %.3f (gate %.1f)" % (cw, CORR_MAX))
+        if not (cw <= CORR_MAX):
+            print("ESCAPE: (B)'s gate fired too. 4b2 stops; (C), step 2b's whole-window 7.4 with the family table, is the "
+                  "design input; the owner is told")
+            return 3
+        (alpha, betap), se, ssr, fit = lsq([Dc, Nc], Rc)
+        r2 = 1 - ssr / sum(v ** 2 for v in Rc)
+        gam = {dd: mean([R[i] for i in ii]) - alpha * mean([Dp[i] for i in ii]) - betap * mean([N[i] for i in ii])
+               for dd, ii in idx.items()}
+        branch, ke3_ok, ke5 = "(B)", all(KE3[0] <= v <= KE3[1] for v in gam.values()), (r2, KE5_WITHIN)
+        print("(B) fit: alpha %.3f (se %.3f), beta' %.3f (se %.3f), within-day R^2 %.4f; gamma by day %s" % (
+            alpha, se[0], betap, se[1], r2, {k: round(v, 1) for k, v in gam.items()}))
+        gamma = mean(list(gam.values()))
+        ke3_text = "every day's gamma in %s" % (KE3,)
+    beta = betap - alpha
     s_low = (beta - 2 - 2 * m) / beta
-    print("totals over the kept hours: R %s, D %s, N %s (MISS share m = %.4f)" % (
-        f"{sum(R):,.0f}", f"{sum(D):,.0f}", f"{sum(N):,.0f}", m))
-    print("fit: alpha %.3f (se %.3f), beta %.3f (se %.3f), gamma %.1f (se %.1f), R^2 %.4f" % (
-        alpha, se[0], beta, se[1], gamma, se[2], r2))
-    share = beta * sum(N) / sum(R)
-    print("information: /enrich's chain is %.1f%% of production's reads over the kept hours; device requests %.1f%%; "
-          "gamma %.1f%%" % (100 * share, 100 * alpha * sum(D) / sum(R), 100 * gamma * n / sum(R)))
-    by = {}
-    for h, yv, f in zip(kept, R, fit):
-        by.setdefault(h[11:13], []).append((yv - f) / yv)
-    print("information: mean residual by UTC hour, as a share of R: " + " ".join(
-        "%s:%+.2f" % (k, mean(v)) for k, v in sorted(by.items())))
-    g = lambda ok: "HOLDS" if ok else "FAILS"
-    print("\nKE1: beta %.3f in %s -> %s" % (beta, KE1, g(KE1[0] <= beta <= KE1[1])))
+    print("totals over the kept hours: R %s, D' %s, N %s (MISS share m = %.4f)" % (
+        f"{sum(R):,.0f}", f"{sum(Dp):,.0f}", f"{sum(N):,.0f}", m))
+    print("information: /enrich requests (beta' x N) are %.1f%% of production's reads over the kept hours, the chain "
+          "alone (beta x N) %.1f%%; other device requests (alpha x D') %.1f%%; gamma %.1f%%" % (
+              100 * betap * sum(N) / sum(R), 100 * beta * sum(N) / sum(R), 100 * alpha * sum(Dp) / sum(R),
+              100 * gamma * n / sum(R)))
+    print("\nbranch %s" % branch)
+    print("KE1: beta = beta' - alpha = %.3f in %s -> %s" % (beta, KE1, g(KE1[0] <= beta <= KE1[1])))
     print("KE2: alpha %.3f in %s -> %s" % (alpha, KE2, g(KE2[0] <= alpha <= KE2[1])))
-    print("KE3: gamma %.1f in %s -> %s" % (gamma, KE3, g(KE3[0] <= gamma <= KE3[1])))
+    print("KE3: %s -> %s" % (ke3_text, g(ke3_ok)))
     print("KE4: S_low = (beta - 2 - 2m) / beta = %.3f, at least %.1f -> %s" % (s_low, KE4, g(s_low >= KE4)))
-    print("KE5: R^2 %.4f, at least %.2f -> %s" % (r2, KE5, g(r2 >= KE5)))
+    print("KE5: R^2 %.4f, at least %.2f -> %s" % (ke5[0], ke5[1], g(ke5[0] >= ke5[1])))
     return 0
 
 
