@@ -4521,3 +4521,68 @@ and is not pushed. Every row grades that commit.
 `check_bench_diff.py` and the narrowed scan to `check_drop_1c.py`, each with its plant and control. Every row still
 grades `03e62aad5df5` → `fcc6b73ede77`, so the builds already running at that commit stay valid. The D rows then run
 in full: the selftest first, then the graded run. Nothing is pushed before every row reads.
+
+### 16g. 16e, read: P5 without 1c, pushed at `bench/speed-p5` `4438f6a553e4` (2026-11-18 14:51Z to 15:39Z)
+
+**The commits.** Both were pushed at 15:39:03Z as a fast-forward from OLD `03e62aad5df5`; the remote head was read
+before (`03e62aad5df5`) and after (`4438f6a553e4`):
+- `fcc6b73ede77`: the drop, exactly 16e's table. Every row grades OLD → this commit.
+- `4438f6a553e4`: 16f's ruled tool fixes, `tools/speed-p5p6/` only: `check_bench_diff.py` `b991e02ebcdd` and
+  `check_drop_1c.py` `dade3c71655e`.
+
+**The ruled fixes, read** (16f):
+- `check_bench_diff`:
+  - before the fix, OLD's copy died on the deleted `DirtyClear.h`; after it, it reaches NOT CLEAN, 867 lines;
+  - the control: `2feb035c^..2feb035c` and `51890089^..51890089` read byte-identically before and after, each CLEAN;
+  - the selftest PASSED, and the red plant (`include/Layout.h` deleted) is named as exactly its 27 lines, all REMOVED.
+- `check_drop_1c --selftest` PASSED, each plant named by its row:
+  - P1 → D-SCOPE-2; P2 and P3 → D-SCOPE-3; P4 → D-SCOPE-1; P5 → D-RESIDUE; P6 → R-CORE;
+  - P7 (`kScenes[0].kind == 8`) → D-KINDNUM;
+  - CLEAN: every row ok.
+
+**The rows** (the reviewer accepted each as read):
+
+| row | read | |
+|---|---|---|
+| D-SCOPE (1)(2)(3) | no path outside the table; `BandCanvas.h` == base; 0 removed lines not 1c's; 0 added lines neither restored nor named | as predicted |
+| D-RESIDUE | 0 hits of the 23 symbols | as predicted |
+| D-KINDNUM | 0 numeric comparisons; all 95 uses printed and read (FrameBench's `Kind` only in FrameBench.h, by name; the rest are GameClient, wxlegend, wxscen and OTA kinds) | as predicted |
+| D-BENCHDIFF | NOT CLEAN by design; `check_bench_diff` names 867 lines, `check_drop_1c` 867; only-theirs and only-mine both empty | as predicted |
+| R-CORE | 1a's and 1b's 8 files byte-identical | as predicted |
+| R-HOST | 22 of 22 output files byte-identical between OLD and NEW, every step exit 0; the control, OLD run twice, 22 of 22 | as predicted |
+| R-FB, `check-no-bench-hooks.sh` | the NEW radar image clean (12 markers, anchor present); its selftest ok | as predicted |
+| R-FB, `check_frame_bench.py` | exit 1: C1-L red on "profile include", "hook on Level()", "kLevel only at its 3", identically at OLD | **OFF**, the row's first; ruled (a), below |
+| K-BUILD | rc 0 each, every build started at 30.3 GiB or more, the chain ended 15:21:22Z: radar `blipscope-s3-128` 1,935,632 B `3482bc1ad77e`; P5 bench 1,971,664 B `5ca08c08764b`; A2 1,971,632 B `e5e37fd460b6`; MARK 1,971,184 B `bc613b321e94` | as predicted |
+| K-SCAN | 0 of the four `clear-*` names in the P5 bench image; the control, G5's `26d917a2baed`, has all four | as predicted |
+| K-EDITION | `weatherscope-s3-128` OLD `7c397ea96785` vs NEW `33dedc7c71df`: 1,889,152 B both; 74 bytes differ, all build stamps (SHA-ELF 32, SHA-IMG 32, CHECKSUM 1, STAMP 9), 0 unaccounted; `bincmp.py`'s selftest PASSED first | as predicted |
+| GATES | wifi, macs, device_ids, binary_strings at `4438f6a553e4`: each exit 0 | as predicted |
+
+**R-FB's `check_frame_bench` half: a miss in my prediction, ruled (a).**
+- **The miss, plainly:** 16e predicted exit 0 without running the check at OLD. The fact that would have corrected it
+  was already in this document: "`check_frame_bench.py` C1-L reads red … on bench/speed-p5 since `c33529a41f3d` …
+  pre-existing on bench-only branches" (sections 12-14's reading), and 15c's proof: "Its C1-L stays red exactly as
+  before (pre-existing; 12's note)".
+- **The ruling (a):** this is the precedent on record from 15c's proof (the reviewer's reading at 06:18Z: C1-L red,
+  byte-identical to each branch's pre-change read, pre-existing), not a new rule.
+- OLD and NEW read row for row the same: C1-L red on the same three parts, and only FB-TU's cited line moves (:71 to
+  :65), because FrameBench.h shrank. None of the three parts' lines is in the drop. **The drop changes no FB row.**
+
+**Slips, recorded by the reviewer:**
+- `check_drop_1c --selftest` outran the 10-minute tool call and was moved to the background by the harness, unregistered
+  with bgcheck. It finished exit 0, and bgcheck read PASS, 0 running, at 15:38:11Z. The rule: register anything that can
+  outlive a call.
+- `check_bench_diff`'s selftest was first printed through `grep -v`, then re-printed whole. No result changed. The rule:
+  run checks bare.
+
+**The disk** (re-read before each build; under 30 GiB, only my own rebuildables were cleared, and reported):
+- three build folders (`wt-656run`, `wt-p5b`, `wt-p6`), and, inside the build chain, each env's build folder once its
+  image was archived;
+- four clean worktrees whose HEADs sit on remote branches (`wt-mainb`, `wt-doc`, `wt-mark`, `wt-a2base`);
+- the libdeps of eight envs not built today, and of one idle worktree.
+- Left alone: two worktrees whose HEADs I could not place on a remote, and one folder of unknown origin.
+
+**What follows.**
+- G5' is p4's (A), built from `bench/speed-p5` `4438f6a553e4`, with its registration first.
+- The kinds renumber there: `ANCHOR_BG` 11 → 8 and `ANCHOR_8COPY` 12 → 9. G5' maps them through the new head's own enum
+  and `kKindName`, as its contract check already does (the reviewer told p4).
+- 16c's fresh run is Friday 2026-11-20 or later, booked once G5' is built.
