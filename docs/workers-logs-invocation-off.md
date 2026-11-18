@@ -435,6 +435,140 @@ same-day rule for #747 then applies: its page gets its own slot the same day.
 - this step: **`4a02123ca992031d60bd9592e3084c9ccf34041f`**;
 - the 16:00Z route run: the commit of the tool it runs, named in its own checklist (`docs/route-weekly-code.md`).
 
+### 7b-7f. Rulings and re-reads after Wednesday, for Thursday's step (2026-11-18, appended below 7a)
+
+Sections 1-7a stand except as written here. **Wednesday's step did not run.**
+- The radar step's C-R2 held the chain, under the owner's chain rule: if one step fails or rolls back, the later ones
+  wait for the owner.
+- No owner answer came by 12:30Z. The owner then moved this step to **Thursday 2026-11-19, 12:30-15:00Z, with Friday as
+  the fallback**. 7a.6's clock times stand, one day later.
+- **#747's page shipped alone on Wednesday**, under the owner's same-day rule (7a.6's last paragraph). Section 7e says
+  what that changes here.
+
+Each subsection below was ruled by the reviewer before the reading it governs, and each names when.
+
+#### 7b. #736-C4's comparison rule (ruled about 11:12Z, before any S0; widened at 15:27Z)
+
+**Why.** #736-C4 grades "every verdict equal to #736-S0 by name". But some of the smoke's checks are named after the
+aircraft over its test tile:
+- an empty tile prints SKIPPED names;
+- an aircraft present prints per-aircraft PASS names.
+
+That made the radar step's C-R2 read OFF on Wednesday with nothing wrong. Enrichment is #736's subject, so the text as
+written has two failures:
+- **a false OFF**, when traffic changes between S0 and C4;
+- **worse, a hidden failure**: a PASS at S0 against a traffic SKIP at C4 means the enrich check is simply not compared,
+  and a broken enrichment can hide behind the SKIP.
+
+**The rule.**
+1. A FAIL anywhere is graded as 7a.5 says.
+2. A name in the traffic-dependent family (7f's T1-T3) that differs between S0 and C4 is **NOT COMPARABLE**. It is
+   printed as information and is never a pass. This covers two cases:
+   - a SKIPPED name on one side and its per-aircraft counterpart on the other;
+   - one aircraft's per-aircraft PASS against another aircraft's per-aircraft PASS. This case was widened at 15:27Z, from
+     the page-only deploy's C4 below. The reviewer declined to widen the normaliser instead, because that would choose
+     the rule after the reading.
+3. If the family is NOT COMPARABLE at C4, the smoke is re-run ONCE, at most 10 minutes later and still outside every
+   window, and graded on that run.
+4. If it is still NOT COMPARABLE, #736-C4's enrichment half is recorded **BLIND**, and **#736's verdict is NOT PROVEN:
+   stop and report.** Nothing is rolled back by reflex; the owner decides whether to keep or roll back. The other names
+   are graded as written. But "the other names graded" never adds up to "#736 passed" while its subject is blind.
+5. **A supplementary row exists only if an existing tool gives one:** a probe that does not depend on traffic (a fixed
+   public aircraft hex, through the same test identity, no new tool, no token on a command line). Read at about 11:13Z:
+   **none exists**, so none is added. The smoke takes its enrich hex only from the live `/v1/blips` response, with no
+   override. The other callers of `/v1/enrich` are an Analytics Engine aggregate, a callsign lookup inside the route
+   ingest, and a local replay, and using any of them would be a new tool.
+
+The owner's terms are unchanged: #736's checks stay separate from the logs checks.
+
+#### 7c. #736-C2's grading of breaker state (ruled about 12:03Z, before C2)
+
+- C2 grades entries 1-7 on **id, enabled, order and key set**, which is 7a.5's own list.
+- Their **state is printed as information, never graded**. A breaker's state is live upstream health, not something
+  #736 changes. On Wednesday, two of production's breakers went from open to closed between two reads 85 s apart.
+- Entry 8 (`adsbdb_ac`) is graded exactly as written, **state included**:
+  `{"id":"adsbdb_ac","enabled":false,"state":"closed","reason":"licence"}`.
+
+#### 7d. P-S, as it is read (ruled about 12:37Z)
+
+- **The defect.** P-S requires the page to hold "Cloudflare keeps these logs for up to seven days". That sentence is
+  wrapped across two lines in the HTML source of `proxy/pages/support.html`. So a literal match on the raw HTML reads it
+  ABSENT on a correct page; a raw grep of `4a02123c`'s page counts it 0 times. As written, P-S would implicate #747 and
+  roll back a good deploy.
+- **The reading:** every run of whitespace in the served HTML is collapsed to one space before matching. The old
+  sentence ("nothing that identifies your device") is matched the same way.
+- **Its control, PS-L, before the step:** the same matcher, run on the deploy checkout's own
+  `proxy/pages/support.html`, must read the new sentence present and the old one absent.
+  - On `4a02123c`'s page it reads exactly that, while the raw match reads the new sentence absent.
+  - On `074863fc`'s page it reads new absent, old present.
+  - P-S is graded only after PS-L reads as required in that day's checkout.
+
+#### 7e. The "before" commit and the rollback targets, re-read after Wednesday's page-only deploy
+
+**What moved.** At 15:24Z (staging) and 15:29Z (production) on Wednesday, the page-only deploy shipped
+**`fcc33692a8ba98fd0dd53a8629303e8b8e25a213`** to both environments. That is `074863fc` plus #747's two files under
+`proxy/`, taken byte-identical from `4a02123c`. It is on the branch `deploy/page747-on-074863fc`, and is not an ancestor
+of main.
+- Its checks: C1, the page check and the `/healthz` comparison read as predicted on both environments. The smoke had 0
+  FAIL, and its photo-pointer half was NOT COMPARABLE after one re-run (7b rule 2), so it was recorded BLIND, which is
+  not a stop for a page-only deploy.
+
+| env | `/healthz` commit now | version now | the version before (serves the OLD sentence) |
+|---|---|---|---|
+| production | `fcc33692` | `e663ea72-676b-4f53-90b7-f4135f7c45dc` | `2b92e9f1-73c8-4cb3-b2b0-b0090f6102a2` |
+| staging | `fcc33692` | `e6de3d81-68e8-4858-b8a2-e59a03858441` | `4464d8ab-15e8-4970-9c7d-97e26bcda9bd` |
+
+**What changes for Thursday:**
+1. **D0-S predicts `fcc33692`** on both environments, not `074863fc`. 7a.3's rule for another stamp says to re-list 7a.2
+   from it.
+   - `git log --first-parent fcc33692..EXPECT` lists the same 19 commits as from `074863fc`, because fcc33692's only
+     parent is `074863fc`. So 7a.2's table stands.
+   - #747's row is the one difference: its content is already live, so on Thursday P-S checks that the page STAYS right.
+2. **The rollback targets are the versions D0 reads on Thursday**, read fresh and never copied from the table above.
+   They are predicted to be `e663ea72` (production) and `e6de3d81` (staging) unless something else deploys first.
+   - **`2b92e9f1` and `4464d8ab` are never a rollback target:** they serve "nothing that identifies your device".
+   - A rollback target is acceptable only if it is the version serving the new page. PS-0, read before the step, must
+     show the new sentence present and the old one absent on both environments.
+3. **P-S after the step** is graded as "the new sentence stays present and the old one stays absent". PS-L still runs
+   first, as 7d says.
+4. **D0-B**, read at about 15:45Z on Wednesday over `EXPECT..main` (`f9e66b14`), is **empty**. The five commits since
+   EXPECT touch neither `proxy/` nor `scripts/session-claim.py`: three plan amendments (#751, #752, #753), #756 and
+   #690. They are on main, outside the input set.
+5. **The scheduled photo-drift run is named in every main-CI read.**
+   - photo-drift's daily `schedule` run (cron 06:17) fires 7-9 h late, between about 13:29Z and 15:57Z. Thursday's slot
+     is inside that band.
+   - It attaches to main's head and adds 2 check-runs (drift, photo-drift).
+   - So any prediction of main's check-run count, and any "main's CI finished or idle" gate, names it: in the
+     prediction if it has landed, as information if it is in progress.
+   - It is identified by workflow and event, never by count alone. It is never read as off, and never as an
+     unfinished run of this step's.
+
+#### 7f. The smoke checks whose name or verdict follows live traffic (the owner's condition, 2026-11-18 15:02Z)
+
+**Source.** Read from `proxy/scripts/smoke-prod.sh` at main `f9e66b14`; its blob is the same as fcc33692's, i.e. what is
+deployed now. It is re-read at Thursday's EXPECT, and if the blob differs, this list is re-derived before S0.
+- The list comes from the script, not from Wednesday's outputs, because a check that happened to read the same twice
+  would not show up in a diff.
+- Exactly these four checks read a `/v1/blips` response:
+
+| # | name(s) as printed | input | what follows traffic |
+|---|---|---|---|
+| T1 | `/v1/enrich/<hex> (live hex from the blips response)` PASS, or `/v1/enrich` SKIPPED | the first row of the test tile's `/v1/blips` | the NAME (the hex), and PASS against SKIPPED (an empty tile, or `/v1/blips` not 200) |
+| T2 | `/v1/photo (via enrich pointer <photo key>)` PASS, or `/v1/photo` SKIPPED | the photo pointer from T1's enrich answer | the NAME (the aircraft type's photo key), and PASS against SKIPPED (no hex, or a type with no stock photo). On Wednesday the page-only deploy's six smoke runs (S0, C4 and one re-run, on each environment) printed three different types (C152, R22, B39M), all PASS |
+| T3 | `/v1/enrich photo variant gate (FW 6 vs FW 7)` and its `#2`, or `photo variant gate` SKIPPED, or `photo variant gate (FW 7 square)` SKIPPED | the first of the test tile's first 12 hexes that resolves a photo | whether it runs, which SKIP prints, and whether the FW 7 half runs (that depends on the TYPE having a square ingested). When it runs, its verdict is graded on that type's library row |
+| T4 | `upstream chain (freshness + both relays serving)`, plus a second result under the same header when its empty-sky branch fires | `/v1/blips` over six fixed probe tiles, NOT the test tile | the VERDICT: FAIL "EMPTY SKY" when the probes see fewer than 10 aircraft in all, or fewer than 2 non-empty tiles. Its name is fixed |
+
+The test tile's own `/v1/blips` check grades the status only (an empty tile still answers 200), and its name is built
+from constants, so it does not follow traffic. No other check reads `/v1/blips`.
+
+**Grading (ruled by the reviewer at about 16:00Z, before Thursday's S0):**
+- **T1-T3 are the name family of 7b rule 2.** A name that differs between S0 and C4 is NOT COMPARABLE, never a pass. A
+  FAIL inside them is still a FAIL (rule 1), whatever the aircraft.
+- **T4 is named as traffic-dependent in its VERDICT, and graded as written, outside the name family.** Its FAIL is the
+  alarm for a throttled upstream, which answers 200 with an empty array and a current clock, and catching that is what
+  T4 exists for. Rule 1 applies, and its second result appears only with that FAIL.
+  - Beside T4's verdict, at S0 and at C4, the report prints the aircraft count and the non-empty-tile count T4 saw.
+
 ## 8. The label code, red first
 
 **Registration (this commit): the tests and a STUB `src/devlabel.ts`, both of whose functions throw.**
