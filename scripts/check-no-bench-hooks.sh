@@ -37,7 +37,18 @@
 set -u
 
 # Every bench hook's marker. Add a hook -> add its marker here, in the same PR.
-MARKERS=( "[alert-bench]" "[touch-bench]" "[photo-mode]" "[bench-force-starve]" "[ota-bench]" "[wx-bench]" "[crash-bench]" "[wx-key]" "[card-bench]" "[map-bench]" )
+#
+# THE LIST IS CHECKED FROM THE OTHER SIDE. A selftest that plants this list's own entries cannot see a marker the
+# list never had, or one a merge dropped. scripts/bench-marker-xcheck.py derives the marker set from the hooks
+# themselves (every bench-shaped tag inside a string literal under src/ and include/) and test/host/run.sh requires
+# it to EQUAL this line. So a hook added without its marker turns the host tests red, and so does a marker left
+# here after its hook is gone.
+#
+# "[bench]" is the generic one. It is printed by the WX_LOOK_AB and FOLLOW_BENCH regions of AircraftManager.cpp
+# and by the boot override line in main.cpp (an `if constexpr` on FORCE_NIGHT / REBOOT_CAP_IS_OVERRIDE). That
+# last one has no #if around it, so this scan is what proves its literal stays out of a shipping image. The
+# weather and map bench images print it, which is why their --expect lists name it.
+MARKERS=( "[alert-bench]" "[touch-bench]" "[photo-mode]" "[bench-force-starve]" "[ota-bench]" "[wx-bench]" "[card-bench]" "[map-bench]" "[bench]" )
 ANCHOR="[build] env="
 
 anchored() {
