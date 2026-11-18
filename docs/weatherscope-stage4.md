@@ -2846,3 +2846,116 @@ test and tools).
 
 **Delivery:** one PR from `weatherscope/user-path-setting`, branched at `3741501b95d6`. It merges on the reviewer's
 "approved to merge at <SHA>" after CI, by `merge-by-rule.sh`.
+
+### S4.32, 2026-11-18: W7 (radar live, and enrolment), registered before any code. Two questions (Q125, Q126) and two asks of blipscope-5c
+
+**Why now.** The owner's rule: no session idles while its plan has an item that needs neither the owner nor a booked
+board. Weatherscope's fresh gains run waits on E2:08. W7 depends on W2 (the model header, merged S4.10) and W4 (`shsr`,
+done and ruled S4.27-S4.28b), both met. It needs no board until W11. The reviewer said GO to register (2026-11-18
+~23:0xZ): "No code before I accept it."
+
+**What is true today** (main `237d5d163eb4`, read-only; file:line at that commit). The rows come from a read-only
+search of main. The four that shape W7 most I re-read myself before writing: `CloudFeed.cpp`'s `static_assert`,
+F1's rule, the env's flags, and `WxFeed::History`. So did the proxy's `/wx` path, `shsr`, and the refusal codes.
+
+| fact | where |
+|---|---|
+| `WxFeed` has `Latest()` and `History(out, max)`; `History` returns 0 by default. Also `ObsFeed`, `AlertFeed` and `ForecastFeed` | `src/weatherscope/WxFeeds.h:33-46`, :72, :93, :126-130 |
+| `MakeFeeds()` builds only the stored feeds (function-local statics) and returns `stored = true`. Its one caller is the manager | `WxFeedFactory.cpp:8-19`; `WeatherscopeManager.h:60` |
+| **No live code exists in `src/weatherscope/`**: no HTTP call, `/wx` client, ETag or `ProxyWxFeed` | (searched; the name appears only in this plan) |
+| The radar's `/wx` client: `WeatherUrl(base, product)` gives `…/api/v1/blipscope/wx/<product>`. **`CloudFeed.cpp` refuses any scoped build by `static_assert`** (it would send the bare slug as `X-Blip-Model`). The Weatherscope env has no `FEATURE_CLOUD_FEED` | `CloudFeed.cpp:1`, :14-17, :108; `platformio.ini` 1167-1170 |
+| The radar's request: `lat`/`lon` = `wireloc::Center` (2 dp), `r` = whole km, `CloudFeed::Headers(key)` plus `If-None-Match`, through `HttpRequestManager::GetBytes` (which collects `ETag`, `X-Wx-Max-Age`, `Retry-After` and is compiled in every edition). Its rules are `include/WxPolicy.h`, its parser `include/WxCrop.h` | `AircraftManager.cpp:3059-3069`, :3516-3582; `HttpRequestManager.cpp:616-638`; `WxPolicy.h:7-42`, :122-133; `WxCrop.h:10-22`, :133, :162 |
+| The proxy serves `GET /api/v1/blipscope/wx/<product>?lat=&lon=&r=` for any product in `PRODUCTS`, and **`shsr` is one** (W4) | `proxy/src/wx/handler.ts:1`; `proxy/src/wx/products.ts:94` |
+| **F1, in CI:** every `WeatherUrl(` call under `src/` and `include/` must pass `"cref"` ("the device asks for one product, and never by place") | `scripts/check_wx_device_cref.py:1-12`; `.github` `device-ids.yml` :93-94 |
+| The proxy refuses a device with 401 `unauthorized` (no key or a bad one), 403 `fake_device_id`, or 403 `forbidden` (activation) | `proxy/src/index.ts:362-363`; `proxy/src/activation.ts:160` |
+| **Enrolment is compiled for the radar only.** The popup's JS is in every edition's page, but `%ENROLLED%` is substituted only under the radar guards, so Weatherscope's page never shows the step. `/enroll-key` is under the eight-edition guard | `ConfigurationWebServer.cpp:165-424` (the JS), :2552, :2714/:2738/:2750, :3196/:3214-3217, :3564-3590; `/enroll-key` :4170-4245 |
+| The device key lives in NVS `config`: `cloud-key`, then `cloud-key-fac`, then the build's `CLOUD_FEED_KEY`. `/enroll-key` writes `cloud-key-fac` and clears `cloud-key`, and `cloud-key-fac` survives a factory reset. **It is read only in `AircraftManager.cpp`**, which Weatherscope does not compile | `ConfigurationWebServer.cpp:4228-4235`; `AircraftManager.cpp:1486-1495`; `FactoryReset.cpp:30` |
+| The screens: `Mode {Splash, Status, Scenario, Loop, Legend, Swipe}`, `Page {Map, Forecast, Conditions, Alerts, Legend}`. `DrawStatus` shows Wi-Fi, RSSI, the clock and the `.local` name. **No "no location" or "not enrolled" screen exists.** The location is NVS `latitude`/`longitude` (`hasLatLon`) | `WeatherscopeManager.h:85`; `WxSwipe.h:29`; `WeatherscopeManager.cpp:1351-1382`, :171-175 |
+| The loop: `kLoopFrames` 15 at 70 ms, `history[]` filled ONCE from flash by `History()`. **No ring** | `WeatherscopeManager.h:71`, :136; `.cpp:43`, :244, :766-813 |
+| The checks: S1 (no other edition's image moves): `tools/weatherscope/s1/`. D1 (one factory) and D2 (0 NOAA/NWS hosts): `tools/weatherscope/s32/s32.py`, `test/host/test_wx_feeds.cpp`. None is in CI. **D1 today matches only the names `Stored(Wx\|Obs\|Alert)Feed`** | stage3.md:54, :89-90, :583; `s32.py:91-98` |
+
+**What W7 builds** (device code only, all under `src/weatherscope/`, and no proxy change):
+1. **`ProxyWxFeed`**, a `WxFeed`.
+   - Every 60 s, with `If-None-Match` from the last 200, it fetches `/wx/<product>?lat=&lon=&r=97` through
+     `HttpRequestManager::GetBytes`.
+   - It applies `WxPolicy`'s rules unchanged (hold times, `Retry-After`, the all-14 crop) and validates with
+     `wxcrop::Validate`.
+   - The product and path are Q125's.
+2. **The ring** (Q115 (a), ruled):
+   - 15 slots of `wxcrop::kMaxBytes`, allocated once at boot in PSRAM, all or none;
+   - every other NEW frame is kept, so a 304 or a repeated ETag adds nothing;
+   - `History()` is oldest first;
+   - under 3 frames, a tap does nothing.
+3. **Weatherscope's own request headers,** because `CloudFeed.cpp` refuses a scoped build:
+   - the key, by `AircraftManager`'s precedence (`cloud-key`, then `cloud-key-fac`);
+   - `X-Blip-Model` = `ota::ModelString` (W2's);
+   - `X-Blip-FW`, and `X-Blip-Device` = the same id.
+   - This is a SECOND PATH to `CloudFeed::Headers`. Ask A below is how the two are kept the same.
+4. **The setup states, each a screen,** decided in one function from Wi-Fi, location, key and the last answer:
+   - no Wi-Fi (today's `DrawStatus`);
+   - **no location;**
+   - **not enrolled** (no key);
+   - **refused** (a 401 or a 403, said in words, because the board can fall back to nothing);
+   - live.
+5. **The factory:** `MakeFeeds()` returns `ProxyWxFeed` as the radar, and `stored = false`. Every other file is
+   unchanged in what it names (D1).
+6. **Staleness, as built** (1.4): a frame older than 30 min draws `RADAR STALE`, never an old frame as current.
+
+**Asked of blipscope-5c: interfaces, not changes I make** (the plan: "shared-code changes through blipscope-5c";
+the reviewer: 5c is busy tonight, so these are written as asks):
+- **Ask A, the header builder.** Either (a) expose `CloudFeed::Headers`' body as one shared function that both editions
+  call, so there is one path; or (b) agree that Weatherscope keeps its own builder, with a host row that builds both
+  header sets from the same inputs and requires them equal except `X-Blip-Model`. I recommend (a).
+- **Ask B, enrolment for Weatherscope.**
+  - Compile `/enroll-key` and the `%ENROLLED%` substitution for `FEATURE_WEATHERSCOPE` too.
+  - The route's behaviour is unchanged: it writes `cloud-key-fac` and clears `cloud-key`.
+  - Proved by S1: every other edition's image is identical outside the known stamps.
+  - Weatherscope only READS the same NVS keys; it writes none.
+
+**Q125, the radar's product and path (for the reviewer, and F1's owner).** Q113 ruled `shsr` for Weatherscope, and
+F1 requires every `WeatherUrl(` call to pass `cref`.
+- **(a) Recommended:** Weatherscope asks `/api/v1/blipscope/wx/shsr` through its own call, and F1's check gains a
+  named, second rule: the radar asks `cref`, Weatherscope asks `shsr`, and no other call site exists. "Never by place"
+  still holds: the product is the edition's, not the location's.
+- **(b)** Weatherscope asks `cref`, and the proxy answers it with `shsr` for the `weatherscope-s3-128` model. That
+  needs proxy work, and puts a model rule where F1 put a place rule.
+
+**Q126, what the other pages show between W7 and W8.** W7 makes only the radar live, while conditions, forecast and
+alerts stay stored until W8.
+- **(a) Recommended:** in a live image they draw their unavailable state (`ALERTS UNAVAILABLE`, `NO FORECAST`, no
+  conditions), never the stored scenario's data as if it were the user's.
+- **(b)** They keep the stored data, labelled as a sample.
+
+1.4's rule ("an absence must never read as good news") is why (a) is recommended.
+
+**THE ROWS, frozen before any code** (host-side unless named; each predicted):
+
+| row | holds when | sabotage, red first |
+|---|---|---|
+| **W7-D1** | no file outside `WxFeedFactory.cpp` and its own files names `ProxyWxFeed` or includes its header; `s32.py`'s D1 list gains it | `ProxyWxFeed` named in `WeatherscopeManager.cpp` |
+| **W7-D2** | 0 hits of `weather.gov`, `noaa`, `ncep`, `mrms` or `amazonaws` in the built image, and the control plant is found | a planted `api.weather.gov` string |
+| **W7-REQ** | from fixed inputs, the request is exactly the path (per Q125) `?lat=<2 dp>&lon=<2 dp>&r=97`, with the four headers, and `If-None-Match` only after a 200 that carried an `ETag` | a 3-dp latitude; the header with the bare slug |
+| **W7-RING** | 15 slots; every other new frame kept; a 304 or a repeated ETag adds nothing; `History()` oldest first; under 3 frames a tap does nothing; a failed allocation leaves 0 slots and the loop simply off | keeping every frame; a 304 adding one |
+| **W7-STATES** | each state draws its own words, and "live" never draws without a frame | the live screen with no frame |
+| **W7-REFUSED** | 401, 403 `fake_device_id` and 403 `forbidden` each draw the refused screen in words; a network failure keeps the last frame until it is stale | a 401 drawn as "no Wi-Fi" |
+| **W7-STALE** | a frame older than 30 min draws `RADAR STALE`, never the frame as current | the stale check removed |
+| **W7-ALERTS** (section 8's) | with the alerts feed not live, the Alerts page's drawn text can't contain the all-clear, with a control that it still says something | a not-live alerts feed that draws `NO ACTIVE ALERTS` |
+| **W7-S1** | every other env in `skus.yml` builds an image identical outside the known stamps (`tools/weatherscope/s1/`) | (S1's own, stage3.md:61) |
+| **W7-F1** | `check_wx_device_cref.py` passes, under Q125's ruling | Q125 (a)'s rule with a third call site |
+| **W7-BUILD** | `weatherscope-s3-128` compiles (PowerShell, a WMI child, C: ≥ 30 GiB, outside a board window) | |
+
+**Outside the set:**
+- a row whose instrument cannot see its sabotage (a control reading blind);
+- a header or URL that differs from the radar's in anything but `X-Blip-Model` and the product, without Ask A's ruling;
+- any change outside `src/weatherscope/`, `test/host/` and `tools/weatherscope/` before Ask A and Ask B are answered.
+
+Any of these: STOP, and report.
+
+**The order, once this section is accepted:**
+1. Q125, Q126, Ask A and Ask B are ruled or answered.
+2. The host rows and their sabotages are written, with each sabotage red first.
+3. The code.
+4. The build and S1.
+5. The PR.
+
+W11 (the bench on 6E:64) reads it on glass later; nothing here touches a board.
