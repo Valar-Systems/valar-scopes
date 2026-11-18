@@ -4466,3 +4466,58 @@ Any of these: STOP and report. Nothing is pushed, and nothing is fixed before th
 - No build during a board window.
 - The new head is pushed only after every row above reads as predicted. Then G5' is p4's (A), and its registration
   comes first (the reviewer, 14:4xZ).
+
+### 16f. 16e's code step: two instrument defects, ruled; and R-FB's off (2026-11-18 ~15:0xZ; before any graded D row)
+
+**Where it stands.** The drop is committed LOCALLY at `bench/speed-p5` `fcc6b73ede77`, on top of OLD `03e62aad5df5`,
+and is not pushed. Every row grades that commit.
+- **Read so far, as predicted:**
+  - R-HOST's control: OLD run twice, 22 of 22 files byte-identical;
+  - R-HOST: NEW against OLD, 22 of 22 byte-identical, every step exit 0;
+  - K-EDITION's OLD image: `weatherscope-s3-128` at OLD, rc 0, 1,889,152 B, `7c397ea96785`.
+- **Construction, read and not graded:** `main.cpp` and `AircraftManager.h` at NEW are the exact pre-1c blobs
+  (`4319f8e6`, `3da5b158`, 979d3e15's own "before"); `BandCanvas.h` equals the base; `run.sh` is one contiguous
+  41-line deletion; the FrameBench.h edit asserted all 31 OLD lines before writing.
+
+**Defect 1, ruled (a): `check_bench_diff.py` could not read a change that DELETES a file.**
+- **The defect:** its base side guards absence with `git ls-tree`; its head side called `git show <head>:<path>`
+  unguarded. The drop deletes `include/DirtyClear.h`, so `check_drop_1c --selftest` died at D-BENCHDIFF before P2.
+- **The ruling** (the reviewer; it is the reviewer's X addition): the symmetric fix, absent at head reads as "", exactly
+  as at the base.
+- **Red first:** a plant deleting one shipping file must name that file's lines as REMOVED.
+- **Control:** the clean case is unchanged.
+- D-BENCHDIFF then runs as registered, its named set still equal to D-SCOPE's outside-region lines.
+
+**Defect 2, ruled: D-KINDNUM's regex over-matched.**
+- **The over-match:** it flagged `test/host/test_p5_outline.cpp:115-116` (`k.dot = kind == 5;` and the like). That
+  `kind` is the test's own aircraft-kind variable, and the file is byte-identical at OLD (R-CORE).
+- **The ruling:** the numeric-comparison scan reads only lines naming `kScenes`, `Kind` or `framebench`. Red plant:
+  `kScenes[0].kind == 8` must be flagged.
+- **The completeness basis, from the tree at `fcc6b73ede77`** (`git grep`, include/ src/ test/):
+  - `framebench::Kind`, `Scene` and `kScenes` are defined only in `include/FrameBench.h` (:46, :54, and :92/:97/:100/:102
+    under their `#if`s). No `using`, `typedef` or `#define` aliases any of them.
+  - FrameBench's `Kind` is a type in exactly one place, `Scene::kind` (:55). Every other `Kind`-typed name belongs to
+    another type (`GameClient`, `wxscen`, `wxlegend`, OtaUpdater's local enum).
+  - A FrameBench kind VALUE is read in nine places, all inline `kScenes[…].kind`: seven in FrameBench.h (:224, :226,
+    :230, :236, :239, :413, :418) and two in `src/AircraftManager.cpp` (:2188, :2215). Each is compared with an enum
+    name or used as an index into `kPushDelayMs`/`kKindName`. None is copied into a local.
+  - Every other `.kind` read belongs to another type: OutlineMask's markers, airports, OTA's `Download`, the game
+    client, the legend's swatches, and host-test structs.
+  - So a numeric comparison of a FrameBench kind can only sit on a line that names `kScenes`, `Kind` or `framebench`.
+
+**R-FB's off (to the reviewer; not yet ruled).**
+- **Predicted:** `check_frame_bench.py` exit 0. **Read:** exit 1, 15 rows, 1 failed: `C1-L: off: profile include, hook
+  on Level(), kLevel only at its 3`. Its `--selftest` refuses ("the clean tree is not green").
+- **The same at OLD:** run on a `git archive` of `03e62aad5df5`, the 15 rows read identically, C1-L red on the same
+  three parts. Only FB-TU's cited line number moves (:71 to :65), because FrameBench.h shrank. The checker file is
+  byte-identical at OLD and NEW.
+- **The alternative, excluded:** "the drop broke C1-L". The red is identical at OLD, and none of the three parts' lines
+  is in the drop's diff: the `FRAME_PROFILE` include (p4's profile merges only into the gains branches), `OnCloudPoll`'s
+  loop, and the `kLevel` uses (A2's `{C1, kLevel, true, true}`, untouched).
+- **What was wrong:** my prediction. R-FB's exit 0 was registered without running the check at OLD. The second half,
+  `check-no-bench-hooks.sh`, needs K-BUILD's shipping image and runs when it exists.
+
+**How the fixes land.** A second commit, `tools/speed-p5p6/` only, on top of `fcc6b73ede77`: the symmetric fix to
+`check_bench_diff.py` and the narrowed scan to `check_drop_1c.py`, each with its plant and control. Every row still
+grades `03e62aad5df5` → `fcc6b73ede77`, so the builds already running at that commit stay valid. The D rows then run
+in full: the selftest first, then the graded run. Nothing is pushed before every row reads.
