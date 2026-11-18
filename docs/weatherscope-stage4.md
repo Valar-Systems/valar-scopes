@@ -2959,3 +2959,124 @@ Any of these: STOP, and report.
 5. The PR.
 
 W11 (the bench on 6E:64) reads it on glass later; nothing here touches a board.
+
+### S4.33, 2026-11-18: S4.32 ruled; one correction below it; F1's interface for uk-data; W7's first slice frozen before it first runs
+
+**The rulings (the reviewer, 2026-11-18 ~23:1xZ):**
+- **S4.32: accepted**, at `d3100009eff2`.
+- **Q125: (a).** Weatherscope asks `/wx/shsr` through its own call.
+- **F1: (b).** F1 is uk-data's tool (`scripts/check_wx_device_cref.py`), so uk-data writes its named second rule (radar =
+  `cref` only, Weatherscope = `shsr` only, no third) and that rule's red sabotage (a radar call passing `shsr` must fail
+  F1). It does this after Thursday's logs step. W7's PR waits for that change on main.
+- **Q126: (a).** In a live image the stored pages draw their unavailable state, never stored data as the user's.
+- **Asks A and B** went to blipscope-5c through the reviewer. Rows and code that depend on them wait.
+- **The A/B-independent slice: GO,** under S4.32's order, with its counts and red sets frozen here before the first run.
+
+**A correction below S4.32's frozen text (ruled ~23:2xZ).**
+- S4.32 said ProxyWxFeed "applies WxPolicy's rules unchanged". It uses WxPolicy for **FETCHING ONLY**: (a), (b), (d),
+  (e), (f) and (g). It **never calls `WhatToShow`** for display.
+- Weatherscope's screens keep the owner's ruled Q15/Q18 display: shown to 30 min, the age in orange past 10 min,
+  `RADAR STALE` past 30.
+- `X-Wx-Max-Age` is parsed and recorded only.
+- **Why** (the reviewer): rule (c) protects a radar overlay drawn over live aircraft without its age. Weatherscope says
+  the age out loud. A different owner of the screen is a different case.
+- **Enforced, not remembered:** row W7-NOSHOW below, with its control and a planted call.
+
+**F1's interface, for uk-data** (frozen here; uk-data writes the rule):
+- **The function:** `wxlive::WeatherscopeWxUrl(const String& base, const char* product)`, in
+  `src/weatherscope/WxLiveUrl.h`. It returns `base + "/api/v1/blipscope/wx/" + product`.
+- **The call shape F1 must recognise:** `WeatherscopeWxUrl(<base>, "shsr")`, with the product as the SECOND argument,
+  a string literal. Every call site under `src/` passes `"shsr"`.
+- **No third:** the radar's `WeatherUrl(` is never called under `src/weatherscope/`, and `WeatherscopeWxUrl(` is never
+  called outside it.
+- **A fact F1's rule must allow for:** this slice DEFINES the function and calls it from no firmware file. Its one call
+  site arrives with `ProxyWxFeed`, which waits on Ask A. Until then the count of call sites is 0 by design, not BLIND.
+- The name does not contain `WeatherUrl(`, so today's F1 rule neither matches nor misreads it.
+
+**The slice:** `weatherscope/w7-live` at `eed247ad4eb8`, from main `237d5d163eb4`, committed locally and not yet run.
+Every file is in `src/weatherscope/`, `test/host/` or `tools/weatherscope/`.
+- One change came before freezing, with no run. `WordsOf` nested a switch that fell through to the next case, which
+  `-Wimplicit-fallthrough` under `-Werror` might refuse. The refusal's words moved into their own `RefusedWords()`.
+- No word changed. The L-401NOWIFI anchor follows the line's new indent.
+
+The files:
+
+| file | sha256 | what |
+|---|---|---|
+| `src/weatherscope/WxRing.h` | `5590a3e053ea` | 15 slots of `wxcrop::kMaxBytes`, an injected allocator, all or none; every other NEW frame, from the first; a frame no newer than the newest seen adds nothing and does not count; one over `kMaxBytes` is refused and does not count; `History()` the newest kept, oldest first; `CanLoop()` at 3 |
+| `src/weatherscope/WxSetup.h` | `4fadd0487fb3` | `Decide()`: no Wi-Fi, then no location, then not enrolled, then refused, then waiting (no frame), then live. `RefusalOf()`: 401 key rejected; 403 `fake_device_id` device unknown; 403 `forbidden` not activated; any other 403 refused |
+| `src/weatherscope/WxLiveUrl.h` | `27968af7b553` | `WeatherscopeWxUrl`, and `WeatherscopeWxQuery(lat, lon)` = `?lat=<Center>&lon=<Center>&r=97` through `wireloc::Center` |
+| `test/host/test_wx_live.cpp` | `22ff8c90790a` | the 14 rows below |
+| `test/host/sabotage_wx_live.py` | `618c0e503331` | the 7 plants below, with `--anchors` and `--control` |
+| `tools/weatherscope/w7/w7_static.py` | `c6833af3d863` | W7-NOSHOW, its control and its selftest |
+| `test/host/run.sh` | `c345605dcc20` | two blocks after WxFeeds: the suite, and the split check with its selftest |
+
+- **The words, frozen** (`WxSetup.h`; each a title and a line):
+
+| state | title | line |
+|---|---|---|
+| no Wi-Fi | `NO WI-FI` | `SET UP WI-FI FROM YOUR PHONE` |
+| no location | `SET YOUR LOCATION` | `ON THE SETUP PAGE` |
+| not enrolled | `NOT ENROLLED` | `ENROL THIS BOARD ON THE SETUP PAGE` |
+| waiting | `WAITING FOR RADAR` | (none) |
+| refused, 401 | `KEY NOT ACCEPTED` | `ENROL THIS BOARD AGAIN` |
+| refused, 403 `fake_device_id` | `BOARD NOT RECOGNISED` | `CONTACT SUPPORT` |
+| refused, 403 `forbidden` | `NOT ACTIVATED YET` | `CONTACT SUPPORT` |
+| refused, any other 403 | `ACCESS REFUSED` | `CONTACT SUPPORT` |
+| live | (no setup screen) | |
+
+- **A sixth state, named.** S4.32 listed five states. Its own row "'live' never draws without a frame" forces a sixth,
+  for a board that is set up and not yet answered: **waiting**.
+
+**THE PREDICTIONS for the first run**, WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`, bare, each
+output to its own file, before Thursday's PC quiet (16:20Z):
+- **`test_wx_live`:** 14 rows, all ok, exit 0, ending `all WX live checks passed`:
+
+| row | predicted |
+|---|---|
+| RING-ALLOC | 15 allocations, empty, no loop |
+| RING-ALLOC-NONE | the 8th allocation fails: the 7 freed, every slot null, `Offer` refused |
+| RING-EVERY-OTHER | kept `K.K.K.K.K.`, history `0,2,4,6,8` |
+| RING-REPEAT | history `1,4` |
+| RING-WRAP | history `10,12,…,38` (15 frames) |
+| RING-LOOP-MIN | `nnnnYY` |
+| RING-COPY | the kept copy keeps its first byte 7 at size 100 after the caller's buffer moves |
+| RING-OVERSIZE | history `6` |
+| STATE-PRECEDENCE | 8 cases, 0 wrong |
+| STATE-LIVE-NEEDS-FRAME | 96 inputs, 0 violations |
+| STATE-REFUSED | ok |
+| STATE-WORDS | ok |
+| URL-PATH | `https://proxy.example/api/v1/blipscope/wx/shsr` |
+| URL-QUERY | `?lat=10.13&lon=-20.68&r=97` and `?lat=0.00&lon=0.00&r=97` (synthetic points) |
+
+- **`sabotage_wx_live.py`:** each plant AS PREDICTED on exactly its red set; the real headers unchanged; `W7 LIVE PLANTS
+  AS PREDICTED`; exit 0:
+
+| plant | its red set |
+|---|---|
+| L-KEEPALL | RING-EVERY-OTHER, RING-REPEAT, RING-WRAP, RING-LOOP-MIN, RING-OVERSIZE |
+| L-REPEATNEW | RING-REPEAT |
+| L-PARTIAL | RING-ALLOC-NONE |
+| L-LIVENOFRAME | STATE-PRECEDENCE, STATE-LIVE-NEEDS-FRAME, STATE-REFUSED |
+| L-401NOWIFI | STATE-WORDS |
+| L-THREEDP | URL-QUERY |
+| L-BAREPATH | URL-PATH |
+
+  - `--anchors`: 7 plants, 7 anchors, each present exactly once.
+  - `--control`: `test_wx_live` 14 ok.
+- **`w7_static.py`:**
+  - NOSHOW-CTL ok, with 1 occurrence in `include/WxPolicy.h`;
+  - W7-NOSHOW ok, with 0 hits in 25 files;
+  - exit 0, and `--selftest` PASSED, the planted call named in `WeatherscopeManager.cpp`.
+  - The 1 and the 25 were read from the tree before this was frozen, and so was the 0. The 0 is certain by
+    construction, since no call was written. It is stated, not hidden.
+
+**Outside the set:**
+- **A compile failure is the RIG:** reported, fixed, and the run repeated. It is not a result.
+- **Anything else off, or a plant red on any other set:** STOP, report, and fix nothing before the ruling.
+- **A blind control:** STOP.
+
+**What this slice does NOT do, and what waits:**
+- `ProxyWxFeed` itself, the request headers (Ask A), the enrolment change (Ask B), Q126's unavailable pages
+  (W7-ALERTS), the factory switch, and D1's extension. Each is its own slice, frozen the same way.
+- The PR waits for those slices and for F1's second rule on main.
