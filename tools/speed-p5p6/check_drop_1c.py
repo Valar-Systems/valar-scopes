@@ -12,7 +12,8 @@ Rows (16e):
            (3) every ADDED line is a restoration (its text among the lines C1C removed from that path, each used once)
                or a named line with exactly its registered text (each used once).
   D-RESIDUE   none of the 23 symbols in any file under include/ src/ test/ scripts/ at NEW.
-  D-KINDNUM   every line naming ANCHOR_BG, ANCHOR_8COPY or Kind is printed; none compares a kind with a number.
+  D-KINDNUM   every line naming ANCHOR_BG, ANCHOR_8COPY or Kind is printed; none naming kScenes, Kind or framebench
+              compares a kind with a number (16f, ruled: the completeness basis is written there). P7 plants one.
   D-BENCHDIFF check_bench_diff.check(OLD, NEW) is NOT CLEAN, and its named set equals this tool's own enumeration of
               the changed lines outside a FRAME_BENCH region (tools/, docs/ and FrameBench.h excepted, as it does).
   R-CORE      1a's and 1b's cores and host files are byte-identical at OLD and NEW.
@@ -51,6 +52,7 @@ CORE = ["include/OutlineMask.h", "include/WxSweepLut.h", "test/host/LgfxPort.h",
         "test/host/sabotage_p5_blend.py"]
 BEGIN, END = "// THE FRAME BENCH BEGIN", "// THE FRAME BENCH END"
 NUMCMP = re.compile(r"\bkind\b\s*(==|!=|<=|>=|<|>)\s*\d|\(\s*Kind\s*\)\s*\d|static_cast<\s*Kind\s*>\s*\(\s*\d", re.I)
+FBKIND = re.compile(r"kScenes|\bKind\b|framebench")
 
 
 def git(repo, *a, ok=(0,)):
@@ -206,14 +208,18 @@ def check(repo, old, new, override=None, quiet_kind=False):
         for k, ln in enumerate(lines(t), 1):
             if re.search(r"ANCHOR_BG|ANCHOR_8COPY|\bKind\b", ln):
                 uses.append(f"{p}:{k}: {ln.strip()[:110]}")
-            if NUMCMP.search(ln):
+            # 16f, ruled: only a line naming kScenes, Kind or framebench can compare a FrameBench kind (the basis is
+            # written there); an unrelated `kind` (test_p5_outline.cpp's aircraft kind) is not one.
+            if NUMCMP.search(ln) and FBKIND.search(ln):
                 cmps.append(f"{p}:{k}: {ln.strip()[:110]}")
     if not quiet_kind:
         for u in uses:
             print(f"        use  {u}")
     row(rows, "D-KINDNUM", not cmps, f"{len(uses)} use(s) printed above; numeric comparisons {cmps}")
     # D-BENCHDIFF
-    spec = importlib.util.spec_from_file_location("cbd", os.path.join(repo, "tools", "speed-p5p6", "check_bench_diff.py"))
+    # its sibling (16f: the ruled fix lives beside this tool, in the tree and in the board dir alike)
+    spec = importlib.util.spec_from_file_location("cbd", os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                                      "check_bench_diff.py"))
     cbd = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cbd)
     their = {(p, ln, side) for p, ln, side, _ in cbd.check(repo, old, new, override=cx.ov or None)}
@@ -271,6 +277,9 @@ def selftest(repo, old, new):
     p5 = mn.replace(anchor, anchor + "    canvas.SetDirty(nullptr);\n", 1)
     om = text("include/OutlineMask.h")
     p6 = om.replace("\n", "\n ", 1)
+    enum = NAMED_NEW["include/FrameBench.h"][0]
+    assert fb.count(enum) == 1, "P7: the named enum line is not exactly once at NEW"
+    p7 = fb.replace(enum, enum + "\ninline bool PlantedNumeric() { return kScenes[0].kind == 8; }", 1)
     results = [
         ("P1 a 1a line removed", {"src/AircraftManager.cpp": p1}, "D-SCOPE-2"),
         ("P2 an added line, neither restored nor named", {"src/main.cpp": p2}, "D-SCOPE-3"),
@@ -278,6 +287,7 @@ def selftest(repo, old, new):
         ("P4 a path outside the table", {"README.md": p4}, "D-SCOPE-1"),
         ("P5 SetDirty left in main.cpp", {"src/main.cpp": p5}, "D-RESIDUE"),
         ("P6 one byte in OutlineMask.h", {"include/OutlineMask.h": p6}, "R-CORE"),
+        ("P7 a FrameBench kind compared with a number", {"include/FrameBench.h": p7}, "D-KINDNUM"),
     ]
     ok_all = True
     for name, ov, want in results:

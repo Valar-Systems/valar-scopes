@@ -9,7 +9,9 @@ file and every REMOVED line inside one of the OLD file. Anything else is a shipp
     python -I check_bench_diff.py <repo> <base> [<head>]    head defaults to the working tree; exit 0 clean, 1 a
                                                            shipping line, 2 usage / git error
     python -I check_bench_diff.py --selftest <repo> <base>  the real change reads clean; a planted copy of src/main.cpp
-                                                           with one line added OUTSIDE a region reads 1, naming it
+                                                           with one line added OUTSIDE a region reads 1, naming it; and
+                                                           include/Layout.h deleted reads 1, naming exactly its lines
+                                                           as REMOVED (16f, ruled (a))
 """
 import os
 import re
@@ -43,7 +45,9 @@ def regions(text):
 
 
 def check(repo, base, head=None, override=None):
-    """[(path, line, side, text)] of shipping lines. override: {path: new text} replaces the working tree's file."""
+    """[(path, line, side, text)] of shipping lines. override: {path: new text} replaces the working tree's file; a
+    None text means the file is deleted. A path absent at the head (or from the working tree) reads as "", exactly as
+    a path absent at the base does (docs/speed-p5p6.md 16f, ruled (a)): a deleted file's lines are REMOVED lines."""
     args = ["diff", "-U0", base] + ([head] if head else [])
     names = [p for p in git(repo, *(["diff", "--name-only", base] + ([head] if head else []))).split("\n") if p]
     if override:
@@ -54,12 +58,16 @@ def check(repo, base, head=None, override=None):
             continue
         old = git(repo, "show", f"{base}:{path}") if path in git(repo, "ls-tree", "-r", "--name-only", base, "--", path) else ""
         if override and path in override:
-            new = override[path]
+            new = override[path] if override[path] is not None else ""
         elif head:
-            new = git(repo, "show", f"{head}:{path}")
+            new = git(repo, "show", f"{head}:{path}") if path in git(repo, "ls-tree", "-r", "--name-only", head, "--", path) else ""
         else:
-            with open(os.path.join(repo, *path.split("/")), encoding="utf-8", newline="") as f:
-                new = f.read()
+            fp = os.path.join(repo, *path.split("/"))
+            if os.path.exists(fp):
+                with open(fp, encoding="utf-8", newline="") as f:
+                    new = f.read()
+            else:
+                new = ""
         ro, rn = regions(old), regions(new)
         with tempfile.TemporaryDirectory() as t:
             a, b = os.path.join(t, "a"), os.path.join(t, "b")
@@ -106,7 +114,18 @@ def selftest(repo, base):
     bad = check(repo, base, override={"src/main.cpp": planted})
     r2 = report(bad)
     named = any("planted_shipping_line" in t for _, _, _, t in bad)
-    ok = r1 == 0 and r2 == 1 and named
+    # 16f, ruled (a): a DELETED shipping file must be named, every line of it outside a region, as REMOVED lines.
+    victim = "include/Layout.h"
+    with open(os.path.join(repo, *victim.split("/")), encoding="utf-8", newline="") as f:
+        vt = f.read()
+    want = sum(1 for n in range(1, len(vt.splitlines()) + 1) if n not in regions(vt))
+    print(f"the plant ({victim} deleted; {want} line(s) outside any region):")
+    badd = check(repo, base, override={victim: None})
+    r3 = report(badd)
+    deleted_ok = (r3 == 1 and want > 0 and len(badd) == want
+                  and all(p == victim and side == "removed" for p, _, side, _ in badd))
+    print(f"the deleted file: {len(badd)} line(s) named, all '{victim}' and removed: {deleted_ok}")
+    ok = r1 == 0 and r2 == 1 and named and deleted_ok
     print("BENCH-DIFF SELFTEST " + ("PASSED" if ok else "FAILED"))
     return 0 if ok else 1
 
