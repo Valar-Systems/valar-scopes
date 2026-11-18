@@ -3108,3 +3108,115 @@ output to its own file, before Thursday's PC quiet (16:20Z):
     the activation list as W7-REFUSED's 403 `forbidden`.
   - Both arrive as one 5c PR.
 - **The PR** waits for slices 2 and 3 and for F1's second rule (uk-data's) on main.
+
+### S4.35, 2026-11-18: W7 slice 2 (Q126 (a), the unavailable pages), frozen before it first runs
+
+**The ruling (the reviewer, 2026-11-18):** slice 2 (W7-ALERTS) is a GO. It is frozen the same way as slice 1, and every
+host run is done before Thursday's PC quiet (16:20Z).
+
+**The slice:** `weatherscope/w7-live` at `00e16c1fb22e`, one commit on slice 1 (`eed247ad4eb8`). It is committed
+locally and has not been compiled, run or pushed. Every file is in `src/weatherscope/` or `test/host/`.
+
+| file | sha256 | what |
+|---|---|---|
+| `src/weatherscope/WxFeeds.h` | `9d160e1bcb3a` | `AlertList` and `Forecast` gain `bool available = true` |
+| `src/weatherscope/WxSwipe.h` | `a7a53dde81f0` (was `655803d5a4e1`) | each page's unavailable branch, right after the page's `Frame()` and before any of the feed's data is read |
+| `test/host/test_wx_unavail.cpp` | `a86fc1280540` | the 8 rows below |
+| `test/host/sabotage_wx_unavail.py` | `d035d113037a` | the 4 plants below, with `--anchors` and `--control` |
+| `test/host/run.sh` | `245dbe11b7d9` | one block after "W7 split": the suite. The driver joins run.sh's three sabotage passes by its name, as every `sabotage_*.py` does |
+
+**The words, frozen** (`WxSwipe.h`). Each is one line, size 1, centred at y 116, under the page's own frame (its title
+and page dots). Nothing else is drawn on the page.
+
+| page | when | line | ink |
+|---|---|---|---|
+| alerts | the list's `available` is false | `ALERTS UNAVAILABLE` | `uiWarn` |
+| forecast | the forecast's `available` is false | `NO FORECAST` | `uiDim` |
+| conditions | the observation's `valid` is false | `NO CONDITIONS` | `uiDim` |
+
+- **The inks are my choice, open to the reviewer.** Alerts gets the warning ink because an alerts page that cannot be
+  read is the one case where an empty page could be taken for the all-clear. The other two say only that a page is
+  empty.
+
+**What changes on today's device, and what does not:**
+- **Nothing sets `available` false yet.** Its only producers will be slice 3's feeds, chosen in the factory (D1). The
+  stored feeds leave it at its default, true.
+- **`valid` already existed; the conditions page now reads it.** Before this slice `ComposeConditions` never read
+  `valid`: it drew each value from that value's own `has...` flag.
+- **No caller passes an invalid observation today.** The device's `StoredDayObsFeed::Latest()` returns
+  `wxnws::DayObservation()`, which sets `valid`. Every `test_wx_swipe` call that composes the page passes
+  `DayObservation()` or `NightObservation()`, and both set it.
+- So the stored image draws the same three pages as before. The regression rows below assert that on the host. The
+  device compile asserts that the image builds and carries the new words.
+
+**THE PREDICTIONS**, in this order:
+
+**1. The device compile, before the branch is pushed.**
+- **Why it is here:** `WeatherscopeManager.cpp` includes `WxSwipe.h`, so this slice reaches a firmware TU, which
+  slice 1 did not. The compile-before-push rule (ruled 2026-11-16 for P5/P6) is applied for the reason it was made:
+  the host suites cannot see a device TU's includes.
+- **The run:** `run/buildenv.sh w7s2 wt-w7 weatherscope-s3-128`, one `platformio run -e weatherscope-s3-128` with no
+  extra flags. wt-w7 has no libdeps yet, so they install first.
+- **Predicted:** exit 0, with the image archived as `art-marks/w7s2.bin`.
+- **The image carries the words:** `ALERTS UNAVAILABLE`, `NO FORECAST` and `NO CONDITIONS` are each found in
+  `w7s2.bin` at least once, as bytes.
+  - **The control:** `NO WATCHES OR ADVISORIES`, the alerts page's existing all-clear, is found at least once.
+  - In the tree these three strings occur in code only in `WxSwipe.h` (their `WxFeeds.h` hits are comments), so no
+    image built without this slice can carry them.
+- **Afterwards:** `.pio/build` is deleted behind a clean reparse scan. The libdeps stay, for slice 3.
+
+**2. The host runs**, after the push:
+- **How:** WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`, bare, each output to its own file,
+  through a new runner (`drop1c/w7_run2.sh`) and its registered wrapper.
+- **`test_wx_unavail`:** 8 rows, all ok, exit 0, ending `all WX unavailable checks passed`:
+
+| row | predicted |
+|---|---|
+| ALERTS-UNAVAIL-EMPTY | ok: pixel-equal to the frame plus `ALERTS UNAVAILABLE` |
+| ALERTS-UNAVAIL-STORED | ok, `with 5 stored alerts in the list, not live`: pixel-equal to the same reference |
+| ALERTS-CONTROL | ok: the two references differ, and a readable empty list draws the all-clear |
+| ALERTS-LIVE-LIST | ok: a readable list of the 5 equals neither reference |
+| FORECAST-UNAVAIL | ok |
+| FORECAST-CONTROL | ok |
+| CONDITIONS-UNAVAIL | ok, with the observation's values still set |
+| CONDITIONS-CONTROL | ok |
+
+- **`sabotage_wx_unavail.py`:**
+  - Each plant is AS PREDICTED: suite exit 1, red on exactly its set below.
+  - The real `WxSwipe.h` is unchanged (`a7a53dde81f0`).
+  - The driver prints `W7 UNAVAILABLE PLANTS AS PREDICTED` and exits 0.
+
+| plant | what it breaks | its red set |
+|---|---|---|
+| U-ALLCLEAR | the alerts page ignores `available` | ALERTS-UNAVAIL-EMPTY, ALERTS-UNAVAIL-STORED |
+| U-ALLCLEARWORDS | an unreadable list draws the all-clear's words in its ink (section 8's registered sabotage) | ALERTS-UNAVAIL-EMPTY, ALERTS-UNAVAIL-STORED |
+| U-FORECAST | the forecast page ignores `available` | FORECAST-UNAVAIL |
+| U-CONDITIONS | the conditions page ignores `valid` | CONDITIONS-UNAVAIL |
+
+  - `--anchors`: 4 plants, 4 anchors, each present exactly once.
+  - `--control`: `test_wx_unavail` 8 ok.
+- **Regression: the slice changes no existing output.** The base is `eed247ad4eb8`'s tree, from `git archive`. The
+  slice is wt-w7 at `00e16c1fb22e`. Each suite is built with run.sh's line and given the SAME fixture path, the
+  slice's; the fixtures do not differ between the two commits.
+  - `test_wx_feeds` (fixture `test/fixtures/wx`): exit 0 at both, stdout byte-identical.
+  - `test_wx_swipe` (fixture `test/fixtures/wx/nws/k35c.ref.txt`): exit 0 at both, stdout byte-identical.
+  - `sabotage_wx_swipe.py` in full: exit 0 at both. Its stdout is identical except for one line, the real header's sha
+    (`655803d5a4e1` at the base, `a7a53dde81f0` at the slice).
+  - `sabotage_wx_swipe.py --anchors` and `--control`: exit 0 at both, byte-identical.
+  - Before freezing, I grepped that driver's anchors for the lines beside the three insertions and found none. That was
+    a grep of the tree, not a run.
+- **`w7_static.py` at the slice:** NOSHOW-CTL 1 occurrence; W7-NOSHOW 0 hits in 25 files; exit 0. The slice adds no
+  file under `src/weatherscope/` (27 entries at both commits).
+
+**Outside the set:**
+- **A libdeps install failure or a compile failure is the RIG.** It is reported with its error lines, fixed, and the
+  step repeated; it is not a result. A fix to a slice file is named, and the shas above then go stale, so it lands
+  with a correction below this section.
+- **Anything else off STOPS the run:** a plant red on any other set, or a regression output differing on any other
+  line. I report it and fix nothing before the ruling.
+- **A blind control STOPS the run:** the all-clear's words missing from the image, or ALERTS-CONTROL failing.
+
+**What waits:**
+- **Slice 3** waits on 5c's A/B PR: `ProxyWxFeed` (the producer of `available` and `valid`), the factory switch, D1's
+  extension and the setup screens' drawing.
+- **The W7 PR** waits for slice 3 and for F1's second rule on main.
