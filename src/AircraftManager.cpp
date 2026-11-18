@@ -8,6 +8,11 @@ void BenchScratchCheck();   // defined beside the scratch it checks (TheOutlineS
 }
 #endif
 // THE FRAME BENCH END
+// THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+#include "FrameProfile.h"   // the frame profile, P1 (docs/frame-profile.md)
+#endif
+// THE FRAME PROFILE END
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
 #include "DrawHelpers.h"       // DrawRadarSweepBeam: today's beam over the weather sweep (WD6)
 #include "BrightnessCarry.h"
@@ -2170,6 +2175,11 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
         const uint8_t stateFlags = (uint8_t)((wxShowing == wxpolicy::Show::Crop ? 4 : 0) | (MapEnabled() ? 8 : 0) |
                                              (nightNow ? 16 : 0));
         framebench::Record(frameUs, trackedAircraft.size(), stateFlags);
+        // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+        frameprofile::Commit(frameUs);   // the phases, beside the bench's record
+#endif
+        // THE FRAME PROFILE END
         const uint32_t nowMs = millis();
         auto applyScene = [&](int k) {
             fb.noting = true;
@@ -2181,6 +2191,11 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
             if (fb.scene < 0) {
                 if (nowMs >= framebench::START_AFTER_MS && framebench::Allocate()) {
                     framebench::SelfTime();
+                    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+                    if (frameprofile::Allocate()) frameprofile::SelfTime();   // PC-1
+#endif
+                    // THE FRAME PROFILE END
                     BenchScratchCheck();   // board addendum 2: once, before S0 (R-SCRATCH: exactly one line)
                     fb.scene = 0;
                     framebench::PrepareScene(0);
@@ -2192,7 +2207,13 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     applyScene(0);
                 }
             } else if (!fb.measuring) {
+                // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+                if (nowMs - fb.phaseStartMs >= framebench::SettleMs(fb.scene) && fb.dumpScene < 0 && frameprofile::DumpIdle()) {
+#else
                 if (nowMs - fb.phaseStartMs >= framebench::SettleMs(fb.scene) && fb.dumpScene < 0) {
+#endif
+                // THE FRAME PROFILE END
                     fb.measuring = true;
                     fb.phaseStartMs = nowMs;
                     fb.n = 0;
@@ -2207,6 +2228,11 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                 }
             } else if (nowMs - fb.phaseStartMs >= framebench::MeasureMs(fb.scene)) {
                 framebench::EndMeasure();
+                // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+                frameprofile::EndMeasure(fb.scene);
+#endif
+                // THE FRAME PROFILE END
                 const int next = fb.scene + 1;
                 if (next < framebench::kNumScenes) {
                     fb.scene = next;
@@ -2242,6 +2268,11 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
             fb.marginNextMs = nowMs + framebench::kMarginEveryMs;
         }
         framebench::PumpDump();
+        // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+        frameprofile::PumpDump();
+#endif
+        // THE FRAME PROFILE END
     }
 #endif
     // THE FRAME BENCH END
@@ -3802,6 +3833,11 @@ bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, i
 #ifdef WX_LOOK_AB
     const uint32_t tRaster = micros();   // step C (docs/wx-device.md): the three parts, timed, bench image only
 #endif
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWR);
+#endif
+    // THE FRAME PROFILE END
     // The B1 fix: Rasterise records each row's span, and Blend visits only that (docs/wx-device.md).
     int16_t* const rowLo = (int16_t*)wxSweepSpans;
     int16_t* const rowHi = rowLo + SCREEN_SIZE;
@@ -3812,6 +3848,11 @@ bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, i
 #ifdef WX_LOOK_AB
     const uint32_t tBlend = micros();
 #endif
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWB);
+#endif
+    // THE FRAME PROFILE END
     // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped (colortype.hpp), so swap in and out.
     // P5 1b (docs/speed-p5p6.md): each wedge pixel's colour from a table of Lit565 itself, rebuilt only when the look's
     // percent changes (include/WxSweepLut.h), byte-identical to wxsweep::Blend (test/host/test_p5_blend.cpp).
@@ -3838,7 +3879,17 @@ bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, i
 #ifdef WX_LOOK_AB
     const uint32_t tBeam = micros();
 #endif
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWM);
+#endif
+    // THE FRAME PROFILE END
     DrawRadarSweepBeam(canvas, cx, cy, radius, angle);   // the beam and its head, as today
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWE);
+#endif
+    // THE FRAME PROFILE END
 #ifdef WX_LOOK_AB
     RecordSweepParts(tBlend - tRaster, tBeam - tBlend, micros() - tBeam);
     // F4: the bytes the blend visited and the pixels it blended, counted after the timed parts.
@@ -4314,6 +4365,11 @@ float AircraftManager::RadarBlipBrightness(const TrackedAircraft& tracked) const
 
 void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 {
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_RADAR);   // static: from here to the contact loop
+#endif
+    // THE FRAME PROFILE END
     // THE COLLISION FRAME CANNOT SATURATE, and this is the only place both
     // numbers are visible. Per airborne contact the radar draws at most three
     // rectangles with text on them -- the label box, the NEW flag, the
@@ -4401,6 +4457,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
                                                  (int16_t)(bx + bw), (int16_t)(by + bh) });
     };
 
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::LoopBegin();   // the contact loop: contacts, outline, labels
+#endif
+    // THE FRAME PROFILE END
     for (auto& [icao, tracked] : trackedAircraft) {
         if (tracked.state.onGround) continue;
 
@@ -4515,6 +4576,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             // (DrawOutlineMask, include/OutlineMask.h), byte-identical to the 8 copies by construction
             // (test/host/test_p5_outline.cpp); the 8 copies now run only in the bench's OUTLINE_8COPY scenes.
             const bool outline = WxOutlineNow();
+            // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+            const uint32_t fpOutline0 = frameprofile::Cyc();
+#endif
+            // THE FRAME PROFILE END
 #ifdef WX_LOOK_AB
             const uint32_t outlineT0 = outline ? micros() : 0;   // F7 (docs/wx-device.md): the outline's own cost
 #endif
@@ -4536,6 +4602,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 #ifdef WX_LOOK_AB
             if (outline) outlineFrameUs += micros() - outlineT0;
 #endif
+            // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+            frameprofile::AddCyc(frameprofile::A_OUTLINE, fpOutline0);
+#endif
+            // THE FRAME PROFILE END
             if (displayTriangles) DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
             else backbuffer.fillCircle(x, y, 3, markerColor);
         }
@@ -4642,6 +4713,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         }
     }
 
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::LoopEnd();
+#endif
+    // THE FRAME PROFILE END
     // THE FRAME BENCH BEGIN
 #ifdef FRAME_BENCH
     if (firstPass && framebench::AnchorDue()) framebench::AnchorFlush();   // board addendum 2 (7d): p0 or p1
@@ -5910,9 +5986,26 @@ void AircraftManager::DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, con
 
     int idx[labellines::MAX_LINES], lx[labellines::MAX_LINES];
     int ly[labellines::MAX_LINES], lw[labellines::MAX_LINES];
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    const uint32_t fpLayout0 = frameprofile::Cyc();
+#endif
+    // THE FRAME PROFILE END
     const int n = LabelLayout(tracked, x, y, idx, lx, ly, lw);
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::AddCyc(frameprofile::A_LAYOUT, fpLayout0);
+    const uint32_t fpDraw0 = frameprofile::Cyc();
+    frameprofile::PlantLabels();   // P-CTRL: +5.0 ms inside lbl_draw, on its scene only
+#endif
+    // THE FRAME PROFILE END
     for (int k = 0; k < n; ++k)
         backbuffer.drawString(AIRCRAFT_INFO_FIELDS[idx[k]].format(tracked), lx[k], ly[k]);
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::AddCyc(frameprofile::A_DRAW, fpDraw0);
+#endif
+    // THE FRAME PROFILE END
 }
 
 bool AircraftManager::AircraftLabelBox(const TrackedAircraft& tracked, int x, int y,
@@ -5922,7 +6015,17 @@ bool AircraftManager::AircraftLabelBox(const TrackedAircraft& tracked, int x, in
 
     int idx[labellines::MAX_LINES], lx[labellines::MAX_LINES];
     int ly[labellines::MAX_LINES], lw[labellines::MAX_LINES];
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    const uint32_t fpBox0 = frameprofile::Cyc();
+#endif
+    // THE FRAME PROFILE END
     const int n = LabelLayout(tracked, x, y, idx, lx, ly, lw);
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::AddCyc(frameprofile::A_LAYOUT, fpBox0);
+#endif
+    // THE FRAME PROFILE END
     if (n == 0) return false;
 
     // Built from the SAME placements the draw loop will use, including the clamp
