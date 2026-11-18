@@ -902,6 +902,53 @@ text above stands as written).**
 - **AT PUSH:** merge-tree against main as it is then, a rebuild per (3) only if firmware paths have moved, and the CI
   prediction re-derived.
 
+**M3-8, RAN (2026-11-18, 04:03:44Z-04:28:18Z; the owner at the glass; 5c's run 2 first, its release line 04:02:47Z).**
+Records of what ran, not predictions.
+- **The ota stage** (`win_m38.ps1` `e607feea1d92`, `-Stage ota`): **15/15 graded rows True, exit 0**, every row read from
+  the finished trace (243 lines).
+  - W1: the board booted ota_0; A′ was written and verified in 17.1 s; the reset was ok.
+  - P-OTA: A's banner (m38a); `current=17 latest=18`; the download; the install (51 s from "downloading" to
+    "installed"); its own restart.
+  - C1 no crash line; C2 no reboot but the install's own `rst:0xc`; C3 the one split.
+  - P-B: B's banner (m38b); reason SW twice; `current=18 latest=18`; 24 `[m3-bench]` summaries, every one with
+    `bad_frames=0` and `check_err=0`, `sync_err=0` in every `[m3]` line, and 0 mismatch lines.
+  - P-SAVE, the trace side: the save reached B at 04:16:19Z (by 04:18:09Z). S2 no banner, `rst:` or ROM line after it;
+    S3 the summary interval spanning it 36 s, against median 34 s + 2 s; S4 `bad_frames=0` in the 5 summaries after it.
+- **The restore** (`-Stage restore`, after 5c's swap at 04:19:32Z): **14/14 True, exit 0.** B's check read 19 and
+  installed v19 with its own `rst:0xc`; `[build] env=blipscope-s3-128 fw=v19`; Wi-Fi by the fast join; no portal; 270 s
+  of v19; HTTP 200 with "firmware v19" twice, 60 s apart. 5c's hand-back: "57 of 57 fields equal". E2:08 was released
+  at 04:28:18Z.
+- **P-SAVE S1, the page's text: OFF, the first on P-SAVE. A PREDICTION miss, p4's, not a defect.**
+  - The page read "Saved - 42 settings applied. 1 setting this page does not know about was left unchanged - reload
+    to see it." where "Saved - settings applied." was registered (:640).
+  - The cause, read from the code at `758cbc3cbfac`: the designed `togglesLeftAlone > 0` branch
+    (`ConfigurationWebServer.cpp:4149-4157`). /save knows 28 named toggles and 15 info fields, 43 in all; `wx-layer`'s
+    box is compiled out (`:3238`: the box needs `WX_LAYER_SHIPS`, and `${weather.layer}` is empty), so it was left
+    UNCHANGED, not turned off: 42 + 1. On the artifact, B′ carries "Weather radar (beta)" 0 times.
+  - The prediction was written from one branch of the handler without reading its others.
+- **P-GLASS (for :133 and :645).**
+  - The OTA: the owner's eyes and one slow-motion video (`m38-ota`, about 3 min). His words, verbatim: "the screen did
+    not freeze for more than 2 seconds. It froze for maybe 100 milliseconds, it was very fast freeze. no other abnormal
+    things happened", and of the video, "the video doesn't show anything interesting though, it disaplyed prefectly".
+  - The save: the owner's eyes and the trace, no video (the phone was uploading the first one). **ACCEPTED by the
+    owner's ruling, verbatim: "save: eyes are enough".** The M3-9 re-film amendment (`M39-SAVE-AMENDMENT.txt`,
+    `16e78cf9886b`, registered before any code) is SHELVED, unused; `win_m39g.ps1` `68c1e4ab83f4` runs as frozen.
+  - p4's miss: the filming cue gave no length, so the first video ran long. Every video cue now states its seconds.
+- **M3-8 IS COMPLETE for M3's merge gate (:956)**, by the orchestrator on the owner's ruling. The one OFF row (S1) is
+  named in the M3 PR's body as a prediction miss.
+- **The instrument lapse, and how it closed.** The owner's cues were relayed by an UNREGISTERED Monitor (a `tail -F` of
+  the harness's capture of the window's console), which also outlived its stop. The absence rows (C1, C2, S2, the
+  mismatch count) were HELD until shown safe:
+  - the tail read the harness's pipe capture (fed by `win_m38.ps1:107`), not the graded `Add-Content` trace
+    (`bench-trace.ps1:55`, read at `win_m38.ps1:440` after its process exited);
+  - nothing opened the trace while it was live: the tail's argv, an audit of p4's 23 tool calls in the window, and
+    `ReadShared`'s refusal;
+  - B's cumulative `checks` ran 25 → 600 over the 24 summaries without a reset.
+  - The hold was lifted. Every Monitor is now registered at its start, and every TaskStop is followed by a `ps` look.
+- **A finding, routed by the orchestrator to 5c as a v20 candidate:** shipped v19 (`f6d73e391631`) prints the same
+  message on every radar save, and "reload to see it" is false there too: the box is compiled out, so no reload shows
+  it. Nothing is written wrongly.
+
 **How M3-8's OTA install is served without touching the fleet.** The path is the one the code already documents
 (`OtaUpdater.cpp:101-104`). A bench image is built with `-DOTA_RELEASE_BASE=https://github.com/Valar-Systems/valar-scopes/releases/download/<bench tag>`,
 pointing at a **prerelease**:
