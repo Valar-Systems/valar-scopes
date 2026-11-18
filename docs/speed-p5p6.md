@@ -4743,3 +4743,28 @@ graded rule.
   sessions use E2:08 before Friday. `app-only-write` itself REFUSES unless the board's otadata selects ota_0 (or is
   blank): exit 7, nothing written (its docstring, rule 2). That exit is this window's STOP: release, report.
 - **The reading,** after the window and with no board: `run/grade_gains2.sh`, on 16h's rows.
+
+### 16j. A correction below 12b's and 15's frozen text: the M3 trigger is MET (ruled 2026-11-18 ~23:0xZ)
+
+**The frozen text, unchanged above:**
+- 12b: "THE DATE TRIGGER: if M3 (#687) has not merged to main by **Fri 2026-11-20 23:59Z**, the reviewer re-weighs (ii)."
+- 15: "the rebase (section 11, ruled (i)), which waits on M3 (#687)".
+
+**What happened** (read 2026-11-18 ~22:5xZ, read-only):
+- **#763** merged at **2026-11-18T21:39:30Z** as squash `237d5d163eb4`: "M3 on the 1.28": the panel push on its own task
+  (v20; the clean PR)".
+- `git patch-id --stable` gives the SAME id, `b2d68a099660`, for #763's squash and for `be850c9a85cf`, the M3 that
+  section 11 names. The two have the same file list.
+- **#687** is still OPEN, a draft ("bench rows held").
+
+**The ruling** (the reviewer): **MET at 2026-11-18T21:39:30Z by #763.** The frozen text's subject is M3, and "(#687)"
+named the PR M3 was on at the time. So **no re-weigh of (ii) is due Friday**, and item (3), the rebase, is no longer
+blocked on M3.
+
+**The wake.** Its step 5 polled #687's state, so it would have fired a false "not merged" at the deadline. It is
+replaced, not edited:
+- **The check:** `run/wake_m3.sh` (the board dir), sha256 `be9903866f63`. It passes only when #763's squash is in
+  `origin/main`, its patch-id is `b2d68a099660`, and no commit on main reverts it.
+- **Read before arming:** the dry run read present (exit 0). Red, a commit not on main (`be850c9a85cf`) and a wrong
+  patch-id each read NOT PRESENT (exit 1).
+- **Order:** the new hourly wake was armed first, and the old one was stopped only after it was listed.
