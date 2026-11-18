@@ -3838,3 +3838,101 @@ corrections are valid because no bench run has happened (the reviewer).
 - the profile requires the push task ON; with it off, every frame is PARTIAL;
 - a new arm list needs its own reader tables, which are p4's (A);
 - A0a's image has no `-DWX_LOOK_AB`, and neither will the gains images.
+
+### 15c. The 1b correction, and weatherscope's code for the gains images, registered (2026-11-18 ~06:1xZ; text only, no code)
+
+**15c-0. Section 1b's layer: a correction below the frozen text (ruled by the reviewer, about 06:1xZ).**
+- **1b froze:** sw_blend OLD against NEW "on a dry layer".
+- **p4** (REG-gains-AB A5, `9afde11a1d98`): "the profile cannot hold a dry layer. The layer's codes come from
+  FrameBench's fixed /wx field (FrameBench.h:7-9, map-client's)".
+- **1b now runs on that fixed field.** Every arm gets the same field, so the same codes lie under OLD and NEW, which was
+  1b's purpose.
+- **An arm is VOID if its REPORTED "rebuild frames" is greater than 1. This rule is NEW,** and it was chosen AFTER the
+  observation that motivated it: in A0a each of the four weather arms held exactly 1 rebuild frame (p4, from
+  `a0a-read-wx-c3.out`). Its basis: the fixed field gives one rebuild at the scene's start.
+- **A cut's four arms must carry EQUAL rebuild counts.** An unequal count is that row's first off, to the reviewer. It is
+  never a void that is quietly dropped.
+
+**The code.**
+- It sits on bench/speed-p5 (`3547c7f06115`) and bench/speed-p6 (`ed5165a6cf07`), FRAME_BENCH regions and tools only.
+- **No shipping line changes**, and nothing is written before the reviewer accepts this section.
+- p4's merges (B) then run against the new heads, after a merge-tree re-read.
+- The exact names were sent to p4 for its reader tables at about 06:1xZ.
+
+**(1) CLEAR_NOMARK, G5's marks-off arms** (bench/speed-p5; on p4's three conditions):
+- **`include/FrameBench.h`:**
+  - `CLEAR_NOMARK = 13` before `kKinds`;
+  - `kKindName` gains `"clear-nomark"` and `kPushDelayMs` gains `0` (the existing static_asserts enforce both lengths);
+  - `inline bool ClearNoMark() { return InScene() && kScenes[S().scene].kind == CLEAR_NOMARK; }`.
+  - `ClearOld()`, `OutlineOld()` and `SweepOld()` are unchanged. So in an MK-OFF arm the outline is MASK and the sweep
+    LUT, as p4's A1 states.
+- **`src/main.cpp`:** one new FRAME_BENCH region, immediately AFTER P5's shipping `SetDirty` block:
+  `if (framebench::ClearNoMark()) canvas.SetDirty(nullptr);`.
+  - `SetDirty` only stores the pointer (BandCanvas.h:49).
+  - With no set attached, BandCanvas marks nothing (`if (dirty_)`), and `DrawWeatherUnder` takes its whole copy
+    (`bool whole = dirty == nullptr;`, AircraftManager.cpp:3761, the same branch CLEAR_OLD reaches at :3764 → :3767).
+- **The MK arms run last** (p4's list, S14-S17). An MK-OFF frame leaves both buffers' sets unmaintained, and nothing
+  reads them after S17.
+- **Its control, red first** ("CLEAR_NOMARK leaves CLEAR_OLD's pixels unchanged", shown cheaply, by construction):
+  - a static row, `tools/speed-p5p6/check_nomark.py`, asserts on the P5 tree three things, each exactly once:
+    - in `DrawWeatherUnder`, `bool whole = dirty == nullptr;` precedes the `if (whole) {` whole-copy branch, which
+      holds the layer `memcpy`;
+    - CLEAR_OLD's `if (framebench::ClearOld()) whole = true;` lies between them;
+    - main.cpp's new region detaches the set only for `ClearNoMark()`.
+  - **Plants, each red on exactly its row:**
+    - NM-NULL: `bool whole = false;` reads red (a null set would no longer take the whole copy);
+    - NM-KIND: the region's test changed to `ClearOld()` reads red (the switch would fire on the wrong kind).
+
+**(2) The two still label kinds, G6 S6/S7** (bench/speed-p6):
+- **`include/FrameBench.h`:**
+  - `LABELS_TODAY_STILL = 7` and `LABELS_CACHE_STILL = 8` before `kKinds`;
+  - `kKindName` gains `"labels-today-still"` and `"labels-cache-still"`, and `kPushDelayMs` gains `0, 0`;
+  - `LabelsOld()` becomes true for `LABELS_TODAY` OR `LABELS_TODAY_STILL`, so the still OLD lays out by today's path,
+    and the still NEW (cache) by the cache;
+  - new `inline bool LabelsStill()`, true for either still kind;
+  - `OnCloudPoll` gains P5's hold, ported from `c33529a41f3d`: while `LabelsStill()`, the rows are computed at `kTblT`
+    and served with `gs` 0, so the contacts hold still while the wire's `t` stays now.
+- **`src/AircraftManager.cpp`:** in the bench's `applyScene` lambda (a FRAME_BENCH region), right after
+  `Initialise()`: `if (framebench::LabelsStill()) { displaySweep = false; displayTrails = false; }`.
+  - This switches by KIND, after the profile's answers. ProfileOverride answers "scanline" and "trail" true in every
+    scene, and `Initialise()` re-reads them, so a key could not hold them off.
+  - The trails are off because S6 and S7 would otherwise carry different trail history from the timed arms before
+    them.
+- **The scenes** (in p4's list): level 40, `wx=false`. Labels stay on: ProfileOverride answers "infotext" true.
+- **Its graded row** is in section 16: S6's grab 1 against S7's grab 1 by (3). Each scene's own three grabs pass
+  `--equal` first.
+
+**(3) `anchor_compare --pair <a.fb> <b.fb>`** (bench/speed-p5, `tools/speed-p5p6/`): exit 0 if the frames are equal
+outside the clock and indicator boxes, 1 if not (it prints the counts inside and outside), 2 if a grab is the wrong
+length. **Red first**:
+- **`--selftest-pair` rows:**
+  - identical → 0;
+  - **ONE pixel changed at a label position outside the boxes → 1 ("not equal": the orchestrator's 1-px label plant)**;
+  - the whole clock box repainted → 0;
+  - a grab 1 byte short → 2.
+- **Rehearsed first against a stub** (every row but the control red, frozen beforehand), then implemented.
+- **Tool plants, in a sabotage driver,** each red on exactly its rows:
+  - PP-NOBOX (the exclusion ignored): the clock row;
+  - PP-NOCMP (the compare skipped): the 1-px row.
+
+**(4) Section 16's stop rows gain the two untimed checks:**
+- **1c-CHECK (G5 S9):** `[speed-p5] clear … mismatched-px 0` over its frames, as R-CLEAR';
+- **6-CHECK (G6 S0):** P6's equality row, 0 mismatches, as R-LABELS'.
+
+Either one nonzero: STOP. No gain is read.
+
+**Proof before any push** (the standing rule; each named, nothing else):
+- Each branch's touched TUs compile for the device env (`blipscope-s3-128-framebench-c1b`, incremental in its own
+  worktree, the disk read first).
+- `check_frame_bench.py`'s FB1/FB2 hold. Its C1-L stays red exactly as before (pre-existing; 12's note).
+- `check_p5_writes.py` reads unchanged on P5.
+- The new static row and selftests are as above.
+- The four push gates.
+
+**Outside the set:**
+- a compile failure or a static_assert;
+- a control green where it must be red, or red on rows other than named;
+- a diff outside the named files and regions;
+- FB1/FB2 red.
+
+Any of these: STOP, report, nothing pushed.
