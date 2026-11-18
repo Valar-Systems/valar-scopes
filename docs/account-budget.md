@@ -1019,3 +1019,29 @@ These December GB figures use 5.5's bytes per event, measured with invocation lo
 upper bound. A read of one hour on 2026-11-18 put December after logs-off near 6.1 GB ingested and 1.4 GB stored. The
 re-read graded after Thursday's deploy is what replaces them. The two 29.5% storage cells may print either way only as
 a stated rounding tie at the boundary.
+
+### 11.2 Record (2026-11-18)
+
+- **Red first at `954352c9`** (about 23:19Z): `--selftest` exited 1, red exactly {M-LG1, M-LG2, M-LG3, M-LG4, M-LG5,
+  M-LG6}. M-LG0 and the 29 earlier rows were green. **As predicted.**
+- **The code at `8b2ea414`.** **As predicted:**
+  - `--selftest`: 36 PASS, exit 0. The builder's `--selftest` was unchanged and green (15 PASS).
+  - **The sabotage driver** (23:22:26-23:22:31Z): ALL AS PREDICTED, 29 plants.
+    - S-LG failed exactly {M-LG1, M-LG2, M-LG3, M-LG5, M-LG6}.
+    - S-LGV failed exactly {M-LG4}.
+    - Every existing plant was at its registered set, S-MONTH, S-SEG and S-STOR included. Section 10.1's miss did not
+      recur, because the new rows were built so that no existing plant reaches them.
+  - **The data,** applied with the builder's own `derive_logs_gb()`. Re-serializing the original reproduced its bytes,
+    so the diff only adds. 158 rows were kept and 20 added; allowances went from 12 to 14 and reads from 13 to 14.
+    Every existing row, read, scenario and product was asserted unchanged.
+  - **The checker** exits 0 on the new file.
+  - `--render-check` read STALE before the re-render and current after.
+  - **The re-render changed only the Logs rows, with every cell as registered:**
+    - in the 30-day table, Logs events reads n/a in four columns, and ingested/stored read 11.70/2.73, 11.81/2.76,
+      12.55/2.93 and 12.66/2.95;
+    - in November, Logs events is unchanged and the two new rows read n/a;
+    - in December, Logs events reads n/a, and ingested/stored read 12.21/2.76 (three columns) and 13.08/2.95 (three
+      columns).
+    - The two tie cells printed 30%.
+  - **The checker's report** changed only in its Logs lines and its row and read counts. Every overage line and the
+    FLAGS line are unchanged.
