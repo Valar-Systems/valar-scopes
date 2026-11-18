@@ -90,6 +90,58 @@ above stands as written).**
   - the image reads the LIVE proxy (`FrameBench.h:7-9`), so no proxy deploy may overlap;
   - no overlap with the board's quiet-hour restart either (v19 restarted itself at 11:00:00Z on 11-16).
 
+**A0a, RAN (2026-11-18, 04:44:07Z-05:20:56Z, p4, no owner, after the orchestrator's start word). GRADED, on one read
+with a registered reader correction.** Records of what ran, not predictions.
+- **The start.** The start instruction carried a 31 GiB disk floor. C: read 30.79 GiB at 04:40:26Z, and the start
+  STOPPED before W0. The floor was a BUILD floor: `win_a0a.ps1` has no disk check, this document names disk only for
+  the image's builds (:31), and A0a builds nothing and writes about 2-3 MB. The orchestrator withdrew it, recorded as
+  its own error. Nothing was deleted. C: read 31.33 GiB at 04:44:02Z, and the window started at 04:44:07Z.
+- **The board side, all True** (`win_a0a.ps1` `654a38c99284`):
+  - W0: every frozen input, and the 23 shared functions identical to `win_m38.ps1`'s. W1: the image `15f15d39474a`
+    written and verified in 17.5 s, the board on ota_0.
+  - One trace, 04:44:33Z-05:15:33Z, 2,029 lines. T0 clean (the predicted value); T1 ended at its own deadline; C1 no
+    crash line; C2 no reboot but the write's own; E1 the end lines in order.
+  - PIX-WX: 4 arms x 3 grabs, all 12 kept, `pix_wx` exit 0 on each.
+  - The restore: v19 written and verified; F0 `[ota-slot] boot running=app0 @0x020000 state=VALID next=app1 fw=19`;
+    F1-F7 True. E2:08 was released at 05:20:56Z.
+- **THE READER: INSTRUMENT at I-3, so exit 40, outside the set.** `a0a_read.py` `e81a4660` read I-1 and I-2 PASS, then
+  "I-3 S0: scene line level None wx None, not 20/False". No graded row was computed.
+  - The cause, read-only, from the trace's bytes after a two-read static proof (1,227,882 B, sha256 `aa0467d5e5fd` at
+    05:23:21Z and at 05:24:25Z), counts and shapes only:
+    - the 7 scene lines are present, and all 7 match the reader's pattern up to `level=`. None matches from `wx=` on:
+      the image prints `wx=on|off` (on x4, off x3), and the reader required `wx=(true|false)` (`a0a_read.py:64`, with
+      the mapping at `:126`);
+    - the firmware, the other side of the contract: `src/AircraftManager.cpp` :2195-2197 and :2226-2228 at
+      `1d9e91740e1e` print `<scene>.wx ? "on" : "off"`;
+    - the alternatives, excluded: a line never printed (all 7 are present); a line lost in the capture (every other
+      reader pattern matched every line carrying its tag; `SC_START` was the only one of 15 that differed).
+  - Why the test seam missed it: the synthetic seam logs, and the reader's own selftest generator (`synth()`, `:323`),
+    were written from the READER's side of the contract, with `wx=true/false`. The test agreed with the reader, not
+    with the image. The reader's docstring (`:10`) also cited the wrong file for those lines.
+- **THE CORRECTION, registered before any edit** (`REG-reader-wx.txt` `49ffddcbc60d`): a new file, `a0a_read_wx.py`
+  `ac8056aee1b1`, which differs from `e81a4660` in exactly four named hunks: `:10` the citation; `:64` `(true|false)`
+  to `(on|off)`; `:126` `== "true"` to `== "on"`; `:323` `synth()`'s format. The original stays as `win_a0a`'s frozen
+  input. It was proven on synthetic logs only:
+  - both selftests: 14 cases, 0 off;
+  - the cross case: `e81a4660` on a log in the firmware's format reproduced the run's exact I-3 message, exit 4, and
+    the corrected reader read the same log exit 0;
+  - the four seam logs, regenerated in the firmware's format (7 scene lines changed in each, nothing else): each
+    graded as its seam had predicted.
+- **THE SINGLE READ (C3), 05:28:26Z**, on a byte snapshot of the trace whose sha256 was re-checked as `aa0467d5e5fd`
+  immediately before: **exit 0, READ AS GRADED. By the frozen verdicts (exit 0: graded), A0a is GRADED.** The output is
+  kept verbatim as `_handoffs/p4/a0a/a0a-read-wx-c3.out`, sha256 `30734bc77e4b` (3,549 B, 21 lines): the reader's
+  stdout as printed, and the source for anyone using these rows.
+  - Every instrument row (I-1, I-2, I-3, I-9) and every graded row (I-4 to I-8, I-10, I-11, C-1) PASS.
+  - The control: the planted +5.0 ms reads +5.02 ms in `lbl_draw` (C-1, +/-0.75); the whole frame moves +4.98, and
+    every other part moves by at most 0.07 ms.
+  - `fr` p50 (ms), at 20 / 40 / 60 aircraft: P0 (weather off) 42.38 / 58.91 / 75.70; P1 (weather on) 51.39 / 70.44 /
+    89.49. PC-1, the profiler's own cost: 41,245 ns/frame.
+  - The per-part split is the file's R-* rows. Their use (the speed plan; the P5/P6 gains) is registered elsewhere,
+    from that file, and is not read here. The `contacts` difference (-2.48 ms, P1@40 against P0@40) is REPORTED and
+    not interpreted.
+- **THE COUNT:** this was A0a's first instrument outcome. The next off, void or instrument outcome on A0a goes to the
+  owner before any further try.
+
 
 **(a) THE TREE.**
 - A0a runs on map-client's **`bench/frame-bench-c1`** at `bfcb47e01c3d767b770ee4c26d18676e7c590e33`, not on main or
