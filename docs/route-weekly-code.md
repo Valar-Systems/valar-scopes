@@ -1357,6 +1357,84 @@ bundle compare at T-0 is still the proof.
 - the logs step: `4a02123ca992031d60bd9592e3084c9ccf34041f` (`docs/workers-logs-invocation-off.md` 7a);
 - this run: `4a02123ca992031d60bd9592e3084c9ccf34041f`.
 
+### 4h. Re-registration against upstream `b775753b`: the dry run's predictions (2026-11-18, appended below 4g, before any dry run)
+
+**Why.** 4d's step 1 requires upstream main to be `24ce54242aca`, or "these predictions are void: STOP and
+re-register". Upstream moved:
+- **UPSTREAM PIN = `b775753b72807c8f1c8480e101eeb2edb727c55a`**, committed 2026-11-18T04:49:25Z, read with `gh api` at
+  16:38:06Z. That is 3 commits after `24ce5424`.
+- Wednesday's run did not take place (the chain rule, 4f). The owner moved it to **Friday 2026-11-20 10:00Z**.
+
+This section registers the DRY RUN against the new source. **The run itself (4d's steps 3-6) is not re-registered
+here**: it is no longer delete-only (see "What this changes" below), and it gets its own registration before Friday.
+
+**The pin is re-read before every dry run below, and again on Friday.** If upstream has moved off the pin, these
+predictions are void (4d step 1's rule): stop and re-register.
+
+**The new input,** beside 4d's four in the same private folder (`~/.config/blipscope/routes-first-run/`, outside every
+git tree):
+
+| file | bytes | sha256 (12) | |
+|---|---|---|---|
+| `sd-b775753b.tar.gz` | 6,328,382 | `4b4add33e1e6` (read twice) | `--file`; fetched from codeload by the full pin. Its root folder is `standing-data-<pin>`, so the writer reads its commit from it |
+
+4d's four inputs were re-read at 16:38Z: each equals its pin (`1276a0c25ffc`, `846627447b35`, `28ab57d0a9ba`,
+`620ff8f41820`).
+
+**How the predictions are computed: NOT with the writer.**
+- An independent transcription of the writer's own rules reads the three tarballs:
+  - the key is `rt:<CALLSIGN>`;
+  - a row is skipped when it has no `AirportCodes`, holds `unknown`, or has fewer than 2 legs;
+  - the value is the two endpoints, mapped from ICAO to IATA, with a rotation rendered as its outbound leg;
+  - deletes are (the keys of `--prev` ∪ the keys of `--prev-also`) minus the keys of `--file`;
+  - G1-G6 at their thresholds.
+- **Its control: on 4a's inputs it reproduced every number the writer printed on 2026-11-14:** writes 0; deletes 827
+  (715 from surviving shards, 112 from 5 removed shards); 628,956 unchanged; G3 naming RSC; G4 naming the five; G5 827
+  over 250; G1, G2 and G6 ok.
+- KV is assumed to be as 4d left it, and that assumption is what the two proofs and the pending line check:
+  `meta:routes` built from `24ce5424`, and no journal (no first run has happened).
+
+**Predicted, the same in both environments** (`--key-level --dry-run --env <env> --file sd-b775753b --prev
+sd-24ce5424 --prev-also sd-dff309eb --prev-manifest meta-pre-<env>.json`, through the helper, from a checkout of
+EXPECT; `git diff --name-only EXPECT main -- proxy/` is empty, so EXPECT's writer is main's):
+
+| line | predicted |
+|---|---|
+| new source | 1,592 shards, 629,491 rows parsed, 0 skipped, 629,491 usable; 6,413 airport mappings, 0 malformed |
+| prev proof | `1591/1591` |
+| prev-also proof | `1575/1575`: `pre-rule plain hash` on staging, `rule-hashed` on production |
+| sources | `new b775753b7280, prev 24ce54242aca, prev-also dff309eb01cf` |
+| pending | `none` |
+| **writes** | **2,562** (added 539, value changed 2,023) |
+| **deletes** | **830** (718 from surviving shards, 112 from 5 removed shards) |
+| guards, no overrides (2a) | G1 ok; G2 ok (50 of 50 anchors); G3 FAIL, `shard(s): routes/schema-01/R/RSC-all.csv`; G4 FAIL, the five of 2j (BES, CLH, KES, RLA, TEZ; 112 keys); **G5 FAIL, 830 over 250**; G6 ok. Then `plan: write 2562; delete NONE (refused), so the run would NOT seal`, `PFX1: 0 outside`, exit 0 |
+| guards, 4d's overrides unchanged (2b) | all six ok. `plan: write 2562; delete 830`, `PFX1: 0 outside`, exit 0 |
+| KV reads | 2 per dry run (meta and journal), so 8 in all |
+
+**The deletion count, and how it is made.** **830, exactly, in both environments:**
+- 4 keys that `24ce5424` holds and `b775753b` no longer does;
+- plus 826 of the 827 keys only `dff309eb` holds. One of the 827 is back in `b775753b`, so it is rewritten, not deleted.
+
+The range is that single value. The computation reproduced the writer's own count exactly on known inputs, so a
+different number means the predictor and the writer disagree, or KV is not what 4d says. Either is a stop, never a
+rounding.
+
+**Outside the set (X):** any of the following stops the dry runs with nothing further run.
+- any other deletion or write count, proof, `pending` line, guard verdict or shard name;
+- a non-zero exit;
+- upstream off the pin when a dry run starts.
+
+The writer's numbers are reported beside these, and nothing is re-run and no override changed until the reviewer rules.
+**And none of the above, if the output is in a shape not foreseen here, means the instrument is unreliable at this
+step: stop and decide.**
+
+**What this changes for Friday, stated now and NOT planned here:**
+- The run becomes 2,562 writes and 830 deletes, not 0 and 827.
+- So 4a's and 4c's write-side predictions are void: the backup count, the journal size, `wrote 0`, the verify's
+  `values: checked 0` and the seal line.
+- 4d's overrides still cover the guards (830 is within `--max-deletes 1000`, and G3 and G4 name the same shards).
+- Friday's run needs its own registration of steps 3-6, from these dry runs, before 10:00Z.
+
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 
 **The alternative.** The workflow holds no KV token. It POSTs batches of `[key, value]` and `delete` lists to a
