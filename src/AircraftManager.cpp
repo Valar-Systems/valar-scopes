@@ -4543,6 +4543,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             const uint32_t fpOutline0 = frameprofile::Cyc();
 #endif
             // THE FRAME PROFILE END
+            // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+            frameprofile::PlantOutline();   // O-CTRL: +2.0 ms inside the outline span, on its scene only
+#endif
+            // THE FRAME PROFILE END
 #ifdef WX_LOOK_AB
             const uint32_t outlineT0 = outline ? micros() : 0;   // F7 (docs/wx-device.md): the outline's own cost
 #endif
