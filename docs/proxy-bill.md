@@ -1326,3 +1326,51 @@ correlation between D and N is partly N correlating with itself. No data is need
 **Unchanged:** the window, the 207 hours, the anchors, the 60 s refusal, and every other escape row.
 
 The reader's new blob sha goes to the reviewer before any query.
+
+### Step 4b2's read under amendment 4b2-1, graded (2026-11-18T23:44:48Z; reader blob `df0f7d33632b`)
+
+**The reads.** Read A ran at 23:42:59Z and read B at 23:44:07Z, 68 s apart, and they are identical. The wrapper that
+started read B refused four times before 65 s had passed. The first read's A and C are not reused.
+
+**The instrument:**
+- the anchors are exact: 13 of 13 days within 0.5%, and the MISS anchor is 7,239;
+- N's rows with an empty fw number 51, so beta' overstates by alpha for about 0.02% of N;
+- **(A)'s gate: corr(D', N) = 0.865,** under 0.9, so (A) ran and (B) did not.
+
+**The fit, (A), over 207 hours:**
+- alpha **1.270** (se 0.120); beta' **6.488** (se 0.168); gamma **1,718.3** an hour (se 143.8); R^2 **0.9782**;
+- the totals over those hours: R 2,286,581, D' 428,044, N 213,846; the MISS share m is 0.0448;
+- **by term:** `/enrich` requests (beta' x N) are **60.7%** of production's reads, and the chain alone (beta x N)
+  **48.8%**. Other device requests (alpha x D') are **23.8%**, and gamma **15.6%**.
+
+| row | result | grade |
+|---|---|---|
+| **KE1** | beta = beta' - alpha = **5.218**, against `[5.5, 9.5]` | **FAILS** |
+| **KE2** | alpha **1.270**, in `[0.95, 1.5]` | **HOLDS** |
+| **KE3** | gamma **1,718.3** an hour, in `[-500, 2,000]` | **HOLDS** |
+| **KE4** | S_low = (5.218 - 2 - 0.0896) / 5.218 = **0.600**, at least 0.5 | **HOLDS** |
+| **KE5** | R^2 **0.9782**, at least 0.85 | **HOLDS** |
+| escape | not taken | |
+
+**KE1 is OFF, and its registered consequence applies:** the two instruments disagree about `/enrich`. Both are reported,
+and (b2)'s design does not start from either number.
+
+**Named alternatives for the gap.** None is excluded by this read.
+- **(1) Step 2b's 7.4 counted gamma as `/enrich`.** It divided every read but `fw:` by `/enrich` requests. With gamma's
+  15.6% folded back in, the fit's own figure is (beta' x N + gamma x 207) / N - alpha = 6.488 + 1.663 - 1.270 =
+  **6.88**, inside KE1's band. So part of the difference is a matter of definition, not a contradiction.
+- **(2) alpha above 1** (1.270): device requests read more than `fw:` alone. The fit may have moved part of the chain
+  into alpha. corr(D', N) is 0.865, below the gate but not low, so alpha and beta' still trade off.
+- **(3) gamma is real and large:** about 41,000 reads a day that track neither kind. Revocation's per-isolate refresh
+  is one candidate: one read a minute per live isolate, so 1,718 an hour is about 29 isolates. This read cannot
+  confirm that.
+
+**What (b2)'s design may take from this, and what it may not:**
+- **It may take KE4:** at least 60% of the chain's reads (at this beta; more at 2b's) are static families: tn:, the
+  route mirror, ap:, ovr/pa/mil and the photo pointers. A cache over them is the target.
+- **It may take the term shares** as the scale: `/enrich` is 61% of production's reads, other device requests 24%, and
+  a fixed hourly floor 16%.
+- **It may not take** a reads-per-request figure from either instrument as the saving's basis. The design states a
+  range that spans both.
+
+**The trigger at this read:** unchanged, because no new whole day has been read. Step 4c's 11-17 gives **$1.24 a month**.
