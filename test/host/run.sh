@@ -1968,6 +1968,21 @@ else
   [ "$?" -ne 0 ] && fail=1
 fi
 
+echo
+echo "== Config save: no toggle counted that the page never renders (the v20 'left unchanged' fix) =="
+# Read from the source, for the shipping radar env (platformio.ini, -D only) and the same + WX_LAYER_SHIPS: every
+# SaveToggle compiled into a build has a checkbox in that build, so a full-form save counts nothing as "left
+# unchanged". The selftest first: each of its plants must turn exactly its own assertion red.
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the config save's vocabulary cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/test/host/check_save_vocab.py" "$ROOT" --selftest
+  [ "$?" -ne 0 ] && fail=1
+  "$PY" "$ROOT/test/host/check_save_vocab.py" "$ROOT"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 # WD5e's bench analysis (scripts/wx-fb-check.py; docs/wx-device.md, WD5 addendum 4) is graded here on synthetic
 # frames, one verdict each, so it is known to fail, refuse and go blind before it ever reads a real capture.
 echo
