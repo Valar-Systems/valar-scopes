@@ -492,19 +492,6 @@ AircraftManager appManager(configServer, authHandler, http, tft);
 #define BLIPSCOPE_RADAR_EDITION 1
 #endif
 
-// BANDCANVAS-LISTS (docs/speed-p5p6.md 8a): BandCanvas.h decides BANDCANVAS_DIRTY_MARKS from the edition flags; the
-// chain above decides the edition. They must agree, or the build fails here: the radar attaches a dirty set (its
-// weather frame, below) and must compile the marks; every other edition must compile them out, unless
-// BANDCANVAS_DIRTY_MARKS_DELIBERATE says so. A new edition added above and not to BandCanvas.h's list fails here.
-#include "BandCanvas.h"   // already included via DrawHelpers.h; named here because the check reads its switch
-#if !defined(BANDCANVAS_DIRTY_MARKS)
-#error "BANDCANVAS-LISTS: BandCanvas.h's switch is undefined at the check"
-#elif defined(BLIPSCOPE_RADAR_EDITION) && !BANDCANVAS_DIRTY_MARKS
-#error "BANDCANVAS-LISTS: the radar edition compiles BandCanvas's marks OUT, but its weather frame attaches a dirty set"
-#elif !defined(BLIPSCOPE_RADAR_EDITION) && BANDCANVAS_DIRTY_MARKS && !defined(BANDCANVAS_DIRTY_MARKS_DELIBERATE)
-#error "BANDCANVAS-LISTS: a non-radar edition compiles BandCanvas's marks IN: add its FEATURE_ flag to BandCanvas.h's list"
-#endif
-
 // The offset the quiet-hour schedule runs on: explicit `tz-offset`, else the
 // nominal zone from longitude (include/LocalOffset.h). ONE function, called by
 // both the boot print and the firing decision -- see the note at the call site.
@@ -1276,22 +1263,6 @@ void loop()
 #if defined(FEATURE_CLOUD_FEED) && !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
     // Weather under the planes (docs/wx-device.md, WD5): on the radar scope, with a crop WxPolicy allows, the cached
     // layer replaces the clear, then the sweep and the planes draw over it. Everywhere else: cleared as before.
-    // P5 1c (docs/speed-p5p6.md 4o): this buffer's dirty set rides on the canvas from BEFORE the clear, so a black
-    // clear (fillScreen) marks it for a full restore and DrawWeatherUnder restores from it. ONE SET PER M3 BUFFER: this
-    // relies on p4's push-task design (two buffers, pushtask::g_buf); if that scheme changes, re-read this first.
-#if defined(BLIPSCOPE_PUSH_TASK)
-    canvas.SetDirty(appManager.WxDirty(&drawBuf == pushtask::g_buf[0] ? 0 : 1));
-#else
-    canvas.SetDirty(appManager.WxDirty(0));
-#endif
-    // THE FRAME BENCH BEGIN
-#ifdef FRAME_BENCH
-    // docs/speed-p5p6.md 15c (1): CLEAR_NOMARK, G5's marks-off arm. No set this frame: the draws mark nothing, and
-    // DrawWeatherUnder's `dirty == nullptr` takes the whole copy, exactly as CLEAR_OLD does. Its arms run LAST (the
-    // buffers' sets are not maintained in them).
-    if (framebench::ClearNoMark()) canvas.SetDirty(nullptr);
-#endif
-    // THE FRAME BENCH END
 #if defined(WX_LOOK_AB)
     // Step C (docs/wx-device.md, ruled 2026-10-29): the clear-or-push call, timed, on the bench image only. The #else
     // branch is the shipping code, unchanged.

@@ -40,17 +40,11 @@ namespace framebench {
 // which lives only in AircraftManager's FRAME_BENCH region), OUTLINE_MASK the shipping mask. Neither delays anything.
 // P5 1b: SWEEP_OLD blends the wedge with today's per-pixel wxsweep::Blend (only in AircraftManager's FRAME_BENCH
 // region), SWEEP_LUT with the shipping table.
-// P5 1c: CLEAR_OLD copies the whole layer (only in DrawWeatherUnder's FRAME_BENCH region), CLEAR_DIRTY restores the
-// dirty set, CLEAR_CHECK restores and counts the buffer's pixels off the layer (untimed: the count reads 115 KB).
 // Board addendum 2 (sections 7, 7d, 7e): ANCHOR_BG serves an EMPTY table (its grab is the device's own background);
 // ANCHOR_8COPY serves kAnchorLevel contacts with today's 8 copies. Both: positions at kTblT with gs 0 (they hold
 // still), radius kAnchorRungMi, and the Override set in Override(); each prints its contacts twice ([speed-p5] anchor).
 enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, OUTLINE_8COPY = 4, OUTLINE_MASK = 5,
-                      SWEEP_OLD = 6, SWEEP_LUT = 7, CLEAR_OLD = 8, CLEAR_DIRTY = 9, CLEAR_CHECK = 10, ANCHOR_BG = 11,
-                      ANCHOR_8COPY = 12, CLEAR_NOMARK = 13, kKinds };
-// docs/speed-p5p6.md 15c (1): CLEAR_NOMARK is G5's marks-off arm (p4's gains list, S15/S17, run LAST): main.cpp's
-// FRAME_BENCH region detaches the dirty set for it, so no draw marks and DrawWeatherUnder takes the whole copy, as
-// CLEAR_OLD does. MK-ON (CLEAR_OLD) minus MK-OFF (CLEAR_NOMARK) is what the marks add to contacts / outline / lbl_draw.
+                      SWEEP_OLD = 6, SWEEP_LUT = 7, ANCHOR_BG = 8, ANCHOR_8COPY = 9, kKinds };
 constexpr int kLevel = 40;      // C1's level: a scene's default, and Level() outside a scene
 constexpr int kTableMax = 60;   // the rows TBL-HOST verifies (tbl_host_lv.py: i < 60); Allocate() refuses a level above
 constexpr int kAnchorLevel = 20;      // 7e's pick (tools/speed-p5p6/anchor_pick.cpp): L 20 ...
@@ -72,11 +66,10 @@ struct Scene {
 #error "SPEED_P5_BENCH measures the shipping shape: image B, with the push task"
 #endif
 #define FRAMEBENCH_IMAGE_B {OUTLINE_8COPY}, {OUTLINE_MASK}, {OUTLINE_8COPY}, {OUTLINE_MASK}, \
-                           {SWEEP_OLD}, {SWEEP_LUT}, {SWEEP_OLD}, {SWEEP_LUT}, \
-                           {CLEAR_CHECK}, {CLEAR_OLD}, {CLEAR_DIRTY}, {CLEAR_OLD}, {CLEAR_DIRTY}
+                           {SWEEP_OLD}, {SWEEP_LUT}, {SWEEP_OLD}, {SWEEP_LUT}
 // Board addendum 2's B4' (docs/speed-p5p6.md sections 7, 7d, 7e): the heap-graded C1 pair, the anchor (S2 BG, S3
-// 8COPY), CLEAR_CHECK (S4), then the margin scene last.
-#define FRAMEBENCH_A2_SCENES {C1}, {C1}, {ANCHOR_BG}, {ANCHOR_8COPY, kAnchorLevel}, {CLEAR_CHECK}, \
+// 8COPY), then the margin scene last.
+#define FRAMEBENCH_A2_SCENES {C1}, {C1}, {ANCHOR_BG}, {ANCHOR_8COPY, kAnchorLevel}, \
                              {C1, kLevel, true, true}
 #else
 #define FRAMEBENCH_IMAGE_B {C1}, {C1_PUSH10}, {C1_PUSH60}, {C1_LOOP10}
@@ -111,9 +104,8 @@ static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
 static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "outline-8copy", "outline-mask",
-                                        "sweep-old", "sweep-lut", "clear-old", "clear-dirty", "clear-check",
-                                        "anchor-bg", "anchor-8copy", "clear-nomark"};
-constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+                                        "sweep-old", "sweep-lut", "anchor-bg", "anchor-8copy"};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0, 0};
 // A kind without an entry in both tables fails the build (docs/speed-p5p6.md section 0, "the kind tables").
 static_assert(sizeof(kKindName) / sizeof(kKindName[0]) == kKinds, "kKindName needs one entry per Kind");
 static_assert(sizeof(kPushDelayMs) / sizeof(kPushDelayMs[0]) == kKinds, "kPushDelayMs needs one entry per Kind");
@@ -181,7 +173,6 @@ struct State {
     uint16_t wxRows = 0, wxCols = 0;
     uint8_t wxCoarsen = 0;
     uint32_t fbSubmits = 0;      // enrichment submits for the table's hexes in this scene (must be 0)
-    uint32_t clearFrames = 0, clearOffPx = 0;   // P5 1c's device backstop (CLEAR_CHECK scenes)
     bool noting = false;
     int nNoted = 0;
     Noted noted[kMaxKeys];
@@ -246,17 +237,6 @@ inline bool OutlineOld()
 }
 // P5 1b: blend the wedge with today's per-pixel wxsweep::Blend (the OLD path) in this scene.
 inline bool SweepOld() { return InScene() && kScenes[S().scene].kind == SWEEP_OLD; }
-// P5 1c: copy the whole layer (the OLD path) in this scene; or restore and count what is off the layer.
-inline bool ClearOld() { return InScene() && kScenes[S().scene].kind == CLEAR_OLD; }
-inline bool ClearCheck() { return InScene() && kScenes[S().scene].kind == CLEAR_CHECK; }
-// 15c (1): G5's marks-off arm. Read ONLY by main.cpp's FRAME_BENCH region that detaches the set.
-inline bool ClearNoMark() { return InScene() && kScenes[S().scene].kind == CLEAR_NOMARK; }
-inline void NoteClear(uint32_t offPx)
-{
-    State& s = S();
-    ++s.clearFrames;
-    s.clearOffPx += offPx;
-}
 
 // Board addendum 2's anchor prints (7d, frozen format). A print is due at the anchor scene's measure start (p0) and
 // at measure start + kAnchorP1Ms (p1); the radar loop records each drawn contact in draw order (AnchorAdd, then
@@ -652,11 +632,6 @@ inline void EndMeasure()
     s.dumpPos = 0;
     s.dumpScene = s.scene;
     Serial.printf("[frame-bench] scene S%d end frames=%d over-cap=%d\n", s.scene, s.n, s.overflowFrames);
-    if (s.scene >= 0 && kScenes[s.scene].kind == CLEAR_CHECK) {   // P5 1c's backstop: predicted 0 px off
-        Serial.printf("[speed-p5] clear S%d frames %lu mismatched-px %lu\n", s.scene, (unsigned long)s.clearFrames,
-                      (unsigned long)s.clearOffPx);
-        s.clearFrames = s.clearOffPx = 0;
-    }
     uint32_t pn;
     uint64_t pu, su;
     static uint16_t hist[200];
