@@ -899,3 +899,93 @@ the Worker is not consulted.
 in `proxy/src` must be inside `fleet.ts`; any other file fails, naming the file. A future offer path that reached for
 the table or the memo would trip it the day it is written. The test's control is a planted reference in a scratch copy,
 which must fail with that file named.
+
+## Step 4c: lever (c), what production's KV writes are (registered 2026-11-18T23:08:49Z, before its reader exists; read-only, analytics only)
+
+**Why now.** Section 1's 600-board KV-writes line ($53.83, "about 19,000 a board a month") scales one 7-day window of
+production's writes by the number of boards. KM2'' failed (+134%), so the source model has not explained the measured
+writes. Since then, `docs/account-budget.md` 9.4's per-day read (`tools/budget/kv_by_day.py`) has split production's
+writes into:
+- a background of about **1,521 a day** (the median of 10 days without an event, its row x 30 = 45,630);
+- about **67,197 on each refresh-data Monday** (the whole day; the mean of 11-02 and 11-09).
+
+If the Monday writes are the job's and not the fleet's, they do not grow with the number of boards. This read tests
+that, grades the Worker's own request path against the background, and re-derives the 600-board line from the result.
+**No comparison with section 1's figure is stated until the read grades it.**
+
+**The window:** whole UTC days `[2026-11-05T00:00:00Z, 2026-11-18T00:00:00Z)`, 13 days, all ended.
+
+**Event days, named before the read:**
+
+| day | event |
+|---|---|
+| 2026-11-09 (Mon) | the refresh-data job's scheduled run (started 16:28Z): the military and airport ingests, bulk puts, both environments |
+| 2026-11-13 (Fri) | the (A) route refresh, its first UTC day (`docs/route-refresh-2026-11.md`) |
+| 2026-11-14 (Sat) | the (A) route refresh, its second UTC day; also three photos-ingest runs on pushes, 03:29Z-04:15Z (changed rows only) |
+| 2026-11-16 (Mon) | the refresh-data job's scheduled run (started 15:53Z) |
+
+**Background days:** the other nine: 11-05, 11-06, 11-07, 11-08, 11-10, 11-11, 11-12, 11-15 and 11-17. The daily
+photo-drift job reads KV over REST and writes nothing, so it sits in every day's READS, background included.
+
+### The request path, from the source (`proxy/src` at main `237d5d163eb4`)
+
+`ENRICH_KV` has 16 `put` sites and no `delete`. Each family, what drives it, and the driver's measure per day d from
+Analytics Engine. **Request rows** are the dataset's rows whose index1 is a route: every index1 except `err5xx`,
+`enrich_gap`, `ota`, `boot` and `usage`, the five other point families (`proxy/src/metrics.ts`).
+
+| family | sites | written when | driver per day, from request rows | writes per unit |
+|---|---|---|---|---|
+| `ac:` | `enrich.ts:161`, `:200` | every `/enrich` KV miss writes exactly one: a fail marker, or the built record | **A**: `/enrich` rows with blob2 = `MISS`, `sum(_sample_interval x double4)` | 1 |
+| `fw:` | `fleet.ts:133` | an authenticated request carrying both a device and a firmware, when the stored row is an hour old or the firmware changed | **F**, device-hours: over the day's 24 hours, the sum of `COUNT(DISTINCT blob5)`, on rows where blob5 and blob6 are both non-empty | [0.9, 2.0]: below 1 for partial hours; above 1 when two requests read the same hour-old row at once |
+| `lb:` | `leaderboard.ts:366` (`lb:dev`), `:646` (`lb:board`, rebuilt on every submit and on a stale page read), `:193` (`lb:name`, a new name), `:346` (`lb:firsttype`, a new type) | a successful submit; a page read that finds the board stale | **L**: submit rows (`/api/v1/blipscope/leaderboard`, `/v1/leaderboard`) with double1 < 300. **P**: the page routes (`/blipscope/leaderboard`, `.json`, `/:id`, and the unprefixed three) | L x [2, 3]; P x [0, 1] |
+| `enr:`, `act:` | `enroll.ts:121`, `:137`, `:244`; `activation.ts:121` | an enrol request: the day counter, the refused counter, the ledger, the activation claim | **E**: `/blipscope/enroll` and `/enroll` rows, any status | [0, 4] |
+| `rt:` | `enrich.ts:556` | a DEFINITIVE route from an upstream | none in Analytics Engine. The Logs showed 0 `ok:true` route probes from 11-06T01Z to 11-13T00Z, and adsbdb's route is off by config | 0, assumed; named below |
+| by hand, rare | `activation.ts:100`, `:216`, `:239` (the admin tool); `provision.ts:156` (the bench mint); the dashboard's revocation edit | a person runs a tool | none | 0, assumed; named below |
+
+**The model's band per day:** `Mlow = A + 0.9 F + 2 L` and `Mhigh = A + 2.0 F + 3 L + P + 4 E`.
+
+**What is measured per day,** from `kvOperationsAdaptiveGroups` by date, action and namespace (`sum { requests }`):
+- **W**: production's writes;
+- staging's writes, any other namespace's, and every namespace's reads, deletes and lists, printed beside them;
+- **B**: distinct devices, `COUNT(DISTINCT blob5)` over the day's request rows.
+
+### Predictions (frozen now)
+
+| row | predicted | if not |
+|---|---|---|
+| **KW1** | on at least 8 of the 9 background days, W lies in `[0.8 x Mlow, 1.2 x Mhigh]` | the request path is not what the source says. Each failing day is reported with its A, F, L, P and E, and the named candidates below are read for it, one at a time |
+| **KW1b** | the `fw:` writes implied per device-hour, the median over the background days of `(W - A - 2 L - 2 E) / F`, is in `[0.8, 1.3]` | above 1.3: `fw:` writes more than once an hour, which matters to #689. Below 0.8: F over-counts device-hours, or a family sits below its floor |
+| **KW2** | the Monday job is constant. Production's W on 11-16, less the background median, is in `[59,108, 72,244]` (65,676 +/-10%: kv-days' 67,197 less its 1,521). Staging's 11-16 writes, less staging's background median, are in `[59,106, 72,241]` (65,673.5 +/-10%) | the job's size moves week to week, so its per-event figure becomes a range read from both Mondays |
+| **KR1** | production's READS on 11-09 and 11-16 lie in `[0.9 x the background minimum, 1.1 x the background maximum]` | the Monday job reads as well as writes, so section 1's reads line also carries a job share, re-derived as in KW3 |
+| **KW3** | per board: `w_b = 30 x (background median of W) / (background median of B)` is in `[1,000, 4,000]` writes a month. December's ACCOUNT KV-writes line at 600 boards, `600 x w_b + 4 x (J_prod + J_stg) + 30 x (the background medians of staging and of every other namespace)`, is **under $10 a month**, at $5 a million over the free 1 M | both figures are reported side by side, and section 1's line is not replaced |
+| escape | an anchor off (below); an index1 that is not a route and not one of the five families; a background day with no writes or no request rows; the two reads differing in any figure; anything no row above names | the instrument is unreliable at this scale: stop and report, with no reading |
+
+- `J_prod` and `J_stg` are the mean, over 11-09 and 11-16, of that namespace's writes less its own background median.
+- **KW3 scales linearly in boards, which is an upper bound for `ac:`.** The cache is shared across the fleet, so its
+  misses grow more slowly than the number of boards. `fw:` is linear by construction: at most 24 a board a day.
+
+**The anchors, required before any row is graded:**
+- **KV:** production's writes on 11-13 and 11-14 equal kv-days' whole-day figures, **1,899** and **570,544**, within
+  0.5%. Staging's 11-13 equals **628,713** within 0.5%.
+- **Analytics Engine:** over `[2026-11-06, 2026-11-13)`, the `/enrich` MISS rows equal step 2b's **7,239** within 1%,
+  and the distinct devices equal step 2b's **22**.
+
+**If KW1 fails high on a day, the named candidates,** in the order they would be read. Each is a separate read with its
+own predictions, and none is run now:
+1. `rt:` writes after the routeset recovered: `adsb_lol_route` `ok:true` per hour, from the Logs, whose retention now
+   reaches back to about 11-11;
+2. a hand-run tool (activation, provision, revocation): that tool's own `evt:` line in the Logs;
+3. `fw:` written twice in an hour (KW1b).
+
+**The reader:** `tools/bill/kv_writes_read.py`, committed here with its blob sha before it runs.
+- Read-only and analytics only: no wrangler, no Logs, no KV key list.
+- The `analytics-read` token comes from the token file and is never printed.
+- It prints counts per day and the grades. It never prints a key, a value, a device id or a hex.
+- It runs twice, at least 60 s apart, and both reads must agree before anything is graded.
+
+**What it does not do:** no deploy, no KV write, no plan or billing change. A graded KW3 changes no budget row: a change
+to `docs/account-budget.json` is its own PR, for that file's owner.
+
+**CI for this push (predicted before it):** docs only, on the PR's merge with today's main: **35 = 33 / 2 / 0**, the
+same as #758's docs-only head. `tools/bill/` is in no workflow's path filter, so the reader's own push predicts the
+same.
