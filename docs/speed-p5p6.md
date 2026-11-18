@@ -3795,3 +3795,46 @@ file's sha not `30734bc77e4b…` at read time. The instrument is then unreliable
   - A second off on the same row goes to the owner (the reviewer, at acceptance).
 - **The bench readings themselves** (the frame-time rows at 40, with S0 and S1) need their own registration and a
   window. Nothing is started on them before the reviewer's word.
+
+### 15b. Two corrections below the frozen text, from p4's contract (ruled 2026-11-18 ~06:1xZ; before any bench run)
+
+p4 stated the profiler's contract on 2026-11-18 at 05:57:15Z, file:line at `1d9e91740e1e`, A0a's image. Two
+statements in it are structural facts about the instrument, not values from A0a. Each one hits frozen text below. Both
+corrections are valid because no bench run has happened (the reviewer).
+
+**1. Section 2's P6 guard (speed-p5p6.md:208) becomes one-sided, with a condition.**
+- **The frozen text:** "`lbl_draw` must not move beyond max(N, 0.5 ms), because the render is untouched".
+- **The fact that breaks its premise** (p4, FrameProfile spans; AircraftManager.cpp:5865-5873 at `1d9e91740e1e`):
+  lbl_draw "holds … the drawString loop, INCLUDING each line's AIRCRAFT_INFO_FIELDS[idx].format(tracked) (:5869-5870).
+  So if P6's cache also stores formatted strings, format()'s cost moves out of lbl_draw". P6's cache does store them:
+  it draws `e->text[slot[k]]`.
+- **The rule now:**
+  - **lbl_draw must not RISE by more than max(N, 0.5 ms).**
+  - **A FALL is not read as moved format() cost on its own say-so,** because a P6 that drew fewer or wrong labels would
+    also fall. A fall is attributed to format() ONLY IF P6's RENDER is shown EQUAL in the same run, by pixels: OLD vs
+    NEW at 40, outside the clock and indicator boxes, as MARK60 did.
+  - Without that equality, a fall is UNEXPLAINED: the row's first off, to the reviewer.
+  - The fall's size is reported whatever happens.
+- **So section 16 carries a P6 pixel-equality row,** with its control red first: a planted one-pixel label change must
+  read "not equal". Its scenes are asked of p4's (A): two still label arms in G6.
+
+**2. 1c's moved cost: measured within the run if it can be, otherwise reported and 1c's net gain stated unproven.**
+- **The fact** (p4): "Any dirty-rect bookkeeping done while drawing contacts or labels lands in contacts, outline or
+  lbl_draw, wherever it runs."
+- In the gains image the dirty set is attached every frame (main.cpp's `SetDirty`), in CLEAR_OLD arms as well as
+  CLEAR_DIRTY ones. So OLD vs NEW measures only the restore's saving in under, never the marks' cost elsewhere.
+- **Preferred: a within-run, GRADED row.** An arm with CLEAR_OLD and the marks OFF (no SetDirty that frame), next to a
+  CLEAR_OLD arm with them on, alternated (on, off, on, off).
+  - The marks' cost is marks-on minus marks-off, per phase. It must stay within max(N, 0.5 ms) in contacts, outline and
+    lbl_draw (the other-phase bound, speed-p5p6.md:57).
+  - The switch lives only in a FRAME_BENCH region. No shipping path is touched.
+  - Asked of p4's (A).
+- **If p4's list cannot carry it cleanly:** a REPORTED, ungraded cross-run row: G5's OLD minus A0a's P1@40 in contacts,
+  outline and lbl_draw. Section 16 then states plainly that **1c's NET gain is unproven**, and any merge-ready claim
+  for 1c to the owner carries that sentence.
+- **1c's graded row stays as frozen:** under, against 15a's band [2.20, 4.67] ms at 40.
+
+**Noted from the same contract, with no ruling needed:**
+- the profile requires the push task ON; with it off, every frame is PARTIAL;
+- a new arm list needs its own reader tables, which are p4's (A);
+- A0a's image has no `-DWX_LOOK_AB`, and neither will the gains images.
