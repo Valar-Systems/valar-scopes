@@ -4373,3 +4373,96 @@ trace before the seal and again after the read, and both must equal the seal's f
 - **The cost:** FRAME_BENCH code, p4's list and reader tables, an image and a window (at least one, Friday or later).
   Until it is ruled, 16c's G5' must run the marks OFF.
 - If the owner wants under's 5.5 ms back later, this becomes its own item with its own registration.
+
+### 16e. P5 without 1c: the new head, registered (2026-11-18 ~14:5xZ; text only, for the reviewer's acceptance; no code before it)
+
+16d's drop was accepted. This section fixes what the new head may change, and how that is proved, before any of it is
+written. Everything here was read from `bench/speed-p5` at `03e62aad5df5` (OLD) and its base `4b00c97b3dbd`.
+
+**Where 1c is, read from git.** 1c's code came in through these commits (C1C):
+- `4f06c3a2` (4m, the host core), `979d3e15` (4o, the wiring), `73dc246b` (4t's WxDirty fix), `8e73d3d5` (8/8a, P5');
+- `2feb035c` (15c (1)), for its CLEAR_NOMARK parts only: its `include/FrameBench.h` and `src/main.cpp` hunks and
+  `tools/speed-p5p6/check_nomark.py`. Its other files (`anchor_compare.cpp`, `anchor_file.h`, `check_bench_diff.py`,
+  `sabotage_anchor_pair.py`) are P6's pixel row and the X addition, and stay.
+
+**1c was NOT bench-only, and the new head says so.** `979d3e15` changed the radar edition's shipping paths on this
+branch:
+- `DrawWeatherUnder`'s whole copy became the dirty restore;
+- `SetDirty` in `loop()`; `MarkSpan` before 1b's blend; `DirtyAll` in the detail card and `CheckLayerCopy`;
+- `++wxLayerGen` in `RebuildWeatherLayer`;
+- `BandCanvas.h`'s marks (compiled out in every non-radar edition by P5', `8e73d3d5`, with `main.cpp`'s
+  BANDCANVAS-LISTS guard).
+
+So the drop removes shipping lines from the radar, by design. On the radar, the pixels do not change: 1c-CHECK read
+2,719 frames at 0 px against the full copy (16b). The cost goes: the marks' ~2.4 ms a frame (16d).
+
+**The files.**
+
+| what | path |
+|---|---|
+| deleted (1c's own files) | `include/DirtyClear.h`; `test/host/test_p5_clear.cpp`; `test/host/sabotage_p5_clear.py`; `test/host/check_p5_writes.py`; `tools/speed-p5p6/check_nomark.py` |
+| restored WHOLE to the base `4b00c97b` (only C1C touched it on the branch) | `include/BandCanvas.h` |
+| 1c's hunks removed, nothing else | `src/main.cpp` (`SetDirty`, BANDCANVAS-LISTS, CLEAR_NOMARK); `src/AircraftManager.h` (`wxDirty`, `wxLayerGen`, `WxDirty()`, `CheckLayerCopy`'s signature); `src/AircraftManager.cpp` (the restore, the marks, `++wxLayerGen`, `CheckLayerCopy`); `include/FrameBench.h` (the four CLEAR kinds, their names, `ClearOld`/`ClearCheck`/`ClearNoMark`, `NoteClear`, the clear counters and their report, image B's CLEAR line); `test/host/run.sh` (1c's two suites) |
+| KEPT although `979d3e15` touched it | `scripts/check-no-bench-hooks.sh`: its `[speed-p5]` marker. 1a's scratch self-check and the anchor lines print it too. |
+
+**Five lines that 1c does not own must change** (the named exceptions). Each one names a 1c kind, so the kind names
+cannot leave the image (16c's X-MARKS) without them.
+
+| OLD line (`include/FrameBench.h`) | blame | NEW text, verbatim |
+|---|---|---|
+| 49-50: the `Kind` enum | `c33529a4`, `2feb035c` | `                      SWEEP_OLD = 6, SWEEP_LUT = 7, ANCHOR_BG = 8, ANCHOR_8COPY = 9, kKinds };` |
+| 78: A2's comment | `c33529a4` | `// 8COPY), then the margin scene last.` |
+| 79: A2's list | `c33529a4` | `#define FRAMEBENCH_A2_SCENES {C1}, {C1}, {ANCHOR_BG}, {ANCHOR_8COPY, kAnchorLevel}, \` |
+| 114-115: `kKindName` | `c33529a4`, `2feb035c` | `                                        "sweep-old", "sweep-lut", "anchor-bg", "anchor-8copy"};` |
+| 116: `kPushDelayMs` | `2feb035c` | `constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0, 0};` |
+
+- `ANCHOR_BG` moves from 11 to 8 and `ANCHOR_8COPY` from 12 to 9. The trace lines print a kind's NAME. A row below
+  checks that no reader keys on its number.
+- A2 loses its S4 (CLEAR_CHECK), so its margin scene becomes S4. A2's reading is closed (section 7). Its list as
+  built stays in git at OLD, and a future A2 image would be a new registration.
+
+**The new head:** ONE commit on `bench/speed-p5`, on top of OLD. 1c stays in the history. How it is made does not
+matter, because every row below reads the result.
+
+**THE ROWS** (each predicted; the code is written after acceptance, and the checks before it runs):
+
+| row | what | predicted |
+|---|---|---|
+| D-SCOPE | NEW `tools/speed-p5p6/check_drop_1c.py <repo> OLD NEW` over `git diff -U0 OLD NEW`: (1) every changed path is in the table above; (2) every REMOVED line blames at OLD to C1C (`2feb035c` only in its three 1c paths), or is one of the five named lines; (3) every ADDED line is either a restoration (its text is among the lines C1C removed from that path) or a named line with exactly its registered text | exit 0, every line classified |
+| D-RESIDUE | the same tool: `git grep` at NEW over `include/ src/ test/ scripts/` finds none of `DirtyClear`, `dirtyclear`, `SetDirty`, `WxDirty`, `wxDirty`, `wxLayerGen`, `MarkSpan`, `DirtyAll`, `BANDCANVAS_DIRTY_MARKS`, `CLEAR_OLD`, `CLEAR_DIRTY`, `CLEAR_CHECK`, `CLEAR_NOMARK`, `clear-old`, `clear-dirty`, `clear-check`, `clear-nomark`, `ClearOld`, `ClearCheck`, `ClearNoMark`, `NoteClear`, `clearFrames`, `clearOffPx` | 0 hits |
+| D-KINDNUM | every use of `ANCHOR_BG`, `ANCHOR_8COPY` and `Kind` at NEW, listed by `git grep` and each read: a kind is used by name or as an index into the two kind tables, never compared with a number | holds |
+| D-BENCHDIFF | `check_bench_diff.py <repo> OLD NEW`, the reviewer's X addition, as a SECOND reader | **exit 1, NOT CLEAN, by design**: 1c's shipping lines are removed. Its named set equals exactly D-SCOPE's changed lines outside a FRAME_BENCH region (two enumerators, one answer); a line one names and the other does not is outside the set |
+| R-CORE | `git diff OLD NEW` is EMPTY on 1a's and 1b's cores and host files: `include/OutlineMask.h`, `include/WxSweepLut.h`, `test/host/LgfxPort.h`, `test/host/p5_outline_port.h`, `test/host/test_p5_outline.cpp`, `test/host/sabotage_p5_outline.py`, `test/host/test_p5_blend.cpp`, `test/host/sabotage_p5_blend.py` | empty |
+| R-HOST | 1a's and 1b's host suites and their sabotage drivers, run at OLD and at NEW with the commands 4f and 4l recorded (WSL `Ubuntu-24.04`, g++ 13.3.0) | each exit as at OLD, and stdout BYTE-IDENTICAL between OLD and NEW |
+| R-FB | `test/host/check_frame_bench.py` and `scripts/check-no-bench-hooks.sh` at NEW | each exit 0 |
+| K-BUILD | compile-only, 4s's shape (a hidden WMI child): `blipscope-s3-128` (the shipping radar); `blipscope-s3-128-framebench-c1b` with `-DSPEED_P5_BENCH`, with `-DSPEED_P5_BENCH -DSPEED_A2_BENCH`, and with `-DSPEED_MARK_BENCH` | each rc 0 |
+| K-SCAN | 16c's X-MARKS scan on the `-DSPEED_P5_BENCH` image: none of `clear-old`, `clear-dirty`, `clear-check`, `clear-nomark` | 0 found; the control, G5's `.bin` `26d917a2baed`, must show all four |
+| K-EDITION | `weatherscope-s3-128` (class E, marks out; one of the three E envs section 8 MEASURED), built at OLD and at NEW, compared by section 8's `bincmp.py` | Δ size 0; every differing byte inside the five build-stamp regions. Why: section 8 MEASURED this env's image unchanged by 1c (marks compiled out), and every `main.cpp` line the drop removes sits inside the radar-edition guard (`FEATURE_CLOUD_FEED && !FEATURE_EAM … && !FEATURE_WEATHERSCOPE`, read at OLD) or is a preprocessor check. The row tests that reason; it is not taken on trust |
+| GATES | wifi, macs, device_ids, binary_strings at NEW | each exit 0 |
+
+**D-SCOPE's selftest, red first** (the plants frozen now, applied as an override of NEW's text, as
+`check_bench_diff --selftest` does):
+- P1: a removed line that blames to 1a (`11ef2d24`) is named by (2);
+- P2: an added line that is neither a restoration nor a named line is named by (3);
+- P3: a named line with one character changed is named by (3);
+- P4: a path outside the table, changed, is named by (1);
+- P5: `canvas.SetDirty(` left in `src/main.cpp` is named by D-RESIDUE;
+- P6: one byte changed in `include/OutlineMask.h` is named by R-CORE;
+- CLEAN: the real drop reads clean.
+
+**Outside the set:**
+- a compile failure;
+- an R-HOST output that differs;
+- D-SCOPE red on the real drop;
+- the two enumerators disagreeing;
+- K-EDITION with a byte outside the stamp regions;
+- a gate nonzero.
+
+Any of these: STOP and report. Nothing is pushed, and nothing is fixed before the ruling.
+
+**Constraints on the code step.**
+- No build while C: has less than 30 GiB free. At 14:44Z it read 29 GiB, so my own rebuildables are cleared first,
+  only as much as needed, and reported.
+- No build during a board window.
+- The new head is pushed only after every row above reads as predicted. Then G5' is p4's (A), and its registration
+  comes first (the reviewer, 14:4xZ).
