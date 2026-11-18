@@ -4248,3 +4248,128 @@ trace before the seal and again after the read, and both must equal the seal's f
    - **Seen: yes.** The driver prints every tool's output whole (no check's output is filtered), so 1a's and P6's NEW
      rows passed through my reading at 14:24Z. Under this ruling, grading either cut needs a FRESH run.
 5. The pixel row is recorded as information, since P6 is ungraded.
+
+### 16c. Item (1)'s fresh run for 1a and P6: the re-registration (proposed 2026-11-18 ~14:4xZ; text only, for the reviewer's acceptance)
+
+**Read this first: these rules were chosen AFTER this run's values were seen.**
+- I have seen 1a's and P6's NEW values from 16b's run, because the driver printed the reader's output whole. The
+  reviewer has not seen them, and none of them is stated here.
+- So any rule below may have been shaped by what I saw. Each one carries a reason that does not depend on those values;
+  judge it on that reason. For a new run this is legitimate if it is named (the reviewer, 14:3xZ), and it is named.
+- What this section cites: 16b's recorded rows (the base gaps, 1b, 1c, MK, the controls) and A0a's values from 15a.
+
+**What the X row caught, and why option (a) is not chosen.**
+- 1a's OLD base sat 1.70 ms above A0a's (ratio 1.225). P6's sat 1.79 ms above (ratio 1.270).
+- Option (a), images whose OLD reproduces A0a to within 20%, cannot be promised before the image exists. G6 carries no
+  P5 code, and its OLD still sat 27% off A0a in lbl_layout. The cause of that gap is not established, so no change to an
+  image can be shown in advance to remove it.
+- One contamination of G5's base IS established: MK (16b, graded) showed that 1c's marks land about 0.7 ms in outline,
+  and every 1a arm ran them.
+
+**THE RULE (NEW): grade the FRACTION removed, against 15a's frozen fraction band.**
+- f = ((OLD1 − NEW1) + (OLD2 − NEW2)) / 2 ÷ OLD_run, where OLD_run is the mean of the cut's two OLD arms' own-phase p50
+  in THIS run.
+- AS PREDICTED: f inside 15a's band. **1a [0.50, 0.85]; P6 [0.50, 0.90].** In ms, the band is [lo, hi] × OLD_run.
+- **Why:** the fractions were frozen in section 15 before any part value was read. They are structural estimates of how
+  much of the phase the cut removes. Only the base moves, from A0a's image to the run's own.
+- **What this rule costs, stated:** if the run's phase holds work the cut does not touch, OLD_run is too high and f too
+  low, so a correct cut can read below its band. The X rows below guard exactly that.
+
+**THE X ROWS, kept in a new form** (each a STOP: that cut ungraded, to the reviewer).
+- **X-MARKS** (G5' only; checked on the image at S0): no 1a arm runs 1c's marks.
+  - If 16d's drop is ruled, G5' carries no 1c code: my scan of the flashed `.bin` must find none of `clear-dirty`,
+    `clear-nomark`, `clear-check`.
+  - The scan's control, red first: run against G5's `.bin` (`26d917a2baed`), it must find all three.
+  - If 1c is kept for investigation, 1a's arms and the control run the full clear with the marks OFF (MK's switch), and
+    p4's list proof states it.
+- **X-OVERLAP** (replaces the 20% base gap): OLD_run ÷ A0a's value inside **[lo/hi, hi/lo]: 1a [0.588, 1.700], P6
+  [0.556, 1.800].**
+  - Why: this is exactly the condition under which the rebased band and 15a's frozen band still overlap. The two bases
+    may disagree by no more than the band's own width. The bound is derived from the frozen bands, not picked.
+  - Chosen after seeing: both of 16b's ratios (1.225, 1.270) sit inside it. Stated.
+- The A0a gap is still REPORTED for every phase (information), as in section 16.
+
+**ONE NEW ROW: FR-CARRY, the gain reaches the frame.**
+- For each pair: fr_OLDi − fr_NEWi ≥ g_i − max(N_fr, 0.5 ms), where N_fr = |fr OLD1 − fr OLD2|.
+- It is one-sided: a frame that gains MORE than the own phase (P6's lbl_draw falling) passes.
+- Why: 16a excluded the totals from every bound, so a cut whose saving reappears spread across the other phases, each
+  under 0.5 ms, passes every row. MK showed that bookkeeping lands outside a cut's own phase. The 0.5 ms is the cited
+  other-phase bound (speed-p5p6.md:57), reused.
+- On 16b's recorded rows it holds: 1b's shortfall 0.15 / 0.00; O-1, fr +2.06 for +1.99; C-1, fr +4.86 for +5.00 (a
+  shortfall of 0.14).
+- Off: the row's first off, to the reviewer.
+
+**Unchanged from section 16 and 16a:**
+- N; a gain counts only above N; the regression stop; every other phase within max(N, 0.5 ms), with 16a's exclusions
+  (1a excludes outline; P6 excludes lbl_layout and lbl_draw);
+- P6's one-sided lbl_draw guard and its pixel row (15b-1);
+- the rebuild rules; S1 (drawn == 40); the outside-the-set rows;
+- the controls, red first by construction: O-1 (+2.0 ms planted in outline) and C-1 (+5.0 ms in lbl_draw);
+- a miss of the band either way is the row's first off, to the reviewer (1a and P6 have no off yet: 16b's were STOPs);
+  a second off on the row goes to the owner.
+
+**The images.**
+- **P6: G6 itself,** `ee3f7fd3fe0f`, unchanged (the same list and the same still arms). A fresh trace of the same image
+  is a fresh run.
+- **1a: a new G5'** (p4's (A)): the profile plus P5 with 1a and 1b, and without 1c if 16d's drop is ruled. Its list:
+  S0 O-CTRL; S1-S4 1a 8COPY, MASK, 8COPY, MASK. Level 40, weather on, A0a's keys; the sweep LUT (1b, graded) and the
+  full clear. No 1b, 1c or MK arms.
+- The sha of G5' and p4's proofs (the strings, the control image, `bracket_check`) are registered before T-10.
+
+**The reading, blind by construction (a NEW procedure).**
+- The driver prints the reader's I-rows, its control row and its VERDICT whole, and withholds every `R-<arm>` row of a
+  cut's own arms.
+- The grader runs X-MARKS and X-OVERLAP first. Only a cut that passes them has its values printed.
+- A STOPped cut's rows stay in the file, hashed and kept, and are read by nobody until a new registration.
+- The reader's exit and verdict stop the reading exactly as before. Only DATA rows are withheld; no check's output is.
+- Why: 16b's driver printed a STOPped cut's NEW values before the grade had decided the STOP.
+
+**The grader: `gains16r.py` (new, on gains16's shape),** red first, its plants frozen before its first run:
+- f below its band; f above it;
+- X-OVERLAP: OLD_run at 1.75 × A0a STOPs, and at 0.55 × A0a STOPs (both cuts);
+- FR-CARRY: a fr gain short by 0.6 ms with N_fr 0 is off; short by 0.4 ms it is ok (the boundary's control);
+- X-MARKS: the three names found in G5's `.bin` (the control); a synthetic image without them passes;
+- the blinding: a STOPped cut's NEW values appear nowhere in the grader's output (asserted on its stdout);
+- section 16's plants that still apply (g2 ≤ N; the regression stop; another phase over its bound; lbl_draw rising; a
+  fall UNEXPLAINED; a rebuild count of 2; unequal counts; a missing arm), and a clean set.
+
+**The window:** one window on E2:08, booked by the reviewer (Friday or later), on section 16's shape.
+- Each scene keeps settle 100 s and measure 120 s, after START_AFTER 90 s, as frozen.
+- 0: reserve; S19 twice; `--check-tool`; `--selftest`; T-10 (new rows for G5' and for the changed tools).
+- 1: G5' write; N-BOOT; one trace, 24 min (it runs boot + 90 to + 1,190 s).
+- 2: G6 write; N-BOOT; one trace, 33 min; the six still grabs at section 16's offsets.
+- 3: restore v19; S19 twice within 300 s; release.
+- The hard end stays start + 135 (it should end near start + 70). The changed tools (the trace's minutes table, T-10,
+  the reading driver) are written and sha'd before T-10.
+
+### 16d. 1c: a design proposal (text only; no cause is claimed)
+
+**What 16b recorded** (both graded rows off):
+- under: OLD 5.52 / 5.52, NEW 5.56 / 5.56, so no saving. 15a predicted 3.29 ms, band [2.20, 4.67].
+- The marks, ON − OFF: contacts 0.73 / 0.71, outline 0.73 / 0.71, lbl_draw 0.71 / 0.65. fr ON − OFF 2.39 / 2.33 (MK's
+  REPORTED rows, information).
+- 1c-CHECK: 2,719 frames, 0 mismatched px. The restore draws the same picture.
+- So, as built, at 40 contacts with the weather on, 1c costs about 2.4 ms a frame and saves none.
+
+**Proposed: DROP 1c from P5.**
+- P5's licence is "only a cut A0a shows to be cheap" (speed-plan.md:208). 1c, as built, is measured, and not cheap.
+- The scope (code, after acceptance):
+  - a new P5 head without 1c's restore and its `SetDirty` marks; 1a and 1b untouched;
+  - CLEAR_CHECK, 1c's host rows (4m, 4n) and its wiring (4o, 4p) stay in the history;
+  - the proof: 1a's and 1b's host suites unchanged and green, and the image scan of 16c's X-MARKS.
+- It also makes 16c's G5' clean by construction.
+- Item (1) then closes on 1a, 1b and P6.
+
+**The alternative: investigate.** What it would register (nothing is claimed):
+- **Q1, why under did not move.** The candidates, none claimed:
+  - (i) in this scene the dirty set covers nearly the whole frame;
+  - (ii) the per-span overhead eats the saving;
+  - (iii) the timed arms do not run the dirty path. CLEAR_CHECK proves equal pixels, not the path taken.
+  - The instruments: an untimed per-frame count of restored bytes, which separates (i) from (ii) and (iii); and a
+    red-first engagement control, an arm with a planted one-box dirty set, where under must fall (by how much is set in
+    that registration), which tests (iii).
+- **Q2, why the marks cost about 0.7 ms in each of three phases:** a per-call cycle count of `SetDirty`, in an untimed
+  arm.
+- **The cost:** FRAME_BENCH code, p4's list and reader tables, an image and a window (at least one, Friday or later).
+  Until it is ruled, 16c's G5' must run the marks OFF.
+- If the owner wants under's 5.5 ms back later, this becomes its own item with its own registration.
