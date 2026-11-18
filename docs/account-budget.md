@@ -301,7 +301,9 @@ registered before 12-01.
 | KV deletes | 1.000 M | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | not read |
 | Workers CPU (ms) | 30.000 M | 37.996 M (127%) **OVER**, $0.16 | 60.388 M (201%) **OVER**, $0.61 | 69.030 M (230%) **OVER**, $0.78 | 91.423 M (305%) **OVER**, $1.23 | 32.797 M (109%) |
 | Workers requests | 10.000 M | 2.194 M (22%) | 2.237 M (22%) | 2.519 M (25%) | 2.562 M (26%) | 2.805 M (28%) |
-| Workers Logs events (November prices) | 20.000 M | 6.966 M (35%) | 7.102 M (36%) | 7.997 M (40%) | 8.134 M (41%) | not read |
+| Workers Logs events (November prices) | 20.000 M | n/a | n/a | n/a | n/a | not read |
+| Workers Logs ingested (GB, from 2026-12) | 50.00 | 11.70 (23%) | 11.81 (24%) | 12.55 (25%) | 12.66 (25%) | not read |
+| Workers Logs stored (GB-month, from 2026-12) | 10.00 | 2.73 (27%) | 2.76 (28%) | 2.93 (29%) | 2.95 (30%) | not read |
 | Durable Object requests | 1.000 M | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | not read |
 | Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | not read |
 | **overage a month (Read A)** | | **$0.16** | **$5.11** | **$5.64** | **$6.09** | |
@@ -320,6 +322,8 @@ registered before 12-01.
 | Workers CPU (ms) | 30.000 M | 51.236 M (171%) **OVER**, $0.42 | 51.236 M (171%) **OVER**, $0.42 | 51.236 M (171%) **OVER**, $0.42 | 65.719 M (219%) **OVER**, $0.71 | 65.719 M (219%) **OVER**, $0.71 | 65.719 M (219%) **OVER**, $0.71 |
 | Workers requests | 10.000 M | 2.219 M (22%) | 2.219 M (22%) | 2.219 M (22%) | 2.371 M (24%) | 2.371 M (24%) | 2.371 M (24%) |
 | Workers Logs events (November prices) | 20.000 M | 7.046 M (35%) | 7.046 M (35%) | 7.046 M (35%) | 7.528 M (38%) | 7.528 M (38%) | 7.528 M (38%) |
+| Workers Logs ingested (GB, from 2026-12) | 50.00 | n/a | n/a | n/a | n/a | n/a | n/a |
+| Workers Logs stored (GB-month, from 2026-12) | 10.00 | n/a | n/a | n/a | n/a | n/a | n/a |
 | Durable Object requests | 1.000 M | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) | 0.308 M (31%) |
 | Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) |
 | **overage a month (Read A)** | | **$4.98** | **$4.98** | **$4.98** | **$9.77** | **$9.77** | **$5.27** |
@@ -337,7 +341,9 @@ registered before 12-01.
 | KV deletes | 1.000 M | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) | 0.000 M (0%) |
 | Workers CPU (ms) | 30.000 M | 62.401 M (208%) **OVER**, $0.65 | 62.401 M (208%) **OVER**, $0.65 | 62.401 M (208%) **OVER**, $0.65 | 94.471 M (315%) **OVER**, $1.29 | 94.471 M (315%) **OVER**, $1.29 | 94.471 M (315%) **OVER**, $1.29 |
 | Workers requests | 10.000 M | 2.311 M (23%) | 2.311 M (23%) | 2.311 M (23%) | 2.647 M (26%) | 2.647 M (26%) | 2.647 M (26%) |
-| Workers Logs events (November prices) | 20.000 M | 7.339 M (37%) | 7.339 M (37%) | 7.339 M (37%) | 8.405 M (42%) | 8.405 M (42%) | 8.405 M (42%) |
+| Workers Logs events (November prices) | 20.000 M | n/a | n/a | n/a | n/a | n/a | n/a |
+| Workers Logs ingested (GB, from 2026-12) | 50.00 | 12.21 (24%) | 12.21 (24%) | 12.21 (24%) | 13.08 (26%) | 13.08 (26%) | 13.08 (26%) |
+| Workers Logs stored (GB-month, from 2026-12) | 10.00 | 2.76 (28%) | 2.76 (28%) | 2.76 (28%) | 2.95 (30%) | 2.95 (30%) | 2.95 (30%) |
 | Durable Object requests | 1.000 M | 0.318 M (32%) | 0.318 M (32%) | 0.318 M (32%) | 0.318 M (32%) | 0.318 M (32%) | 0.318 M (32%) |
 | Durable Object GB-s | 0.400 M | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) | 0.001 M (0%) |
 | **overage a month (Read A)** | | **$5.15** | **$0.65** | **$0.65** | **$6.15** | **$6.15** | **$1.65** |

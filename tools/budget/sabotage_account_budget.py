@@ -49,6 +49,11 @@ PLANTS = [  # (name, needle, replacement, the set of controls predicted to FAIL)
     ("S7c the rounding bound one unit wider", "0.5 * (len(vals) + 1)", "0.5 * (len(vals) + 3)", {"P7g"}),
     ("S7d a read with totals and no k accepted",
      'if rd["totals"] and (isinstance(k, bool) or not isinstance(k, (int, float)) or not k > 0):', "if False:", {"P7n"}),
+    # Section 11 (registered 2026-11-18 before its code): an allowance in force only in some months. Each existing
+    # plant's set is unchanged; section 11 names, plant by plant, why none reaches the M-LG rows.
+    ("S-LG the in-force test always true", 'if not in_force(al, m or b["month"]):', "if False:",
+     {"M-LG1", "M-LG2", "M-LG3", "M-LG5", "M-LG6"}),
+    ("S-LGV the months window not validated", 'if "months" in v:', "if False:", {"M-LG4"}),
 ]
 
 # The builder's kv-days refusals and B2's rows (ruled 2026-11-15), each set predicted here before the first run.

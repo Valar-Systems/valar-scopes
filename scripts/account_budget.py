@@ -100,6 +100,13 @@ def validate(b):
         for k in ("label", "included", "price", "unit", "round_up"):
             if k not in v:
                 raise Malformed(f"allowance {a} has no {k}")
+        # Section 11: an allowance may be in force only in some months ({from} and/or {until}, YYYY-MM, inclusive).
+        if "months" in v:
+            w = v["months"]
+            if (not isinstance(w, dict) or not w or set(w) - {"from", "until"}
+                    or not all(isinstance(x, str) and MONTH.match(x) for x in w.values())
+                    or ("from" in w and "until" in w and w["from"] > w["until"])):
+                raise Malformed(f"allowance {a}: months must be {{from: YYYY-MM}} and/or {{until: YYYY-MM}}, from <= until")
     for p, v in prods.items():
         if not v.get("states"):
             raise Malformed(f"product {p} has no states")
@@ -193,6 +200,14 @@ def anchor(b):
     return bad
 
 
+def in_force(al, m):
+    """Section 11: is the allowance in force in month m (YYYY-MM)? No months window means always."""
+    w = al.get("months")
+    if not w:
+        return True
+    return ("from" not in w or m >= w["from"]) and ("until" not in w or m <= w["until"])
+
+
 def cost(al, amount):
     over = max(0.0, amount - al["included"]) / al["unit"]
     if al["round_up"]:
@@ -229,6 +244,11 @@ def evaluate(b):
         days = (month_bounds(m)[1] - month_bounds(m)[0]).days if m else 30
         lines, overage = [], 0.0
         for a, al in b["allowances"].items():
+            # Section 11: out of force in this scenario's month (a 30-day scenario takes the file's month): no amount,
+            # no mark, no cost. The table and the report print n/a.
+            if not in_force(al, m or b["month"]):
+                lines.append((a, None, None, "", 0.0))
+                continue
             # Section 10: an allowance billed per month (R2 storage, a GB-month) is the month's average, whatever the
             # month's length, so a calendar month does not scale it: its weights (days/30, or hours/720) x 30/days.
             pm = 30 / days if al.get("per_month") else 1.0
@@ -270,6 +290,9 @@ def table(b, ev, names, ob):
         cells = []
         for s in names:
             _, amt, share, mark, c = ev[s]["lines"][i]
+            if amt is None:   # section 11: not in force in this scenario's month
+                cells.append("n/a")
+                continue
             cells.append(f"{fmt_amount(a, al, amt)} ({share:.0%})" + (f" **{mark}**" if mark else "") + (f", ${c:.2f}" if c else ""))
         if ob:
             cells.append(f"{fmt_amount(a, al, ob[a])} ({ob[a] / al['included']:.0%})" if a in ob else "not read")
@@ -315,6 +338,9 @@ def report(b):
         print(f"== {s}")
         for a, amt, share, mark, c in ev[s]["lines"]:
             al = b["allowances"][a]
+            if amt is None:   # section 11
+                print(f"  {a:14s} {'n/a':>14s} (not in force in this scenario's month)")
+                continue
             print(f"  {a:14s} {fmt_amount(a, al, amt):>14s} of {fmt_amount(a, al, al['included']):>10s}  {share:7.1%}  {mark:4s}  ${c:6.2f}")
         print(f"  overage a month (Read A): ${ev[s]['overage']:.2f}")
     ob = observed(b)
