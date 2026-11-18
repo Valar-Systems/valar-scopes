@@ -4686,3 +4686,60 @@ nothing runs without its START):
   - every start registered with bgcheck;
   - a VOID or an instrument failure ends it: restore, release, report;
   - Wednesday's NIUpdateService VOID does not apply on a Friday.
+
+### 16i. The fresh run's tools, sha'd before T-10 (2026-11-18 ~20:1xZ), and three corrections found before any first run
+
+16h was accepted at `5c95d8df1c32`, and the window is booked: Friday 2026-11-20, slot (A) with a latest start of 07:45Z
+(else slot (B), after the route run's END line, latest start 12:50Z); START on the reviewer's word after T-10; hard end
+start + 135.
+
+**The tools** (each red first; every test was predicted before it ran):
+
+| tool | where | sha256 | tests, read |
+|---|---|---|---|
+| `gains16r.py` | `bench/speed-p5` `dfbb99c20d29`, `tools/speed-p5p6/` | `9c04b0b41ff4` | selftest: **23 cases, 0 FAIL** (CLEAN, 21 plants, the C-LEAK control) |
+| `run/grade_gains2.sh` | the board dir | `c3f205c7de31` | TIE (before first use): T0 holds; one byte changed REFUSED, exit 13; the original `a508adcccd6a` unchanged. RG1-RG5: RIG, exit 9 each, naming the cause. RG6: seals tied, then the reader's INSTRUMENT, exit 14. RG7: the withholding loop, extracted verbatim, prints the I-row, R-CTRL and the VERDICT and withholds the 2 arm rows |
+| `run/tracerun_gains2.sh` | the board dir | `c551de276bc1` | TG1-TG3 usage, exit 2. TG4 and TG5 REFUSED, exit 9. TG6 and TG7 announce 38 min and 33 min and launch nothing in a test root (exit 127) |
+| `run/grabs_g6f.sh` | the board dir | `8234d640431a` | Its diff against `grabs_g6.sh` `1430a278f82a` is the folder, the seam, the label and two comments only. GG1 and GG2 usage, exit 2. GG3 and GG4 REFUSED, exit 9, before registering. GG5: registered; S6 and S7 each VOID (exit 2); the script exit 0; bgcheck then PASS. Its usage text still says `grabs_g6.sh` (cosmetic; left so the sha stands) |
+| `run/t10_gains2.sh` | the board dir | `1c20f8875388` | selftest 4 cases, 0 FAIL. The full run at 20:10:47Z: **every row ok, exit 0** |
+
+**Three corrections below 16c's and 16h's frozen text.** Each was found before any first run, and none changes a
+graded rule.
+1. **16c's X-OVERLAP plant was wrong for P6.** "OLD_run at 1.75 × A0a STOPs … (both cuts)": P6's derived bound is
+   [0.556, 1.800], so 1.75 × is INSIDE it, and the rule rightly does not stop there. Found by arithmetic before
+   `gains16r`'s first run. P5a keeps 1.75 × as P6's inside control (it reads pass), and P5b plants the STOP at 1.85 ×.
+   1a's 1.75 × (bound 1.700) and both 0.55 × plants stand as registered.
+2. **`gains16r`'s first selftest read 22 cases, 5 FAIL. Every failure was in the blinding assertion, none in the
+   grading:** all 22 read the right exit and exactly their rows.
+   - The assertion searched the output's TEXT for the stopped cut's NEW values. It wrongly checked non-own phases, which
+     hold BASE values that print legitimately ("A0a 6.62"). It also met a substring collision: P5b's NEW `lbl_layout`
+     3.69 is the 1b information rows' `sweep=3.69`.
+   - It is replaced by the definition of blind: grade the stopped case twice, with the stopped cut's NEW own-phase values
+     changed. The output must be byte-identical.
+   - Its red case, C-LEAK, proves it sees a leak: on CLEAN, where 1a is not stopped, changing 1a's NEW values moves the
+     STOP, COUNT and BAND lines.
+   - The plants and their expected rows did not change. Both runs are kept: `drop1c/g16r-self.out` (the first) and
+     `g16r-self2.out`.
+3. **P12's first values (g2 ≤ N) also moved f out of its band,** so the plant would have read red on two rows. Corrected
+   by arithmetic before the first run: OLD 12.00 / 9.00 (N 3.00), NEW 2.30 / 6.10, so g2 = 2.90 ≤ N and f = 0.60.
+
+**The window's names, fixed** (T-10 checks that each is absent):
+- the write children: `G5P-write`, `G6F-write`, `GF-v19-write` (`run/w2-<name>.rc/.log`);
+- the traces: `w5-G5P-trace` (38 min), `w5-G6-trace` (33 min), labelled `p5p6gains2-…`;
+- the grabs: `grabs-g6f/S6`, `grabs-g6f/S7`;
+- the seals: `traces/G5P-2.filtered`, `traces/G6-2.filtered`;
+- the reading: `gains16r-read/`.
+
+**The window, step by step, with its predictions:**
+
+| step | command (the board dir's `run/`) | predicted |
+|---|---|---|
+| 0 | reserve `blipscope-bench --by weatherscope`; S19 twice, 60 s apart (`read_at.sh`); `--check-tool`; `--selftest`; `t10_gains2.sh` | S19 `blipscope-s3-128 · v19 · cloud` twice; T-10 every row ok |
+| 1 | `pyrun.sh G5P-write app-only-write.py --port::<P>::--build-dir::…/build-gains-p5b`; `boot_confirm.sh blipscope-s3-128-gains-p5b 180`; `tracerun_gains2.sh G5P <P>`; `wait_rc.sh …/w5-G5P-trace.rc` | "checks ok: table matches (6 entries), board boots ota_0, image 1974592 B fits ota_0 …"; attempt 1 verified; N-BOOT `blipscope-s3-128-gains-p5b · v19 · cloud`; the trace's child rc 0 |
+| 2 | `pyrun.sh G6F-write … build-gains-p6`; `boot_confirm.sh blipscope-s3-128-gains-p6 180`; `tracerun_gains2.sh G6 <P>`; `grabs_g6f.sh <boot epoch>`; `wait_rc.sh …/w5-G6-trace.rc` | image 1971216 B, ota_0, verified; N-BOOT `…-gains-p6 · v19 · cloud`; the six grabs on time; rc 0 |
+| 3 | `pyrun.sh GF-v19-write … v19`; S19 twice within 300 s; release; `bgcheck check` | image 1931840 B, ota_0, verified; S19 `blipscope-s3-128 · v19 · cloud` twice; bgcheck PASS |
+
+- **The slot:** "board boots ota_0" is the board as Wednesday's hand-back left it (G6's trace: `running=app0`). Other
+  sessions use E2:08 before Friday. `app-only-write` itself REFUSES unless the board's otadata selects ota_0 (or is
+  blank): exit 7, nothing written (its docstring, rule 2). That exit is this window's STOP: release, report.
+- **The reading,** after the window and with no board: `run/grade_gains2.sh`, on 16h's rows.
