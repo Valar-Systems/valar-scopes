@@ -1019,3 +1019,90 @@ figure was seen.
 6. **A second escape on 4c goes to the reviewer before anything else is amended.**
 
 The reader's new blob sha is sent to the reviewer before any query.
+
+### Step 4c's read and its grades (2026-11-18T23:23:59Z; reader blob `4c21d7e0d51e`, commit `c4deee7d7286`)
+
+**CORRECTION to amendment 4c-1 (appended; the text above is not edited).** Its "ruled (the reviewer, 2026-11-18
+~23:25Z)" was a typed time, not a read one. The ruling arrived between read 1's start (23:18:06Z) and the amendment's
+own stamp (23:20:01Z).
+
+**The reads.**
+- **Read A** ran at 23:21:25Z and **read C** at 23:22:29Z, 64 s apart. They agree on every figure, so the step is
+  graded on A and C.
+- **Read B DISCARDED.** It ran at 23:21:37Z, only 12 s after read A, short of the registered 60 s. That was my error.
+  The command that took read C refuses to run under 60 s from read A's stamp, and it refused twice before running.
+- Read 1 was discarded under the amendment.
+- Nothing was printed from read B.
+
+**The instrument.**
+- **Anchors, all exact:** production writes on 11-13 were 1,899, and on 11-14 570,544; staging's on 11-13 were
+  628,713; the `/enrich` MISS rows over `[11-06, 11-13)` were 7,239, from 22 devices.
+- **Index check:** unknown non-route index1 values: 0.
+- **Information (the ruling):** `provision` had 0 rows and `sitefeed` 177,134, so `sitefeed` produced read 1's unknown.
+- **Other namespaces:** 0.
+
+**Per day** (counts only; W = writes, R = reads; A, F, L, P, E, B as registered; "rows" = request rows):
+
+| day | kind | W prod | W staging | R prod | A | F | L | P | E | B | rows | Mlow | Mhigh | band |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 11-05 | background | 1,495 | 7 | 220,995 | 1,027 | 265 | 72 | 7 | 14 | 13 | 64,446 | 1,410 | 1,836 | in |
+| 11-06 | background | 1,585 | 5 | 239,921 | 1,094 | 271 | 76 | 6 | 8 | 13 | 76,146 | 1,490 | 1,902 | in |
+| 11-07 | background | 1,459 | 0 | 226,240 | 1,016 | 263 | 77 | 6 | 6 | 14 | 64,162 | 1,407 | 1,803 | in |
+| 11-08 | background | 1,233 | 0 | 213,231 | 746 | 246 | 106 | 4 | 2 | 12 | 60,564 | 1,179 | 1,568 | in |
+| 11-09 | refresh-data | 67,301 | 65,678 | 253,417 | 1,108 | 276 | 82 | 7 | 2 | 14 | 68,806 | | | |
+| 11-10 | background | 1,405 | 0 | 228,591 | 973 | 259 | 73 | 4 | 2 | 13 | 64,676 | 1,352 | 1,722 | in |
+| 11-11 | background | 1,734 | 0 | 258,731 | 1,275 | 281 | 77 | 7 | 14 | 14 | 73,506 | 1,682 | 2,131 | in |
+| 11-12 | background | 1,547 | 8 | 276,460 | 1,027 | 306 | 86 | 5 | 12 | 17 | 78,768 | 1,474 | 1,950 | in |
+| 11-13 | route refresh (A) | 1,899 | 628,713 | 278,703 | 1,337 | 348 | 79 | 16 | 18 | 20 | 84,578 | | | |
+| 11-14 | route refresh (A) + photos | 570,544 | 3 | 352,229 | 2,037 | 370 | 83 | 3 | 10 | 17 | 94,359 | | | |
+| 11-15 | background | 1,880 | 0 | 325,158 | 1,338 | 352 | 83 | 2 | 0 | 16 | 94,376 | 1,821 | 2,293 | in |
+| 11-16 | refresh-data | 67,885 | 65,708 | 399,635 | 1,643 | 389 | 78 | 8 | 20 | 21 | 106,360 | | | |
+| 11-17 | background | 2,196 | 0 | 416,175 | 1,585 | 416 | 85 | 0 | 0 | 19 | 109,678 | 2,129 | 2,672 | in |
+
+Production deletes: 1 in the window (11-14). Production lists: 153-249 a day, and 1,452 on 11-14.
+
+**Grades, as registered:**
+
+| row | result | grade |
+|---|---|---|
+| **KW1** | 9 of 9 background days in band | **HOLDS** |
+| **KW1b** | `fw:` writes implied per device-hour: median **1.068** (per day 0.99-1.19) | **HOLDS** |
+| **KW2** | 11-16 less the background median: production **66,338**, staging **65,708** | **HOLDS** |
+| **KR1** | Monday reads 253,417 and 399,635, against `[191,908, 457,793]` | **HOLDS, weakly** (below) |
+| **KW3** | **w_b = 3,315** writes a board a month (background median W 1,547, B 14). December's account KV-writes line at 600 boards: **2,515,956 writes, $7.58 a month**. Section 1's line, beside it: **$53.83** | **HOLDS** |
+| escape | not taken | |
+
+**What the grades say:**
+- **Production's KV writes are two things:**
+  - the Worker's request path, explained day by day by the source;
+  - the refresh-data job, about 66,000 writes a run in EACH environment, the same each week.
+- The job does not grow with boards. Section 1's line scaled one week, Monday included, by board count. KW3 re-derives
+  it from the per-board background instead.
+- **Section 1's line is not replaced here,** as registered. A change to `docs/account-budget.json` is its own PR, for
+  that file's owner.
+
+**What the grades do not say:**
+- **KR1's band is wide, and it cannot exclude a small Monday read share.** Background reads nearly doubled across the
+  window, so the band spans 2.4x. Against its own neighbours, 11-09 read 253,417 where 11-08 and 11-10 read 213,231
+  and 228,591. Its reads per request row were 3.68, against 3.52 and 3.53.
+  - **Two explanations fit, and the data excludes neither:** a Monday job that also reads (a few tens of thousands);
+    or traffic on 11-09 that read more per request.
+  - So the reads line is NOT shown to be free of a job share. That would take a read with its own predictions.
+- **KW3 has two caveats:**
+  - **It is an upper bound for `ac:`.** The cache is shared across the fleet, so its misses grow more slowly than
+    boards.
+  - **Its denominator is distinct devices per DAY (median 14).** The bill's 17 to 22 were devices per week, so its
+    per-board figure was a different quantity.
+  - w_b sits in the top quarter of its registered band.
+
+**Recorded, not graded (not a prediction of this step):**
+- **Production KV reads grew across the window:**
+  - from 220,995 on 11-05 to 416,175 on 11-17;
+  - distinct devices went from 13 to 19 over the same days, request rows from 64,446 to 109,678, and reads per
+    request row from 3.43 to 3.79.
+- **At 11-17's rate, production alone reads 12.49 M in 30 days, above the free 10 M.**
+  - This bears on a premise stated with #689's deploy question (step 4a, the cloud reviewer's advice): "no money is at
+    stake before then: today's account is under the free 10 M KV reads".
+  - November's own total is not read here: 3,689,486 production reads in these 13 days, and 11-01 to 11-04 are not
+    in the window.
+  - The owner's ruling on #689 is not re-opened here. The premise change goes to the reviewer.
