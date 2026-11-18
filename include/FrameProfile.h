@@ -72,6 +72,7 @@ struct State {
     uint16_t seen = 0;
     bool inLoop = false;
     bool planted = false;        // P-CTRL's plant has run on this frame
+    bool plantedOutline = false; // O-CTRL's plant has run on this frame (REG-gains-AB (A) A3)
     int answeredScene = -1;      // the last scene whose answered line was printed
     uint32_t cyc[kAccs] = {};
     uint32_t mhz = 0;
@@ -92,6 +93,7 @@ inline void Start(uint32_t t0)
     p.seen = 0;
     p.inLoop = false;
     p.planted = false;
+    p.plantedOutline = false;
     for (int a = 0; a < kAccs; ++a) p.cyc[a] = 0;
 }
 inline void Mark(Bound b)
@@ -116,6 +118,8 @@ static_assert(sizeof(framebench::kLabelsPlant) / sizeof(framebench::kLabelsPlant
               "kLabelsPlant needs one entry per scene");
 static_assert(sizeof(framebench::kArmName) / sizeof(framebench::kArmName[0]) == (size_t)framebench::kNumScenes,
               "kArmName needs one entry per scene");
+static_assert(sizeof(framebench::kOutlinePlant) / sizeof(framebench::kOutlinePlant[0]) == (size_t)framebench::kNumScenes,
+              "kOutlinePlant needs one entry per scene");
 inline void PlantLabels()
 {
     State& p = P();
@@ -123,6 +127,17 @@ inline void PlantLabels()
     if (!p.inLoop || p.planted || fb.scene < 0 || fb.done || !framebench::kLabelsPlant[fb.scene]) return;
     p.planted = true;
     delayMicroseconds(5000);
+}
+
+// O-CTRL's plant (REG-gains-AB.txt (A) A3): +2.0 ms inside the OUTLINE span, once a frame, inside the contact loop,
+// on the scenes the list flags in kOutlinePlant. PlantLabels' shape: a spin, the loop's own work.
+inline void PlantOutline()
+{
+    State& p = P();
+    const framebench::State& fb = framebench::S();
+    if (!p.inLoop || p.plantedOutline || fb.scene < 0 || fb.done || !framebench::kOutlinePlant[fb.scene]) return;
+    p.plantedOutline = true;
+    delayMicroseconds(2000);
 }
 
 inline uint16_t CycTen(uint32_t cycles, uint32_t mhz) { return framebench::Ten(mhz ? cycles / mhz : 0); }
