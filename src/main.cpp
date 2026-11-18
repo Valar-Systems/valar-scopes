@@ -1284,6 +1284,14 @@ void loop()
 #else
     canvas.SetDirty(appManager.WxDirty(0));
 #endif
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    // docs/speed-p5p6.md 15c (1): CLEAR_NOMARK, G5's marks-off arm. No set this frame: the draws mark nothing, and
+    // DrawWeatherUnder's `dirty == nullptr` takes the whole copy, exactly as CLEAR_OLD does. Its arms run LAST (the
+    // buffers' sets are not maintained in them).
+    if (framebench::ClearNoMark()) canvas.SetDirty(nullptr);
+#endif
+    // THE FRAME BENCH END
 #if defined(WX_LOOK_AB)
     // Step C (docs/wx-device.md, ruled 2026-10-29): the clear-or-push call, timed, on the bench image only. The #else
     // branch is the shipping code, unchanged.

@@ -13,6 +13,9 @@
 //   anchor_compare --ab <M.fb> <P.fb> <M-lines> <P-lines> <S>
 //                                    section 10's marker A/B (anchorfile::JudgeAB): exit 0 no px differs outside the
 //                                    boxes, 1 differences only inside the region, 2 any outside it, 3 VOID
+//   anchor_compare --selftest-pair   15c (3)'s rows (PR-*); exit 0 every row ok, 1 a row failed
+//   anchor_compare --pair <a.fb> <b.fb>
+//                                    15c (3): two grabs equal outside the boxes: exit 0 equal, 1 not, 2 a bad grab
 //
 // Build (from the repo root): g++ -std=c++11 -Wall -Wextra -Werror -O1 -Iinclude -Itest/host
 //                             tools/speed-p5p6/anchor_compare.cpp -o anchor_compare
@@ -591,6 +594,46 @@ int AbMode(char** a)
     return v.code;
 }
 
+// ---- 15c (3): the still label arms' pair ----
+
+int SelfTestPair()
+{
+    std::unique_ptr<Img> a = DeviceFrame(*SyntheticBg(), Scene());
+    const std::vector<uint8_t> aB = Body(*a);
+    const int lx = 166, ly = 57;   // where the dot contact (160, 60)'s label sits: outside both boxes
+    // PR-PICK (control): the label pixel lies outside both excluded boxes
+    Row(!anchor::Excluded(lx, ly), "PR-PICK", "CONTROL: the label px (166, 57) is outside the clock and indicator boxes");
+    auto PRow = [&](const char* id, const anchorfile::PairVerdict& v, int want) {
+        Row(v.code == want, id, "exit " + Num(v.code) + " (want " + Num(want) + "), in " + Num(v.in) + " out " +
+                                    Num(v.out) + ", '" + v.reason + "'");
+    };
+    PRow("PR-IDENT", anchorfile::JudgePair(aB, aB), 0);
+    std::unique_ptr<Img> lbl = Copy(*a);
+    lbl->p[ly * W + lx] ^= 0x0001;   // THE 1-px LABEL PLANT: must read "not equal"
+    PRow("PR-LABEL", anchorfile::JudgePair(aB, Body(*lbl)), 1);
+    std::unique_ptr<Img> clk = Copy(*a);
+    PaintBox(*clk, kFwClock, 0x2222);
+    PRow("PR-CLOCK", anchorfile::JudgePair(aB, Body(*clk)), 0);
+    std::vector<uint8_t> shortB(aB.begin(), aB.end() - 1);
+    PRow("PR-GRAB", anchorfile::JudgePair(aB, shortB), 2);
+    std::printf("anchor_compare selftest-pair: %d FAIL\n", failures);
+    return failures ? 1 : 0;
+}
+
+int PairMode(char** a)
+{
+    std::string s1, s2;
+    if (!ReadFile(a[2], s1) || !ReadFile(a[3], s2)) {
+        std::printf("VOID: a grab is unreadable\n");
+        return 2;
+    }
+    const anchorfile::PairVerdict v = anchorfile::JudgePair(std::vector<uint8_t>(s1.begin(), s1.end()),
+                                                            std::vector<uint8_t>(s2.begin(), s2.end()));
+    std::printf("pair: %ld px differ inside the excluded boxes, %ld outside -> exit %d, %s\n", v.in, v.out, v.code,
+                v.reason.c_str());
+    return v.code;
+}
+
 int EqualMode(char** a)
 {
     std::unique_ptr<Img> g[3];
@@ -626,6 +669,8 @@ int main(int argc, char** argv)
     if (argc == 5 && a1 == "--equal") return EqualMode(argv);
     if (argc == 2 && a1 == "--selftest-ab") return SelfTestAB();
     if (argc == 7 && a1 == "--ab") return AbMode(argv);
+    if (argc == 2 && a1 == "--selftest-pair") return SelfTestPair();
+    if (argc == 4 && a1 == "--pair") return PairMode(argv);
     if (argc == 6) return FileMode(argv);
     std::printf("usage: anchor_compare --selftest | --selftest-file | --emit-synthetic <dir> | "
                 "<bg.fb> <8copy.fb> <anchor-lines> <S_bg> <S_8copy> | --selftest-box | --equal <g1> <g2> <g3> | "

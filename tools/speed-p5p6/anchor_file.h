@@ -249,4 +249,28 @@ inline AbVerdict JudgeAB(const std::vector<uint8_t>& mBody, const std::vector<ui
     return v;
 }
 
+// ---- 15c (3): G6's still label arms, two grabs equal outside the clock and indicator boxes ----
+//   code 0  equal outside the boxes; 1 not equal (a pixel outside the boxes differs); 2 a grab of the wrong length
+
+struct PairVerdict {
+    int code;
+    long in, out;
+    std::string reason;
+};
+
+inline PairVerdict JudgePair(const std::vector<uint8_t>& aBody, const std::vector<uint8_t>& bBody)
+{
+    std::unique_ptr<anchor::Img> a = anchor::NewImg(), b = anchor::NewImg();
+    if (!anchor::Decode(aBody, *a)) return PairVerdict{2, 0, 0, "grab A is " + std::to_string(aBody.size()) + " bytes"};
+    if (!anchor::Decode(bBody, *b)) return PairVerdict{2, 0, 0, "grab B is " + std::to_string(bBody.size()) + " bytes"};
+    PairVerdict v{0, 0, 0, ""};
+    for (int i = 0; i < anchor::W * anchor::W; ++i) {
+        if (a->p[i] == b->p[i]) continue;
+        if (anchor::Excluded(i % anchor::W, i / anchor::W)) ++v.in; else ++v.out;
+    }
+    v.code = v.out ? 1 : 0;
+    v.reason = v.out ? "NOT EQUAL outside the excluded boxes" : "EQUAL outside the excluded boxes";
+    return v;
+}
+
 }  // namespace anchorfile
