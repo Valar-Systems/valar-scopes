@@ -4586,3 +4586,103 @@ before (`03e62aad5df5`) and after (`4438f6a553e4`):
 - The kinds renumber there: `ANCHOR_BG` 11 → 8 and `ANCHOR_8COPY` 12 → 9. G5' maps them through the new head's own enum
   and `kKindName`, as its contract check already does (the reviewer told p4).
 - 16c's fresh run is Friday 2026-11-20 or later, booked once G5' is built.
+
+### 16h. The fresh run for 1a and P6: frozen (2026-11-18 ~19:5xZ; text only, for the reviewer's acceptance; before any window)
+
+16c's rules, applied to the images p4 built. Every value below was re-hashed or read by me at 19:51Z. Nothing in
+this section is a value from either cut's NEW arms.
+
+**The inputs** (p4's, accepted by the reviewer):
+
+| what | id |
+|---|---|
+| the reader | `_handoffs/p4/gains/gains_read.py` `6df9e8f43b55`; loads `../a0a/a0a_read_wx.py` `ac8056aee1b1` by sha. G5' reads with `--list g5p`, G6 with `--list g6`. I-1 now matches the env banner EXACTLY (p4, red first: selftest 42/0; reversing only that line reads exactly 1 OFF) |
+| G5' (1a) | `build-gains-p5b`, env `blipscope-s3-128-gains-p5b`, `bench/gains-p5b` `d5623de606bb`, which contains `bench/speed-p5` `4438f6a553e4`. `firmware.bin` `8147e9d883e1` (1,974,592 B); elf `16c8183dc4c3`; partitions `28f336fe57a9` |
+| G6 (P6) | unchanged: `build-gains-p6`, `ee3f7fd3fe0f` (1,971,216 B); `bench/speed-p6` `7220f482f601`, unmoved |
+| A0a | `a0a-read-wx-c3.out` `30734bc77e4b` |
+| the restore | v19, `f6d73e391631` |
+
+**G5''s list is not 16c's, and the difference is named.**
+- 16c registered "S0 O-CTRL; S1-S4 1a 8COPY, MASK, 8COPY, MASK … No 1b, 1c or MK arms".
+- G5', as built and as the reader's `g5p` list reads, carries **nine timed arms**: O-CTRL; 1a-OLD1, NEW1, OLD2, NEW2;
+  1b-OLD1, NEW1, OLD2, NEW2. No untimed arm. Its arms carry no dirty marking (P5 without 1c).
+- **Proposed: the four 1b arms are INFORMATION, never graded.** 1b was graded once (16b: item (1)'s first PASS), and
+  there is no re-grade. Their REPORTED rows are printed last, after every graded row, under the heading "1b,
+  information". Nothing graded reads them.
+- So G5' runs boot + 90 to + 2,070 s (90 + 9 × 220; 34.5 min), and its trace is 38 min. 16c planned 24.
+
+**What is graded** (16c's rules, unchanged; 16a's exclusions):
+
+| row | 1a on G5' (outline) | P6 on G6 (lbl_layout) |
+|---|---|---|
+| the control | O-1: O-CTRL − 1a-OLD1, outline +2.0 ± 0.5 ms, every other phase \|Δ\| ≤ 0.5 | C-1: P-CTRL − 6-OLD1, lbl_draw +5.0 ± 0.75 ms |
+| X-MARKS | my scan of G5''s `.bin`: none of `clear-old`, `clear-dirty`, `clear-check`, `clear-nomark`; the control, G5's `26d917a2baed`, must show all four | (G6 carries no P5 code) |
+| X-OVERLAP | OLD_run ÷ 7.55 inside [0.588, 1.700] | OLD_run ÷ 6.62 inside [0.556, 1.800] |
+| the graded quantity | f = mean gain ÷ OLD_run, inside **[0.50, 0.85]** | f inside **[0.50, 0.90]** |
+| a gain counts | g1 > N and g2 > N | the same |
+| the regression stop | NEW slower than OLD by more than max(N, 0.3 ms) on outline: STOP | the same, on lbl_layout |
+| every other phase | within max(N, 0.5 ms), outline excluded | within max(N, 0.5 ms), lbl_layout and lbl_draw excluded |
+| FR-CARRY | per pair, fr_OLDi − fr_NEWi ≥ g_i − max(N_fr, 0.5 ms) | the same |
+| P6 only | | lbl_draw must not RISE by more than max(N, 0.5 ms); a fall is attributed to format() only if the pixel row reads EQUAL (S6 and S7 `--equal` each 0, then `--pair` S6-1 against S7-1 0), otherwise UNEXPLAINED; 6-CHECK: exactly one `[speed-p6] labels S0 checked N mismatches 0`, N > 0 |
+
+- **Global rows:**
+  - G-SHA: the two flashed images and A0a's output, as in the table above;
+  - G-READER: both readers exit 0 with READ AS GRADED; exit 1 is a graded row off (STOP, to the reviewer), exit 4 is
+    INSTRUMENT (STOP);
+  - G-S0: G5''s image carries `blipscope-s3-128-gains-p5b` and its arm names, and G6's as in section 16;
+  - the rebuild rules: each timed arm ≤ 1, and equal within a cut;
+  - S1: drawn == 40 on every frame of every timed arm.
+- **A band miss either way** is that row's FIRST off, because 16b's were STOPs, not offs. It goes to the reviewer. A
+  second off on the row goes to the owner.
+- **Outside the set** (section 16 and 16c): a missing arm, phase or line; a non-number or a p50 below 0; a gain above
+  OLD; a control reading blind; a flashed sha other than the table; a reader exit other than 0, 1 or 4; the two
+  enumerators of anything disagreeing. Any of these: STOP, decide, and compute nothing past it.
+
+**The reading, blind by construction** (16c):
+- The driver prints each reader's I-rows, control row and VERDICT whole, and withholds every `R-<arm>` row of 1a's
+  and P6's arms.
+- The grader runs X-MARKS and X-OVERLAP first (OLD_run needs only the OLD arms). Only a cut that passes them has its
+  values printed.
+- A STOPped cut's rows stay in the file, hashed and kept, and are read by nobody until a new registration.
+- 1b's rows are printed last, as information.
+- **The tie:** the raw trace's sha must equal the seal's first-line sha, before the seal and after each read. Its red
+  direction is tested BEFORE the first real use this time (16b tested it only after), on a copy, with the original
+  re-hashed.
+
+**The tools, written after acceptance and sha'd in a note before T-10, each red first:**
+- `gains16r.py`: 16c's plants (f below and above its band; X-OVERLAP at 1.75 × and 0.55 ×; FR-CARRY short by 0.6 and
+  by 0.4 with N_fr 0; X-MARKS with its control; the blinding asserted on stdout; section 16's plants that still
+  apply; a clean set). Plus one plant: a 1b arm set wildly off must change no graded row.
+- The reading driver: the blinding, the tie and its red test, and the pixel exits, on `grade_gains.sh`'s shape.
+- `tracerun_gains.sh`'s minutes table: G5' 38 min, G6 33 min. Its refusal on an existing rc or log stays, and the
+  child names are new (`w5-…`).
+- The grabs: `grabs-g6/` already holds Wednesday's six, and `grabs_g6.sh` rightly refuses a non-empty folder. The
+  fresh run writes to `grabs-g6f/`, a one-line change of the folder name, with the same offsets and the same image.
+- T-10: rows for the reader `6df9e8f43b55`, G5''s three files, G6's, v19, the heads (`bench/gains-p5b`
+  `d5623de606bb`, `bench/speed-p5` `4438f6a553e4`, this branch at the freeze), and every new tool.
+
+**The window** (Friday 2026-11-20, in the morning; the reviewer books it after accepting this section; E2:08 only;
+nothing runs without its START):
+
+| step | what | budget |
+|---|---|---|
+| 0 | reserve; S19 twice, 60 s apart; `--check-tool`; `--selftest`; T-10, every row ok | 3 min |
+| 1 | G5' through `app-only-write` (`build-gains-p5b`); N-BOOT `blipscope-s3-128-gains-p5b` within 180 s; one trace, 38 min | ~40 min |
+| 2 | G6 likewise (`build-gains-p6`); its trace, 33 min; the six still grabs into `grabs-g6f` at boot + 1,530/1,550/1,570 s and + 1,750/1,770/1,790 s | ~36 min |
+| 3 | restore v19; S19 twice within 300 s; release | ~3 min |
+
+- About 82 min in all. The hard end stays start + 135.
+- **The 10:00Z route run: yes, the bench may read what it writes.** The bench's real GETs reach the proxy (section
+  16's reason to avoid deploys), and P6's labels draw the enrichment fields the proxy returns. I have not established
+  that a route run leaves them unchanged, so treat it as reading them. The window either ends before 10:00Z, or starts
+  once the route run is reported done; either way it ends before S2b at 15:15Z.
+- **Slot evidence** (today's M3-9 question). Each write logs `app-only-write`'s "board boots ota_0 … Writing ota_0
+  only", and each image's trace carries its boot's `[ota-slot]` line. The v19 restore's boot has none BY DESIGN: ending
+  a trace leaves an S3 in ROM download mode (CLAUDE.md), so no trace follows the restore. The restore's evidence is the
+  write log's pre-write check.
+- The rules in the window are section 16's:
+  - no live trace or child-log reads;
+  - every cue from the board or a process exit;
+  - every start registered with bgcheck;
+  - a VOID or an instrument failure ends it: restore, release, report;
+  - Wednesday's NIUpdateService VOID does not apply on a Friday.
