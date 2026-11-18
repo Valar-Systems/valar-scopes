@@ -62,11 +62,14 @@ namespace DeviceIdentity
     // The bare product name for the compiled Edition (no MAC suffix), for UI/branding.
     inline const char* Product() { return DEVICE_PRODUCT_NAME; }
 
-    // Opaque, stable leaderboard identity: the first 8 bytes of SHA-256(MAC ||
-    // salt), as 16 lowercase hex chars. Derived from the FULL 6-octet MAC (not
-    // just the visible 3-octet name suffix) and salted, so the raw MAC never
-    // leaves the device and the public id can't be reversed to it. Computed
-    // once and cached. Matches the server's id shape (/^[0-9a-f]{8,32}$/).
+    // Stable leaderboard identity: the first 8 bytes of SHA-256(MAC || salt), as
+    // 16 lowercase hex chars, derived from the FULL 6-octet MAC (not just the
+    // visible 3-octet name suffix). The raw MAC never leaves the device. The id is
+    // a fixed code made from the device's hardware address, and the salt is
+    // public in this repo, so it CAN be traced back to that address by
+    // recomputing it from a known or guessed MAC: never describe it as opaque or
+    // untraceable. Computed once and cached. Matches the server's id shape
+    // (/^[0-9a-f]{8,32}$/).
     inline const String& LeaderboardId()
     {
         static const String id = []() {
