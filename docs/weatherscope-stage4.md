@@ -3220,3 +3220,83 @@ and page dots). Nothing else is drawn on the page.
 - **Slice 3** waits on 5c's A/B PR: `ProxyWxFeed` (the producer of `available` and `valid`), the factory switch, D1's
   extension and the setup screens' drawing.
 - **The W7 PR** waits for slice 3 and for F1's second rule on main.
+
+### S4.36, 2026-11-18: W7 slice 2, read: every row as predicted. Ask B corrected, and slice 3's shape ruled
+
+- **What ran:** `weatherscope/w7-live` at `00e16c1fb22e`, against S4.35, which was frozen and pushed at
+  `825d20512fe4` (23:44:43Z) before anything ran.
+
+**1. The device compile (23:44:51-23:48:01Z).**
+- **How:** `run/buildenv.sh w7s2 wt-w7 weatherscope-s3-128`, with C: at 35.1 GiB free. PlatformIO Core 6.1.19,
+  platform 55.03.39. The libdeps installed fresh into wt-w7.
+- **Read:** exit 0, `[SUCCESS]` in 187.64 s; `WeatherscopeManager.cpp` among the compiled units.
+  - The image: `art-marks/w7s2.bin`, 1,889,328 B, sha256 `3629dd04ed62` (Flash 28.8%, RAM 18.2%).
+  - The build printed 56 warnings, none in `WxSwipe.h` or `WxFeeds.h`.
+- **The words in the image, as predicted:** `ALERTS UNAVAILABLE` 1, `NO FORECAST` 1, `NO CONDITIONS` 1, and the
+  control `NO WATCHES OR ADVISORIES` 1.
+- **Afterwards:** `.pio/build` (150.8 MB) deleted behind a reparse scan that found 0 points. The libdeps stay.
+- **Then the push:** the four gates all exit 0 at `00e16c1fb22e`, and the branch was pushed at 23:50:34Z, before the
+  host runs.
+
+**2. The host runs (23:50:40-23:51:40Z).**
+- **How:** WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`, through `p5p6-board/drop1c/w7_run2.sh`
+  (`cab3390b8361`) and its bgcheck-registered wrapper (`65ccede5bf1c`). The base is `eed247ad4eb8`'s tree, from
+  `git archive` with autocrlf off.
+- **The rig:** every step's exit as predicted, every stderr 0 B. Neither tree has a CR byte in the suites' inputs.
+  wt-w7's HEAD and porcelain are unchanged before and after.
+
+| step | read | output sha256 |
+|---|---|---|
+| `test_wx_unavail` | **8 ok, exit 0**, `all WX unavailable checks passed`; ALERTS-UNAVAIL-STORED reads `with 5 stored alerts` | `6611cb943ead` |
+| `sabotage_wx_unavail.py` | **all 4 AS PREDICTED,** each red on exactly its frozen set; the real header unchanged (`a7a53dde81f0`); `W7 UNAVAILABLE PLANTS AS PREDICTED` | `9e18a91a7c9c` |
+| `--anchors` | 4 plants, 4 anchors, each present exactly once | `046f8a1401fc` |
+| `--control` | `test_wx_unavail` 8 ok, as the table | `bc4b1d2fbf1e` |
+| `w7_static.py` | NOSHOW-CTL 1 occurrence; W7-NOSHOW 0 hits in 25 files | `70d0e9531b8a`, the same bytes as S4.34's |
+| `test_wx_feeds`, base and slice | 7 checks, 0 failures at both; `cmp` 0 | `c52d93602c07` at both |
+| `test_wx_swipe`, base and slice | 140 checks, 0 failures at both; `cmp` 0 | `36473d59cfb2` at both |
+| `sabotage_wx_swipe.py`, base and slice | `21 sabotages: ALL AS PREDICTED` at both. `diff` finds one line, line 23: the header's sha, `655803d5a4e1` then `a7a53dde81f0` | `690ea72a2300` / `e8c444a10a3d` |
+| its `--anchors` | 21 plants, 21 anchors at both; `cmp` 0 | `d9bd43527456` at both |
+| its `--control` | as the table at both; `cmp` 0 | `7972cbbe8b88` at both |
+
+**A correction below S4.33 and S4.34: Ask B is not "guards only"** (blipscope-5c, through the reviewer, 2026-11-18).
+- Weatherscope's config page has no `%ENROLLED%`/`%REFUSED%` substitutions of its own. The radar's come from its cloud
+  feed's state. So Weatherscope must SUPPLY two states: **enrolled** and **refused**.
+
+**5c's answers** (its A+B registration `64d14bd34646`, accepted by the reviewer):
+- **Refused lasts since boot, in RAM, never persisted,** as the radar's `cloudAuthLatched` does. It is set after a
+  debounced 401/403 and cleared on the first success. A stored flag would outlive the owner's fix to the activation
+  list.
+- **It is one bit:** refused = (kind != None). It must be the SAME evaluation the refused screen draws from (the
+  radar's "same bit, not two evaluations", `AircraftManager.h` 1266-1268). The kind stays on the device's own screen.
+  The debounce is mine to set; the radar debounces.
+- **The interface for slice 3:**
+  - `bool WeatherscopeManager::NeedsReverify() const`, mine.
+  - The `#ifdef BLIPSCOPE_RADAR_EDITION` guard at `main.cpp:1072` around
+    `configServer.SetNeedsReverify(appManager.NeedsReverify())` gains `|| defined(FEATURE_WEATHERSCOPE)`.
+  - `%ENROLLED%` = `cloud-key-fac` non-empty (a pasted `cloud-key` does not count). `%REFUSED%` = needsReverify.
+    Both come from 5c's PR.
+  - The headers: `devheaders::Build(key, model, otaMem, usage, bootReason)` from `include/DeviceHeaders.h`, with my
+    call passing `ota::ModelString`, used only if S1-A held. Otherwise (b): my own builder plus the parity row.
+
+**The reviewer's rulings (2026-11-18):**
+- **Ruling (a), which key decides NOT ENROLLED:**
+  - Weatherscope's request key follows the radar's rule: the pasted `cloud-key`, else `cloud-key-fac`
+    (`AircraftManager.cpp` 1486-1489). The device's NOT ENROLLED screen means "no key by that rule".
+  - **Why:** (b), `cloud-key-fac` alone, would strand a working pasted-key board on NOT ENROLLED forever. The device
+    screen is the one the user acts on.
+  - **The one case where the device and the page disagree is a named row, frozen with slice 3:** a pasted key and an
+    empty `cloud-key-fac`. The device draws Live; the page says "not enrolled", which is true of the board's factory
+    identity. 5c is asked to cite this row beside `%ENROLLED%`'s definition, so the difference is stated on both
+    sides.
+- **Scope:** granted for exactly one line outside W7's three directories, the `main.cpp:1072` guard, reviewed by 5c
+  at its sha. Nothing else outside them.
+- **Recorded for later:** the proxy's enrol page, which the popup links to, may say "Blipscope". That wording is mine
+  and the owner's.
+
+**What comes next:**
+- **Slice 3** is frozen the same way after 5c's PR merges. Its rows will include:
+  - `NeedsReverify()` and the refused screen reading ONE latch. Slice 1's `Decide()` now reads the last answer's
+    status; slice 3 feeds it the debounced latch, so the screen and the page read one bit.
+  - The debounce, copying the radar's thresholds, read at the freeze.
+  - ENROLLED and REFUSED, each with a control; and the named pasted-key row above.
+- **The W7 PR** waits for slice 3 and for F1's second rule on main.
