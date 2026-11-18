@@ -218,7 +218,8 @@ describe("/v1/enrich/{hex}", () => {
       .intercept({ path: "/v0/aircraft/a34878" })
       .reply(200, JSON.stringify({ response: { aircraft: { registration: "N310SY", icao_type: "e75l", type: "ERJ 170-200 LR" } } }));
 
-    const res = await call(apiRequest("/v1/enrich/a34878"));
+    // The backfill is OFF by default (docs/adsbdb-off-by-default.md): this row tests its mechanism, so it opts in.
+    const res = await call(apiRequest("/v1/enrich/a34878"), { TYPE_ADSBDB_ENABLED: "true" });
     const body = (await res.json()) as { r: string; t: string; tn: string };
     expect(body.t).toBe("E75L"); // uppercased
     expect(body.r).toBe("N310SY");
@@ -299,13 +300,14 @@ describe("/v1/enrich/{hex}", () => {
         }),
       );
 
-    const res = await call(apiRequest("/v1/enrich/dddd04?cs=ABC4&lat=47&lon=8"));
+    // The route fallback is OFF by default (docs/adsbdb-off-by-default.md): this row tests its mechanism, so it opts in.
+    const res = await call(apiRequest("/v1/enrich/dddd04?cs=ABC4&lat=47&lon=8"), { ROUTE_ADSBDB_ENABLED: "true" });
     const body = (await res.json()) as { o: string; d: string };
     expect(body.o).toBe("ZRH");
     expect(body.d).toBe("JFK");
 
     // Definitive adsbdb answer was cached: the repeat needs no interceptors.
-    const res2 = await call(apiRequest("/v1/enrich/dddd04?cs=ABC4&lat=47&lon=8"));
+    const res2 = await call(apiRequest("/v1/enrich/dddd04?cs=ABC4&lat=47&lon=8"), { ROUTE_ADSBDB_ENABLED: "true" });
     const body2 = (await res2.json()) as { o: string; d: string };
     expect(body2.o).toBe("ZRH");
   });
@@ -318,11 +320,12 @@ describe("/v1/enrich/{hex}", () => {
       .intercept({ path: "/v0/callsign/ABC5" })
       .reply(404, JSON.stringify({ response: "unknown callsign" }));
 
-    const res = await call(apiRequest("/v1/enrich/dddd05?cs=ABC5"));
+    // The route fallback is OFF by default (docs/adsbdb-off-by-default.md): this row tests its mechanism, so it opts in.
+    const res = await call(apiRequest("/v1/enrich/dddd05?cs=ABC5"), { ROUTE_ADSBDB_ENABLED: "true" });
     expect(((await res.json()) as { o: string }).o).toBe("");
 
     // Negative cached: repeat resolves from KV with no interceptors left.
-    const res2 = await call(apiRequest("/v1/enrich/dddd05?cs=ABC5"));
+    const res2 = await call(apiRequest("/v1/enrich/dddd05?cs=ABC5"), { ROUTE_ADSBDB_ENABLED: "true" });
     expect(res2.status).toBe(200);
   });
 

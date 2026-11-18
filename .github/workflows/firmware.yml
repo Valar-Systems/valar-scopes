@@ -13,7 +13,7 @@ on:
     types: [ published ]
 
 permissions:
-  contents: write   # needed to upload release assets
+  contents: read    # the three release jobs (build, version, promote) carry their own contents: write
 
 # A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
 concurrency:
@@ -372,6 +372,8 @@ jobs:
 
   build:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write   # gh release upload: the release event's firmware assets
     needs: [skus, customer-entry]
     strategy:
       fail-fast: false
@@ -436,6 +438,11 @@ jobs:
       - name: Weather-look bench marker in its own image
         if: matrix.env == 'blipscope-s3-128-wxlook'
         run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
+      # THE MAP BENCH, THE SAME POSITIVE CONTROL (docs/blipscope-map-client-steps.md, Q-MB13): built on the weather bench, so
+      # its image must carry BOTH markers and no other, so their absence from every slug-ful image means something.
+      - name: Map bench markers in their own image
+        if: matrix.env == 'blipscope-s3-128-mapbench'
+        run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench],[map-bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
       # THE CARD BENCH, THE SAME POSITIVE CONTROL (docs/card-nophoto-fix.md, section 5a): its image carries
       # "[card-bench]" and no other bench marker, so that marker's absence from every slug-ful image means something.
       - name: Card bench marker in its own image
@@ -661,6 +668,8 @@ jobs:
           exit 1   # the run stays red: the leg really is broken
 
   version:
+    permissions:
+      contents: write   # gh release edit --prerelease; gh release upload version.txt
     # Publish the shared version gate once per release -- but ONLY once every
     # PUBLISHING SKU has actually published.
     #
@@ -758,6 +767,8 @@ jobs:
         run: gh release upload "${{ github.event.release.tag_name }}" version.txt --clobber
 
   promote:
+    permissions:
+      contents: write   # gh release edit --prerelease=false
     # PROMOTION WAITS FOR A PERSON. `version` has certified the release and put
     # version.txt on it; this job moves `latest`, which is the moment the fleet
     # starts downloading. The `release` environment has a required reviewer, so

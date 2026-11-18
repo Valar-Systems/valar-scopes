@@ -37,11 +37,13 @@ import { apiRequest, call } from "./helpers";
  * handleEnrich against a seeded KV rather than through routeCacheKey: a key
  * function can only be asked what it returns, never whether anything is there.
  *
- * THE ENVIRONMENT IS PINNED TO PRODUCTION'S, and that is load-bearing. The
- * top-level [vars] in wrangler.toml carry ROUTE_ADSBDB_ENABLED="true", so a
- * test that inherited the default would have adsbdb rescue every lookup and
+ * THE ENVIRONMENT IS PINNED TO PRODUCTION'S, and that is load-bearing. Until
+ * 2026-11-16 the top-level [vars] carried ROUTE_ADSBDB_ENABLED="true", so a
+ * test that inherited the default would have had adsbdb rescue every lookup and
  * pass while production stayed dark -- a check whose own environment lacks the
- * property it is checking. Production is "false"; so is this.
+ * property it is checking. The top level is "false" now (docs/adsbdb-off-by-
+ * default.md); the pin stays, so this test never depends on the default again.
+ * Production is "false"; so is this.
  * ========================================================================= */
 
 beforeAll(() => {

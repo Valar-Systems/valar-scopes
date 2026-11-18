@@ -891,6 +891,61 @@ attended production run, these are fixed first, each red-first where it is code.
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
 
+### 2s. W8 at main, in F1's form, and the backup's readiness (the owner's order 6, 2026-11-16; registered before any run)
+
+**The owner's words** (relayed, 04:49Z): *"W8's F1 re-run and the 827-route backup, ready for the Nov 18 route run."* The
+reviewer accepted two readings (05:01Z):
+- **W8:** ONE full W8 run at main's code, in F1's form. Nothing has read W8 at the code Wednesday runs: the four plants
+  whose sets #723 moved (S-GR8, S-VAL, S-JN-W, S-J7) are marked "DERIVED, NOT RUN" in the driver (2r item 1).
+  `--only S-VAL` would read one of the four.
+- **The backup:** READINESS, not a new backup. A backup is taken only inside the writing run, because BK0d refuses
+  `--backup` with `--dry-run` by design, and a separate reader would be the second path #723 avoided.
+
+**The checkout, made LF** (the owner, 2026-11-16 15:02Z, "eol: yes"):
+- the commands: `git worktree add --no-checkout --detach <path> <main sha>`, then
+  `git -C <path> -c core.autocrlf=false -c core.eol=lf reset --hard <main sha>`.
+- **Why:** `.gitattributes` begins `* text=auto`, so a default checkout on Windows writes CRLF whatever `core.autocrlf`
+  says. On 2026-11-16 that made S-FK1's anchor, which spans a newline, read 0 times. The blobs are LF.
+- Then, before `npm ci`: 0 CRLF in `proxy/src` and `proxy/scripts`, with a planted control that reads 2.
+- **The 11-18 run's checkout is made the same way, with the same assertion.** W8 vouches only for the bytes it read.
+
+**Before the run, read-only:**
+- the anchor check: 18 plants, each anchor exactly once;
+- the declared counts, from the driver's own `declared()`: guards 71, writer 81, freeze 4, runs 8, health 11,
+  reconcile 1;
+- every plant's `want` is inside its grader's declared set, except S-RC6's. Reconcile declares the one row RC5-RC6 and
+  reads a plant's red set from inside that row's text, by design;
+- no other session's vitest or sabotage run is live, since the health grader runs vitest on this PC.
+
+**The run:** `env -u BLIPSCOPE_TOKEN_FILE -u ROUTES_KV_TOKEN -u CLOUDFLARE_API_TOKEN node
+scripts/sabotage-routes-weekly.mjs` from `proxy/`, all 18 plants, fake KV only, no network write. It starts after
+2026-11-16's rehearsal end line, outside S2 and the rehearsal.
+
+**Predicted:**
+- **BASELINE:** guards 71, writer 81, freeze 4, runs 8, health 11, reconcile 1, every declared set read in full, 0 red.
+- **Every plant "as registered", red exactly its driver `want`.** The four that 2r derived are read for the first time:
+  - S-GR8: {GR8, RCP2, UN1, UN2, UN3, J1, J2, J3, J4, J5, J7, JR1, UNDO1, UNDO2, UNDO3, RS2, J7w, J7w-ctl};
+  - S-VAL: {GR10m, GR10a, RCP2, GR10, GR11, UN1, UN2, UN3, J3, J7, JR1, SN1, SN1-ctl, UNDO1, RS2, J7w, J7w-ctl};
+  - S-JN-W: {J1, J2, J3, J7, J7w-ctl, UNDO2};
+  - S-J7: {J7, J7w-ctl}.
+  The other 14 keep the sets they read on 2026-11-14 at 15:55Z (section 7), each checked unchanged by 2r.
+- `SABOTAGE PASSED (18 plant(s), after a full baseline)`, exit 0, with empty stderr.
+- **After:** every plant restored sha-equal; porcelain 0; the tree equal to HEAD; 0 `routes-`/`verify-` temp leftovers.
+
+**The backup's readiness, recorded with the run:**
+- **(a)** The planned path, `~/.config/blipscope/routes-backup-<env>-<UTC stamp>.json`, for staging and for production,
+  is checked read-only through the writer's own `backupPathRefusal()` (BK0's rule, `routes-backup.ts`). Predicted: null,
+  meaning allowed, for both.
+  - Control 1: a path inside the W8 checkout is refused, "the path lies inside a git work tree".
+  - Control 2: the folder itself is refused, "the backup file already exists".
+- **(b)** The backup, undo and restore rows read green inside the BASELINE:
+  - the writer's 24: BK-H, BK-M, BK-R, BK-SAME, BK-SAME-ctl, BK-T, BK-W, BK-X, BK-Xc, BK-Xd, BK0, BK0d, BK1, BK3, RS0,
+    RS0b, RS1e, RS1t, RS1v, RS2, UNDO-ctl, UNDO1, UNDO2 and UNDO3;
+  - the guards' 7: BK0e, BK0g, BK0n, BK0s, BK2, BK2s and RO1.
+
+**Outside the set:** any OFF, a BLIND, an anchor not exactly once, a CRLF reading, or an instrument failure is a STOP.
+Nothing is re-run; the reviewer decides whether it goes to the owner.
+
 ## 3. CI
 
 Predicted in its own commit before the code push, from main's CI after its last workflow change. The new selftests are
@@ -1230,6 +1285,77 @@ before the run. Steps 0-2 now, per environment, through the real KV and the help
 - **KV reads:** one `meta:routes` get and one journal get per dry run, so 2 x 4 = **8** in all. That corrects 4a's "4",
   which predates D1's journal read.
 - **Outside the set:** any other line, count or exit. Stop with nothing further run, and report.
+
+### 4e. The run's T-0 checklist (frozen 2026-11-17, before the run on 2026-11-18 16:00Z)
+
+Each row is read, in order, before 4d's step 0. A row that does not read as written is a STOP: nothing runs, and the
+reviewer is told. 4d's steps and predictions are unchanged.
+
+| # | the check | reads |
+|---|---|---|
+| T0.1 | **W8 passed at main** (section 2s, the owner's order 6). | |
+| | the run itself | 2026-11-16 20:13:30-21:05:43Z at main `3741501b`; baseline 71/81/4/8/11/1 with 0 red; 18 of 18 plants as registered, including the four derived sets (S-GR8, S-VAL, S-JN-W, S-J7); stderr 0; readiness (a) 4/4 and (b) green |
+| | the local record, kept in the session's scratchpad: the driver's log (2,314 bytes, sha256 `344a3de63855`), its meta (sha256 `2ee32dd58f1f`) and its stderr file (0 bytes) | both hashes re-read equal at T-0. Section 7 gets the full write-up in this run's record PR |
+| T0.2 | **W8 still covers the writer.** The writer's inputs, from an esbuild bundle of `scripts/ingest-routes.ts` (11 inputs, 0 under `src/`) and `scripts/routes-backup.ts` (1 input), each compared between `3741501b` and the run's main | none changed. At plan time (main `0fc8c1d3`), the only commit touching `proxy/scripts/` since `7606224c` is #734, and its one file there (`sabotage-wx-opera-fallback.py`) is not an input. Any changed input: STOP until planned (4d's rule) |
+| T0.3 | **the run checkout is LF.** `git worktree add --no-checkout --detach <path> <main sha>`, then `git -C <path> -c core.autocrlf=false -c core.eol=lf reset --hard <main sha>`, then a byte count of CRLF over `proxy/src` and `proxy/scripts` with a planted control (a file of two CRLF lines), then `npm ci` in `proxy/` | the control reads 2; both folders read 0; `npm ci` exits 0; porcelain 0 |
+| T0.4 | **backup readiness (a)**, through the writer's own `backupPathRefusal()`, imported from the run checkout's `scripts/routes-backup.ts` | the two planned paths (`routes-backup-staging-<stamp>.json` and `routes-backup-production-<stamp>.json` beside the token file) are ALLOWED. Both controls are REFUSED: a path inside the run checkout, and the backup folder itself. 4 cases, 0 off. If the writer cannot be imported from the checkout, the reading is BLIND: STOP |
+| T0.5 | **the inputs are present**, one boolean each, in `~/.config/blipscope/routes-first-run/`: the two manifests and the two tarballs of 4d's table. The folder is checked to be outside every git tree | 4 of 4 present; git there says "not a git repository". 4d's step 0 then compares the manifests' sha256 with D10's pins |
+| T0.6 | **`--backup` is in step 3's command line** for each environment, and the target file does not exist yet (BK0 refuses an existing path) | present in both; absent before each write |
+
+**Outside the set:** any other reading. That includes a hash that differs, a changed writer input, a CRLF count above 0
+or a control not reading 2, a readiness case OFF, or an input absent. Each is a stop, with nothing run, and is reported.
+
+### 4f. T0.0, read before T0.1: Wednesday's chain rule (the owner, 2026-11-17 05:47Z; appended below the frozen 4e)
+
+**The owner's words, verbatim:** "Wednesday's chain rule: radar 10:00Z, logs ~14:00Z, route run 16:00Z; if one fails
+or rolls back, the later ones wait for me."
+
+The route run is LAST in the chain. So before T0.1, one more row:
+
+| # | the check | reads |
+|---|---|---|
+| T0.0 | **neither earlier step failed or rolled back.** The radar deploy (10:00Z, `docs/wx-opera-fallback-deploy.md` section 6c), and then the logs slot (12:30-15:00Z, `docs/workers-logs-invocation-off.md`), each closed as predicted with no rollback. Read from each step's own report to the reviewer, not from memory | each closed as predicted with no rollback, or did not start (the reading below) |
+
+- **Either step failed** (once it had started: a stop, or an outcome other than "as predicted") **or rolled back.** Then the route run
+  **waits for the owner**: nothing runs, the reviewer is told, and T0.1 is not read.
+- **A step that did not run at all because its own precondition held it** (the radar moved to Thursday for want of
+  R0.1's word, or the logs slot not started; nothing deployed, nothing changed in production). **The reviewer's reading,
+  2026-11-17, which the owner may override:** that is neither a failure nor a rollback, so the route run goes ahead on
+  its own preconditions (4e). The owner is told at that moment.
+- **A step that STARTED** (any deploy command run) and then did not complete as predicted counts as a FAILURE: the route
+  run waits for the owner.
+- 4e's rows and 4d's steps are unchanged.
+
+### 4g. The commit the run uses, named; its D0 by procedure (2026-11-17, appended below 4f)
+
+**The owner's words, 2026-11-17 18:53Z (relayed by the reviewer), verbatim, the parts that govern this run:** "rule: by
+procedure Wed. [...] name each of Wednesday's three commits in the plans."
+
+**The commit: EXPECT = `4a02123ca992031d60bd9592e3084c9ccf34041f`** (main, read 2026-11-17 19:46Z). It replaces 4d's
+"the run [...] takes its checkout from main's sha at that moment": T0.3's LF checkout is made at EXPECT, and T0.2 compares
+the writer's inputs between `3741501b` (W8) and EXPECT. 4d's steps and 4e's other rows are unchanged.
+
+**At plan time** (read 2026-11-17 19:50:16Z), the commits since `3741501b` that touch `proxy/scripts/` or the lockfile
+are two, neither a route tool file:
+- `c7f73d10` (#744): `device-label.ts` and `device-label.selftest.mts`;
+- `3815844f` (#734): `sabotage-wx-opera-fallback.py`.
+
+The `routes-*` files, `ingest-routes.ts`, `verify-routes.ts`, `token-file.ts` and `kv-rest.ts` have 0 commits. T0.2's
+bundle compare at T-0 is still the proof.
+
+**D0, by procedure.** These are printed after T0.0 and before T0.1, and any mismatch is a STOP:
+
+| D0 | prints | predicted |
+|---|---|---|
+| D0-H | `git rev-parse HEAD` in T0.3's checkout | EXPECT, in full |
+| D0-A | `git ls-remote` for main = M; `git merge-base --is-ancestor EXPECT M` | exit 0 |
+| D0-B | `git log --format='%h %s' EXPECT..M -- proxy/scripts/ proxy/package-lock.json` | empty. A commit listed here (a merge after this plan, in the run tool's folder) stops the run until it is planned |
+| D0-D | `git status --porcelain -- proxy/` in T0.3's checkout, after `npm ci` | empty |
+
+**Wednesday's three commits, named:**
+- the radar step: `4a02123ca992031d60bd9592e3084c9ccf34041f` (`docs/wx-opera-fallback-deploy.md` 6d);
+- the logs step: `4a02123ca992031d60bd9592e3084c9ccf34041f` (`docs/workers-logs-invocation-off.md` 7a);
+- this run: `4a02123ca992031d60bd9592e3084c9ccf34041f`.
 
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 

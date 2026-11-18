@@ -6,7 +6,7 @@ THE BASELINE FIRST: the grader (test/wx-opera-fallback.test.ts, through vitest) 
 14 tests with 0 red, or the driver is BLIND and stops (exit 2) before any plant. Under a plant, a grader that reads fewer
 than 14 tests is BLIND too, never OFF: "could not see" must never print as "saw a difference".
 
-Instrument failure #1 (2026-11-14): the first draft gave vitest the 8.3 SHORT path (DANIEL~1) as its cwd, and workerd
+Instrument failure #1 (2026-11-14): the first draft gave vitest the 8.3 SHORT path (<USER~1>) as its cwd, and workerd
 could not resolve its own modules ("No such module @fs/..."), so every run read 0 tests and printed OFF. The cwd is now
 the long path (Path.resolve(strict=True)), and the baseline would have stopped that draft before its first plant.
 

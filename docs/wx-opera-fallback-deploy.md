@@ -122,3 +122,133 @@ opuk at +747 s, the latter during an OPERA pause).
 | R4, or any read: an error line naming a host | roll that Worker back at once, whatever the time; stop the rest; report |
 | a `source` other than `"backup"` or `"primary"`, or `null` after a storing check | stop; roll that Worker back; decide |
 | anything else | stop; roll back what changed; decide |
+
+## 6. Amendments before the run (2026-11-17, ruled by the reviewer)
+
+The text above is left as frozen. These two change R1 and R0.1 only; everything else stands.
+
+### 6a. R1: the deploy checkout is LF
+
+This carries the owner's "eol: yes" (2026-11-16 15:02Z), as the proxy deploy's D0.8 does. It replaces R1's "a fresh
+detached checkout of main's sha, with `npm ci` in `proxy/`":
+- `git worktree add --no-checkout --detach <path> <main sha>`, then
+  `git -C <path> -c core.autocrlf=false -c core.eol=lf reset --hard <main sha>`;
+- a byte count of CRLF over `proxy/src` and `proxy/scripts`, with a planted control (a file of two CRLF lines). It
+  covers every `.ts`, `.mts`, `.mjs`, `.js`, `.json`, `.html`, `.toml`, `.sh` and `.py` file, with `node_modules`
+  excluded;
+- then `npm ci` in `proxy/`.
+
+**Predicted:** the control reads 2, both folders read 0 CRLF, `npm ci` exits 0, and porcelain is 0. Otherwise no deploy.
+
+**Why.** `.gitattributes` begins `* text=auto`, so a default Windows checkout is CRLF, while CI builds the LF blobs.
+The deployed bytes should be the bytes CI tested (`docs/proxy-deploy-2026-11-16.md`, "Why D0.8").
+
+**Dry run, as information** (2026-11-17 00:33:54-00:34:04Z at main `0fc8c1d3`): the control read 2, 0 CRLF over 201
+files, `npm ci` exit 0, porcelain 0. The run's R1 is a new checkout of its own.
+
+### 6b. R0.1: the cut is already live; the word rests on a "still holding" read
+
+**The cut went live on 2026-11-16.**
+- The Missileer session reported it in-segment from 04:46:54Z that day, after the owner's own listening check.
+- PUTs fell to about 720 an hour from 1,080, which saves about 263k a month. There has been no rollback.
+- The reviewer recorded R0.1's condition as met then.
+
+**Before the slot, R0.1 is given on a read that the cut is STILL holding.** The rule, frozen here before the read:
+- **Treatment:** 2026-11-17's five full UTC hours, 04:00-09:00Z. That is a whole post-cut day; 11-16's early hours
+  straddle the flip, so they are not used.
+- **Control:** the same five hours on 11-14 and 11-15, both before the cut, per hour. The two-day mean is graded, and
+  both days are printed.
+- **Source:** R2's analytics (`r2OperationsAdaptiveGroups`), bucket `missileer-live`, with Class A as
+  `tools/budget/budget_read.py`'s action set. Counts only, through the token file's analytics-read token, never
+  printed.
+- **LIVE:** every treatment hour is at least 250 Class A below its control mean. The cut is about 360 an hour.
+- **UNTRUSTWORTHY, never a pass:**
+  - an API error, or a missing or incomplete cell;
+  - any hour reading 0 Class A;
+  - the Class B anchor reading 0 in any treatment hour.
+- **Outside the set** (some hours below the line, or treatment above control): stop and report, with the pairs.
+
+**Who does what:**
+- The read is uk-data's, on Wed 11-18 at 09:00-09:10Z. The per-hour pairs and the verdict go to the reviewer.
+- The reviewer adds "checked": the Missileer session's word that the stream still serves, with no rollback since. The
+  reviewer then gives R0.1's word before 09:30Z.
+- If the read is UNTRUSTWORTHY or outside the set, R0.1 is not given, and the slot is Thu 10:00Z (section 2).
+
+**The reader's dry runs** (2026-11-17 00:37:27-00:37:37Z; predictions written before the run). Information only: the read
+that counts is Wednesday's.
+
+| run | treatment vs control | predicted | read |
+|---|---|---|---|
+| A | 11-17 (its hours not yet complete) vs 11-14 and 11-15 | UNTRUSTWORTHY | UNTRUSTWORTHY: all five cells "not complete" |
+| B | 11-16 05:00-09:00Z (after the flip) vs 11-14 and 11-15 | LIVE | LIVE: 720 in each hour against means of 1,081.0-1,084.5, so 361.0-364.5 below |
+| C | 11-15 vs 11-14 and 11-13 (all before the cut) | OUTSIDE THE SET | OUTSIDE THE SET: -2.0 to 7.5 below, in all five hours |
+
+C is the control that the line can fail. The Class B anchor read 5,032-6,074 an hour wherever it was read.
+
+### 6c. Wednesday's chain rule (the owner, 2026-11-17 05:47Z; appended below the frozen text)
+
+**The owner's words, verbatim:** "Wednesday's chain rule: radar 10:00Z, logs ~14:00Z, route run 16:00Z; if one fails
+or rolls back, the later ones wait for me."
+
+**This deploy is the FIRST in the chain**, so it has no chain precondition of its own. R0.1 and the rest of section 2
+are unchanged. What it adds is the hand-off:
+
+- **The radar deploy FAILS** (once a deploy command has run, from R2 on: an outcome of section 5 that is not "all as
+  predicted", or a stop at any later step), **or ANY of the ten Workers is rolled back** (section 4). Then the logs slot (12:30-15:00Z,
+  `docs/workers-logs-invocation-off.md`) and the route run (16:00Z, `docs/route-weekly-code.md` section 4e) **wait for
+  the owner**. The reviewer is told at once, with the step and its reading. Neither later step starts on anyone else's
+  word.
+- **The radar deploy reads as predicted, with no rollback.** The reviewer is told, with the time, and the logs slot may
+  start.
+- **The radar deploy does not run at all** because its own precondition held it (no R0.1 word, so it moves to Thursday
+  10:00Z under section 2; nothing is deployed and nothing changes in production). **The reviewer's reading, 2026-11-17,
+  which the owner may override:** that is neither a failure nor a rollback, so the later steps go ahead on their own
+  preconditions. The owner is told at that moment.
+- **A deploy that STARTED** (any deploy command run) and then did not complete as predicted counts as a FAILURE: the
+  later steps wait for the owner.
+
+### 6d. The commit this deploy ships, and its D0 by procedure (2026-11-17, appended below 6c)
+
+**The owner's words, 2026-11-17 18:53Z (relayed by the reviewer), verbatim, the parts that govern this deploy:** "rule:
+by procedure Wed. One gap to close today: the 10:00Z radar step deploys the proxy too. With #744 and #736 on main, does
+that deploy carry them? If yes, the logs step's "before" readings must be taken before 10:00Z, or the order changes.
+Tell me which, and name each of Wednesday's three commits in the plans."
+
+**The gap: this step carries neither #744 nor #736.** It deploys the ten ingest Workers alone, through
+`tools/wx/ingest_deploy.sh` (the opening of this plan). It does not deploy the proxy. Read 2026-11-17 19:49:17Z, with
+`git log` over the ten's inputs (section 1: the 9 `src/wx` files, `proxy/wx-ingest-opera.wrangler.toml` and
+`proxy/package-lock.json`):
+- `77acc072..4a02123c`: empty;
+- `c7f73d10` (#744), `00fc75d1` (#736), `4a02123c` (#747) and `13a6dab8` (#746): each touches 0 of them;
+- `9673f7d0..4a02123c`: exactly section 1's three commits (`03632992`, `05746dec`, `b2233f0c`);
+- the deploy machinery (`tools/wx/ingest_deploy.sh`, `proxy/scripts/wrangler-run.mjs`, `scripts/session-claim.py`):
+  unchanged since `77acc072`.
+
+So the logs step's BEFORE readings stay where its plan puts them, and the order is unchanged.
+
+**The commit: EXPECT = `4a02123ca992031d60bd9592e3084c9ccf34041f`** (main, read 2026-11-17 19:46Z). R1's LF checkout
+(6a) is made at EXPECT, not at whatever main is at 10:00Z:
+- `git worktree add --no-checkout --detach <path> EXPECT`, then
+  `git -C <path> -c core.autocrlf=false -c core.eol=lf reset --hard EXPECT`;
+- 6a's CRLF count and `npm ci` as written.
+
+No branch is created or moved.
+
+**D0, by procedure.** The owner ruled "by procedure" for Wednesday: the deploy scripts do not yet check this themselves
+(the commit-pin change is not merged before the chain closes). So the deployer PRINTS each of these after R1 and before
+the first R2. Any mismatch means no deploy:
+
+| D0 | prints | predicted |
+|---|---|---|
+| D0-H | `git rev-parse HEAD` in R1's checkout | EXPECT, in full |
+| D0-A | `git ls-remote` for main = M; `git merge-base --is-ancestor EXPECT M` | exit 0 |
+| D0-B | `git log --format='%h %s' EXPECT..M --` over the ten's inputs and the machinery above | empty. A later commit touching other paths is not listed by this read; it is a note, and changes nothing here |
+| D0-D | `git status --porcelain -- proxy/ tools/wx/` in R1's checkout, after `npm ci` | empty |
+
+A commit listed by D0-B (a merge after this plan that touches what the ten ship) means no deploy until it is planned,
+as R0.2 already says.
+
+**Wednesday's three commits, named:**
+- this step: `4a02123ca992031d60bd9592e3084c9ccf34041f`;
+- the logs step: `4a02123ca992031d60bd9592e3084c9ccf34041f` (`docs/workers-logs-invocation-off.md` 7a);
+- the route run: the commit of the tool it runs, named in `docs/route-weekly-code.md`.

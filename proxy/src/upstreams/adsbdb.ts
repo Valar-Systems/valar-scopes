@@ -5,8 +5,11 @@ import { USER_AGENT } from "./types";
 // scheduled callsigns (its OpenAPI docs promise 200 + JSON) -- effectively no
 // data. adsbdb.com is the route source the firmware used for years and remains
 // reliable, so it earns its place back for callsign->route specifically.
-// Aircraft metadata stays on adsb.lol. Drop this again when routeset stabilizes
-// (flip ROUTE_ADSBDB_ENABLED to "false").
+// Aircraft metadata stays on adsb.lol. Both uses are OFF by default since 2026-11-16
+// (docs/adsbdb-off-by-default.md): the route fallback runs only with ROUTE_ADSBDB_ENABLED
+// exactly "true", and the type backfill only with its own TYPE_ADSBDB_ENABLED exactly "true".
+// Neither is set anywhere: adsbdb's route data was replaced by the CC0 mirror (#260), and
+// its aircraft data is PlaneBase-derived, personal use only, ruled out by the owner.
 export function adsbdbRouteUrl(callsign: string): string {
   return `https://api.adsbdb.com/v0/callsign/${callsign}`;
 }

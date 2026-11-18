@@ -23,7 +23,8 @@
    "included": 10,
    "price": 0.015,
    "unit": 1,
-   "round_up": true
+   "round_up": true,
+   "per_month": true
   },
   "kv_read": {
    "label": "KV reads",

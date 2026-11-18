@@ -330,7 +330,7 @@ registered before 12-01.
 |---|---|---|---|---|---|---|---|
 | R2 Class A (writes) | 1.000 M | 1.043 M (104%) **OVER**, $4.50 | 0.998 M (100%) **FLAG** | 0.784 M (78%) | 1.221 M (122%) **OVER**, $4.50 | 1.177 M (118%) **OVER**, $4.50 | 0.963 M (96%) **FLAG** |
 | R2 Class B (reads) | 10.000 M | 5.355 M (54%) | 5.355 M (54%) | 5.355 M (54%) | 10.904 M (109%) **OVER**, $0.36 | 10.904 M (109%) **OVER**, $0.36 | 10.904 M (109%) **OVER**, $0.36 |
-| R2 storage (GB-month) | 10.00 | 3.99 (40%) | 3.99 (40%) | 3.99 (40%) | 3.99 (40%) | 3.99 (40%) | 3.99 (40%) |
+| R2 storage (GB-month) | 10.00 | 3.86 (39%) | 3.86 (39%) | 3.86 (39%) | 3.86 (39%) | 3.86 (39%) | 3.86 (39%) |
 | KV reads | 10.000 M | 7.254 M (73%) | 7.254 M (73%) | 7.254 M (73%) | 7.254 M (73%) | 7.254 M (73%) | 7.254 M (73%) |
 | KV writes | 1.000 M | 0.579 M (58%) | 0.579 M (58%) | 0.579 M (58%) | 0.579 M (58%) | 0.579 M (58%) | 0.579 M (58%) |
 | KV lists | 1.000 M | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) | 0.011 M (1%) |
@@ -808,3 +808,100 @@ before the second build).**
   now writes k to six places, since the anchor only asks whether k is 1. **A third build is predicted** to equal the
   second exactly, except k: r-7d 4.285714 and MTD-1114 2.264151, with r-silent, r-24h and x10 unchanged. Validation
   passes, and the rendered table does not change (k is not rendered). Outside that: STOP.
+
+## 10. R2 storage is billed per GB-month, so a calendar month does not scale it (registered 2026-11-17, before any code)
+
+**The ruling** (the reviewer, 2026-11-15; for the next budget PR, not #726's own): R2 storage is billed per GB-month,
+so it is not scaled by days. Predict December's storage first at 3.863, not 3.992.
+
+**Where it happens.** In a calendar-month scenario, `weights()` gives a steady row:
+- days/30 when the state covers the whole month (9.8 i);
+- or its segment's hours / 720 (9.9 a).
+
+That is right for an allowance that accrues with time: requests, CPU, operations, KV. It is wrong for a GB-month, which
+is the month's average whatever the month's length.
+
+**Read from the real file at main `5c45a67c`, before any change:**
+
+| scenario | R2 storage today | 30/days of it |
+|---|---|---|
+| the four 30-day scenarios | 3.463 or 3.863 | the same |
+| the six November ones (30 days) | 3.700 | 3.700 |
+| the six December ones (31 days) | **3.992** | **3.863** |
+
+So the defect touches December alone, and 3.863 is the ruling's figure.
+
+**The change, after this registration:**
+- **The flag.** An allowance may carry `"per_month": true`.
+- **The scaling.** For such an allowance, `evaluate()` multiplies each row's weight by 30/days in a calendar-month
+  scenario. A whole-month state then weighs 1, and a segment weighs its share of that month's own hours. A 30-day
+  scenario is untouched.
+- **The real file.** `r2_storage_gb` gets the flag, in `tools/budget/build_budget.py`'s allowance table and in
+  `docs/account-budget.json`.
+  - Both are edited by hand, one key each, because rebuilding the file needs the registered reads.
+  - Nothing compares the two today.
+- **`weights()` itself does not change.** So the sabotage driver's S-MONTH and S-SEG keep their needles and their
+  registered sets.
+
+**Red-first rows**, added to `--selftest` with this registration, on synthetic data.
+
+The synthetic per-month rows are 3.0 (a product with one state), 1.0 (the ingest's silent state) and 2.0 (its running
+state). The two ingest states carry different values, so each weight is checked on its own.
+
+| row | the test | against the current code |
+|---|---|---|
+| **M-ST0** (control) | a 30-day scenario with the ingest silent: the per-month rows read 3.0 + 1.0 = 4.0 | green, before and after |
+| **M-ST1** | a December scenario, whole month, ingest silent: the per-month rows read 4.0, not 4.133 (x 31/30). In the same row, `cpu_ms` still reads x 31/30 (M1's rule, untouched) | **red** |
+| **M-ST2** | December with the ingest running from 2026-12-16T00:00:00Z: 3.0 + 1.0 x 360/744 + 2.0 x 384/744 = 4.516, not 3.1 + 1.0 x 360/720 + 2.0 x 384/720 = 4.667 | **red** |
+
+**Predicted:**
+- **At the registration commit:** `--selftest` reads red exactly {M-ST1, M-ST2}, and the other 26 rows plus M-ST0 are
+  green.
+- **After the code:**
+  - `--selftest` reads all green.
+  - `--render`: the six December R2-storage cells go from `3.99 (40%)` to `3.86 (39%)`. No other cell in any table
+    changes, and every scenario stays $0.
+  - `--check` passes.
+- **The sabotage driver** gains **S-STOR**, the 30/days factor removed. It is predicted red exactly {M-ST1, M-ST2},
+  with every existing plant at its registered set.
+- **Outside the set:** any other red, any other cell, or a plant off its set. Stop and report.
+
+### 10.1 Record (2026-11-17), and the re-registration it forced
+
+The text above is left as frozen. One name slip in it: where it says "`--check`", the flag is `--render-check`. The
+prediction is unchanged.
+
+- **Red-first at `474246e0`** (01:22:23Z): red exactly {M-ST1, M-ST2}, with 27 PASS (M-ST0 green) and exit 1. **As
+  predicted.**
+- **The code at `f6020c67`** (01:23:18Z). **As predicted:**
+  - `--selftest` read 29 PASS, exit 0.
+  - `--render-check` read STALE before the re-render, which is the control that it can fail, and current after it.
+  - `--render` changed exactly one row: December's R2 storage, `3.99 (40%)` to `3.86 (39%)` in all six columns.
+- **The sabotage driver** (01:23:53-01:24:00Z): **OFF, a MISS, recorded as read and not re-graded.**
+  - 26 plants read as predicted, S-STOR exactly {M-ST1, M-ST2} among them.
+  - S-MONTH failed {M1, M-ST1, M-ST2}, against a registered {M1}.
+  - S-SEG failed {M2, M-ST2}, against a registered {M2}.
+
+**The cause is this registration's defect.** It said S-MONTH and S-SEG "keep their needles and their registered sets".
+The needles held. The sets could not, because the new rows' arithmetic runs through `weights()`:
+- M-ST1's 4.0 is (days/30) x (30/days). S-MONTH sets the first factor to 1, so it reads 4.0 x 30/31.
+- M-ST2 has one whole-month row (the one-state product's), which S-MONTH breaks, and two segment rows, which S-SEG
+  breaks.
+
+**The alternatives, each excluded:**
+- **Wrong code:** the clean selftest is 29/29, S-STOR reads exactly its set, and the render moved only the predicted row
+  by the predicted amount.
+- **A misparse:** the driver's output prints the M-ST FAIL lines under each of the two plants.
+- **A wrong needle:** both target `weights()` lines that occur once, and the clean run is green.
+
+**Re-registered before the driver runs again** (ruled by the reviewer, 2026-11-17):
+
+| plant | predicted set | why, row by row |
+|---|---|---|
+| S-MONTH | {M1, M-ST1, M-ST2} | M1 as before. M-ST1 is a whole-month weight only. M-ST2 includes a whole-month row |
+| S-SEG | {M2, M-ST2} | M2 as before. M-ST2's two ingest rows are segments; M-ST1 has no segment |
+
+- Every other plant's set is unchanged. S-STOR's is the only per-month line, and the first run read every other plant
+  as registered.
+- The driver runs once more, predicted ALL AS PREDICTED.
+- A second off on these rows goes to the reviewer and the owner.
