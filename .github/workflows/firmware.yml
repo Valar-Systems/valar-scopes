@@ -433,16 +433,19 @@ jobs:
             none)   echo "${{ matrix.env }}: no photo-mode role (slug-ful images are scanned below)" ;;
             *)      echo "::error::check_photo_mode.mjs --role answered '$role'"; exit 1 ;;
           esac
-      # WEATHER LOOK A/B, THE POSITIVE CONTROL (docs/wx-device.md, WD4e). The bench env's image must CARRY its marker,
-      # with no other bench marker, so the marker's absence from every slug-ful image (scanned below) means something.
+      # WEATHER LOOK A/B, THE POSITIVE CONTROL (docs/wx-device.md, WD4e). The bench env's image must CARRY its markers,
+      # with no other bench marker, so their absence from every slug-ful image (scanned below) means something. Its
+      # WX_LOOK_AB region also prints the generic "[bench]", so this is the real image that proves "[bench]" survives
+      # into firmware before its absence from a shipping image is believed.
       - name: Weather-look bench marker in its own image
         if: matrix.env == 'blipscope-s3-128-wxlook'
-        run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
+        run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench],[bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
       # THE MAP BENCH, THE SAME POSITIVE CONTROL (docs/blipscope-map-client-steps.md, Q-MB13): built on the weather bench, so
-      # its image must carry BOTH markers and no other, so their absence from every slug-ful image means something.
+      # its image must carry its markers and the weather bench's ("[wx-bench]" and "[bench]") and no other, so their absence
+      # from every slug-ful image means something.
       - name: Map bench markers in their own image
         if: matrix.env == 'blipscope-s3-128-mapbench'
-        run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench],[map-bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
+        run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench],[map-bench],[bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
       # THE CARD BENCH, THE SAME POSITIVE CONTROL (docs/card-nophoto-fix.md, section 5a): its image carries
       # "[card-bench]" and no other bench marker, so that marker's absence from every slug-ful image means something.
       - name: Card bench marker in its own image
