@@ -1001,3 +1001,35 @@ glass hour, the bench read and one night on E2:08.
   needed, and C1 holds at 11-16 on (ii)'s numbers.
 - **M3-8 needs blipscope-5c's prerelease and its time.** It can run after C1 without moving it, since C1 reads
   M3-3, not M3-8. It must pass before M3 merges.
+
+**M3-9, THE GLASS SITTING, RAN (2026-11-18, 17:48:50Z-18:03:14Z; the owner at the glass).** Records of what ran.
+- **The window** (`win_m39g.ps1` `68c1e4ab83f4`, as frozen): **16 graded rows, 0 false, exit 0**, every row read from
+  the finished traces.
+  - T0-T1: the trace's own verdict clean, ended at its own deadline. C1-C2: no crash line, and no reboot but the
+    write's own reset.
+  - M1-M4, the self-check: its boot line; 13 summaries, every one with `bad_frames=0`, `bad_chunks=0` and
+    `check_err=0`, checks growing to 325; `sync_err=0` in all 13; 0 mismatch lines.
+  - F0-F7, the restore: v19 from app0 (`state=VALID`), `[build] env=blipscope-s3-128 fw=v19`, the join, no portal, no
+    crash, the boot read's close left download mode, then HTTP 200 with "firmware v19" twice, 60 s apart. E2:08 was
+    released at 18:03:14Z.
+- **The glass half: 14 owner photos, read band by band** (local only, never committed; the read is
+  `_handoffs/p4/m3/M39-PHOTO-READ.txt` `8ad6ffc5022c`). A STALE band is one clearly behind the bands above and below
+  it. 10 photos show all 8 bands equal; 4 show exactly one change line, the newer number on top (a frame boundary the
+  camera caught). **0 stale bands.** The owner's own look agreed.
+- **Design (i) is KEPT.** With M3-8 complete, M3's merge gate is met on the glass side (the orchestrator, 2026-11-18).
+
+**M3 TO MAIN, THE REBUILD UNDER RULE (3) (2026-11-18, 19:58:10Z-21:09:16Z).** Main had touched
+`src/ConfigurationWebServer.cpp` (#756) since the 11-17 base, so the clean PR was rebuilt against the band rule (3)
+derived, frozen first (`_handoffs/p4/m3main2/PREDICTIONS.txt` `52994da0e664`).
+- **The change:** `d9c070d4` = main `9f17ea654327` + be850c9a cherry-picked `-x`; patch-id `b2d68a099660`, as before.
+- **The grade** (`grade_m3main2.py` `16d81b0355ce`, selftest 7 of 7 first): **41 rows, 0 false: AS PREDICTED.**
+  - 24 of 24 builds.
+  - The 7 PLACED pairs: 6 at 65 differing bytes, all in the three hash/checksum regions. pro-s3-21 at 63 (two hash
+    bytes coincided), so the frozen 64-65 count rejected it and its registered fallback held: objcmp 259 of 259
+    objects identical. The count was too tight; named, not re-fitted.
+  - The 5 REACHED: D = +1,728 / +1,728 / +1,760 / +1,824 / +1,760 B, inside +1,700..+1,850. In each, exactly
+    `main.cpp.o` and `ConfigurationWebServer.cpp.o` differ.
+  - `pushtask` is in the 5 REACHED images only; no base image carries it.
+- **At push:** main's bench-marker check passes on the shipping image. Its control is the wxlook image: a plain scan
+  fails on `[wx-bench]` and `[bench]`, and CI's `--expect` form passes. p4's first control choice (a bench-branch
+  image whose markers main's list does not hold) could not fail, and is not counted.
