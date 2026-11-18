@@ -5287,3 +5287,37 @@ controls) and this section.
 - **Outside the set:**
   - a tested base other than b4f7e511dc8e: STOP, re-derive the count, and write the amendment before anything is graded;
   - any other count, conclusion or job name: STOP, and read which job before anything else.
+
+### 47bfdfc2's CI, read; main merged in for row 5's head, H5 (2026-11-18)
+
+**47bfdfc2's CI, read.** As predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0 failed, read twice
+(2026-11-17 06:47:29Z and 06:49:10Z). It was tested on the merge into b4f7e511dc8e, read from run 44031729845's `app-only-write`
+checkout log.
+
+**Main merged in.** Row 5's registration names the head staging runs as H5: this branch with main merged in, pushed, and its CI
+read twice. c8beaae17159 merges main 237d5d163eb4. The merge is clean: its tree, fcfc60f0045a, is the tree `git merge-tree`
+predicted before it. No file is changed on both sides. This push makes H5. So row 5's staging deploy also carries main's proxy
+commits since 4e9ee56e6c2b, and its slot is placed after the staging deploys of that code that are already booked.
+
+**#696 still HOLDS FROM MERGE** until it ships with its store.
+
+**CI for this push, predicted before the push.** It carries the merge and this docs-only section.
+- **The base.** Main is 237d5d163eb4 by ls-remote at 2026-11-18T23:02:45Z. Since b4f7e511dc8e, which 47bfdfc2 tested into, 17
+  commits landed.
+- **What changed among the paths that shape CI** (`.github/`, `skus.yml`, `scripts/skus.py`, `platformio.ini`): six workflows,
+  and in them only:
+  - top-level `permissions:` blocks;
+  - job-level `permissions:` on firmware's three release jobs;
+  - firmware's bench-marker `--expect` lists;
+  - steps added inside existing jobs (device-ids: the fresh-boot selftests, the privacy-text check, the workflow-permissions check;
+    workers: the device-label selftest on the proxy leg).
+  No job is added or removed, and no trigger changes. `skus.yml`, `scripts/skus.py`, `platformio.ini` and `bench-tools.yml` are
+  unchanged. None of this branch's 34 files is `README.md`, `proxy/pages/support.html` or a workflow.
+- **Predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0 failed,** with the same job-name set as 47bfdfc2's
+  run. It is tested on the merge into 237d5d163eb4, read from a job's own checkout log, and read twice at least 65 s apart.
+- **Information, not graded:** main's own push CI at 237d5d163eb4 completed with no failure (37 check runs, 34 success, 3
+  skipped; a push-event set, not this PR's).
+- **Main's coordinate gate** (`check_precise_coords.py --diff` against main), run on this head before the push, must count 0 added.
+- **Outside the set:**
+  - a tested base other than 237d5d163eb4: STOP, re-derive the count, and write the amendment before anything is graded;
+  - any other count, conclusion or job name: STOP, and read which job before anything else.
