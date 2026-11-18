@@ -2168,6 +2168,12 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
             Initialise();
             fb.noting = false;
             framebench::PrintNoted(k);
+            // 15c (2): a still label arm turns the sweep and the trails off BY KIND, after Initialise() has re-read the
+            // keys (ProfileOverride answers "scanline" and "trail" true in every scene, so no key could hold them off).
+            if (framebench::LabelsStill()) {
+                displaySweep = false;
+                displayTrails = false;
+            }
         };
         if (!fb.done) {
             if (fb.scene < 0) {
