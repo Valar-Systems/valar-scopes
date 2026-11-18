@@ -3648,3 +3648,67 @@ bgcheck PASS, 0 running. The rehearsal ran through the same WSL route the gradin
     0 outside.
 - **Ruled (the reviewer, about 05:31Z):** a prediction-TEXT miss on the window table, not an off on a graded row. M's data
   stands. Continue to P exactly as section 13. The frozen row is not re-worded; this correction sits below it.
+
+### 15. Item (1), the gains: the derivation from A0a, registered (2026-11-18 ~05:5xZ; predictions frozen BEFORE A0a's part values are read)
+
+Section 3 asked for: each frame-time row's predicted gain, from A0a's `outline`, `sw_blend`, `under` and `lbl_layout`
+at 20, 40 and 60; each row's band; and the bench scenes' settle and measure. This section carries all three, and the
+rules that turn A0a's numbers into them. **Nothing below is computed until the reviewer has accepted this section.**
+
+**The input, named before it is read** (p4, 2026-11-18 05:42:20Z):
+- **The output:** `_handoffs/p4/a0a/a0a-read-wx-c3.out`, sha256 `30734bc77e4b…`, 3,549 B, 21 lines. It is a byte copy
+  of the graded read's stdout+stderr, written at 05:28:26Z. **Re-hashed by me at about 05:46Z; its content was NOT
+  read.**
+- **The reader:** `a0a_read_wx.py`, sha256 `ac8056aee1b1…`. I read its CODE, not its output, for the field names: the
+  phases (`upd wait under sweep sw_raster sw_blend sw_beam static contacts outline lbl_layout lbl_draw rest handover
+  flush`) and the arms (`P0@20 P0@40 P0@60` weather off; `P1@20 P1@40 P1@60` weather on; `P-CTRL@40` the control).
+- **The trace:** `aa0467d5e5fd`.
+- **The values used are the `R-<arm>` REPORTED rows exactly as printed:** each phase's p50 in ms, 2 decimals. Nothing
+  is recomputed from the trace.
+- **P-CTRL@40 is excluded** from every derivation: it carries the +5 ms plant.
+- **Disclosed:** the reviewer's message of about 05:41Z quoted the arms' `fr p50`, C-1's +5.02 and PC-1's 41,245
+  ns/frame. No part value was in it, and nothing below uses those totals.
+
+**THE PREMISE ROWS** (graded on A0a when it is read; each can fail):
+
+| row | the premise | holds when | if it fails |
+|---|---|---|---|
+| PREM-ORDER | section 3's: the outline is the largest weather share at 40 | `outline(P1@40) > sw_blend(P1@40)` and `outline(P1@40) > under(P1@40)` | the order (outline, blend, clear) is re-ruled before anything is built |
+| PREM-WXOFF | the outline draws only with the weather layer on (1a) | `outline(P0@N) <= 0.20` ms at N = 20, 40, 60 | report: 1a's cost model has a term it does not know |
+| PREM-OUT-N | the outline is per-contact work | `outline(P1@20) < outline(P1@40) < outline(P1@60)` | report: the per-contact scaling below is void for 1a |
+| PREM-SLOPE | the record's 0.1625 ms per contact (section 1), within a factor of 2 | `(outline(P1@60) - outline(P1@20)) / 40` in [0.081, 0.325] ms | report: the record's figure moved, and the order is re-weighed with A0a's |
+| PREM-LBL-N | the label layout is per-contact work | `lbl_layout(P1@20) < lbl_layout(P1@40) < lbl_layout(P1@60)` | report: P6's scaling is void |
+| PREM-BLEND-N | the blend scales with the wedge, not with the contacts | `max - min` of `sw_blend(P1@20/40/60)` <= 1.00 ms | report: the blend has a per-contact term |
+
+**THE DERIVATION** (frozen; computed once, from the printed values):
+- Each predicted gain is a fraction of A0a's own OLD-path phase p50. The fraction is a STRUCTURAL estimate of how much
+  of that phase the cut removes. It is set here from the code, before the numbers are seen. The band is the fraction's
+  range.
+
+| row | OLD = A0a's | predicted gain at N | band at N | why this fraction |
+|---|---|---|---|---|
+| 1a outline (8COPY vs MASK) | `outline(P1@N)` | 0.675 × OLD | [0.50, 0.85] × OLD | eight 16-bit marker rasters become one 1-bit raster, plus per-contact fixed work (the scratch's clear over the box, the 8-neighbour dilation, the edge writes of D∖M) |
+| 1b sw_blend (OLD vs LUT) | `sw_blend(P1@N)` | 0.60 × OLD | [0.40, 0.80] × OLD | the per-pixel blend arithmetic becomes table lookups; the per-pixel read, write and loop stay |
+| 1c under (full copy vs dirty restore) | `under(P1@N)` | 0.60 × OLD | [0.40, 0.85] × OLD | 115,200 B per frame become the dirty spans: markers and their edges, labels, the wedge, trails and the indicator's band; plus span bookkeeping |
+| P6 lbl_layout (TODAY vs CACHE) | `lbl_layout(P1@N)` | 0.70 × OLD | [0.50, 0.90] × OLD | `String` formatting and `textWidth` are skipped while values hold; the placement is still computed every frame |
+
+- **Printed at each N = 20, 40, 60:** OLD, the predicted gain and the band, in ms, 2 decimals. A predicted total
+  (Σ of the four) is printed as information only, because p50s do not add.
+- **The P6 guard stays as section 2 froze it:** `lbl_draw` must not move beyond max(N, 0.5 ms).
+- **The bench rows these bands will grade** (each alternated at 40, as sections 1 and 2 froze them): the measured gain
+  is OLD p50 − NEW p50 of the row's own phase, in the bench image's profile.
+  - Inside the band: AS PREDICTED.
+  - Below it: the cut gains less than registered. That is a finding, and the order may be re-ruled.
+  - Above it, but at most OLD: more than registered, reported.
+  - A gain greater than OLD, or a NEW p50 below 0: the instrument. STOP.
+- **The bench scenes' settle and measure, as C1's:** `SETTLE_MS` 100 s and `MEASURE_MS` 120 s (FrameBench.h). The
+  stop rows S0 (same order) and S1 (drawn == N on every frame) stand as sections 4 and 4a registered them.
+
+**Outside the set:** a missing arm, phase or row in the file; a value that is not a number; a p50 below 0; or the
+file's sha not `30734bc77e4b…` at read time. The instrument is then unreliable: STOP, report, compute nothing.
+
+**The order of work, once accepted:**
+1. re-hash the file;
+2. grade the premise rows;
+3. only if all of them hold, compute the table above. A failed premise stops at that row and is reported, and nothing
+   is derived past it.
