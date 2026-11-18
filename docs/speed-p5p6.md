@@ -3755,3 +3755,43 @@ file's sha not `30734bc77e4b…` at read time. The instrument is then unreliable
 2. grade the premise rows;
 3. only if all of them hold, compute the derivation table. A failed premise stops at that row and is reported, and
    nothing is derived past it.
+
+### 15a. Section 15, read (2026-11-18 05:51:49Z): every premise holds; the predicted gains
+
+- **Accepted as written** by the reviewer at 62a089de. The reviewer noted that it had seen A0a's part values, and so
+  suggested no edit to any threshold.
+- **The tool:** `_handoffs/weatherscope/p5p6-board/gains/gains15.py`, sha256 `a3ccd9862de1`, written after the
+  acceptance and before the file was read. Its `--selftest` read 0 FAIL before the real read:
+  - the parser reads the reader's own print format, ignoring P-CTRL;
+  - PREM-ORDER, PREM-WXOFF and PREM-SLOPE each fail and stop at their own row;
+  - a missing arm, a non-number and a doubled arm are each refused as outside the set.
+- **The output:** `gains15-read.out`, sha256 `752b5d15c6df`.
+- **The input:** `a0a-read-wx-c3.out` re-hashed `30734bc77e4b` (3,549 B), as section 15 requires.
+
+**The premise rows, in the frozen order: all six hold.**
+
+| row | read | |
+|---|---|---|
+| PREM-ORDER | P1@40: outline 7.55 > sw_blend 3.83, and > under 5.49 | holds: the order (outline, blend, clear) stands |
+| PREM-WXOFF | outline P0@20/40/60 = 0.03 / 0.07 / 0.11 (≤ 0.20) | holds |
+| PREM-OUT-N | outline P1@20/40/60 = 3.75 / 7.55 / 11.25 | holds |
+| PREM-SLOPE | 0.1875 ms per contact (the record's 0.1625; band [0.081, 0.325]) | holds |
+| PREM-LBL-N | lbl_layout P1@20/40/60 = 3.32 / 6.62 / 9.95 | holds |
+| PREM-BLEND-N | sw_blend P1@20/40/60 = 3.83 / 3.83 / 3.83 (max − min 0.00 ≤ 1.00) | holds |
+
+**The derivation:** predicted gain = fraction × OLD, where OLD is A0a's P1@N phase p50; band = [lo, hi] × OLD; ms.
+
+| row (fraction) | N = 20: OLD, gain, band | N = 40: OLD, gain, band | N = 60: OLD, gain, band |
+|---|---|---|---|
+| 1a outline (0.675) | 3.75, **2.53**, [1.88, 3.19] | 7.55, **5.10**, [3.77, 6.42] | 11.25, **7.59**, [5.62, 9.56] |
+| 1b sw_blend (0.60) | 3.83, **2.30**, [1.53, 3.06] | 3.83, **2.30**, [1.53, 3.06] | 3.83, **2.30**, [1.53, 3.06] |
+| 1c under (0.60) | 5.47, **3.28**, [2.19, 4.65] | 5.49, **3.29**, [2.20, 4.67] | 5.45, **3.27**, [2.18, 4.63] |
+| P6 lbl_layout (0.70) | 3.32, **2.32**, [1.66, 2.99] | 6.62, **4.63**, [3.31, 5.96] | 9.95, **6.96**, [4.97, 8.96] |
+
+- **Predicted totals, as information only** (p50s do not add): 10.43 / 15.32 / 20.12 ms.
+- **What this grades:** the bench rows, each alternated at 40, against the N = 40 column. A gain counts only above N,
+  the run's own OLD-to-OLD spread.
+  - A band miss either way is that row's first off, and goes to the reviewer.
+  - A second off on the same row goes to the owner (the reviewer, at acceptance).
+- **The bench readings themselves** (the frame-time rows at 40, with S0 and S1) need their own registration and a
+  window. Nothing is started on them before the reviewer's word.
