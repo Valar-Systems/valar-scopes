@@ -1006,3 +1006,10 @@ in the 30-day scenario "today", a December scenario and a November one, with the
   - **S-LGV**, the window's validation removed: red exactly {M-LG4}.
   - Every existing plant stays at its registered set.
 - **Outside the set:** any other red row, any other changed cell, or a plant off its set. Stop and report.
+
+### 11.1 A note before the code (the reviewer, 2026-11-18, on accepting the registration; no figure changes)
+
+These December GB figures use 5.5's bytes per event, measured with invocation logs ON. So once #744 is live they are an
+upper bound. A read of one hour on 2026-11-18 put December after logs-off near 6.1 GB ingested and 1.4 GB stored. The
+re-read graded after Thursday's deploy is what replaces them. The two 29.5% storage cells may print either way only as
+a stated rounding tie at the boundary.
