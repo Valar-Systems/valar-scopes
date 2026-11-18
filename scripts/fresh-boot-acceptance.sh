@@ -99,10 +99,14 @@ if [ "$MODE" = "selftest" ]; then
   T="$(mktemp -d)"; st=0
   # The capture ends at the power cut by design (ruling, 2026-10-08): steps 5-6 and the boot
   # count come from the graders' result files, not from serial lines after the cut.
+  # Line 2 is the backlog (an earlier boot's banner, handed over on the open); the factory reset's reboot comes after
+  # the backlog-ends marker, with the ROM's rst:0x line before its banner.
   base() { cat <<'L'
 10:00:00 [capture] attached to COM18 (pyserial, one open)
-10:00:01 [build] env=blipscope-s3-128 fw=v17 features=cloud
+10:00:00 [build] env=blipscope-s3-128 fw=v17 features=cloud
+10:00:01 [capture] backlog ends: 1 line(s) before the first 0.5 s of silence
 10:00:02 [reset] tier=factory cleared=wifi,wifi-fast,config,logbook preserved=cloud-key-fac
+10:00:05 rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
 10:00:05 [build] env=blipscope-s3-128 fw=v17 features=cloud
 10:00:05 [boot] reset reason=SW
 10:00:10 [WiFi] CONNECTED  IP=192.0.2.10  RSSI=-50 dBm
@@ -167,6 +171,35 @@ L
   case_ twoboots 1 "$SB" "2 boot(s) at the Worker"
   case_ noboots 1 "$SB" "BLIND"
   case_ blindboots 1 "$SB" "UNTRUSTWORTHY"
+  # THE BANNER ROW (RR4, 2026-11-18): a [build] counts only after the backlog-ends marker with an rst:0x line between
+  # them. Each plant must turn EXACTLY the banner row, so every FAIL row of the run is counted, not only the banner's.
+  SBN="the build banner was captured"
+  bcase() { # name, sed-or-empty, want-exit, must-say-or-empty
+    local out ex nf ok=1
+    mk "$1" "$2" "$probe_ok"
+    out="$(bash "$0" --assert-only "$T/$1.log" 2>&1)"; ex=$?
+    nf="$(printf '%s\n' "$out" | grep -c '^  FAIL  ')"
+    [ "$ex" -eq "$3" ] || ok=0
+    if [ "$3" -eq 0 ]; then [ "$nf" -eq 0 ] || ok=0
+    else { [ "$nf" -eq 1 ] && printf '%s\n' "$out" | grep -q "^  FAIL  $SBN"; } || ok=0; fi
+    [ -z "$4" ] || printf '%s\n' "$out" | grep -qF "$4" || ok=0
+    if [ "$ok" -eq 1 ]; then printf '  ok    banner %s\n' "$1"
+    else printf '  FAIL  banner %s (exit %s, %s FAIL row(s))\n%s\n' "$1" "$ex" "$nf" "$out"; st=1; fi
+  }
+  bcase B1-stale     '/rst:0x/d; /^10:00:05 \[build\]/d' 1 "No boot during the capture"
+  bcase B2-live      '2d' 0 ""
+  bcase B3-both      '' 0 ""
+  bcase B4-oldformat '/backlog ends/d' 1 "UNTRUSTWORTHY"
+  bcase B5-nobanner  '/\[build\]/d' 1 "No boot during the capture"
+  # B11: a pause INSIDE the backlog puts the marker before a stale banner, and no reboot follows.
+  bcase B11-pause    '/backlog ends/d; /rst:0x/d; /^10:00:05 \[build\]/d; 1a 10:00:00 [capture] backlog ends: 0 line(s) before the first 0.5 s of silence' 1 "No boot during the capture"
+  # CONTROLS, not counted as checks: the rules this one replaced, on the same plants. Each must read PASS, or the
+  # plant shows nothing about the new rule.
+  ctrl() { if [ "$2" -eq 0 ]; then printf '  ctrl  %s\n' "$1"; else printf '  FAIL  control %s\n' "$1"; st=1; fi; }
+  grep -aq "\[build\] env=" "$T/B1-stale.log"
+  ctrl "B1: the rule before RR4 (any [build] line) reads B1 as PASS" $?
+  LC_ALL=C awk '/\[capture\] backlog ends:/ { m = 1; next } m && /\[build\] env=/ { p = 1 } END { exit !p }' "$T/B11-pause.log"
+  ctrl "B11c: the rule as first registered (a [build] after the marker) reads B11 as PASS" $?
   # The PROBE itself, through its FBA_PROBE_BODY seam: the parse and the interpreter, with the
   # body kept as the artifact. Each wants ONE exact verdict.
   mkdir -p "$T/stub"
@@ -812,8 +845,27 @@ check() { # name, condition-result, hint
   else printf '  FAIL  %s\n        %s\n' "$1" "$3"; fail=$((fail+1)); fi
 }
 
-grep -aq "\[build\] env=" "$LOG"; check "the build banner was captured" $? \
-  "No [build] line. The capture did not attach, or the board never rebooted."
+# THE BANNER ROW COUNTS ONLY A BOOT DURING THE CAPTURE (RR4, 2026-11-18). On opening, a USB-Serial-JTAG board hands
+# over the earliest output of its LAST boot in one burst, so a [build] line can be hours old: run 2's re-run graded
+# this row PASS on a backlog from a boot ~9.4 h earlier. The capture now writes "[capture] backlog ends" at its first
+# 0.5 s of silence, and the row passes only on a [build] AFTER that marker with an rst:0x line BETWEEN them. The ROM's
+# reset line reached the capture for every reboot during one (6 of 6 kept captures) and never appeared inside a
+# backlog (0 of 30 ROM lines), so a pause inside the backlog before a stale banner cannot pass it.
+# Named limits (docs/fresh-boot-automation.md): B12, an rst: line inside a backlog AND a pause before its stale banner,
+# would read PASS (never seen); B13, a live reboot whose rst: line does not reach the capture, reads FAIL.
+banner_row() { # log -> PASS | FAIL | UNTRUSTWORTHY (no marker: a capture from before the marker existed)
+  LC_ALL=C awk '
+    /\[capture\] backlog ends:/ { m = 1; next }
+    m && /rst:0x/ { r = 1 }
+    m && r && /\[build\] env=/ { live = 1 }
+    END { print (!m ? "UNTRUSTWORTHY" : (live ? "PASS" : "FAIL")) }' "$1"
+}
+case "$(banner_row "$LOG")" in
+  PASS) r=0; BH="" ;;
+  UNTRUSTWORTHY) r=1; BH="UNTRUSTWORTHY: no '[capture] backlog ends' marker, so a banner here may be an earlier boot's backlog. This log cannot show a boot during the run." ;;
+  *) r=1; BH="No boot during the capture: no [build] line after the backlog with an rst:0x line before it. A banner only inside the backlog is an earlier boot's (RR4)." ;;
+esac
+check "the build banner was captured" $r "$BH"
 
 grep -aq "\[reset\] tier=factory" "$LOG"; check "step 1: a FACTORY reset happened" $? \
   "Only a Wi-Fi reset, or none. The first-run path was not exercised."

@@ -8,7 +8,8 @@ port drops (the power cut) it writes a marker and EXITS. Steps 5 and 6 are grade
 network and the boot count at the Worker (fresh-boot-acceptance.sh --grade-cut / --grade-off /
 --grade-boots), none of which needs the serial port.
 
-  capture <port> <log>          one open; append lines; on a drop, write the marker and exit
+  capture <port> <log>          one open; append lines; at the first 0.5 s of silence write ONE
+                                "[capture] backlog ends" line; on a drop, write the marker and exit
   collect <port> <log> <secs>   AFTER every check is graded: one open, read <secs>, and record
                                 whether the open reset the board (a rst:0x15 in what it read).
                                 A reset here is recorded and changes no result.
@@ -54,11 +55,20 @@ def main():
                 f.write(f"{stamp()} [capture] could not open {port} ({type(e).__name__})\n")
                 return 3
             f.write(f"{stamp()} [capture] attached to {port} (pyserial, one open)\n")
+            # The first readline that returns nothing (no byte for the port's own 0.5 s timeout) ends the
+            # backlog: on opening, a USB-Serial-JTAG board hands over the earliest output of its LAST boot in
+            # one burst, which can be hours old. One marker, written once, so the acceptance's banner row can
+            # count only a boot that happened during this capture (docs/fresh-boot-automation.md, RR4).
+            n, marked = 0, False
             try:
                 while True:
                     b = s.readline()
                     if b:
+                        n += 1
                         f.write(f"{stamp()} {protect_line(b.decode('utf-8', 'replace').rstrip())}\n")
+                    elif not marked:
+                        marked = True
+                        f.write(f"{stamp()} [capture] backlog ends: {n} line(s) before the first 0.5 s of silence\n")
             except Exception as e:
                 f.write(f"{stamp()} [capture] port dropped ({type(e).__name__}) -- NOT reopening: "
                         "steps 5-6 are graded over the network\n")

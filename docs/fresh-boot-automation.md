@@ -488,3 +488,56 @@ Addendum 3 above is not edited.
    - every other earlier row (W1-W3, P1, P5, HB4) PASS.
 3. **Outside the set:** any other row, any other reason, or an error = OFF. Stop and report, with no reading improvised.
 4. **Stage 2:** the driver's fixes, then every row of all three selftests green.
+
+### Addendum 4 (2026-11-18 ~15:45Z): the banner row counts only a boot DURING the capture
+
+**Why.** Run 2's re-run (2026-11-18, skip-reset) graded "the build banner was captured" PASS where FAIL was frozen
+(RR4). The banner was not from that run.
+- On opening, a USB-Serial-JTAG board hands over the earliest output of its LAST boot in one burst: about 4.6 KB in one
+  second. That burst was from a boot ~9.4 h earlier.
+- The row grepped for any `[build] env=` line, so it passed whenever an earlier boot's output had gone unread. It could
+  not show that the board booted during the run.
+
+**The change** (registered and accepted before the code):
+- **The capture** (`fresh-boot-capture.py`, capture mode) writes ONE line, `[capture] backlog ends: <N> line(s) before
+  the first 0.5 s of silence`, at the first `readline()` that returns nothing.
+  - The threshold is the port's own read timeout. No new threshold was invented.
+  - The open, the handle and every other line are unchanged.
+- **The row PASSES only if** a `[build] env=` line comes after that marker AND an `rst:0x` line sits between the marker
+  and the banner.
+- **Otherwise:**
+  - with a marker: FAIL;
+  - with no marker: UNTRUSTWORTHY. That is every capture written before this change. Such a log is never read as a
+    PASS, and nothing about those runs is re-graded.
+
+**Why the `rst:0x` line.** In the five kept captures:
+- every banner from a reboot DURING a capture (6 of 6) had the ROM's `rst:0x` line 9 lines before it;
+- no backlog held a ROM line (0 of 30 ROM lines fell inside one).
+
+So a 0.5 s pause inside a backlog, which would put the marker before a stale banner, cannot pass the row (plant B11).
+
+**The selftest's plants.** Each must turn exactly the banner row, counted over the whole run:
+
+| plant | input | the row |
+|---|---|---|
+| B1 | a stale banner, then the marker, then nothing | FAIL |
+| B2 | the marker, `rst:`, a banner | PASS |
+| B3 | both | PASS |
+| B4 | no marker | UNTRUSTWORTHY |
+| B5 | no banner at all | FAIL |
+| B11 | a pause inside the backlog: the marker before a stale banner | FAIL |
+
+Two controls are printed, not counted:
+- the rule before RR4 reads B1 as PASS;
+- the rule as first registered (a banner after the marker, without the `rst:`) reads B11 as PASS.
+
+**Named limits, with their direction:**
+- **B10, conservative.** A board that printed with no 0.5 s silence from the open until after step 1's banner would put
+  the marker after the live banner. The row would read FAIL on a good run.
+- **B12, reassuring (a false PASS).** A backlog that carried an `rst:0x` line AND then paused 0.5 s before its stale
+  banner would read PASS. It needs ROM output inside a backlog, which has never been seen (0 of 3 stale backlogs).
+  There is no plant, because no real backlog has shown the shape.
+- **B13, conservative.** A live reboot whose `rst:0x` line does not reach the capture, for example under another USB
+  mode, would read FAIL on a good run, never a false PASS.
+
+If a sitting shows B10, B12 or B13, it is reported under that name, not re-read.
