@@ -1106,3 +1106,81 @@ Production deletes: 1 in the window (11-14). Production lists: 153-249 a day, an
   - November's own total is not read here: 3,689,486 production reads in these 13 days, and 11-01 to 11-04 are not
     in the window.
   - The owner's ruling on #689 is not re-opened here. The premise change goes to the reviewer.
+
+## Step 4b2: lever (b2), the KV reads of `/enrich`'s lookup chain (registered 2026-11-18T23:29:26Z, before its reader exists; read-only, analytics only)
+
+**Why.** Step 2b put about **7.4 KV reads on each `/enrich` request**, and `fw:` at about 28% of production's reads.
+(b1), the `fw:` memo, is #689. This step measures `/enrich`'s share, and asks how much of it is in families that
+change only at an ingest or a photo publish. Those families are the ones an isolate cache could hold without serving
+anything stale for long. Step 4c recorded production reads at 416,175 on 11-17, which is 12.49 M in 30 days.
+
+**The difficulty, and the instrument chosen for it.** KV analytics has no key dimension (step 2b, (iv)), so no read can
+name the keys. Instead this read separates two request kinds by how they vary through the day:
+- **Device requests** (mostly `/blips` polls) run flat with the number of boards.
+- **`/enrich` requests** follow the aircraft overhead, which rises and falls through the day.
+
+One least-squares fit over the background hours gives:
+
+`R(h) = alpha x D(h) + beta x N(h) + gamma`
+
+| term | what it is | measured from |
+|---|---|---|
+| **R** | production's KV reads in hour h | `kvOperationsAdaptiveGroups` by `datetimeHour`, action `read`, production's namespace |
+| **D** | device requests that read `fw:`: request rows with blob5 and blob6 both non-empty, any route | Analytics Engine, `sum(_sample_interval x double4)` |
+| **N** | non-SKIP `/enrich` requests: `/enrich` rows with blob2 `HIT` or `MISS` | the same |
+| **alpha** | reads per device request: `fw:` once, plus the small per-route reads (`cfg:fleet`, airport tiles, the photo blob, the leaderboard's keys) | the fit |
+| **beta** | the EXTRA reads per non-SKIP `/enrich` request: the chain | the fit |
+| **gamma** | reads per hour that neither kind explains: revocation's per-isolate refresh, jobs, pages | the fit |
+
+**The window and the hours.**
+- The window is step 4c's: whole UTC days `[2026-11-05, 2026-11-18)`, with the same four event days excluded whole
+  (11-09, 11-13, 11-14 and 11-16).
+- From the nine background days, **each day's photo-drift run hour is also excluded.** That job reads production over
+  REST once a day. Its runs, from GitHub's run list, were read before any analytics query: 11-05 14Z, 11-06 14Z, 11-07
+  12Z, 11-08 13Z, 11-10 14Z, 11-11 14Z, 11-12 15Z, 11-15 13Z and 11-17 15Z. Each run started and ended inside that
+  hour.
+- That leaves **207 background hours.**
+
+**`/enrich`'s chain from the source** (`proxy/src` at main `237d5d163eb4`). This is the reads per non-SKIP request
+beyond the device request's own. It gives the families, not a band tight enough to grade beta by.
+
+| family | when it is read | reads | changes |
+|---|---|---|---|
+| `ac:<hex>` | every non-SKIP request (`enrich.ts:147`) | 1 | written on every KV miss (dynamic) |
+| `tn:<type>` on a miss | `buildMeta`, and the type backfill (`enrich.ts:102`, `:182`) | MISS x [0, 2] | static |
+| `rt:<cs>:<bucket>` | a callsign with `trk` (`enrich.ts:484`) | [0, 1] | dynamic, but step 4c read 0 writes to it |
+| `rt:<CS>`, the mirror | a callsign whose bucketed key missed, or one with no `trk` (`:486`) | [0, 1] | static (the route ingest) |
+| `ap:` x 2 | a cached route with a live position (`routeVerdict`, `:298`) | [0, 2] | static (refresh-data) |
+| `ovr:`, `pa:`, `mil:` | no identity, or a military-looking hex with no operator (`:673-675`) | [0, 3] | static |
+| `tn:<type>` at serve | a type with no name (`:699`) | [0, 1] | static |
+| photo pointers | the hex pointer always; the type pointer when there is a type and no hex pointer (`photos.ts:131`) | [1, 2] | static (photo publish) |
+
+### Predictions (frozen now)
+
+| row | predicted | if not |
+|---|---|---|
+| **KE1** | beta, extra reads per non-SKIP `/enrich` request, is in `[5.5, 9.5]` (step 2b's 7.4 by a different instrument, +/- about 25%) | the two instruments disagree about `/enrich`. Both are reported, and the design does not start from either |
+| **KE2** | alpha, reads per device request, is in `[0.95, 1.5]`: `fw:` is exactly 1, and the small per-route reads add little | above 1.5, a route reads more than the source says, and it is named before the design. Below 0.95, `fw:` is not read on every device request |
+| **KE3** | gamma is in `[-500, 2,000]` reads an hour | a fixed reader the model does not name: report its size |
+| **KE4, the design input** | the static share of `/enrich`'s reads is at least half: `S_low = (beta - 2 - 2m) / beta >= 0.5`, where m = MISS / (HIT + MISS) over the same hours, and 2 counts `ac:` plus a bucketed-route read on every request | under 0.5, a static-family cache cannot halve the chain, and (b2)'s design must weigh caching `ac:` itself, with its staleness |
+| **KE5** | the fit explains the hours: R^2 >= 0.85 | the three-term model is not the shape of the reads. Report the residual by hour of day before any design |
+| escape | an anchor off (below); `corr(D, N)` over the 207 hours above 0.9, so the fit cannot separate them (INSTRUMENT); a kept hour with no KV group or no request rows; the two reads differing in any figure, or taken under 60 s apart (the reader refuses); anything no row names | stop and report, with no reading |
+
+**The anchors, required before any row is graded:**
+- **KV:** for each of the 13 days, the hourly reads summed over the day equal step 4c's daily production reads (read A,
+  `_handoffs`' copy) within 0.5%.
+- **Analytics Engine:** the MISS rows over `[11-06, 11-13)` equal step 2b's 7,239 within 1%. This is the same query as
+  step 4c's.
+
+**The reader:** `tools/bill/enrich_reads_read.py`, committed here with its blob sha before it runs.
+- Read-only, analytics only: no wrangler, no Logs, no key list. `analytics-read` comes from the token file.
+- It prints counts and the fit only: no key, value, device id or hex.
+- The fit is plain least squares on three terms, written out in the reader, with no fitting library.
+- It prints beta's standard error as information.
+- **`grade` itself refuses two reads stamped under 60 s apart.** After tonight's read B, that rule is in the reader,
+  not only in this text.
+
+**What it does not do:** no deploy, no KV write, no design. (b2)'s design is the next registration, from these grades,
+with its account total.
+
+**CI for this push (predicted before it):** docs only: **35 = 33 / 2 / 0**.
