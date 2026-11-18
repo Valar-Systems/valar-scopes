@@ -181,3 +181,33 @@ not something to work around.
 The picture rig is kept outside every repository: the harness, a renderer copy with a line-width knob, the job list,
 the page generator, both runs' logs and the 36 PNGs. It is not a build route, and step 1 replaces it. The look-(iii)
 overrides (a web-only text scale and screen size) were never committed and never ship.
+
+## 8. News from the owner, 2026-11-18 (recorded below the frozen text; nothing above is changed)
+
+The owner, verbatim (relayed by the orchestrator, 18:08Z): "my go of Nov 12 stands (build after v20's content freeze),
+and p4's plan says the same. If something new needs my ruling, name it in one line. News for that plan: the 7-inch
+sample has shipped. It has two Type-C sockets, and one of them is 12V power, so power must never go into the USB one.
+The 16-inch is Android 11 with 4 GB memory and mains power; its supplier is installing the 1.1.0 app before shipping
+and will send the WebView version."
+
+> **HARDWARE SAFETY RULE: THE 7-INCH HAS TWO TYPE-C SOCKETS, AND ONE OF THEM IS A 12 V POWER INPUT.**
+> - **12 V never goes into the USB socket.** A 12 V supply in the wrong socket can destroy the board.
+> - **Label first, connect second.** When the sample arrives, the two sockets are identified from the supplier's
+>   documentation or the board's markings, and each is physically labelled ("12 V POWER IN" / "USB") BEFORE anything
+>   is plugged into either. If the two cannot be told apart with certainty, nothing is connected and the supplier is
+>   asked.
+> - **Nothing is powered through the USB socket.** Power comes only through the labelled 12 V socket, from a 12 V
+>   supply. The USB socket carries data only.
+> - **Until the labels are on, the board is not connected to anything**: no power, no PC, no bench step. No p4 step
+>   asks for the 7-inch to be connected before that, and the only socket ever cabled to a PC is the one labelled USB.
+
+**What the news settles, against section 5's asks:**
+- The 7-inch: shipped. Its make, model and versions are still to come (section 5, item 2).
+- The 16-inch: Android 11, 4 GB of memory, mains power. The supplier installs the kiosk app 1.1.0 before shipping and
+  will send the WebView version. The WebView version is the one this plan needs most, because the web build runs in it
+  (section 6: "Speed on the Android screen is unmeasured."); the adb path for a trace is still to be asked.
+- Read here as the plan's 15.7" venue screen (section 1: 960 px, about 399 mm). If it is a different screen, its size
+  and resolution are needed for section 1.
+
+**The schedule is unchanged:** nothing for the big screens is built before v20's content freeze (the owner's go of
+2026-11-12, restated today); the steps and dates of section 3 stand.
