@@ -4077,3 +4077,103 @@ Any of these: the instrument is unreliable. STOP, decide; nothing past it is com
   (Wed 18:00Z); and Thursday's REH and FT-HR (15:00Z onward).
 - **Proposed:** Wed 2026-11-18, one window, START 15:05Z (the steps sum to about 117 min, so it ends near 17:02Z), with
   the hard end at 17:20Z, start + 135, which is 40 min before M3-9. Or Thursday, ending before 15:00Z.
+
+### 16a. A correction below section 16's frozen text: "every other phase" excludes the cut's parent span (ruled 2026-11-18 between 07:38:56Z and 07:42:18Z; before any window)
+
+- **Section 16's per-cut table said:** "every other phase | each \|OLDi − NEWi\| ≤ max(N, 0.5 ms) | CITED :57".
+- **Read literally, it STOPS every correct 1b.** The reader's phases hold a parent and its children: sweep spans
+  sw_raster + sw_blend + sw_beam. So 1b's ~2.3 ms cut in sw_blend moves sweep by the same ~2.3 ms. Found while writing
+  the grader, before it ran, and reported to the reviewer at 07:38:56Z.
+- **Ruled (the reviewer):** "ACCEPTED, (a)+(b)+(c), as a correction BELOW section 16's frozen text", on three
+  conditions, each met below. The frozen row is not re-worded.
+
+**The exclusions, as proposed at 07:38:56Z and accepted.** "Every other phase" excludes:
+- (a) the cut's own phase;
+- (b) that phase's PARENT span: only sweep, for 1b. No other graded phase has one. contacts and rest are remainders of
+  the loop and draw spans, so they don't move with a cycle span's cut;
+- (c) for P6, lbl_draw, which 15b-1's one-sided guard governs. Without this it would be graded twice, once two-sided,
+  contradicting 15b-1.
+- Nothing else changes, and the bound stays as cited.
+
+**Condition 1: the span tree, from the other side** (`include/FrameProfile.h` at `1d9e91740e1e`; p4's reader
+`gains_read.py` `ccd198d75058`):
+
+| line | code | what it makes |
+|---|---|---|
+| :144 | `r.ph[SWEEP] = TenS(Span(p, B_UNDER, B_SWEEP));` | sweep, the parent |
+| :146-148 | `Span(p, B_SWR, B_SWB)`, `Span(p, B_SWB, B_SWM)`, `Span(p, B_SWM, B_SWE)` | sw_raster, sw_blend, sw_beam, tiling `B_SWR..B_SWE` inside sweep |
+| :160 | `const int32_t contactsUs = loopUs - outlineUs - layoutUs - lblDrawUs;` | contacts, a remainder |
+| :161 | `const int32_t restUs = draw - staticUs - loopUs;` | rest, a remainder |
+| reader :142-143 | I-8: \|p50(sw_raster + sw_blend + sw_beam) − p50(sweep)\| ≤ 0.3 | the tiling, checked on every timed arm |
+
+p4's confirmation (2026-11-18 07:45:15Z), verbatim: "YES: all three hold. Lines verified at 1d9e91740e1e:
+FrameProfile.h :144, :146-148, :160, :161, and gains_read.py :142-143 at ccd198d75058."
+
+p4's line, verbatim: "In p4's profile (include/FrameProfile.h at 1d9e91740e1e), sweep = Span(B_UNDER, B_SWEEP) (:144)
+is the only phase that is a parent of another phase: its children sw_raster / sw_blend / sw_beam (:146-148) tile
+B_SWR..B_SWE inside it (bounded by the reader's I-8, 0.3 ms at p50); contacts (:160) and rest (:161) are remainders
+that subtract the spans inside the loop and inside draw, so a cut inside outline, lbl_layout, lbl_draw or the loop
+leaves them where they were; under is a top-level span (B_WAIT..B_UNDER) with no parent among the 15 reported phases;
+the loop and draw are not phases."
+
+p4's two precision notes, verbatim (neither changes the yes):
+- "(i) The cancellation in (2) is exact to the CLOCKS' rounding, not bit-exact. loopUs and draw are micros() spans;
+  outline, lbl_layout and lbl_draw are cycle counts divided by MHz and truncated per frame. So contacts and rest can
+  move by about 1 µs a frame from a cut, three orders below your 0.5 ms bound."
+- "(ii) The sw_* children are filled only on a frame where all four split marks fired (`kSweepMask`, :145). On any
+  other frame they read 0 while sweep still holds the wedge. In a weather-on arm every measured frame has them, and
+  I-9's STATE row requires the crop on every frame."
+
+**Condition 2: totals.** Section 16's phase list is the reader's 15 phases: upd, wait, under, sweep, sw_raster,
+sw_blend, sw_beam, static, contacts, outline, lbl_layout, lbl_draw, rest, handover, flush. It holds no total. fr and
+fr-wait are separate fields of the reader's rows, and every cut moves them by construction. **Totals are EXCLUDED from
+the bound and REPORTED**, per cut, as OLD − NEW for each pair. The grader prints, per cut, the exact list it bounds.
+Verbatim from its clean case:
+
+```
+info  1a-BOUNDS     bounded: ['upd', 'wait', 'under', 'sweep', 'sw_raster', 'sw_blend', 'sw_beam', 'static', 'contacts', 'lbl_layout', 'lbl_draw', 'rest', 'handover', 'flush']; excluded: ['outline']; totals reported only
+info  1b-BOUNDS     bounded: ['upd', 'wait', 'under', 'sw_raster', 'sw_beam', 'static', 'contacts', 'outline', 'lbl_layout', 'lbl_draw', 'rest', 'handover', 'flush']; excluded: ['sw_blend', 'sweep']; totals reported only
+info  1c-BOUNDS     bounded: ['upd', 'wait', 'sweep', 'sw_raster', 'sw_blend', 'sw_beam', 'static', 'contacts', 'outline', 'lbl_layout', 'lbl_draw', 'rest', 'handover', 'flush']; excluded: ['under']; totals reported only
+info  P6-BOUNDS     bounded: ['upd', 'wait', 'under', 'sweep', 'sw_raster', 'sw_blend', 'sw_beam', 'static', 'contacts', 'outline', 'rest', 'handover', 'flush']; excluded: ['lbl_draw', 'lbl_layout']; totals reported only
+```
+
+**Condition 3: red first, two plants.** Both were frozen in `gains16.py` before its first run, beside section 16's
+twelve plants (P1-P12) and a clean set. The run, at 2026-11-18 07:42:18Z, used `gains16.py` `f4ee9c97df02`. It read
+exit 0, "GAINS16 SELFTEST: 15 cases, 0 FAIL", with every plant red on exactly its frozen rows.
+- **P13, a correct synthetic 1b** (sw_blend −2.3, sweep −2.3, everything else 0): exit 0, off `[]`, so PASS.
+- **P14, P13 with sw_raster +1.0:** exit 2, off `['1b-OTHER']`, printing
+  `STOP  1b-OTHER  other phases within 0.50 (over: [('sw_raster', 1.0)])`. **The sibling is still bounded; only the
+  parent is excluded.**
+
+**The "wait" reasoning, recorded** (the reviewer: "The 'wait' reasoning is recorded"). wait stays IN the bound as
+frozen. A cut could hand its gain to wait only if the frame became push-bound. A0a's P1@40 has wait 0.01 ms, push avg
+24.17 ms and fr 70.44 ms, so the frame is draw-bound by ~46 ms. That is more than 15a's predicted total gain at 40,
+15.32 ms.
+
+**The tools, as of this section.** Each is re-verified at T-10, and the shas read then are the ones that govern:
+
+| tool | where | sha256 |
+|---|---|---|
+| `gains16.py` | bench/speed-p5 `03e62aad5df5`, `tools/speed-p5p6/` | `f4ee9c97df02` |
+| `run/tracerun_gains.sh` | the board dir (not in git), on `tracerun_mark.sh`'s shape | `c85338796fb6` |
+| `run/grabs_g6.sh` | the board dir (not in git), on `grabs_mark.sh`'s shape | `1430a278f82a` |
+
+- **`tracerun_gains.sh <G5|G6> <port>`:** the minutes are the image's (G5 72, G6 33), never an argument. It refuses if
+  the child's rc or log already exists.
+- **`grabs_g6.sh <boot epoch s>`:** S6 at boot + 1,530/1,550/1,570 s and S7 at + 1,750/1,770/1,790 s (inside each
+  arm's measure span, boot + 1,510..1,630 and 1,730..1,850 s). It refuses before registering if either folder is not
+  empty. fbgrab's whole-frame verdict is information only (14a).
+- **Each has one seam,** for its refusal test only: a test root, with port `COM999` and host `invalid.invalid`, so a
+  failing refusal can reach no board.
+- **Their tests** (07:47:14-07:47:46Z; 12 cases, each as predicted before it ran):
+  - TG1-TG3, usage (no args; `G7`; no port): exit 2 each.
+  - TG4, with `w4-G5-trace.rc` planted, and TG5, with `w4-G6-trace.log` planted: REFUSED naming it, exit 9.
+  - TG6 and TG7, fresh roots: "72 min" for G5 and "33 min" for G6; launch exit 127 each (no `launch.ps1` in a test
+    root), and nothing launched.
+  - GG1 and GG2, usage (no args; `12x`): exit 2 each.
+  - GG3, with a plant in S7, and GG4, with a plant in S6: REFUSED naming it, exit 9, with no `[bg] STARTED` line.
+  - GG5, empty folders, epoch 1: registered; S6 and S7 each VOID (no answer), exit 2 each; the script exit 0; bgcheck
+    then PASS, 0 running.
+- **One reading was redone.** TG6 and TG7 first ran through `| head -3`, which cut the `launch exit=` line, so TG7's
+  141 was the pipe's SIGPIPE, not the script's exit. Re-run bare, each read 127.
+- After the tests, the real board dir held no `w4-*` file and no `grabs-g6` folder.
