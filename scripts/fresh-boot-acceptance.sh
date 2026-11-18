@@ -262,6 +262,33 @@ L
   gscase two          "$T/rows-two"   1500 WRONG       3
   gscase one          "$T/rows-one"   1500 ONE_POWERON 2
   gscase after-window "$T/rows-after" 1200 ONE_POWERON 2
+  # A1-A6 (fix 4; docs/fresh-boot-automation.md Addendum 3, registered at 0170a04110ef): a missing ADDRESS is not a
+  # missing CLAIM, and the probe's verdict is read before `first`. On 2026-11-16 (run 2) a claim with no address read
+  # as "not the first fetch" at step 4 and "No claim in the log" at step 5: both wrong, both about the instrument.
+  arow() { if [ "$2" -eq 0 ]; then printf '  ok    %s\n' "$1"; else printf '  FAIL  %s\n' "$1"; st=1; fi; }
+  rvf() { sed -n "s/.* verdict=\([^ ]*\).*/\1/p" "$1" 2>/dev/null; }
+  base | sed '/CONNECTED/d' > "$T/a1.log"
+  env -u FBA_DEVICE_IP bash "$0" --probe-claim "$T/a1.log" >/dev/null 2>&1; v="$(rvf "$T/a1.log.probe")"
+  arow "A1 probe: a claim and no address -> NOIP (got ${v:-<none>})" "$([ "$v" = NOIP ] && echo 0 || echo 1)"
+  base | sed '/CONNECTED/d; /\[claim\]/d' > "$T/a2.log"
+  env -u FBA_DEVICE_IP bash "$0" --probe-claim "$T/a2.log" >/dev/null 2>&1; v="$(rvf "$T/a2.log.probe")"
+  arow "A2 probe: no claim -> NOCLAIM (got ${v:-<none>})" "$([ "$v" = NOCLAIM ] && echo 0 || echo 1)"
+  mk a3 "" "probe claim=E75L claim_line=8 ip=- http=0 verdict=NOIP first=no"
+  out="$(bash "$0" --assert-only "$T/a3.log" 2>&1)"
+  arow "A3 assert: a NOIP probe fails step 4 saying the address was unknown, never 'not the first fetch'" \
+    "$(printf '%s' "$out" | grep -q "FAIL  $S4" && printf '%s' "$out" | grep -q 'address was unknown' && ! printf '%s' "$out" | grep -q 'not the first fetch' && echo 0 || echo 1)"
+  base | sed '/CONNECTED/d' > "$T/a4.log"
+  env -u FBA_DEVICE_IP FBA_POLL_S=0 FBA_CUT_WAIT_S=1 FBA_BACK_WAIT_S=1 FBA_LB_WAIT_S=1 bash "$0" --grade-cut "$T/a4.log" >/dev/null 2>&1
+  v="$(rvf "$T/a4.log.step5")"
+  arow "A4 grade-cut: a claim and no address -> NOIP (got ${v:-<none>})" "$([ "$v" = NOIP ] && echo 0 || echo 1)"
+  mk a5 "" "$probe_ok" "step5 claim=E75L ip=- verdict=NOIP"
+  out="$(bash "$0" --assert-only "$T/a5.log" 2>&1)"
+  arow "A5 assert: step 5 NOIP fails saying the address was unknown, never 'No claim in the log'" \
+    "$(printf '%s' "$out" | grep -q "FAIL  $S5" && printf '%s' "$out" | grep -q 'address was unknown' && ! printf '%s' "$out" | grep -q 'No claim in the log' && echo 0 || echo 1)"
+  base | sed '/\[claim\]/d' > "$T/a6.log"
+  env -u FBA_DEVICE_IP FBA_POLL_S=0 FBA_CUT_WAIT_S=1 FBA_BACK_WAIT_S=1 FBA_LB_WAIT_S=1 bash "$0" --grade-cut "$T/a6.log" >/dev/null 2>&1
+  v="$(rvf "$T/a6.log.step5")"
+  arow "A6 control: grade-cut with no claim -> NOCLAIM (got ${v:-<none>})" "$([ "$v" = NOCLAIM ] && echo 0 || echo 1)"
   rm -rf "$T"
   [ "$st" -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED"
   exit "$st"
@@ -377,9 +404,15 @@ probe_claim() {
   # FBA_DEVICE_IP overrides the log, for a capture attached to a board that was already running
   # (its boot-time CONNECTED line is not in this log).
   ip="${FBA_DEVICE_IP:-$(grep -a "\[WiFi\] CONNECTED" "$LOG" | tail -1 | sed -n 's/.*IP=\([0-9.]*\).*/\1/p')}"
-  if [ -z "$type" ] || [ -z "$ip" ]; then
-    printf 'probe claim=%s claim_line=%s ip=%s http=0 verdict=NOPROBE first=no\n' "${type:--}" "${cl:-0}" "${ip:--}" > "$(PROBE_FILE)"
-    echo "  probe: no claim or no device IP in the log yet" >&2; return 1
+  # No claim and no ADDRESS are different failures, and only the first is about the claim (fix 4, Addendum 3). On
+  # 2026-11-16 a claim with no address wrote NOPROBE first=no, which --assert-only read as "not the first fetch".
+  if [ -z "$type" ]; then
+    printf 'probe claim=- claim_line=0 ip=%s http=0 verdict=NOCLAIM first=no\n' "${ip:--}" > "$(PROBE_FILE)"
+    echo "  probe: no claim in the log yet" >&2; return 1
+  fi
+  if [ -z "$ip" ]; then
+    printf 'probe claim=%s claim_line=%s ip=- http=0 verdict=NOIP first=no\n' "$type" "${cl:-0}" > "$(PROBE_FILE)"
+    echo "  probe: the claim of $type is in the log, but the board's address is unknown (no CONNECTED line, no FBA_DEVICE_IP)" >&2; return 1
   fi
   # FIRST means first: a config-page load after the claim may already have fetched it.
   first=yes
@@ -444,9 +477,13 @@ fetch_to() { # ip path out
 grade_cut() {
   local ip type miss=0 first_miss="" t_cut="" t_back="" code="" verdict="" tries=0 dl
   ip="$(dev_ip)"; type="$(claim_type)"
-  if [ -z "$ip" ] || [ -z "$type" ]; then
-    printf 'step5 claim=%s ip=%s verdict=NOCLAIM\n' "${type:--}" "${ip:--}" > "$LOG.step5"
-    echo "  step 5: no claim or no device IP in the log" >&2; return 1
+  if [ -z "$type" ]; then
+    printf 'step5 claim=- ip=%s verdict=NOCLAIM\n' "${ip:--}" > "$LOG.step5"
+    echo "  step 5: no claim in the log" >&2; return 1
+  fi
+  if [ -z "$ip" ]; then   # a claim is there: this is the instrument's gap, never "no claim" (fix 4)
+    printf 'step5 claim=%s ip=- verdict=NOIP\n' "$type" > "$LOG.step5"
+    echo "  step 5: the claim of $type is in the log, but the board's address is unknown: nothing to watch" >&2; return 1
   fi
   echo "  step 5: watching $ip for the power cut..."
   dl=$(( $(date +%s) + CUT_WAIT_S ))
@@ -833,6 +870,11 @@ pv() { printf '%s' "$PROBE" | sed -n "s/.* $1=\([^ ]*\).*/\1/p"; }
 r=1; P_WHY=""
 if [ -z "$PROBE" ]; then
   P_WHY="No probe was recorded. Run --probe-claim <log> right after the claim, before anyone opens Collection (guided mode does it after step 3)."
+# The verdicts that mean the probe never fetched are read BEFORE `first`, which they always carry as "no" (fix 4).
+elif [ "$(pv verdict)" = "NOIP" ]; then
+  P_WHY="The probe could not run: the claim of $(pv claim) is in the log, but the board's address was unknown (no CONNECTED line in the capture, and FBA_DEVICE_IP unset). The instrument failed, not the device."
+elif [ "$(pv verdict)" = "NOCLAIM" ] || [ "$(pv verdict)" = "NOPROBE" ]; then
+  P_WHY="The probe could not run: no claim was in the log when it ran. Run --probe-claim right after the claim."
 elif [ "$(pv first)" != "yes" ]; then
   P_WHY="The config page was loaded between the claim and the probe, so the probe was not the first fetch. Redo steps 3-4."
 elif [ "$(pv verdict)" = "CLAIMED" ]; then
@@ -872,6 +914,7 @@ case "$S5V" in
   NOCUT)     W="No power cut was seen: the board never stopped answering ping while --grade-cut watched. Redo step 5." ;;
   NOBACK)    W="The board did not come back on the network after the cut." ;;
   NOCLAIM)   W="No claim in the log, so there was nothing to look for." ;;
+  NOIP)      W="The board's address was unknown, so step 5 could not watch it go quiet or read its page. A claim WAS in the log: the instrument failed, not the device." ;;
   UNCLAIMED|ABSENT) W="After the power cut the owner's Collection page had $S5C $S5V. The customer lost their collection." ;;
   *)         W="BLIND: step 5's page read produced no verdict ($S5V), so there is no evidence either way." ;;
 esac
