@@ -2017,6 +2017,48 @@ fi
 )
 note_block $? "WxFeeds"
 
+# W7's first slice (docs/weatherscope-stage4.md S4.32, S4.33): the live radar's frame ring, the setup states and their
+# words, and Weatherscope's /wx request, against the Arduino shim (WxLiveUrl.h reads WireLocation.h). Its plants:
+# test/host/sabotage_wx_live.py, in the drivers' passes above.
+echo
+echo "== W7 live: the ring, the setup states, the request =="
+(
+  fail=0
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" -I"$ROOT/test/host/arduino_shim" "$ROOT/test/host/test_wx_live.cpp" -o "$OUT/test_wx_live.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the W7 live test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_live.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the W7 live test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "W7 live (ring, setup states, request)"
+
+# W7's fetch/display split (S4.33, the reviewer's row): no file under src/weatherscope/ names WxPolicy's WhatToShow, so
+# the screens keep the owner's Q15/Q18 display. tools/weatherscope/w7/w7_static.py, its control and its planted call.
+echo
+echo "== W7 split: no WhatToShow in src/weatherscope/ =="
+(
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the W7 split check cannot run."
+  exit 2
+fi
+"$PY" -I -B "$ROOT/tools/weatherscope/w7/w7_static.py" "$ROOT"
+r1=$?
+"$PY" -I -B "$ROOT/tools/weatherscope/w7/w7_static.py" --selftest "$ROOT"
+r2=$?
+[ "$r1" -eq 0 ] && [ "$r2" -eq 0 ] && exit 0
+[ "$r1" -eq 2 ] && exit 2
+exit 1
+)
+note_block $? "W7 split (no WhatToShow)"
+
 # The OTA identity record and the accept rule (include/OtaIdentity.h; docs/weatherscope-stage3.md A12.103, A12.104):
 # the real heads, every parse rule, and the two matrices over today's identities (test/fixtures/ota/identities.txt,
 # which CI's ota-identity job holds equal to the fleet). Its sabotages: python -I test/host/sabotage_ota_identity.py
