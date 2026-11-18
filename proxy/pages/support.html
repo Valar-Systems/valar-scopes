@@ -536,8 +536,15 @@
        here; we would rather say plainly that it changed than quietly reword the old
        promise. If you would prefer not to send it, run the device against your own
        receiver — then it never talks to us at all.</p>
-    <p>When a request fails on our side, it is logged with the Cloudflare data centre that
-       served it, and nothing that identifies your device.</p>
+    <p>Our server keeps request logs, so we can tell a network fault from a problem with
+       the service. A logged request may include the identifier of the device that sent
+       it (or a short label derived from it), the network address it came from and
+       Cloudflare's estimate of that address's location, and the request itself, which
+       for the radar includes the area it asked about, rounded to about 1 km. Your
+       browser's visits to these pages are logged too. Cloudflare keeps these logs for
+       up to seven days. Our records that a device checked in, and on which model and
+       firmware, also name the device and are kept for three months. Neither ever holds
+       the device's key.</p>
     <p>What a cloud device also sends is operational: that it checked in, its model and
        firmware version, and — after a firmware update — whether the update worked and
        how much free memory it had. No location, no configuration, no serial number,
