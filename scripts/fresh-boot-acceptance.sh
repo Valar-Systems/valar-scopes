@@ -99,10 +99,14 @@ if [ "$MODE" = "selftest" ]; then
   T="$(mktemp -d)"; st=0
   # The capture ends at the power cut by design (ruling, 2026-10-08): steps 5-6 and the boot
   # count come from the graders' result files, not from serial lines after the cut.
+  # Line 2 is the backlog (an earlier boot's banner, handed over on the open); the factory reset's reboot comes after
+  # the backlog-ends marker, with the ROM's rst:0x line before its banner.
   base() { cat <<'L'
 10:00:00 [capture] attached to COM18 (pyserial, one open)
-10:00:01 [build] env=blipscope-s3-128 fw=v17 features=cloud
+10:00:00 [build] env=blipscope-s3-128 fw=v17 features=cloud
+10:00:01 [capture] backlog ends: 1 line(s) before the first 0.5 s of silence
 10:00:02 [reset] tier=factory cleared=wifi,wifi-fast,config,logbook preserved=cloud-key-fac
+10:00:05 rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
 10:00:05 [build] env=blipscope-s3-128 fw=v17 features=cloud
 10:00:05 [boot] reset reason=SW
 10:00:10 [WiFi] CONNECTED  IP=192.0.2.10  RSSI=-50 dBm
@@ -167,6 +171,35 @@ L
   case_ twoboots 1 "$SB" "2 boot(s) at the Worker"
   case_ noboots 1 "$SB" "BLIND"
   case_ blindboots 1 "$SB" "UNTRUSTWORTHY"
+  # THE BANNER ROW (RR4, 2026-11-18): a [build] counts only after the backlog-ends marker with an rst:0x line between
+  # them. Each plant must turn EXACTLY the banner row, so every FAIL row of the run is counted, not only the banner's.
+  SBN="the build banner was captured"
+  bcase() { # name, sed-or-empty, want-exit, must-say-or-empty
+    local out ex nf ok=1
+    mk "$1" "$2" "$probe_ok"
+    out="$(bash "$0" --assert-only "$T/$1.log" 2>&1)"; ex=$?
+    nf="$(printf '%s\n' "$out" | grep -c '^  FAIL  ')"
+    [ "$ex" -eq "$3" ] || ok=0
+    if [ "$3" -eq 0 ]; then [ "$nf" -eq 0 ] || ok=0
+    else { [ "$nf" -eq 1 ] && printf '%s\n' "$out" | grep -q "^  FAIL  $SBN"; } || ok=0; fi
+    [ -z "$4" ] || printf '%s\n' "$out" | grep -qF "$4" || ok=0
+    if [ "$ok" -eq 1 ]; then printf '  ok    banner %s\n' "$1"
+    else printf '  FAIL  banner %s (exit %s, %s FAIL row(s))\n%s\n' "$1" "$ex" "$nf" "$out"; st=1; fi
+  }
+  bcase B1-stale     '/rst:0x/d; /^10:00:05 \[build\]/d' 1 "No boot during the capture"
+  bcase B2-live      '2d' 0 ""
+  bcase B3-both      '' 0 ""
+  bcase B4-oldformat '/backlog ends/d' 1 "UNTRUSTWORTHY"
+  bcase B5-nobanner  '/\[build\]/d' 1 "No boot during the capture"
+  # B11: a pause INSIDE the backlog puts the marker before a stale banner, and no reboot follows.
+  bcase B11-pause    '/backlog ends/d; /rst:0x/d; /^10:00:05 \[build\]/d; 1a 10:00:00 [capture] backlog ends: 0 line(s) before the first 0.5 s of silence' 1 "No boot during the capture"
+  # CONTROLS, not counted as checks: the rules this one replaced, on the same plants. Each must read PASS, or the
+  # plant shows nothing about the new rule.
+  ctrl() { if [ "$2" -eq 0 ]; then printf '  ctrl  %s\n' "$1"; else printf '  FAIL  control %s\n' "$1"; st=1; fi; }
+  grep -aq "\[build\] env=" "$T/B1-stale.log"
+  ctrl "B1: the rule before RR4 (any [build] line) reads B1 as PASS" $?
+  LC_ALL=C awk '/\[capture\] backlog ends:/ { m = 1; next } m && /\[build\] env=/ { p = 1 } END { exit !p }' "$T/B11-pause.log"
+  ctrl "B11c: the rule as first registered (a [build] after the marker) reads B11 as PASS" $?
   # The PROBE itself, through its FBA_PROBE_BODY seam: the parse and the interpreter, with the
   # body kept as the artifact. Each wants ONE exact verdict.
   mkdir -p "$T/stub"
@@ -262,6 +295,33 @@ L
   gscase two          "$T/rows-two"   1500 WRONG       3
   gscase one          "$T/rows-one"   1500 ONE_POWERON 2
   gscase after-window "$T/rows-after" 1200 ONE_POWERON 2
+  # A1-A6 (fix 4; docs/fresh-boot-automation.md Addendum 3, registered at 0170a04110ef): a missing ADDRESS is not a
+  # missing CLAIM, and the probe's verdict is read before `first`. On 2026-11-16 (run 2) a claim with no address read
+  # as "not the first fetch" at step 4 and "No claim in the log" at step 5: both wrong, both about the instrument.
+  arow() { if [ "$2" -eq 0 ]; then printf '  ok    %s\n' "$1"; else printf '  FAIL  %s\n' "$1"; st=1; fi; }
+  rvf() { sed -n "s/.* verdict=\([^ ]*\).*/\1/p" "$1" 2>/dev/null; }
+  base | sed '/CONNECTED/d' > "$T/a1.log"
+  env -u FBA_DEVICE_IP bash "$0" --probe-claim "$T/a1.log" >/dev/null 2>&1; v="$(rvf "$T/a1.log.probe")"
+  arow "A1 probe: a claim and no address -> NOIP (got ${v:-<none>})" "$([ "$v" = NOIP ] && echo 0 || echo 1)"
+  base | sed '/CONNECTED/d; /\[claim\]/d' > "$T/a2.log"
+  env -u FBA_DEVICE_IP bash "$0" --probe-claim "$T/a2.log" >/dev/null 2>&1; v="$(rvf "$T/a2.log.probe")"
+  arow "A2 probe: no claim -> NOCLAIM (got ${v:-<none>})" "$([ "$v" = NOCLAIM ] && echo 0 || echo 1)"
+  mk a3 "" "probe claim=E75L claim_line=8 ip=- http=0 verdict=NOIP first=no"
+  out="$(bash "$0" --assert-only "$T/a3.log" 2>&1)"
+  arow "A3 assert: a NOIP probe fails step 4 saying the address was unknown, never 'not the first fetch'" \
+    "$(printf '%s' "$out" | grep -q "FAIL  $S4" && printf '%s' "$out" | grep -q 'address was unknown' && ! printf '%s' "$out" | grep -q 'not the first fetch' && echo 0 || echo 1)"
+  base | sed '/CONNECTED/d' > "$T/a4.log"
+  env -u FBA_DEVICE_IP FBA_POLL_S=0 FBA_CUT_WAIT_S=1 FBA_BACK_WAIT_S=1 FBA_LB_WAIT_S=1 bash "$0" --grade-cut "$T/a4.log" >/dev/null 2>&1
+  v="$(rvf "$T/a4.log.step5")"
+  arow "A4 grade-cut: a claim and no address -> NOIP (got ${v:-<none>})" "$([ "$v" = NOIP ] && echo 0 || echo 1)"
+  mk a5 "" "$probe_ok" "step5 claim=E75L ip=- verdict=NOIP"
+  out="$(bash "$0" --assert-only "$T/a5.log" 2>&1)"
+  arow "A5 assert: step 5 NOIP fails saying the address was unknown, never 'No claim in the log'" \
+    "$(printf '%s' "$out" | grep -q "FAIL  $S5" && printf '%s' "$out" | grep -q 'address was unknown' && ! printf '%s' "$out" | grep -q 'No claim in the log' && echo 0 || echo 1)"
+  base | sed '/\[claim\]/d' > "$T/a6.log"
+  env -u FBA_DEVICE_IP FBA_POLL_S=0 FBA_CUT_WAIT_S=1 FBA_BACK_WAIT_S=1 FBA_LB_WAIT_S=1 bash "$0" --grade-cut "$T/a6.log" >/dev/null 2>&1
+  v="$(rvf "$T/a6.log.step5")"
+  arow "A6 control: grade-cut with no claim -> NOCLAIM (got ${v:-<none>})" "$([ "$v" = NOCLAIM ] && echo 0 || echo 1)"
   rm -rf "$T"
   [ "$st" -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED"
   exit "$st"
@@ -377,9 +437,15 @@ probe_claim() {
   # FBA_DEVICE_IP overrides the log, for a capture attached to a board that was already running
   # (its boot-time CONNECTED line is not in this log).
   ip="${FBA_DEVICE_IP:-$(grep -a "\[WiFi\] CONNECTED" "$LOG" | tail -1 | sed -n 's/.*IP=\([0-9.]*\).*/\1/p')}"
-  if [ -z "$type" ] || [ -z "$ip" ]; then
-    printf 'probe claim=%s claim_line=%s ip=%s http=0 verdict=NOPROBE first=no\n' "${type:--}" "${cl:-0}" "${ip:--}" > "$(PROBE_FILE)"
-    echo "  probe: no claim or no device IP in the log yet" >&2; return 1
+  # No claim and no ADDRESS are different failures, and only the first is about the claim (fix 4, Addendum 3). On
+  # 2026-11-16 a claim with no address wrote NOPROBE first=no, which --assert-only read as "not the first fetch".
+  if [ -z "$type" ]; then
+    printf 'probe claim=- claim_line=0 ip=%s http=0 verdict=NOCLAIM first=no\n' "${ip:--}" > "$(PROBE_FILE)"
+    echo "  probe: no claim in the log yet" >&2; return 1
+  fi
+  if [ -z "$ip" ]; then
+    printf 'probe claim=%s claim_line=%s ip=- http=0 verdict=NOIP first=no\n' "$type" "${cl:-0}" > "$(PROBE_FILE)"
+    echo "  probe: the claim of $type is in the log, but the board's address is unknown (no CONNECTED line, no FBA_DEVICE_IP)" >&2; return 1
   fi
   # FIRST means first: a config-page load after the claim may already have fetched it.
   first=yes
@@ -444,9 +510,13 @@ fetch_to() { # ip path out
 grade_cut() {
   local ip type miss=0 first_miss="" t_cut="" t_back="" code="" verdict="" tries=0 dl
   ip="$(dev_ip)"; type="$(claim_type)"
-  if [ -z "$ip" ] || [ -z "$type" ]; then
-    printf 'step5 claim=%s ip=%s verdict=NOCLAIM\n' "${type:--}" "${ip:--}" > "$LOG.step5"
-    echo "  step 5: no claim or no device IP in the log" >&2; return 1
+  if [ -z "$type" ]; then
+    printf 'step5 claim=- ip=%s verdict=NOCLAIM\n' "${ip:--}" > "$LOG.step5"
+    echo "  step 5: no claim in the log" >&2; return 1
+  fi
+  if [ -z "$ip" ]; then   # a claim is there: this is the instrument's gap, never "no claim" (fix 4)
+    printf 'step5 claim=%s ip=- verdict=NOIP\n' "$type" > "$LOG.step5"
+    echo "  step 5: the claim of $type is in the log, but the board's address is unknown: nothing to watch" >&2; return 1
   fi
   echo "  step 5: watching $ip for the power cut..."
   dl=$(( $(date +%s) + CUT_WAIT_S ))
@@ -775,8 +845,27 @@ check() { # name, condition-result, hint
   else printf '  FAIL  %s\n        %s\n' "$1" "$3"; fail=$((fail+1)); fi
 }
 
-grep -aq "\[build\] env=" "$LOG"; check "the build banner was captured" $? \
-  "No [build] line. The capture did not attach, or the board never rebooted."
+# THE BANNER ROW COUNTS ONLY A BOOT DURING THE CAPTURE (RR4, 2026-11-18). On opening, a USB-Serial-JTAG board hands
+# over the earliest output of its LAST boot in one burst, so a [build] line can be hours old: run 2's re-run graded
+# this row PASS on a backlog from a boot ~9.4 h earlier. The capture now writes "[capture] backlog ends" at its first
+# 0.5 s of silence, and the row passes only on a [build] AFTER that marker with an rst:0x line BETWEEN them. The ROM's
+# reset line reached the capture for every reboot during one (6 of 6 kept captures) and never appeared inside a
+# backlog (0 of 30 ROM lines), so a pause inside the backlog before a stale banner cannot pass it.
+# Named limits (docs/fresh-boot-automation.md): B12, an rst: line inside a backlog AND a pause before its stale banner,
+# would read PASS (never seen); B13, a live reboot whose rst: line does not reach the capture, reads FAIL.
+banner_row() { # log -> PASS | FAIL | UNTRUSTWORTHY (no marker: a capture from before the marker existed)
+  LC_ALL=C awk '
+    /\[capture\] backlog ends:/ { m = 1; next }
+    m && /rst:0x/ { r = 1 }
+    m && r && /\[build\] env=/ { live = 1 }
+    END { print (!m ? "UNTRUSTWORTHY" : (live ? "PASS" : "FAIL")) }' "$1"
+}
+case "$(banner_row "$LOG")" in
+  PASS) r=0; BH="" ;;
+  UNTRUSTWORTHY) r=1; BH="UNTRUSTWORTHY: no '[capture] backlog ends' marker, so a banner here may be an earlier boot's backlog. This log cannot show a boot during the run." ;;
+  *) r=1; BH="No boot during the capture: no [build] line after the backlog with an rst:0x line before it. A banner only inside the backlog is an earlier boot's (RR4)." ;;
+esac
+check "the build banner was captured" $r "$BH"
 
 grep -aq "\[reset\] tier=factory" "$LOG"; check "step 1: a FACTORY reset happened" $? \
   "Only a Wi-Fi reset, or none. The first-run path was not exercised."
@@ -833,6 +922,11 @@ pv() { printf '%s' "$PROBE" | sed -n "s/.* $1=\([^ ]*\).*/\1/p"; }
 r=1; P_WHY=""
 if [ -z "$PROBE" ]; then
   P_WHY="No probe was recorded. Run --probe-claim <log> right after the claim, before anyone opens Collection (guided mode does it after step 3)."
+# The verdicts that mean the probe never fetched are read BEFORE `first`, which they always carry as "no" (fix 4).
+elif [ "$(pv verdict)" = "NOIP" ]; then
+  P_WHY="The probe could not run: the claim of $(pv claim) is in the log, but the board's address was unknown (no CONNECTED line in the capture, and FBA_DEVICE_IP unset). The instrument failed, not the device."
+elif [ "$(pv verdict)" = "NOCLAIM" ] || [ "$(pv verdict)" = "NOPROBE" ]; then
+  P_WHY="The probe could not run: no claim was in the log when it ran. Run --probe-claim right after the claim."
 elif [ "$(pv first)" != "yes" ]; then
   P_WHY="The config page was loaded between the claim and the probe, so the probe was not the first fetch. Redo steps 3-4."
 elif [ "$(pv verdict)" = "CLAIMED" ]; then
@@ -872,6 +966,7 @@ case "$S5V" in
   NOCUT)     W="No power cut was seen: the board never stopped answering ping while --grade-cut watched. Redo step 5." ;;
   NOBACK)    W="The board did not come back on the network after the cut." ;;
   NOCLAIM)   W="No claim in the log, so there was nothing to look for." ;;
+  NOIP)      W="The board's address was unknown, so step 5 could not watch it go quiet or read its page. A claim WAS in the log: the instrument failed, not the device." ;;
   UNCLAIMED|ABSENT) W="After the power cut the owner's Collection page had $S5C $S5V. The customer lost their collection." ;;
   *)         W="BLIND: step 5's page read produced no verdict ($S5V), so there is no evidence either way." ;;
 esac

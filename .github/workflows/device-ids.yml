@@ -17,6 +17,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 jobs:
   no-real-device-ids:
     runs-on: ubuntu-24.04
@@ -101,3 +104,24 @@ jobs:
       - run: python3 scripts/check_wrangler_calls.py --selftest
       - run: python3 scripts/check_wrangler_calls.py
       - run: node proxy/scripts/wrangler-run.mjs --selftest
+      # The fresh-boot hands-on cadence (RELEASING.md step 0; docs/fresh-boot-automation.md): its five registered
+      # controls on a synthetic repository. Only the selftest runs here: a real read needs the release tags, which this
+      # job's shallow checkout does not fetch. scripts/fresh-boot-auto.sh runs the real read before every automated step 0.
+      - run: python3 scripts/fresh-boot-cadence.py --selftest
+      # The config form as the browser posts it (step 6, R0-R2, K-loc), and F7: a sentinel value reaches no output.
+      - run: python3 scripts/fresh-boot-form.py --selftest
+      # The owner's PC adapter, pinned to "Wi-Fi" (never its virtual copy "Wi-Fi 5"): the reader prints four facts and never
+      # netsh's own text (a MAC, a network name); and step 2's exact-name parser (no prefix match).
+      - run: python3 scripts/fresh-boot-wlan.py --selftest
+      - run: pwsh -NoProfile -File scripts/fresh-boot-wifi-join.ps1 -SelfTest
+      # The retired privacy sentence ("... and nothing that identifies your device", false, replaced 2026-11-17) stays out
+      # of README.md and the support page (scripts/check_privacy_text.py). Here and not in the workers workflow, because
+      # a README-only edit must run it too. Its controls prove it is reading each privacy section; the selftest plants
+      # each row red in an in-memory copy.
+      - run: python3 scripts/check_privacy_text.py --selftest
+      - run: python3 scripts/check_privacy_text.py
+      # P1 (docs/workflow-permissions.md): every workflow states its own GITHUB_TOKEN permissions, top level and per
+      # job, exactly as registered, so the repository default can go to read without any workflow changing. Last in
+      # this job, so a red here cannot hide the checks above it.
+      - run: python3 scripts/check_workflow_permissions.py
+      - run: python3 scripts/check_workflow_permissions.py --selftest

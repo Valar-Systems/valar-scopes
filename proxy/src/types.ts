@@ -52,7 +52,9 @@ export interface Env {
   UPSTREAM_FEED_ORDER?: string;             // ROLLBACK KNOB, e.g. "adsb_lol,adsb_lol_b" -- moves those feeds to
                                             // the front of both chains; unlisted feeds keep their default order
   UPSTREAM_AIRPLANES_LIVE_ENABLED?: string; // DEAD no-op: airplanes.live is prohibited by operator (see airplanes_live.ts)
-  ROUTE_ADSBDB_ENABLED?: string;            // default on; "false" once adsb.lol routeset recovers
+  ROUTE_ADSBDB_ENABLED?: string;            // adsbdb ROUTE fallback: OFF unless exactly "true" (docs/adsbdb-off-by-default.md)
+  TYPE_ADSBDB_ENABLED?: string;             // adsbdb TYPE backfill: OFF unless exactly "true"; PlaneBase-derived, personal
+                                            // use only per its terms -- the owner ruled it out on 2026-11-16
   MISSILEER_ORIGIN?: string;                // valar-eam-feed base URL; unset -> /missileer/* answers 503, not 404
                                             // (503 says "not wired yet"; 404 would say "no such product")
 

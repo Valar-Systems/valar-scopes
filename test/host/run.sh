@@ -1968,6 +1968,21 @@ else
   [ "$?" -ne 0 ] && fail=1
 fi
 
+echo
+echo "== Config save: no toggle counted that the page never renders (the v20 'left unchanged' fix) =="
+# Read from the source, for the shipping radar env (platformio.ini, -D only) and the same + WX_LAYER_SHIPS: every
+# SaveToggle compiled into a build has a checkbox in that build, so a full-form save counts nothing as "left
+# unchanged". The selftest first: each of its plants must turn exactly its own assertion red.
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the config save's vocabulary cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/test/host/check_save_vocab.py" "$ROOT" --selftest
+  [ "$?" -ne 0 ] && fail=1
+  "$PY" "$ROOT/test/host/check_save_vocab.py" "$ROOT"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 # WD5e's bench analysis (scripts/wx-fb-check.py; docs/wx-device.md, WD5 addendum 4) is graded here on synthetic
 # frames, one verdict each, so it is known to fail, refuse and go blind before it ever reads a real capture.
 echo
@@ -2694,6 +2709,50 @@ rc=$?
 exit 2
 )
 note_block $? "image-compare selftest (#656)"
+
+echo
+echo "== bench markers, from the other side: the hooks' tags == check-no-bench-hooks.sh's MARKERS =="
+# scripts/bench-marker-xcheck.py derives the marker set from the hooks themselves (bench-shaped tags in string literals
+# under src/ and include/) and requires it to EQUAL the MARKERS line. So a hook added without its marker, or a marker
+# left after its hook is gone, is red here on every PR, not discovered in a release scan. Its two plants are this
+# block's controls, each graded on the WHOLE difference line: an unlisted hook must read exactly [zz-bench], and a
+# dropped marker exactly the list's last entry. Here-strings, not pipes: under pipefail a `printf | grep -q` can read
+# as a failure when grep exits first. A missing python or an instrument failure is the rig (exit 2), never a red.
+(
+if [ -z "$PY" ]; then
+  echo "FAIL: no working python; the bench-marker cross-check cannot run. This is the RIG, not the code."
+  exit 2
+fi
+X="$ROOT/scripts/bench-marker-xcheck.py"
+bad=0
+out="$("$PY" -I -B "$X" "$ROOT")"; rc=$?
+grep -E '^(  DIFF|in the source|MARKER XCHECK|STOP|[0-9]+ source files)' <<< "$out"
+[ "$rc" -eq 2 ] && exit 2
+if [ "$rc" -eq 0 ] && grep -qx 'MARKER XCHECK: EQUAL' <<< "$out"; then
+  echo "  ok   the hooks' tags equal MARKERS"
+else
+  echo "  FAIL the hooks' tags and MARKERS differ (exit $rc)"; bad=1
+fi
+out="$("$PY" -I -B "$X" "$ROOT" --plant-hook)"; rc=$?
+[ "$rc" -eq 2 ] && { printf '%s\n' "$out"; exit 2; }
+want="in the source, not in MARKERS: ['zz-bench']; in MARKERS, not in the source: []"
+if [ "$rc" -eq 1 ] && grep -qxF "$want" <<< "$out"; then
+  echo "  ok   CONTROL: an unlisted hook reads exactly [zz-bench]"
+else
+  echo "  FAIL CONTROL: the planted unlisted hook did not read exactly [zz-bench] (exit $rc)"; bad=1
+fi
+out="$("$PY" -I -B "$X" "$ROOT" --plant-drop)"; rc=$?
+[ "$rc" -eq 2 ] && { printf '%s\n' "$out"; exit 2; }
+last="$(sed -n "s/^PLANT: MARKERS' last entry \[\(.*\)\] removed.*/\1/p" <<< "$out")"
+want="in the source, not in MARKERS: ['$last']; in MARKERS, not in the source: []"
+if [ "$rc" -eq 1 ] && [ -n "$last" ] && grep -qxF "$want" <<< "$out"; then
+  echo "  ok   CONTROL: a dropped marker reads exactly [$last]"
+else
+  echo "  FAIL CONTROL: the dropped marker did not read exactly as the list's last entry (exit $rc)"; bad=1
+fi
+exit "$bad"
+)
+note_block $? "bench markers, from the other side"
 
 echo
 if [ -n "$RIG_BLOCKS$FAILED_BLOCKS" ]; then

@@ -43,7 +43,8 @@ account_id = "48822e896bb10c45aa6bfe139bcff3d1"
 # they must fall back to api.adsb.lol direct. The relay URLs live per-env below.
 UPSTREAM_ADSB_FI_ENABLED = "false"        # dev/test only -- staging + production below set "true" (adsb.fi is the chain primary)
 UPSTREAM_AIRPLANES_LIVE_ENABLED = "false" # DEAD no-op: airplanes.live is prohibited by operator (hardcoded off)
-ROUTE_ADSBDB_ENABLED = "true"             # route fallback; "false" once adsb.lol routeset recovers
+ROUTE_ADSBDB_ENABLED = "false"            # adsbdb route fallback: OFF unless exactly "true" (docs/adsbdb-off-by-default.md)
+TYPE_ADSBDB_ENABLED = "false"             # adsbdb type backfill: PlaneBase-derived, personal use only per its terms; owner ruling 2026-11-16
 
 [[kv_namespaces]]
 binding = "ENRICH_KV"
@@ -185,6 +186,7 @@ UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 # canary that resolves can only have come from the rt: mirror, which is the
 # falsifiable version of the same check. Production follows at cutover.
 ROUTE_ADSBDB_ENABLED = "false"
+TYPE_ADSBDB_ENABLED = "false"             # adsbdb type backfill: PlaneBase-derived, personal use only per its terms; owner ruling 2026-11-16
 
 # Full request logs on staging (low traffic). Production should sample --
 # ~200 B/request of JSON at fleet scale is real Workers Logs money; see the
@@ -192,6 +194,12 @@ ROUTE_ADSBDB_ENABLED = "false"
 [env.staging.observability]
 enabled = true
 head_sampling_rate = 1
+
+# Invocation logs OFF (owner ruling, 2026-11-17): the per-request invocation event ("the Request, Response, and
+# related metadata", Cloudflare's words) is not stored. The Worker's own console lines still are. Staging proves it
+# before production; see docs/workers-logs-invocation-off.md.
+[env.staging.observability.logs]
+invocation_logs = false
 
 [[env.staging.kv_namespaces]]
 binding = "ENRICH_KV"
@@ -365,6 +373,7 @@ UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 # test/route-mirror.test.ts, which pins the mirror's reachability through the
 # key the firmware actually sends and pins THIS value while doing it.
 ROUTE_ADSBDB_ENABLED = "false"
+TYPE_ADSBDB_ENABLED = "false"             # adsbdb type backfill: PlaneBase-derived, personal use only per its terms; owner ruling 2026-11-16
 # Tracks the relay tile TTL, which moves 8 s -> 30 s for the 50-board pilot. The rule is
 # N >= 2 x TTL + 25 s (DEFAULT_FEED_MAX_AGE_MS in upstreams/chain.ts), so 30 s needs
 # >= 85 s: the old 45 s default would mark every normal fetch degraded and walk the whole
@@ -398,6 +407,11 @@ cpu_ms = 200
 [env.production.observability]
 enabled = true
 head_sampling_rate = 1.0
+
+# Invocation logs OFF (owner ruling, 2026-11-17), as staging above: our own console lines are still stored.
+# See docs/workers-logs-invocation-off.md.
+[env.production.observability.logs]
+invocation_logs = false
 
 [[env.production.kv_namespaces]]
 binding = "ENRICH_KV"

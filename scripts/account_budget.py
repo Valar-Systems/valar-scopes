@@ -226,9 +226,13 @@ def evaluate(b):
     out = {}
     for s, pick in b["scenarios"].items():
         m, w = pick.get("month"), weights(b, s, pick)
+        days = (month_bounds(m)[1] - month_bounds(m)[0]).days if m else 30
         lines, overage = [], 0.0
         for a, al in b["allowances"].items():
-            amt = sum(row_amount(r, m, wt) for r in b["rows"]
+            # Section 10: an allowance billed per month (R2 storage, a GB-month) is the month's average, whatever the
+            # month's length, so a calendar month does not scale it: its weights (days/30, or hours/720) x 30/days.
+            pm = 30 / days if al.get("per_month") else 1.0
+            amt = sum(row_amount(r, m, wt * pm) for r in b["rows"]
                       if r["allowance"] == a and r["state"] != EXCLUDED
                       for st, wt in w[r["product"]] if st == r["state"])
             share = amt / al["included"] if al["included"] else 0.0
@@ -509,6 +513,23 @@ def selftest():
     po2["rows"].append({**one, "product": "ingest", "state": "silent", "allowance": "kv_write"})
     po2["scenarios"]["x"] = {"month": "2026-11", "ingest": [{"state": "silent"}, {"state": "running", "from": "2026-11-16T00:00:00Z"}]}
     check("one-off" in why(po2) and "segment" in why(po2), "M3: a one-off row's product changing state inside a month is refused")
+    # ---- 10: R2 storage is billed per GB-month, so a calendar month does not scale a per-month allowance -------------
+    pst = copy.deepcopy(pc)
+    pst["allowances"]["r2_storage_gb"] = {"label": "R2 storage (GB-month)", "included": 10, "price": 0.015, "unit": 1,
+                                          "round_up": True, "per_month": True}
+    for p, st, v in (("stream", "now", 3.0), ("ingest", "silent", 1.0), ("ingest", "running", 2.0)):
+        pst["rows"].append({"product": p, "state": st, "allowance": "r2_storage_gb", "value": v, "read": "r2",
+                            "basis": "measured", "how": "synthetic", "cadence": "steady"})
+    pst["scenarios"]["dec"] = {"month": "2026-12", "ingest": "silent"}
+    pst["scenarios"]["dec-seg"] = {"month": "2026-12", "ingest": [{"state": "silent"}, {"state": "running", "from": "2026-12-16T00:00:00Z"}]}
+    ok_st = not refused(pst)
+    check(ok_st and abs(amt(pst, "today", "r2_storage_gb") - 4.0) < 1e-9,
+          "M-ST0: CONTROL: a 30-day scenario leaves the per-month rows at their value (3.0 + 1.0 = 4.0)")
+    check(ok_st and abs(amt(pst, "dec", "r2_storage_gb") - 4.0) < 1e-9 and abs(amt(pst, "dec", "cpu_ms") - 20e6 * 31 / 30) < 1,
+          "M-ST1: a December scenario, whole month, leaves the per-month rows at 4.0 (not x 31/30), while cpu_ms is x 31/30")
+    want_st = 3.0 + 1.0 * 360 / 744 + 2.0 * 384 / 744
+    check(ok_st and abs(amt(pst, "dec-seg", "r2_storage_gb") - want_st) < 1e-9,
+          "M-ST2: a December segment weighs a per-month row by its share of December's 744 hours, not of 720")
     # ---- 9.2 / 9.8: the render. One line per one-off row; month scenarios under their own month's table -------------
     rt = render(pm) if ok else ""
     check("| proxy | now | KV writes | 0.100 M x 4 = 0.400 M | 2026-11: 5, 2026-12: 4 | not read |" in rt,

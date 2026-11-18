@@ -22,6 +22,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 jobs:
   # The published photo manifest and the repo's manifest.json must name the same
   # photos. On 2026-09-16 they did not: the repo said 237, production said 238,
@@ -175,6 +178,11 @@ jobs:
       - name: The checks run only as the test identity (selftest)
         if: ${{ !cancelled() && matrix.worker == 'proxy' }}
         run: npx tsx scripts/test-identity.selftest.mts
+      # The device label (docs/workers-logs-invocation-off.md, section 8): the helper reads one id from stdin and prints
+      # only its label (H1-H6), and S-DLECHO, a copy that echoes its input, must be caught. EXAMPLE ids only.
+      - name: The device label helper (selftest)
+        if: ${{ !cancelled() && matrix.worker == 'proxy' }}
+        run: npx tsx scripts/device-label.selftest.mts
       # TX2 and S-TXRECON: reconcile-fleet.py leaves the test identity out of "KV ONLY" (a fixture; no KV touched).
       - name: reconcile-fleet leaves the test identity out (selftest)
         if: ${{ !cancelled() && matrix.worker == 'proxy' }}

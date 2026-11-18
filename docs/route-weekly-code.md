@@ -891,6 +891,61 @@ attended production run, these are fixed first, each red-first where it is code.
 `proxy/scripts/routes-writer.selftest.sh`, through the fake KV only. W7 wires it into `workers.yml` beside
 `routes-guards.selftest.mts`.
 
+### 2s. W8 at main, in F1's form, and the backup's readiness (the owner's order 6, 2026-11-16; registered before any run)
+
+**The owner's words** (relayed, 04:49Z): *"W8's F1 re-run and the 827-route backup, ready for the Nov 18 route run."* The
+reviewer accepted two readings (05:01Z):
+- **W8:** ONE full W8 run at main's code, in F1's form. Nothing has read W8 at the code Wednesday runs: the four plants
+  whose sets #723 moved (S-GR8, S-VAL, S-JN-W, S-J7) are marked "DERIVED, NOT RUN" in the driver (2r item 1).
+  `--only S-VAL` would read one of the four.
+- **The backup:** READINESS, not a new backup. A backup is taken only inside the writing run, because BK0d refuses
+  `--backup` with `--dry-run` by design, and a separate reader would be the second path #723 avoided.
+
+**The checkout, made LF** (the owner, 2026-11-16 15:02Z, "eol: yes"):
+- the commands: `git worktree add --no-checkout --detach <path> <main sha>`, then
+  `git -C <path> -c core.autocrlf=false -c core.eol=lf reset --hard <main sha>`.
+- **Why:** `.gitattributes` begins `* text=auto`, so a default checkout on Windows writes CRLF whatever `core.autocrlf`
+  says. On 2026-11-16 that made S-FK1's anchor, which spans a newline, read 0 times. The blobs are LF.
+- Then, before `npm ci`: 0 CRLF in `proxy/src` and `proxy/scripts`, with a planted control that reads 2.
+- **The 11-18 run's checkout is made the same way, with the same assertion.** W8 vouches only for the bytes it read.
+
+**Before the run, read-only:**
+- the anchor check: 18 plants, each anchor exactly once;
+- the declared counts, from the driver's own `declared()`: guards 71, writer 81, freeze 4, runs 8, health 11,
+  reconcile 1;
+- every plant's `want` is inside its grader's declared set, except S-RC6's. Reconcile declares the one row RC5-RC6 and
+  reads a plant's red set from inside that row's text, by design;
+- no other session's vitest or sabotage run is live, since the health grader runs vitest on this PC.
+
+**The run:** `env -u BLIPSCOPE_TOKEN_FILE -u ROUTES_KV_TOKEN -u CLOUDFLARE_API_TOKEN node
+scripts/sabotage-routes-weekly.mjs` from `proxy/`, all 18 plants, fake KV only, no network write. It starts after
+2026-11-16's rehearsal end line, outside S2 and the rehearsal.
+
+**Predicted:**
+- **BASELINE:** guards 71, writer 81, freeze 4, runs 8, health 11, reconcile 1, every declared set read in full, 0 red.
+- **Every plant "as registered", red exactly its driver `want`.** The four that 2r derived are read for the first time:
+  - S-GR8: {GR8, RCP2, UN1, UN2, UN3, J1, J2, J3, J4, J5, J7, JR1, UNDO1, UNDO2, UNDO3, RS2, J7w, J7w-ctl};
+  - S-VAL: {GR10m, GR10a, RCP2, GR10, GR11, UN1, UN2, UN3, J3, J7, JR1, SN1, SN1-ctl, UNDO1, RS2, J7w, J7w-ctl};
+  - S-JN-W: {J1, J2, J3, J7, J7w-ctl, UNDO2};
+  - S-J7: {J7, J7w-ctl}.
+  The other 14 keep the sets they read on 2026-11-14 at 15:55Z (section 7), each checked unchanged by 2r.
+- `SABOTAGE PASSED (18 plant(s), after a full baseline)`, exit 0, with empty stderr.
+- **After:** every plant restored sha-equal; porcelain 0; the tree equal to HEAD; 0 `routes-`/`verify-` temp leftovers.
+
+**The backup's readiness, recorded with the run:**
+- **(a)** The planned path, `~/.config/blipscope/routes-backup-<env>-<UTC stamp>.json`, for staging and for production,
+  is checked read-only through the writer's own `backupPathRefusal()` (BK0's rule, `routes-backup.ts`). Predicted: null,
+  meaning allowed, for both.
+  - Control 1: a path inside the W8 checkout is refused, "the path lies inside a git work tree".
+  - Control 2: the folder itself is refused, "the backup file already exists".
+- **(b)** The backup, undo and restore rows read green inside the BASELINE:
+  - the writer's 24: BK-H, BK-M, BK-R, BK-SAME, BK-SAME-ctl, BK-T, BK-W, BK-X, BK-Xc, BK-Xd, BK0, BK0d, BK1, BK3, RS0,
+    RS0b, RS1e, RS1t, RS1v, RS2, UNDO-ctl, UNDO1, UNDO2 and UNDO3;
+  - the guards' 7: BK0e, BK0g, BK0n, BK0s, BK2, BK2s and RO1.
+
+**Outside the set:** any OFF, a BLIND, an anchor not exactly once, a CRLF reading, or an instrument failure is a STOP.
+Nothing is re-run; the reviewer decides whether it goes to the owner.
+
 ## 3. CI
 
 Predicted in its own commit before the code push, from main's CI after its last workflow change. The new selftests are
@@ -1230,6 +1285,261 @@ before the run. Steps 0-2 now, per environment, through the real KV and the help
 - **KV reads:** one `meta:routes` get and one journal get per dry run, so 2 x 4 = **8** in all. That corrects 4a's "4",
   which predates D1's journal read.
 - **Outside the set:** any other line, count or exit. Stop with nothing further run, and report.
+
+### 4e. The run's T-0 checklist (frozen 2026-11-17, before the run on 2026-11-18 16:00Z)
+
+Each row is read, in order, before 4d's step 0. A row that does not read as written is a STOP: nothing runs, and the
+reviewer is told. 4d's steps and predictions are unchanged.
+
+| # | the check | reads |
+|---|---|---|
+| T0.1 | **W8 passed at main** (section 2s, the owner's order 6). | |
+| | the run itself | 2026-11-16 20:13:30-21:05:43Z at main `3741501b`; baseline 71/81/4/8/11/1 with 0 red; 18 of 18 plants as registered, including the four derived sets (S-GR8, S-VAL, S-JN-W, S-J7); stderr 0; readiness (a) 4/4 and (b) green |
+| | the local record, kept in the session's scratchpad: the driver's log (2,314 bytes, sha256 `344a3de63855`), its meta (sha256 `2ee32dd58f1f`) and its stderr file (0 bytes) | both hashes re-read equal at T-0. Section 7 gets the full write-up in this run's record PR |
+| T0.2 | **W8 still covers the writer.** The writer's inputs, from an esbuild bundle of `scripts/ingest-routes.ts` (11 inputs, 0 under `src/`) and `scripts/routes-backup.ts` (1 input), each compared between `3741501b` and the run's main | none changed. At plan time (main `0fc8c1d3`), the only commit touching `proxy/scripts/` since `7606224c` is #734, and its one file there (`sabotage-wx-opera-fallback.py`) is not an input. Any changed input: STOP until planned (4d's rule) |
+| T0.3 | **the run checkout is LF.** `git worktree add --no-checkout --detach <path> <main sha>`, then `git -C <path> -c core.autocrlf=false -c core.eol=lf reset --hard <main sha>`, then a byte count of CRLF over `proxy/src` and `proxy/scripts` with a planted control (a file of two CRLF lines), then `npm ci` in `proxy/` | the control reads 2; both folders read 0; `npm ci` exits 0; porcelain 0 |
+| T0.4 | **backup readiness (a)**, through the writer's own `backupPathRefusal()`, imported from the run checkout's `scripts/routes-backup.ts` | the two planned paths (`routes-backup-staging-<stamp>.json` and `routes-backup-production-<stamp>.json` beside the token file) are ALLOWED. Both controls are REFUSED: a path inside the run checkout, and the backup folder itself. 4 cases, 0 off. If the writer cannot be imported from the checkout, the reading is BLIND: STOP |
+| T0.5 | **the inputs are present**, one boolean each, in `~/.config/blipscope/routes-first-run/`: the two manifests and the two tarballs of 4d's table. The folder is checked to be outside every git tree | 4 of 4 present; git there says "not a git repository". 4d's step 0 then compares the manifests' sha256 with D10's pins |
+| T0.6 | **`--backup` is in step 3's command line** for each environment, and the target file does not exist yet (BK0 refuses an existing path) | present in both; absent before each write |
+
+**Outside the set:** any other reading. That includes a hash that differs, a changed writer input, a CRLF count above 0
+or a control not reading 2, a readiness case OFF, or an input absent. Each is a stop, with nothing run, and is reported.
+
+### 4f. T0.0, read before T0.1: Wednesday's chain rule (the owner, 2026-11-17 05:47Z; appended below the frozen 4e)
+
+**The owner's words, verbatim:** "Wednesday's chain rule: radar 10:00Z, logs ~14:00Z, route run 16:00Z; if one fails
+or rolls back, the later ones wait for me."
+
+The route run is LAST in the chain. So before T0.1, one more row:
+
+| # | the check | reads |
+|---|---|---|
+| T0.0 | **neither earlier step failed or rolled back.** The radar deploy (10:00Z, `docs/wx-opera-fallback-deploy.md` section 6c), and then the logs slot (12:30-15:00Z, `docs/workers-logs-invocation-off.md`), each closed as predicted with no rollback. Read from each step's own report to the reviewer, not from memory | each closed as predicted with no rollback, or did not start (the reading below) |
+
+- **Either step failed** (once it had started: a stop, or an outcome other than "as predicted") **or rolled back.** Then the route run
+  **waits for the owner**: nothing runs, the reviewer is told, and T0.1 is not read.
+- **A step that did not run at all because its own precondition held it** (the radar moved to Thursday for want of
+  R0.1's word, or the logs slot not started; nothing deployed, nothing changed in production). **The reviewer's reading,
+  2026-11-17, which the owner may override:** that is neither a failure nor a rollback, so the route run goes ahead on
+  its own preconditions (4e). The owner is told at that moment.
+- **A step that STARTED** (any deploy command run) and then did not complete as predicted counts as a FAILURE: the route
+  run waits for the owner.
+- 4e's rows and 4d's steps are unchanged.
+
+### 4g. The commit the run uses, named; its D0 by procedure (2026-11-17, appended below 4f)
+
+**The owner's words, 2026-11-17 18:53Z (relayed by the reviewer), verbatim, the parts that govern this run:** "rule: by
+procedure Wed. [...] name each of Wednesday's three commits in the plans."
+
+**The commit: EXPECT = `4a02123ca992031d60bd9592e3084c9ccf34041f`** (main, read 2026-11-17 19:46Z). It replaces 4d's
+"the run [...] takes its checkout from main's sha at that moment": T0.3's LF checkout is made at EXPECT, and T0.2 compares
+the writer's inputs between `3741501b` (W8) and EXPECT. 4d's steps and 4e's other rows are unchanged.
+
+**At plan time** (read 2026-11-17 19:50:16Z), the commits since `3741501b` that touch `proxy/scripts/` or the lockfile
+are two, neither a route tool file:
+- `c7f73d10` (#744): `device-label.ts` and `device-label.selftest.mts`;
+- `3815844f` (#734): `sabotage-wx-opera-fallback.py`.
+
+The `routes-*` files, `ingest-routes.ts`, `verify-routes.ts`, `token-file.ts` and `kv-rest.ts` have 0 commits. T0.2's
+bundle compare at T-0 is still the proof.
+
+**D0, by procedure.** These are printed after T0.0 and before T0.1, and any mismatch is a STOP:
+
+| D0 | prints | predicted |
+|---|---|---|
+| D0-H | `git rev-parse HEAD` in T0.3's checkout | EXPECT, in full |
+| D0-A | `git ls-remote` for main = M; `git merge-base --is-ancestor EXPECT M` | exit 0 |
+| D0-B | `git log --format='%h %s' EXPECT..M -- proxy/scripts/ proxy/package-lock.json` | empty. A commit listed here (a merge after this plan, in the run tool's folder) stops the run until it is planned |
+| D0-D | `git status --porcelain -- proxy/` in T0.3's checkout, after `npm ci` | empty |
+
+**Wednesday's three commits, named:**
+- the radar step: `4a02123ca992031d60bd9592e3084c9ccf34041f` (`docs/wx-opera-fallback-deploy.md` 6d);
+- the logs step: `4a02123ca992031d60bd9592e3084c9ccf34041f` (`docs/workers-logs-invocation-off.md` 7a);
+- this run: `4a02123ca992031d60bd9592e3084c9ccf34041f`.
+
+### 4h. Re-registration against upstream `b775753b`: the dry run's predictions (2026-11-18, appended below 4g, before any dry run)
+
+**Why.** 4d's step 1 requires upstream main to be `24ce54242aca`, or "these predictions are void: STOP and
+re-register". Upstream moved:
+- **UPSTREAM PIN = `b775753b72807c8f1c8480e101eeb2edb727c55a`**, committed 2026-11-18T04:49:25Z, read with `gh api` at
+  16:38:06Z. That is 3 commits after `24ce5424`.
+- Wednesday's run did not take place (the chain rule, 4f). The owner moved it to **Friday 2026-11-20 10:00Z**.
+
+This section registers the DRY RUN against the new source. **The run itself (4d's steps 3-6) is not re-registered
+here**: it is no longer delete-only (see "What this changes" below), and it gets its own registration before Friday.
+
+**The pin is re-read before every dry run below, and again on Friday.** If upstream has moved off the pin, these
+predictions are void (4d step 1's rule): stop and re-register.
+
+**The new input,** beside 4d's four in the same private folder (`~/.config/blipscope/routes-first-run/`, outside every
+git tree):
+
+| file | bytes | sha256 (12) | |
+|---|---|---|---|
+| `sd-b775753b.tar.gz` | 6,328,382 | `4b4add33e1e6` (read twice) | `--file`; fetched from codeload by the full pin. Its root folder is `standing-data-<pin>`, so the writer reads its commit from it |
+
+4d's four inputs were re-read at 16:38Z: each equals its pin (`1276a0c25ffc`, `846627447b35`, `28ab57d0a9ba`,
+`620ff8f41820`).
+
+**How the predictions are computed: NOT with the writer.**
+- An independent transcription of the writer's own rules reads the three tarballs:
+  - the key is `rt:<CALLSIGN>`;
+  - a row is skipped when it has no `AirportCodes`, holds `unknown`, or has fewer than 2 legs;
+  - the value is the two endpoints, mapped from ICAO to IATA, with a rotation rendered as its outbound leg;
+  - deletes are (the keys of `--prev` ∪ the keys of `--prev-also`) minus the keys of `--file`;
+  - G1-G6 at their thresholds.
+- **Its control: on 4a's inputs it reproduced every number the writer printed on 2026-11-14:** writes 0; deletes 827
+  (715 from surviving shards, 112 from 5 removed shards); 628,956 unchanged; G3 naming RSC; G4 naming the five; G5 827
+  over 250; G1, G2 and G6 ok.
+- KV is assumed to be as 4d left it, and that assumption is what the two proofs and the pending line check:
+  `meta:routes` built from `24ce5424`, and no journal (no first run has happened).
+
+**Predicted, the same in both environments** (`--key-level --dry-run --env <env> --file sd-b775753b --prev
+sd-24ce5424 --prev-also sd-dff309eb --prev-manifest meta-pre-<env>.json`, through the helper, from a checkout of
+EXPECT; `git diff --name-only EXPECT main -- proxy/` is empty, so EXPECT's writer is main's):
+
+| line | predicted |
+|---|---|
+| new source | 1,592 shards, 629,491 rows parsed, 0 skipped, 629,491 usable; 6,413 airport mappings, 0 malformed |
+| prev proof | `1591/1591` |
+| prev-also proof | `1575/1575`: `pre-rule plain hash` on staging, `rule-hashed` on production |
+| sources | `new b775753b7280, prev 24ce54242aca, prev-also dff309eb01cf` |
+| pending | `none` |
+| **writes** | **2,562** (added 539, value changed 2,023) |
+| **deletes** | **830** (718 from surviving shards, 112 from 5 removed shards) |
+| guards, no overrides (2a) | G1 ok; G2 ok (50 of 50 anchors); G3 FAIL, `shard(s): routes/schema-01/R/RSC-all.csv`; G4 FAIL, the five of 2j (BES, CLH, KES, RLA, TEZ; 112 keys); **G5 FAIL, 830 over 250**; G6 ok. Then `plan: write 2562; delete NONE (refused), so the run would NOT seal`, `PFX1: 0 outside`, exit 0 |
+| guards, 4d's overrides unchanged (2b) | all six ok. `plan: write 2562; delete 830`, `PFX1: 0 outside`, exit 0 |
+| KV reads | 2 per dry run (meta and journal), so 8 in all |
+
+**The deletion count, and how it is made.** **830, exactly, in both environments:**
+- 4 keys that `24ce5424` holds and `b775753b` no longer does;
+- plus 826 of the 827 keys only `dff309eb` holds. One of the 827 is back in `b775753b`, so it is rewritten, not deleted.
+
+The range is that single value. The computation reproduced the writer's own count exactly on known inputs, so a
+different number means the predictor and the writer disagree, or KV is not what 4d says. Either is a stop, never a
+rounding.
+
+**Outside the set (X):** any of the following stops the dry runs with nothing further run.
+- any other deletion or write count, proof, `pending` line, guard verdict or shard name;
+- a non-zero exit;
+- upstream off the pin when a dry run starts.
+
+The writer's numbers are reported beside these, and nothing is re-run and no override changed until the reviewer rules.
+**And none of the above, if the output is in a shape not foreseen here, means the instrument is unreliable at this
+step: stop and decide.**
+
+**What this changes for Friday, stated now and NOT planned here:**
+- The run becomes 2,562 writes and 830 deletes, not 0 and 827.
+- So 4a's and 4c's write-side predictions are void: the backup count, the journal size, `wrote 0`, the verify's
+  `values: checked 0` and the seal line.
+- 4d's overrides still cover the guards (830 is within `--max-deletes 1000`, and G3 and G4 name the same shards).
+- Friday's run needs its own registration of steps 3-6, from these dry runs, before 10:00Z.
+
+### 4i. Friday's run, steps 3-6, predicted from 4h's dry runs (2026-11-18, appended below 4h; nothing runs before Friday's go)
+
+**4h's dry runs read as predicted** (2026-11-18 16:59-17:00Z, from EXPECT's checkout).
+- On both environments the writer printed `key-level writes: 2562 (added 539, value changed 2023); deletes: 830 (718
+  from surviving shards, 112 from 5 removed shard(s))`.
+- Without the overrides the deletes were refused. With 4d's overrides the plan was `write 2562; delete 830`.
+- PFX1 read 0. The proofs read 1591/1591 and 1575/1575, and pending read none.
+
+This section predicts the rest of the run from those readings. 4a's and 4c's write-side lines (`wrote 0`, 827, the
+backup and journal counts, `values: checked 0`, the seal line) are replaced here. Everything else in 4a-4g stands. That
+includes the T-0 rows, D0 by procedure, EXPECT `4a02123c`, the backup path rules, and the chain rule (4f).
+
+**Before step 2, on Friday:**
+- **Upstream is re-read first. It must be 4h's pin, `b775753b72807c8f1c8480e101eeb2edb727c55a`.** If it has moved,
+  4h and this section are void: stop before step 2 and re-register.
+- **T0.0, the chain rule, with the new dates:** the route run waits for the owner if Thursday's logs step failed or
+  rolled back. A step that started and did not complete as predicted counts as a failure (4f), and that includes its
+  #736 half being recorded NOT PROVEN (`docs/workers-logs-invocation-off.md` 7b rule 4).
+
+**Step 2, the gate before any write:** the dry run with the overrides must read exactly as 4h's 2b, in that
+environment, immediately before step 3. Step 3 re-derives the same diff, so a step 2 that matches 4h is what proves step
+3's counts before anything is written.
+
+**Step 3, the write**, as in 4d:
+- the command is `--key-level --no-seal --readback on` with the overrides, `--out-written`, `--out-deleted` and
+  `--backup`, with the test identity set.
+
+Predicted, in order:
+
+| line | predicted |
+|---|---|
+| PFX1 | passes (prints nothing) |
+| anchor | `anchor: ZZ<id>A is absent through the live path (as required)` |
+| **backup** | `backup: 3392 key(s) (830 to delete, 2562 to write), meta and journal saved, sha256 <hex>`. 3,392 = 2,562 + 830; the sets are disjoint, because a deleted key is absent from the new source |
+| BK-X / BK1 | pass. A CHANGED key (2,023) and a DELETED key (830) must be found; an ADDED key (539) must be not found, except the 1 key `--prev-also` holds (2r item 4) |
+| **journal** | `bulk put 1 (1/1) ...`, then `journal: 3392 key(s) recorded in meta:routes-pending before the first write` |
+| puts | `bulk put 2563 (2563/2563) ...` (2,562 plus the sentinel, 1 chunk of at most 10,000) |
+| deletes | `bulk delete 830 (830/830) ...` (1 chunk) |
+| **wrote** | `wrote 2562 route keys (+1 sentinel); deleted 830` |
+| sentinel | `sentinel: ZZ<id>S on attempt <n> after <s>s (PROVENANCE PROVED)`, within 8 attempts |
+| canaries | `canaries: <n>/5`, n of 3 or more |
+| cleanup | `cleanup: rt:ZZ<id>S deleted` |
+| sample | `sample: 12/12 written keys read back byte-identical` (stride 213 over 2,562) |
+| last | `not sealed: meta:routes is untouched. Seal with --seal-only --receipt <the verify's receipt>.` |
+| out-files | written 2,562 keys; deleted 830 |
+
+**Step 4, the verify**, with `--check-values`, `--expect-absent` and `--receipt`:
+
+| line | predicted |
+|---|---|
+| expected | `expected: 1592 shards, 629491 distinct keys` (from an independent transcription of the verifier's own count; 24ce5424 reads 1591 and 628,956, as 4a's coverage did) |
+| actual | `actual: 629491 keys present under rt:`, plus any runtime extras (information) |
+| coverage | `shards complete: 1592/1592`, `keys present: 629491/629491`, `RESULT: PASS -- every expected key present, in every shard` |
+| self-loops | `values: 0 manufactured self-loops (38 genuine circular routes, which are real)`. The same transcription reads 38 on 24ce5424 and 38 on b775753b. **Graded:** 0 manufactured. The 38 is information |
+| extra keys | `extra keys under rt: not in the corpus: 0`. Information, never a stop (4a's rule) |
+| sentinels | `sentinels: 0 leftover rt:ZZ sentinel key(s)`. Information (D3) |
+| **GR10m** | **prints now**, because there are written keys: `CONTROL (GR10m): ... 1 mismatch (must be exactly 1)` |
+| GR10a | `CONTROL (GR10a): the made-up key reads null (must be null)` |
+| **values** | `values: checked 2562, match 2562, MISMATCH 0, ABSENT 0` |
+| **absence** | `absence: checked 830, absent 830, PRESENT 0` |
+| receipt | `receipt: written`, holding written 2562 and deleted 830 |
+
+**Step 5, the seal:** `--seal-only --receipt <r> --source-date 2026-11-18T04:49:25Z` (the pin's commit time). Predicted:
+`meta sealed: rows=629491 written=2562 deleted=830 mode=key-level source b775753b7280 readback=on`, then
+`journal: meta:routes-pending cleared`. Meta's `sourceCommit` is the pin, `prevSourceCommit` is `24ce5424...`, and
+`sourceCommittedAt` is `2026-11-18T04:49:25Z`.
+
+**Step 6, `/healthz`, twice, at least 11 minutes after the seal** (the health read caches meta for 10 minutes):
+- `builtAt` is the seal time; rows 629491; ageDays 0; stale false; maxAgeDays 10.
+- **`sourceCommittedAt: "2026-11-18T04:49:25Z"` appears.** This changes 4a: the code serving both environments
+  (`fcc33692`, built on `074863fc`, and `4a02123c` if Thursday's step lands) reports it whenever meta carries it.
+
+**Order and time:**
+- Staging runs steps 3-6 first. Production starts only after staging's step 6 reads as predicted.
+- Each environment takes about 25 minutes: the verify enumerates the namespace, and step 6 waits 11 minutes.
+
+**KV cost per environment, about:**
+- writes 2,566: the journal, 2,563 puts and meta;
+- deletes 831-832: 830, the sentinel, and the journal's clear;
+- reads about 6,800: the backup's 3,394, the verify's 3,394, the sample, meta and the journal;
+- lists about 630.
+- All of it is inside the included amounts: about $0.
+
+**Outside the set (X), by where it happens:**
+- **Before any write (steps 1-2, or a refusal inside step 3 before the journal):**
+  - upstream off the pin;
+  - step 2 not reading as 4h's 2b;
+  - any BK refusal (a runtime row already under an ADDED key, for one, is BK-X);
+  - PFX1, JN2, or an unreachable or answering anchor.
+  - Each refuses on its own or is a stop. Nothing has been written. Report.
+- **After the first write (step 3's remaining lines, step 4 or step 5):**
+  - meta is untouched until step 5, so the store reads as unsealed and the journal names every key the run touched.
+  - Do not verify or seal past an off line. Stop, report, and keep the backup, checked against its sha256.
+  - **The owner decides** between leaving the run unsealed for a re-run, and the undo (`--key-level --restore <file>
+    --env <env>`, attended, a production write). Nothing is undone by reflex.
+- **Step 6 off** (rows, stale, sourceCommittedAt absent): report. The seal stands unless the owner says otherwise.
+- **None of the above,** if a line appears in a shape not foreseen here: the instrument is unreliable at this step.
+  Stop and decide.
+
+**The run checkout (the reviewer's rule, 2026-11-18, the same as Thursday's logs step).** A disk read at prep decides
+T0.3's checkout, and the choice and its reading are written in the run's record:
+- **29.8 GiB or more free:** a fresh LF checkout at EXPECT, as T0.3 says.
+- **Otherwise:** reuse the session's existing checkout at EXPECT, the one 4h's dry runs ran in. Its HEAD must equal
+  EXPECT, its status must be empty including untracked files, T0.3's CRLF control must be re-run (control 2,
+  `proxy/src` and `proxy/scripts` 0), and `proxy/node_modules` must be present. The same commit gives the same evidence.
 
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 

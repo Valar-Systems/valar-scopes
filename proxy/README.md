@@ -37,9 +37,10 @@ secondary) poll adsb.lol and the Worker consumes from them. See [relay/](../rela
   even for major scheduled callsigns (its OpenAPI docs promise 200 + JSON), so
   it currently yields no data. adsbdb — the route source the firmware used for
   years — earns its place back for **callsign→route only** (aircraft metadata
-  stays on adsb.lol). Empty routeset answers fall through to adsbdb; only
-  definitive answers (from either source) are negative-cached. Disable the
-  fallback with `ROUTE_ADSBDB_ENABLED = "false"` once routeset recovers.
+  stays on adsb.lol). Empty routeset answers fall through to adsbdb only when
+  `ROUTE_ADSBDB_ENABLED` is exactly `"true"`; it is OFF by default and "false" in
+  every environment (docs/adsbdb-off-by-default.md). Only definitive answers
+  (from either source) are negative-cached.
 - **airplanes.live is PROHIBITED by operator** (written refusal, July 2026) and
   ships permanently dark — hardcoded off in `airplanes_live.ts`, not a reserve
   option. **adsb.fi is now the primary** (written redistribution permission,
@@ -652,8 +653,10 @@ UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 npm run deploy:production
 ```
 
-Leave `ROUTE_ADSBDB_ENABLED = "true"` alone -- adsbdb supplies routes and the
-type backfill, not aircraft positions, so it is not part of this revert.
+Leave `ROUTE_ADSBDB_ENABLED` and `TYPE_ADSBDB_ENABLED` alone -- adsbdb never supplied
+aircraft positions, so neither is part of this revert. Both are "false" everywhere: the
+route data was replaced by the CC0 mirror, and the type data is PlaneBase-derived,
+personal use only, ruled out by the owner (docs/adsbdb-off-by-default.md).
 
 Expect the feed to go empty during adsb.lol's shared-egress 429 windows once the
 failovers are off; that is the trade being made, and it is why they were enabled
@@ -1123,7 +1126,7 @@ routing are validated on staging, not in unit tests.
 Operational tunables (env vars, all optional): `UPSTREAM_TIMEOUT_MS` (8000),
 `UPSTREAM_RETRY_DELAY_MS` (400), `BLIPS_FRESH_TTL_MS` (3000),
 `BLIPS_SERVE_DEADLINE_MS` (3500), `ENRICH_SERVE_DEADLINE_MS` (2500),
-`ROUTE_ADSBDB_ENABLED` ("true"), `UPSTREAM_ADSB_FI_ENABLED` /
+`ROUTE_ADSBDB_ENABLED` and `TYPE_ADSBDB_ENABLED` ("false"; OFF unless exactly "true"), `UPSTREAM_ADSB_FI_ENABLED` /
 `UPSTREAM_AIRPLANES_LIVE_ENABLED` ("false" pending permission).
 
 ## Work queue
