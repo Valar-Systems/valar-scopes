@@ -4177,3 +4177,74 @@ frozen. A cut could hand its gain to wait only if the frame became push-bound. A
 - **One reading was redone.** TG6 and TG7 first ran through `| head -3`, which cut the `launch exit=` line, so TG7's
   141 was the pipe's SIGPIPE, not the script's exit. Re-run bare, each read 127.
 - After the tests, the real board dir held no `w4-*` file and no `grabs-g6` folder.
+
+### 16b. Section 16, read (E2:08, window 2026-11-18 12:32:06Z to 14:23:47Z; the reading 14:24:12-14:24:17Z, no board)
+
+**The window** (the reviewer's START; hard end 14:47:06Z, start + 135): every step as predicted.
+
+| step | read |
+|---|---|
+| 0 | S19 at 12:32:37Z and 12:33:37Z; `--check-tool` and `--selftest` PASSED; the T-10 re-verify (`run/t10_gains.sh` `b174a63d6ccc`) 27 of 27 rows ok |
+| 1 | G5 through `app-only-write`: the 6-entry table, ota_0, 1,976,864 B, attempt 1 verified, reset 12:34:25Z; N-BOOT `blipscope-s3-128-gains-p5 · v19 · cloud` at 12:34:42Z; the 72-min trace's child rc 0 at 13:46Z |
+| 2 | G6: 1,971,216 B, attempt 1 verified, reset 13:47:33Z; N-BOOT `blipscope-s3-128-gains-p6 · v19 · cloud` at +10 s; the 33-min trace attached 13:48:09Z, its child rc 0 at 14:21:11Z; the six grabs at boot + 1,530/1,550/1,570 s and + 1,750/1,770/1,790 s, each late by 0.0 s |
+| 3 | v19: 1,931,840 B, attempt 1 verified, child exit 0 at 14:21:45Z; S19 at 14:22:20Z and 14:23:20Z, both `blipscope-s3-128 · v19 · cloud`; E2:08 released 14:23:28Z; bgcheck PASS, 0 running, at 14:23:47Z |
+
+- fbgrab's whole-frame verdicts, information only (14a): S6's three grabs byte-equal (exit 0); S7's grab 1 differs
+  from grabs 2 and 3 (exit 1, not a VOID). The graded pixel row is below.
+
+**The driver:** `run/grade_gains.sh` `af52941ff632` (the board dir, not in git), written during G6's trace on
+`grade_mark.sh`'s shape. It runs section 16's order, and every tool's output goes to its own file and is printed whole.
+Its refusal tests ran before the reading, each as predicted:
+- RG1 to RG5 (no G5 rc; two G5 traces; a planted seal; G6's rc 1; a planted output folder): RIG, exit 9, naming the
+  cause.
+- RG6 (synthetic traces): the rig ok, both seals and ties, then the reader's INSTRUMENT, exit 14.
+
+**The tie (procedure, not a graded row).** The reader does not print its input's sha, so the driver hashes the RAW
+trace before the seal and again after the read, and both must equal the seal's first-line sha. In the reading: G5
+`a508adcccd6a`, G6 `ba4fa160d5f5`, the same at all three reads.
+- **Its red direction was tested AFTER the reading.** The reviewer asked for it before; the request reached me after the
+  reading had run, and nothing was re-run.
+- At 14:25:53Z, the driver's own tie lines, extracted verbatim, against the real G5 seal: an unmodified copy held both
+  ties (exit 0); the copy with one byte changed (offset 1000, 0x36 to 0x5a; its sha `b0d3f863f536`) was refused by
+  both, exit 13 each. The original read `a508adcccd6a…` before and after, and the copy was deleted.
+
+**The results** (`gains16.py` `f4ee9c97df02`, exit 2: a STOP row):
+
+| row | read | disposition |
+|---|---|---|
+| G-SHA | the flashed images and A0a's output are the registered ones | ok |
+| G-READER | G5 and G6 each exit 0, READ AS GRADED; O-1 +1.99 ms (+2.0 ± 0.5); C-1 +5.00 ms (+5.0 ± 0.75) | ok |
+| G-S0 | each image carries its list's names | ok |
+| G-UNTIMED | `[speed-p5] clear S9 frames 2719 mismatched-px 0`; `[speed-p6] labels S0 checked 224870 mismatches 0`; each exactly one | ok |
+| the rebuild rules | every timed arm 1; equal within each cut | ok |
+| **1a** outline | base gap: mean OLD 9.25 against A0a's 7.55 = 1.70 > 1.51 | **STOP**: ungraded, to the reviewer |
+| **1b** sw_blend | base gap 0.74 ≤ 0.77; g1 2.84, g2 2.84 > N 0.00; **gain 2.84, in [1.53, 3.06]**; other phases within 0.50; fr OLD − NEW 2.69 / 2.84 (reported) | **AS PREDICTED** |
+| **1c** under | base gap 0.03; the stop row +0.04 ≤ 0.30; g1 −0.04, g2 −0.04 (under OLD 5.52 / 5.52, NEW 5.56 / 5.56); other phases within 0.50 | **OFF** (COUNT and BAND): the row's first off, to the reviewer |
+| **MK**, 1c's marks | ON − OFF over max(N_MK, 0.5): contacts 0.73 / 0.71, outline 0.73 / 0.71, lbl_draw 0.71 / 0.65 | **OFF**; whether it is a second off on 1c's row is the reviewer's ruling |
+| **P6** lbl_layout | base gap: mean OLD 8.41 against A0a's 6.62 = 1.79 > 1.32 | **STOP**: ungraded, to the reviewer |
+| the pixel row (P6's input) | `--equal` S6 exit 0 (0 px inside the boxes, 0 outside); `--equal` S7 exit 0 (19 inside, 0 outside); `--pair` S6-1 against S7-1 exit 0 (9 inside, 0 outside) | recorded; P6 is ungraded |
+
+- Nothing past a STOP was computed. 1a's and P6's REPORTED rows are in the files below, ungraded.
+- No cause is claimed here for any off or STOP.
+- No outside-the-set row fired.
+
+**The files** (the board dir; sha256, first 12 hex):
+- the seals: `traces/G5.filtered` `ae23b4f64afe`, `traces/G6.filtered` `3d3f9e41e7a2`;
+- the reader: `gains16-read/G5.read` `ddbbfea8110f`, `gains16-read/G6.read` `520b7050fa87`;
+- the pixel exits: `pix-equal-S6.out` `cc6e129f3a1c`, `pix-equal-S7.out` `2e7c15171252`, `pix-pair.out`
+  `51c2a502e67a`;
+- the grader: `gains16.out` `8a9bc1acd933`;
+- every `.err` file: 0 B.
+
+**The reviewer's rulings** (read at 2026-11-18 14:27:39Z; no re-grade in any case):
+1. **1b sw_blend: AS PREDICTED**, gain 2.84 inside [1.53, 3.06], every bound held. Item (1)'s first graded PASS.
+2. **1c under: OFF** (−0.04 against [2.20, 4.67]), the row's first off.
+3. **MK-MARKS is its own registered row** (15b-2): its FIRST off, not a second off on 1c's under row, so the cap is not
+   triggered. Both of 1c's graded rows are off (no saving in under; the marks cost about 0.7 ms per phase), so **1c is
+   NOT merge-ready**. Dropping it from P5 or investigating it is a design question, to be proposed later as text, with
+   no cause claimed until registered.
+4. **1a and P6 are UNGRADED in this run** (the frozen base-gap row: 1.70 > 1.51, 1.79 > 1.32). Nobody reads their NEW
+   values in `G5.read` / `G6.read` until a re-registration is frozen; the reviewer has not read them.
+   - **Seen: yes.** The driver prints every tool's output whole (no check's output is filtered), so 1a's and P6's NEW
+     rows passed through my reading at 14:24Z. Under this ruling, grading either cut needs a FRESH run.
+5. The pixel row is recorded as information, since P6 is ungraded.
