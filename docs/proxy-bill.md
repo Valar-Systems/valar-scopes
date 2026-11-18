@@ -1184,3 +1184,87 @@ beyond the device request's own. It gives the families, not a band tight enough 
 with its account total.
 
 **CI for this push (predicted before it):** docs only: **35 = 33 / 2 / 0**.
+
+### Step 4b2's first read: ESCAPE, INSTRUMENT (2026-11-18T23:37:34Z; reader blob `78eb51c22213`)
+
+**The reads.**
+- Read A ran at 23:34:35Z and read C at 23:35:42Z, 67 s apart.
+- Read B (23:35:04Z, 29 s after A) was refused by the reader's own 60 s guard (exit 4) before anything was printed. It
+  is discarded.
+
+**Before the fit:**
+- the anchors held: the hourly reads summed per day equal step 4c's daily production reads on 13 of 13 days, within
+  0.5%, and the MISS anchor is 7,239;
+- **corr(D, N) over the 207 kept hours is 0.953,** above the registered 0.9.
+
+**The escape fired.** No fit was computed or printed, so there is no reading.
+
+**What the premise got wrong:** the registration expected device requests to run flat through the day while `/enrich`
+swings. Three explanations fit, and this read separates none of them:
+- **(i)** D CONTAINS N: every `/enrich` request is also a device request;
+- **(ii)** the `/blips` poll cadence follows activity, so the polls also rise and fall with traffic;
+- **(iii)** the fleet grew over the nine days (13 to 19 boards a day), which moves both together.
+
+**Options were put to the reviewer** (23:3xZ): (A) D excluding `/enrich`; (B) (A) plus a within-day fit; (C) no
+regression; (D) an Analytics Engine count of KV gets per request (code and a deploy). Its ruling is recorded below,
+when it comes. Read A and read C are not reused.
+
+## Step 4d: KV reads and writes per board per month, and the read-overage trigger (registered 2026-11-18T23:37:34Z, before its read)
+
+**The owner, 2026-11-18 23:30Z (relayed by the reviewer):** "cache: as ruled. Keep the read cache for after v20's first
+week. Bring it back to me earlier if the projected overage for reads passes $5 a month. Have 5c put the reads per board
+per month into its cost work, so I can see what each new board costs."
+
+### The trigger: the projected KV-read overage
+
+**At every proxy-bill read:**
+
+`overage = max(0, R_acct(d) x 30 - 10,000,000) x $0.50 per million`
+
+- **R_acct(d)** is the ACCOUNT's KV reads (every namespace) on the latest WHOLE UTC day.
+- **If it passes $5 a month, it goes to the reviewer at once,** for the owner.
+- **Baseline** (sent 23:3xZ, from step 4c's graded read A; no new query): d = 2026-11-17, R_acct = 416,190, which comes
+  to **$1.24 a month**.
+- $5 is reached at about 1,000,000 reads a day.
+
+### Per board, per month
+
+**For one whole UTC day d:**
+- `R_b = 30 x production KV reads on d / B(d)`;
+- `W_b = 30 x production KV writes on d / B(d)`;
+- `B(d)` = distinct device ids in the day's request rows (step 4c's B, the same query).
+
+**Priced past the free tiers:** a new board costs `R_b x $0.50/M + W_b x $5/M` a month. That is an UPPER bound on a
+board's marginal cost:
+- the day's fixed readers (the photo-drift job, revocation's per-isolate refresh) are spread over the boards;
+- `ac:` is shared across the fleet.
+
+Step 4b2's gamma bounds the fixed part.
+
+**The day graded:** **d = 2026-11-18**, the first whole day after step 4c's window, read once it has closed. No
+figure from that day has been read.
+- **KV-writing jobs, named before the read from GitHub's run list** (read about 23:35Z): none on 11-18 so far. The
+  photo-drift job ran 15:37Z, and it reads but does not write.
+- The run list is read again at read time. If a KV-writing job (refresh-data, photos, routes-refresh) ran on 11-18,
+  W_b is reported and not graded, and R_b is still graded.
+
+**The bands come from step 4c's nine background days. Those days are already SEEN, so they set the band; they are not
+the test.**
+- Per board a day, R/B ran from 16,160 to 21,904. Over the window it RISES: 17,000 on 11-05, 20,322 on 11-15 and 21,904
+  on 11-17. That is 484,800-657,120 a month.
+- W/B ran from 91 to 124: 2,730-3,720 a month.
+
+| row | predicted | if not |
+|---|---|---|
+| **PB1** | R_b on 11-18 is in `[480,000, 750,000]`: the seen range, with its top raised 15% for the trend | reported with its R and B. Outside on the high side means reads per board are still climbing: the next read takes 7 days |
+| **PB2** | W_b on 11-18 is in `[2,500, 4,500]` | reported with its W and B |
+| **PB3, the price** | a new board costs **$0.25-$0.40 a month** in KV reads and writes past the free tiers, at PB1 and PB2's values (480,000 x $0.50/M + 2,500 x $5/M = $0.25; 750,000 x $0.50/M + 4,500 x $5/M = $0.40) | reported as measured |
+| escape | the anchor off (below); the two reads differ or are under 60 s apart; B(d) = 0; anything no row names | stop and report, with no reading |
+
+**The anchor:** the same reader reads 2026-11-17 too, and must reproduce step 4c's figures for that day exactly:
+production reads 416,175, writes 2,196, B 19.
+
+**The reader:** `tools/bill/per_board_read.py`, committed with its blob sha before it runs.
+- Read-only and analytics only. It reads exactly two whole days (11-17 for the anchor, 11-18 for the grade).
+- It prints counts only.
+- `grade` refuses reads under 60 s apart, and prints the trigger.
