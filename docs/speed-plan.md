@@ -601,3 +601,20 @@ layout steps do, and staffing 2 is eight days sooner for the big screens. For v2
 - **M2 on the 1.28" shares the touch IC's I2C port with the touch watchdog**, which is on there (`TOUCH_WATCHDOG`, the
   s3-128 only). 5c's host test forbids the touch task and the watchdog together. So on the 1.28" the watchdog's
   re-init has to move into the touch task first (5c's hazard (a)), which is a reason S4 waits for S1's evidence.
+
+## L2, the owner's rulings of 2026-11-18 (appended; the text above stands as written)
+
+**The owner, verbatim (relayed by the orchestrator, 23:32Z):** "L2 run: yes, hands-off in Friday's free time before
+S2b. Time only, and the board ends on v19. Nothing ships at 80 MHz from this. When its hardware check comes, plan it on
+more than one board."
+
+- **The bench read of L2 WITH M3 (booked):** Friday 11-20, in E2:08's free time before S2b. A = S2b's own image
+  (40 MHz), B = A plus a bench-only change (the clock at 80 MHz and an `[l2-bench]` boot line). The run is A, B, A on
+  S2's worst scene, and it measures TIME only. B is a bench-branch image and never reaches main or any release. The
+  board ends the run restored to v19, proven. Predictions: `_handoffs/p4/l2/PREDICTIONS.txt` `269b307d0212`, cut
+  7.0-11.5 ms (H-FIXED about 11.5, H-FRACTION about 7.0), accepted window 5.4-13.0.
+- **L2's HARDWARE CHECK, the incoming-inspection row of :516-518 and step S9 (:538): it is planned on MORE THAN ONE
+  BOARD** (the owner's condition). The panel's signal margin at 80 MHz is a per-batch risk (INCOMING-INSPECTION.md),
+  and one board's clean glass says nothing about another's. So no single-board inspection qualifies L2 for shipping.
+- **Nothing ships at 80 MHz from the bench read.** Shipping L2 remains the owner's ruling, after that multi-board
+  check.
