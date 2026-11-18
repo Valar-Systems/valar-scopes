@@ -2059,6 +2059,29 @@ exit 1
 )
 note_block $? "W7 split (no WhatToShow)"
 
+# W7's second slice (S4.32 Q126 (a), S4.35): a page whose feed is not readable as current draws its unavailable words,
+# never stored data and never the alerts all-clear, compared by pixels against a reference render. Its plants:
+# test/host/sabotage_wx_unavail.py, in the drivers' passes above.
+echo
+echo "== W7 unavailable pages =="
+(
+  fail=0
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_unavail.cpp" -o "$OUT/test_wx_unavail.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the W7 unavailable-pages test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_unavail.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the W7 unavailable-pages test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "W7 unavailable pages"
+
 # The OTA identity record and the accept rule (include/OtaIdentity.h; docs/weatherscope-stage3.md A12.103, A12.104):
 # the real heads, every parse rule, and the two matrices over today's identities (test/fixtures/ota/identities.txt,
 # which CI's ota-identity job holds equal to the fleet). Its sabotages: python -I test/host/sabotage_ota_identity.py

@@ -85,6 +85,9 @@ struct Alert {
 struct AlertList {
     const Alert* items = nullptr;
     size_t count = 0;
+    // false: the feed cannot be read as current (not live yet, or stale). The page then says ALERTS UNAVAILABLE, never
+    // the all-clear and never its items (stage4 1.4; S4.32 Q126 (a)). Only the factory's feeds decide it (D1).
+    bool available = true;
 };
 
 class AlertFeed {
@@ -121,6 +124,7 @@ struct Forecast {
     size_t nHours = 0;
     const Period* periods = nullptr;
     size_t nPeriods = 0;
+    bool available = true;                  // false: not readable as current; the page says NO FORECAST (Q126 (a))
 };
 
 class ForecastFeed {

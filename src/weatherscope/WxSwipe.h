@@ -362,6 +362,10 @@ inline int StripPoints(const wx::Forecast& f, int tmin, int tmax, int* px, int* 
 inline void ComposeForecast(Canvas& c, const wx::Forecast& f)
 {
     Frame(c, "FORECAST", Page::Forecast);
+    if (!f.available) {   // Q126 (a): a forecast it cannot read as current is said so; its stored data is never drawn
+        c.Centred("NO FORECAST", 116, 1, c.th.uiDim);
+        return;
+    }
     const Headline h = MakeHeadline(f);
     if (h.oneLine) {
         char whole[34];
@@ -460,6 +464,10 @@ inline void ObservedText(int64_t obsUtc, int offMin, char* out, size_t cap)
 inline void ComposeConditions(Canvas& c, const wx::Observation& o, const wx::Forecast& f)
 {
     Frame(c, "NOW", Page::Conditions);
+    if (!o.valid) {   // Q126 (a): conditions it cannot read are said so; no stored value is drawn
+        c.Centred("NO CONDITIONS", 116, 1, c.th.uiDim);
+        return;
+    }
     const int top = BlockTop(kConditionsRows);
     if (o.hasTempF) {
         // The degree sign is size 2 beside size-4 digits, at the natural advance. The glyph's first lit row and the
@@ -528,6 +536,10 @@ inline void UpperText(const char* in, char* out, size_t cap)
 inline void ComposeAlerts(Canvas& c, const wx::AlertList& list, int offMin)
 {
     Frame(c, "ALERTS", Page::Alerts);
+    if (!list.available) {   // 1.4's structural row: a feed it cannot read never draws the all-clear, nor its items
+        c.Centred("ALERTS UNAVAILABLE", 116, 1, c.th.uiWarn);
+        return;
+    }
     const wx::Alert* shown[kMaxAlerts];
     const int n = SelectAlerts(list, shown);
     if (n == 0) {
