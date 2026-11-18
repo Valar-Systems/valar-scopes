@@ -211,3 +211,17 @@ and will send the WebView version."
 
 **The schedule is unchanged:** nothing for the big screens is built before v20's content freeze (the owner's go of
 2026-11-12, restated today); the steps and dates of section 3 stand.
+
+### 8a. The 16-inch, confirmed by the owner as LISTING figures (2026-11-18, 18:14Z)
+
+The owner, verbatim (relayed by the orchestrator): "For p4: yes, the 16-inch is the plan's 15.7-inch venue screen,
+960x960, round. Those are the listing's figures. When the unit arrives I'll measure the lit glass with a ruler, and the
+screen session's real-screen report will confirm the resolution."
+
+- **The 16-inch IS section 1's 15.7" venue screen: 960 x 960, round.** These are the LISTING's figures, not measurements.
+- **Confirmation is pending on two counts**, both when the unit arrives:
+  1. the owner's ruler measurement of the LIT glass, its diameter in mm (section 1's "~399 mm", from docs/web-kiosk-card.md, is
+     likewise not a measurement until then);
+  2. the screen session's real-screen report of the resolution.
+- **Nothing is graded on the listing alone.** Any row that depends on this screen's size or resolution (its px/mm, the
+  design rules' sizes on it) waits for both confirmations, and is never graded from the listing.
