@@ -5694,6 +5694,80 @@ Each runs in an E2:08 window, and nothing here presumes one.
 own first head, `dbb896c48e2c`: 35 = 33/2/0, read twice 71 s apart, on the tested merge `726813f` (Merge `dbb896c4`
 into `237d5d16`). No workflow file has changed since.
 
+## 6b: the pre-ship image-level text check, a third instrument, registered before its code (2026-11-19)
+
+**What it is for.** Row 6b of [v20-plan.md](v20-plan.md): "the pre-ship image-level text check (a third instrument,
+shown on controls first)"; "nothing to start; its final read waits on the candidate".
+- It carries step C's I2/I3, "no printable string is added", which the owner ruled is "proven at the source level, not
+  a pass" (15:07Z, 2026-11-12): "The image-level text check moves to the pre-ship gate, beside the per-function
+  accounting. Its tool must pass its own controls there first."
+- At the gate it answers one question of the v20 candidate against v19's release: **which strings does the candidate
+  add, and is each one accounted for by a registered change?**
+
+**Why the first two failed** (both recorded above, under step C's I2/I3):
+- **Printable runs** (`strings_added.py`, at least 6 printable bytes) counted machine code and address bytes as text.
+- **NUL-bounded runs** (`strings_nul.py`) found all six positive-control literals, but its reading also carried
+  pointer-table runs: `0x3C21xxxx` data pointers and `0x420Dxxxx` IROM addresses.
+- **The common cause:** both read the image as a flat byte stream. A linked image has no boundary between text,
+  code and data. The tool had to guess one, and the guess was the defect.
+
+**The third instrument: read the boundaries the compiler already wrote, in the objects, not the image.**
+- **T1, string sections.** In each object file of the build, every section flagged mergeable-strings (`SHF_MERGE |
+  SHF_STRINGS`, the `.rodata.str1.N` family) holds NUL-terminated string literals by the ELF's own definition, so no
+  code and no pointer table can be in one. Its contents are split on NUL. That is the set of literals the compiler
+  emitted.
+- **T2, named char arrays.** A string-initialised array (`static const char k[] = "…";`) lands in a plain
+  `.rodata.<symbol>` section, not a strings section, so T1 alone would miss it. T2 reads every data symbol
+  (`STT_OBJECT`) in a `.rodata*` section by its own extent (`st_size`). It counts as text only if those bytes are
+  printable ASCII followed by NUL padding. A pointer table is a symbol whose bytes are not printable, so the symbol's
+  own extent excludes it, never a scan.
+- **T3, linked, not dead.** An object's literal may be removed at link (`--gc-sections`). Each string the comparison
+  finds added is looked for in the final `firmware.bin`. "Compiled, not linked" is reported separately and never
+  counted as added.
+- **The tools:** the xtensa toolchain's own `readelf` and `objcopy`, on the build's objects. The aplus wrappers already
+  copy those per image. No new dependency (WSL's `pyelftools` gap stays out of it).
+- **Output:** each added string, with its object and section. A string shaped like an IPv4 address, or a run of 16 or
+  more hex digits, is MASKED, so a bench image's host or an id never reaches a log. Counts are printed beside it.
+
+**Its controls, shown on images built for them before it reads anything real** (each a bench build from one base
+commit, by the aplus recipe, with objects copied):
+
+| control | the image | predicted |
+|---|---|---|
+| **C-NULL** | the base, built twice (R0) | 0 added, 0 removed |
+| **C-POS** | the base + one new `Serial.printf` with a 20-character literal | exactly 1 added, equal to the planted literal (T1) |
+| **C-ARR** | the base + `static const char k[] = "<a 20-character text>";`, used so it links | exactly 1 added, from T2, not T1 |
+| **C-PTR** | the base + a new table of 6 `const char*` pointing at EXISTING literals, read by new code | **0 added**. This is the case both earlier instruments failed |
+| **C-ADDR** | the base + a dummy function that moves every later address | 0 added, 0 removed |
+| **C-DEAD** | the base + an unused `static` function with a literal (gc'd at link) | 0 added; 1 "compiled, not linked" (T3) |
+
+Any control off: the instrument is not trusted, and that is the row's first off reading (stop and report).
+
+**The read at the gate, once the candidate exists:**
+- The reference is v19's release, rebuilt from its tag by the aplus recipe, with its `firmware.bin` R0 to the release
+  asset `f6d73e391631`. That proves the objects belong to the shipped image.
+- The candidate is rebuilt the same way, R0 to its CI artifact.
+- **Predicted, as a rule rather than a number:** every added string maps to a line in a registered change's diff (the
+  map, weather, step D's labels, the card fix and so on). The mapping table is written before the read, from the
+  diff's quote-bearing lines, and each added string must be in it.
+- **An added string in no table is a finding:** to the orchestrator, and to the owner if it is customer-visible.
+
+**Its size and its waits:**
+- About 1 to 1.5 days: the tool and its selftest on synthetic objects, 6 control builds, then the read.
+- No board. The builds are CPU-heavy, so they run outside any quiet or board window, at 30 GiB free or more.
+- The final read waits on the candidate.
+
+| Q | the question | the default I take unless ruled |
+|---|---|---|
+| Q-6b-1 | T2's printable rule | ASCII 0x20-0x7E plus tab, CR and LF, then at least one NUL; nothing after the NUL but NULs |
+| Q-6b-2 | the minimum length counted | 1 character: T1 and T2 are bounded by the ELF, so a length floor is no longer needed to reject code |
+| Q-6b-3 | masking | IPv4-shaped strings and hex runs of 16 or more characters are masked in every output |
+| Q-6b-4 | where the tool lives | `scripts/strings_elf.py`, with `--selftest` on synthetic objects, run before any control build |
+
+**CI for this PR (docs-only), predicted: 35 check runs: 33 success, 2 skipped, 0 failed.**
+- The baseline is #764's two finished docs-only PR runs, at `dbb896c48e2c` and `1038e4115b13`, each 35 = 33/2/0.
+- Both started after `e3ccf6b4` (#761), the last change to `.github/workflows/`.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
