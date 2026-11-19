@@ -5822,3 +5822,52 @@ finished docs-only PR run (head `1c88ff6d776a`: 32 = 29/3/0). It started at 18:2
 **CI for step A's predictions PR (docs-only), predicted: 32 check runs: 29 success, 3 skipped (`promote`, `ship-alert`,
 `version`), 0 failed.** The baseline is #613's finished docs-only PR run (32 = 29/3/0). The workflow changes since,
 #609 and #618, added steps, not jobs.
+
+## Step D's code: the rows as read (2026-11-19)
+
+The code of [Step D](#step-d-the-terrain-shading-setting-registered-before-any-code-2026-11-12) and [its other
+half](#step-d-s-other-half-the-map-and-its-town-names-on-by-default-registered-before-any-code-2026-11-18), host side.
+Every row below was registered before it ran. The board rows (V19S, DOC3/DNC3, D4) and the owner's look (row 2) are
+still to come, each in its own window.
+
+**DO2's search: outcome A (clean).** The scope equalled the 11-18 read (22 tags; 116 `firmware*.bin` in 21 releases, 6
+factory; v13 none). Both plants were found in their own copies only. Trees: 0 hits in 22 tags. Images: 116 read, 0 BLIND,
+0 hits. So there is no `CONFIG_REV` bump.
+- **The download counts, the orchestrator's condition.** Every downloaded asset read **+0** two minutes after the run:
+  the pre-registered outside-the-set branch. By 01:50Z each read **+1** (counted late), and no other asset moved. So
+  `gh release download` is counted, after more than about 2 minutes and within about 33 minutes.
+
+**The rows, each as predicted:**
+
+| row | read |
+|---|---|
+| D1 | 7 of 7. Unknown values ("", `STRONG`, `subtle `, `loud`, ...) read Strong; no two values collapse |
+| D3 | Subtle byte-equal to today's map (`test/host/ref/MapLayer_main.h`), 6 of 6 sweep images. Off byte-equal to today's build with terrain cleared, 6 of 6. Off draws zero terrain pixels. Both controls turn D3 red |
+| D3b (i) | the page's own `base()`, run in node over its own data, against the firmware's S2 over the same arrays: 12 of 12 images byte-equal. The mid-181 plant differs in 3 of 3 zooms. (ii) stays not established |
+| DOC1, DNC1 | unset and `""` on, `"true"` on, `"false"` off (the control) |
+| DOC2, DNC2, D1's page row | the box `checked` with no key; a stored `"false"` unticks it; each terrain value selects its own option |
+| DNP1 | names off byte-equal to Build's output, 6 of 6 views; names on differs at all 4 views with names placed |
+| DNP2 | rebuilds per frame, names on/off/on: `100100100` |
+| DW1, DH1, D5, E3 | `check_map_draw.py`: 17 checks, 0 failures |
+| E1 | `check-no-weather.sh`: the shipping image holds none of the three `name="map-..."` strings; the `wxlook` image holds all three |
+| E2 | `check_wx_off.mjs`: the web config holds `wx-layer`, `map-layer` and `map-names` `"false"`. Four new plants each exit 1 |
+| (b)'s save rows | `check_save_vocab.py`: LEFT_ALONE empty in V1 and V2; the map's boxes live in V2 only. Selftest C1-C4 exact |
+| S8 | the line pixels identical across the four values on every row and column at 5, 10, 50 and 100 mi; the US 97 corridor identical. The pictures are the owner's, in the map-client handoff folder |
+
+**The plants:** `sabotage_map_draw.py` 26 of 26, `sabotage_map_settings.py` 7 of 7. The full `run.sh` under WSL failed only
+its two standing environment blocks, with 44 drivers (43 run, 1 skipped).
+
+**The offs, as ruled:**
+- **D3's Off plant.** Off first resolved to gain 0, which hid "Off with the terrain layer left on" by construction. Off now
+  carries Subtle's inputs with the layer cleared. Each control is graded as registered: at least one image differs.
+- **The full `run.sh`.** Two existing drivers anchored on lines step D changed (`sabotage_map_compose.py`'s
+  S-CB-NAMESUNDER and `sabotage_map_layer.py`'s S-CMGAIN). The cause: not every driver that plants in a changed header was
+  run. The anchors were moved, intent unchanged, and the run was repeated as predicted.
+
+**Changes ruled along the way:**
+- **The mapkey bench pieces live off main**, on a bench branch cut from step D's head. On that branch, DW1 names
+  `include/MapKeyLine.h` as a reader, D5 holds it to `#ifdef MAP_KEY_BENCH`, and `[map-key]` joins MARKERS and the marker
+  cross-check's SPECIAL set.
+- **D5's header exemption gained its plant**, S-D5-INC.
+- **The page's boxes are whole literals.** A name assembled from an argument never appears whole in an image, so E1's
+  control could not have passed.
