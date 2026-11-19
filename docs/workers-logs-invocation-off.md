@@ -683,6 +683,42 @@ before any new slot was proposed. Each line names the correction it applies to.
 - **certifiable:** (a), (b)/(c), (d)(i), (e)'s presence, (g), and both plants by exact match;
 - **UNPROVEN:** (d)(ii) on both services, (f), and (e)'s shape.
 
+#### 7i. Moved by a later registered probe (EVP26b, 2026-11-19; appended below 7h, which stays as read)
+
+7h records the gates as they first read. A later registered probe of the reader, EVP26b, read as predicted on
+2026-11-19, and it moves the three items 7h left UNPROVEN. Neither 7g's rules nor 7h's record is edited; this section
+records the move.
+
+**The method: the events view, behind a completeness gate.**
+- The window's events are fetched from the API's events view by cursor pages. Every page must be a value under C5
+  (`abr_level` present and equal to 1).
+- **The gate.** Both legs are required:
+  - every page is at full resolution;
+  - the number of events fetched equals the number of unique event ids, which equals the calculations count of the same
+    filter. That count is itself a value under C5, and independent of the paging.
+- An earlier events-view probe was not taken as a gate: its count proved to be per page rather than for the whole
+  window. EVP26b's count is the independent one.
+- Everything else is done locally, in memory, counts only. No event, field value or key value is printed or saved.
+
+**The three items, GRADED through it on both services:**
+- **(f):** our own `evt:"req"` lines in the window are fetched behind the gate, and their own fields are tested
+  locally against 5a C1's IP patterns. The plants' lines must be among those fetched; that is the positive control.
+- **(e)'s shape:** the 8-lowercase-hex shape of `devl` is tested locally on the same fetched lines. (e)'s presence half
+  is read as C9 says.
+- **(d)(ii):** every event of any type in the window is fetched behind the same gate, and its key NAMES are checked
+  locally against the five envelope prefixes. The probe's control showed that a fetched event carries its envelope
+  field names when they exist (seen on staging).
+- If the gate fails at the slot, each of the three falls back to UNPROVEN as C10 and C13 say, and is named in the
+  step's verdict line.
+
+**Scope.** An event type the events view never returns is outside this check. The calculations count is the guard
+against a short fetch.
+
+**For the step's verdict line under this reader, after EVP26b (2026-11-19):**
+- **certifiable behind the gate:** (a), (b)/(c), (d)(i), (d)(ii), (e)'s presence and shape, (f), (g), and both plants by
+  exact match;
+- **UNPROVEN:** none, unless the gate fails at the slot.
+
 ## 8. The label code, red first
 
 **Registration (this commit): the tests and a STUB `src/devlabel.ts`, both of whose functions throw.**
