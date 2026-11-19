@@ -77,6 +77,16 @@ struct Ring {
     }
 
     bool CanLoop() const { return count >= kMinLoop; }
+
+    // Empties the ring when the query changes (WxAnswer.h SetQuery, S4.37): the slots stay allocated, and the next new
+    // frame is kept, as at boot, so one place's frames never loop at another.
+    void Clear()
+    {
+        count = 0;
+        next = 0;
+        newestSeen = 0;
+        newSeen = 0;
+    }
 };
 
 }  // namespace wxring

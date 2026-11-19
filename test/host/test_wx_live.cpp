@@ -168,16 +168,17 @@ int main()
     using wxsetup::State;
     using wxsetup::Refusal;
     {
-        struct Case { bool wifi, loc, key; int status; const char* err; bool frame; State want; };
+        // S4.37: a refusal reaches Decide as the latch's shown kind (WxSetup.h AuthLatch), not as the last answer.
+        struct Case { bool wifi, loc, key; Refusal refused; bool frame; State want; };
         const Case cases[] = {
-            {false, false, false, 0, "", false, State::NoWifi},
-            {false, true, true, 200, "", true, State::NoWifi},
-            {true, false, true, 200, "", true, State::NoLocation},
-            {true, true, false, 0, "", false, State::NotEnrolled},
-            {true, true, true, 401, "unauthorized", true, State::Refused},
-            {true, true, true, 0, "", false, State::Waiting},
-            {true, true, true, 200, "", true, State::Live},
-            {true, true, true, 304, "", true, State::Live},
+            {false, false, false, Refusal::None, false, State::NoWifi},
+            {false, true, true, Refusal::None, true, State::NoWifi},
+            {true, false, true, Refusal::None, true, State::NoLocation},
+            {true, true, false, Refusal::None, false, State::NotEnrolled},
+            {true, true, true, Refusal::KeyRejected, true, State::Refused},
+            {true, true, true, Refusal::None, false, State::Waiting},
+            {true, true, true, Refusal::None, true, State::Live},
+            {true, true, true, Refusal::NotActivated, false, State::Refused},
         };
         int bad = 0;
         for (const Case& c : cases) {
@@ -185,8 +186,7 @@ int main()
             in.wifi = c.wifi;
             in.location = c.loc;
             in.key = c.key;
-            in.status = c.status;
-            in.error = c.err;
+            in.refused = c.refused;
             in.frame = c.frame;
             if (wxsetup::Decide(in) != c.want) ++bad;
         }
@@ -194,29 +194,28 @@ int main()
                                             "then live: 8 cases, " + std::to_string(bad) + " wrong");
     }
     {
-        const int statuses[] = {0, 200, 304, 401, 403, 500};
+        const Refusal kinds[] = {Refusal::None, Refusal::KeyRejected, Refusal::DeviceUnknown, Refusal::NotActivated,
+                                 Refusal::Other};
         int combos = 0, liveNoFrame = 0;
         for (int m = 0; m < 16; ++m)
-            for (int s : statuses) {
+            for (Refusal k : kinds) {
                 wxsetup::Inputs in;
                 in.wifi = m & 1;
                 in.location = m & 2;
                 in.key = m & 4;
                 in.frame = m & 8;
-                in.status = s;
-                in.error = s == 403 ? "forbidden" : "";
+                in.refused = k;
                 ++combos;
                 if (wxsetup::Decide(in) == State::Live && !in.frame) ++liveNoFrame;
             }
-        check(combos == 96 && liveNoFrame == 0, "STATE-LIVE-NEEDS-FRAME",
-              "over all 96 inputs, live never without a frame: " + std::to_string(liveNoFrame) + " violations");
+        check(combos == 80 && liveNoFrame == 0, "STATE-LIVE-NEEDS-FRAME",
+              "over all 80 inputs, live never without a frame: " + std::to_string(liveNoFrame) + " violations");
     }
     {
-        auto at = [](int status, const char* err, bool frame) {
+        auto at = [](Refusal refused, bool frame) {
             wxsetup::Inputs in;
             in.wifi = in.location = in.key = true;
-            in.status = status;
-            in.error = err;
+            in.refused = refused;
             in.frame = frame;
             return wxsetup::Decide(in);
         };
@@ -225,10 +224,10 @@ int main()
                         wxsetup::RefusalOf(403, "forbidden") == Refusal::NotActivated &&
                         wxsetup::RefusalOf(403, "other") == Refusal::Other &&
                         wxsetup::RefusalOf(500, "") == Refusal::None &&
-                        at(401, "unauthorized", true) == State::Refused && at(500, "", true) == State::Live &&
-                        at(500, "", false) == State::Waiting && at(0, "", true) == State::Live;
-        check(ok, "STATE-REFUSED", "401 and both 403s refuse in words; a server or network failure keeps the last frame "
-                                   "(live) or waits (no frame)");
+                        at(Refusal::KeyRejected, true) == State::Refused && at(Refusal::None, true) == State::Live &&
+                        at(Refusal::None, false) == State::Waiting && at(Refusal::Other, false) == State::Refused;
+        check(ok, "STATE-REFUSED", "401 and both 403s map to their refusal; a latched refusal is said in words; without "
+                                   "one the last frame is live, or the screen waits (no frame)");
     }
     {
         const char* t[] = {wxsetup::WordsOf(State::NoWifi, Refusal::None).title,
