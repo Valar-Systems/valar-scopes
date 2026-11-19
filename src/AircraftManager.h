@@ -40,6 +40,8 @@
 #include "BasemapPackage.h" // bmpk::Package: the gate's accepted package, pointing into the landing buffer
 #include "MapPolicy.h"      // when to ask, and what each answer means (pure; CA4-CA11)
 #include "MapQuery.h"       // the request for the stored config (pure; CA1-CA3)
+#include "ConfigMigration.h" // step D: the map's two toggles resolve through ResolveToggle (DO1, DN1)
+#include "MapTerrain.h"     // step D: the "Terrain shading" setting (pure; D1)
 #endif
 // THE MAP FETCH END
 // THE MAP DRAW BEGIN
@@ -724,6 +726,12 @@ private:
     bool mapAllocFailed = false;       // the map stays off until the next config change
     size_t mapHeldLen = 0;             // the held package's length; 0 when none is held
     bmpk::Package mapPkg;              // the gate's accepted package, pointing into mapLanding
+    // Step D (docs/blipscope-map-client-steps.md): the map's settings, resolved at every Initialise. The map and its
+    // town names ON when unset (ResolveToggle with MAP_DEFAULT_ON / MAP_NAMES_DEFAULT_ON); terrain Strong when unset
+    // or unknown (mapterrain::Resolve). Map off asks for nothing and draws today's frame; a held package stays held.
+    bool mapLayerOn = configmigration::MAP_DEFAULT_ON;
+    bool mapNamesOn = configmigration::MAP_NAMES_DEFAULT_ON;
+    mapterrain::Shading mapShade = mapterrain::Resolve(nullptr);
 #endif
     // THE MAP FETCH END
     // THE MAP DRAW BEGIN
