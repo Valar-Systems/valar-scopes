@@ -4204,3 +4204,72 @@ the change.
 - **Anything else off STOPS the run,** and I fix nothing before the ruling.
 - **P2 reading RED is off too.** It would mean a refusal exists that this reading of the code missed, and it is
   reported, not taken as good news.
+
+### S4.48, 2026-11-19: S4.47 read (04:12:27-04:13:33Z): every row as predicted, part C's gap included
+
+- **What ran:** against S4.47, frozen and pushed at `7e833c999662` (04:11:54Z) before anything ran. The four gates all
+  exit 0.
+  - **Part A** (04:12:27-04:12:33Z): the hidden WMI PowerShell child, MSYS-free (`MSYSTEM` empty, 0 msys PATH
+    entries), PlatformIO Core 6.1.19. Child exit 0; the launcher's stderr 0 B.
+    - The base: wt-w7h at `2d6c13a5f4fc`, porcelain 0.
+    - The head: wt-w7 at `f0fbf0d9d145`, with the 5 frozen files changed.
+  - **The commit:** after H4, the six changed files read the frozen shas exactly (`86cdf1885d51`, `dcacd017d1b8`,
+    `5c5a5140251a`, `bd1cbaf9b6f7`, `c10d96270869`, `2fd04019578f`). They were committed LOCALLY as `b54ed38a86c3`,
+    which is not pushed, under the compile-before-push rule. Patch copy 0007.
+  - **Part B** (04:13:21-04:13:33Z): WSL, `g++ 13.3.0`, against `b54ed38a86c3`, porcelain 0 before and after. 0
+    files with CR; all 15 steps exit 0; every stderr is 0 B.
+- **The rig:** bgcheck afterwards: PASS, 0 running.
+- **No fourth reader of the table** appeared.
+
+**Part A**
+
+| step | read | stdout sha256 |
+|---|---|---|
+| B1 the base's build envs | 12 envs, exit 0 | `7d982f888933` |
+| B2 the base's `--check-table` | `equals the fleet (10 rows)`, exit 0 | `2d92e538107c` |
+| B3 the base's `--fleet` | `12 built skus.yml env(s) (8 retired, skipped); slug-ful 1; boards s3-128 10, s3-175-amoled 1, s3-21 1`; `fleet PASS` | `f1d9a6a73b3e` |
+| H0 | 547 B, `6cb6e7486029` | |
+| H1 `--validate` | `skus.yml OK: 21 leg(s), 1 shipping (s3-128), 12 build-only, 8 retired.` | `e314982417a8` |
+| H2 `--build-envs` | B1's 12, plus `weatherscope-stored-s3-128` right after `weatherscope-s3-128`: 13 | `317b235a7298` |
+| H3 `skus.py --sabotage` | `SABOTAGE PASSED` | `8b4df566ca29` |
+| H4 `--emit-table` | `wrote ... (11 rows)` | `81f11e12d771` |
+| H5 | 595 B, `dcacd017d1b8`; 1 line added (`weatherscope-stored-s3-128 weatherscope- s3-128`, line 10), 0 removed, 0 CR bytes | |
+| H6 `--check-table` | `equals the fleet (11 rows)` | `88ca937840e8` |
+| H7 **the control** (a copy with that line dropped) | the copy differs; exit 1, `FAIL`, and one line only: `fleet only: weatherscope-stored-s3-128 weatherscope- s3-128` | `ce04832727ab` |
+| H8 its anchor (an identical copy) | `equals the fleet (11 rows)`, exit 0 | `0584f09c7e63` |
+| H9 `--fleet` | `13 built ... (8 retired, skipped); slug-ful 1; boards s3-128 11, s3-175-amoled 1, s3-21 1`; `fleet PASS`. B3's figures, with built and `s3-128` each + 1 | `f5b1206f08d9` |
+| H10 `--fleet-sabotage` | S-O5: one O5. S-Q76: one Q76, `default_16MB.csv: weatherscope-s3-128, weatherscope-stored-s3-128`, the other nine `s3-128` envs on bignvs. Unplanted 0; `fleet-sabotage PASSED` | `92a0a5c56232` |
+
+**Part B**
+
+| step | read | stdout sha256 |
+|---|---|---|
+| `test_ota_identity` | 22 checks, 0 failures. R1 `33/33 (11 envs x 3 scopes)`; M1 `83 accepted, 38 refused, 0 off the rule`; M2 `114 of 114 refused`; M3 `35 accepted, 86 refused (48 cross-scope), 0 off the rule` | `a4f99431d85a` |
+| `test_ota_install` | 42 checks, 0 failures; O10 `11 identities x 2 pre-check heads: 22 no-record, 0 foreign, 0 other, 0 flash calls` | `6cec9c996524` |
+| `test_ota_model` | `11 rows; 21 checks, 0 failures`; `M1-weatherscope-stored-s3-128 model 'weatherscope-s3-128'` | `9d8933931cca` |
+| `sabotage_ota_identity.py` | S-ID1b red on M3, O4-ii, O4-iii, plus I2's four. S-ID2b red on M1, M2, M3, O4-v-a, O4-v-b, plus I1's four. Both AS PREDICTED; the real headers unchanged | `b98b9b234e51` |
+| `sabotage_ota_install.py` | the wiring rows green on the real sources, and red on C's functions; S-O8a 22, S-O8b 14, S-ID3 9, P-NORETRY 6, P-BYPASS 6 failing, each AS PREDICTED | `c90079d49671` |
+| `sabotage_ota_model.py` | S-M1 red on exactly the 4 scoped rows; S-M1b red on M1b-short only; `2 sabotages: ALL AS PREDICTED` | `26ccd0fa55a2` |
+| the three `--anchors` | 2, 5 and 2 plants, each anchor present exactly once | `7f4c2c0254df` `29b739ae53a5` `512e1aa14637` |
+| the three `--control` | 22 / 42 (identity driver); 42 (install driver); 21 (model driver) | `72649b8ca536` `08c7d2664feb` `a7146f388840` |
+
+**Part C, the owner's question:** `owner_publish_check.py`, run inside part A's child. Exit 0; stdout sha256
+`97556976fff3`.
+
+| case | read |
+|---|---|
+| C0, the real file | skus.py ACCEPTS. Matrix slug: live none, stored none. Fleet problems 0 |
+| P1, a slug on the stored row, still build-only | **skus.py REFUSES:** `line 75: env weatherscope-stored-s3-128 is build-only but carries slug 'weatherscope-s3-128'.` |
+| P2, the stored row promoted to shipping | **skus.py ACCEPTS. Matrix slug: stored `weatherscope-s3-128`. Fleet problems 0.** The gap, as predicted |
+| P3, both rows shipping with the same slug | skus.py REFUSES: `line 75: slug weatherscope-s3-128 already used on line 72 -- two legs would publish the same asset name` |
+| P4, the live row promoted | skus.py ACCEPTS. Matrix slug: live `weatherscope-s3-128`, stored none. Fleet problems 0 |
+
+**So, measured:**
+- **While its row is build-only, the release job cannot publish the stored build.**
+  - Every publishing step is `if: matrix.slug`.
+  - A slug on a build-only row is refused before any matrix exists: red in P1, green on the real file in C0.
+  - The live row's own promotion leaves the stored leg slug-less (P4).
+  - Two legs cannot share the asset name (P3).
+- **A promotion of the stored row to shipping is refused by NO check (P2).** It sits behind a visible skus.yml edit,
+  which is prose. The proposed fence, a WX_STORED twin of check_photo_mode.mjs, is in S4.47. It is not built and
+  waits for a ruling.
