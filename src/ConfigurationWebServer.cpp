@@ -3267,18 +3267,18 @@ void ConfigurationWebServer::Initialise() {
                          + "</div>"
                          + wxlegendhtml::Html(wxs2::LookFromStored(wxLookStored.c_str())).c_str()
                          + "</fieldset>";
-#if !defined(BLIPSCOPE_WEB_RENDERER)
+#else
+                if (var == "WXSECTION")      return "";   // no weather in this build, so no section (WxLayerSwitch.h)
+#endif
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)
                 // Step D: the map's section, exactly what mapsettingshtml::Html returns (DOC2 and DNC2 grade that
-                // header). Hidden, never unticked, wherever the map is not built (DO4, DN4).
+                // header), under its own gate, never nested in the weather's. Hidden, never unticked, wherever the
+                // map is not built (DO4, DN4).
                 if (var == "MAPSECTION")
                     return String(mapsettingshtml::Html(mapLayerStored.c_str(), mapNamesStored.c_str(),
                                                         mapTerrainStored.c_str()).c_str());
 #else
-                if (var == "MAPSECTION")     return "";
-#endif
-#else
-                if (var == "WXSECTION")      return "";   // no weather in this build, so no section (WxLayerSwitch.h)
-                if (var == "MAPSECTION")     return "";   // no map in this build (step D: the same gate), so no section
+                if (var == "MAPSECTION")     return "";   // no map in this build, so no section
 #endif
                 if (var == "AIRPORTS")       return airportsEnabled == "true" ? "checked" : "";
                 if (var == "TRAIL")          return trailEnabled == "true" ? "checked" : "";
