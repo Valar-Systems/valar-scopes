@@ -119,24 +119,28 @@ int main(int argc, char** argv)
                     std::printf("RIG: Build refused Bend at %d mi, rotation %d\n", mi, rot);
                     return 2;
                 }
-                mapcompose::Map m;
+                // Each state in a FRESH Map, so DNP1 does not lean on Same() (DNP2's subject): S-DNP2 turns DNP2 red
+                // and leaves DNP1 able to see.
+                mapcompose::Map m, mo;
                 mapcompose::Init(m, Alloc, Free);
+                mapcompose::Init(mo, Alloc, Free);
                 k.names = false;
                 const uint16_t* off = mapcompose::Frame(m, &pk, k, nullptr, 0, in);
                 bool eq = off != nullptr;
                 for (size_t p = 0; eq && p < (size_t)kS * kS; ++p) eq = off[p] == mapcompose::Swap(ref[p]);
                 offEqual += eq;
                 k.names = true;
-                const uint16_t* on = mapcompose::Frame(m, &pk, k, nullptr, 0, in);
-                if (on && m.nPlaced > 0) {
+                const uint16_t* on = mapcompose::Frame(mo, &pk, k, nullptr, 0, in);
+                if (on && mo.nPlaced > 0) {
                     ++withNames;
                     bool differs = false;
                     for (size_t p = 0; !differs && p < (size_t)kS * kS; ++p) differs = on[p] != mapcompose::Swap(ref[p]);
                     onDiffers += differs;
                 }
                 std::printf("  info DNP1 %3d mi rot %2d: names off %s; names on placed %d\n", mi, rot,
-                            eq ? "byte-equal" : "DIFFERS", on ? m.nPlaced : -1);
+                            eq ? "byte-equal" : "DIFFERS", on ? mo.nPlaced : -1);
                 mapcompose::Release(m);
+                mapcompose::Release(mo);
             }
         if (withNames == 0) {
             std::printf("RIG: no view placed a name: DNP1 cannot see the names\n");

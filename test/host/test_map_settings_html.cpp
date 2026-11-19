@@ -69,11 +69,11 @@ int main()
     check(Checked(mapsettingshtml::Html(nullptr, "true", nullptr), "map-names"), "DNC2 a stored \"true\": checked");
     check(!Checked(mapsettingshtml::Html(nullptr, "false", nullptr), "map-names"),
           "DNC2 CONTROL a stored \"false\": not checked");
-    // the two boxes are independent
+    // the two boxes are independent; each row belongs to the box it reads, so a plant on one box reds only its family
     check(Checked(mapsettingshtml::Html("false", nullptr, nullptr), "map-names"),
-          "the map's \"false\" leaves the names' box checked");
+          "DNC2 the map's \"false\" leaves the names' box checked");
     check(Checked(mapsettingshtml::Html(nullptr, "false", nullptr), "map-layer"),
-          "the names' \"false\" leaves the map's box checked");
+          "DOC2 the names' \"false\" leaves the map's box checked");
 
     // D1's page row
     check(Selected(unset) == "strong", "D1 page: no stored terrain selects strong, and only it");
