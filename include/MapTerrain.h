@@ -1,5 +1,5 @@
 #pragma once
-// The "Terrain shading" setting (docs/blipscope-map-client-steps.md, Step D, D1; the owner's ruling, 2026-11-12):
+// The Terrain shading setting (docs/blipscope-map-client-steps.md, Step D, D1; the owner's ruling, 2026-11-12):
 // the key map-terrain and its four values. Pure C++11, no Arduino, so test/host/test_map_terrain.cpp grades exactly
 // what the device and the config page resolve.
 //

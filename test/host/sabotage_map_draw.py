@@ -27,6 +27,11 @@ CD6b clause:
   S-CD-NOHASH     the clear's reset of mapAirportsHeld deleted: {CD6b}
   S-CD-UNCOND     the arrival's bump made unconditional again (the Changed call kept): {CD6b}
   S-CD-BOOTINIT   mapAirportsHeld declared with an initializer, {0}: {CD6b}
+Step D's (registered 2026-11-18, "Step D's other half" (b), (d), (e) and D5), one per row:
+  S-DW1           p.putString("map-layer", "false") planted in a copy of src/Logbook.cpp: {DW1}
+  S-DH1           a hand-written map-layer box literal planted in the page: {DH1}
+  S-D5            TrySaveParam("map-terrain") moved outside the map's gate: {D5}
+  S-E3            mapLayerOn removed from MapEnabled()'s return: {E3}
   Each is graded AS PREDICTED only when the red set PARSED from the check's output equals its frozen set, so a FAIL
   regex that could not read a "CB-B" row would turn these plants off-prediction, never silently green.
 
@@ -65,7 +70,10 @@ REFUSAL = ("#if defined(BLIPSCOPE_MAP_FETCH) && !defined(WX_LOOK_AB) && !defined
 STEPC_AT = '#include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task\n'
 
 PLACES = os.path.join("include", "MapPlaces.h")
-SOURCE_CHECKS = 13   # CD4, CB8, CB8b, CD1-CD3, CD5, CD6, CD6b, CD7, CB-B1, CB-B2, CD8: the one place the count lives
+LOGBOOK = os.path.join("src", "Logbook.cpp")
+CWS = os.path.join("src", "ConfigurationWebServer.cpp")
+SOURCE_CHECKS = 17   # CD4, CB8, CB8b, CD1-CD3, CD5, CD6, CD6b, CD7, CB-B1, CB-B2, CD8, step D's DW1, DH1, D5, E3: the one
+                     # place the count lives
 ARRIVAL_BUMP_AT = ("                if (mapairports::Changed(mapAirportsHeld, apHash)) ++mapAirportsGen;   // CD6, CD6b: only "
                    "on a change\n")
 MAPBASE_AT = "    k.airportsGen = mapAirportsGen;\n"   # a line in DrawMapBase's draw region
@@ -117,6 +125,17 @@ SABOTAGES = {
                     {"CD6b"}),
     "S-CD-BOOTINIT": (AMH, [("    mapairports::Held mapAirportsHeld;\n", "    mapairports::Held mapAirportsHeld{0};\n")],
                       {"CD6b"}),
+    # Step D's (docs/blipscope-map-client-steps.md, "Step D's other half" (b), (d), (e) and D5), one per row.
+    "S-DW1": (LOGBOOK, [('#include "Logbook.h"\n',
+                         '#include "Logbook.h"\nstatic void PlantMapLayer(Preferences& p) { p.putString("map-layer", "false"); }\n')],
+              {"DW1"}),
+    "S-DH1": (CWS, [('#include "MapSettingsHtml.h"',
+                     'static const char* kPlantBox = "<input name=\\"map-layer\\" type=\\"checkbox\\">";\n'
+                     '#include "MapSettingsHtml.h"')], {"DH1"}),
+    "S-D5": (CWS, [('        TrySaveParam("map-terrain");\n', ''),
+                   ('        TrySaveParam("wx-look");', '        TrySaveParam("map-terrain");\n        TrySaveParam("wx-look");')],
+             {"D5"}),
+    "S-E3": (AMCPP, [("    return mapLayerOn && useCloudSource", "    return useCloudSource")], {"E3"}),
 }
 
 # The instrument's two directions (registered with L1's fix): none is a {CD4}-set plant. Each runs in its own copy and is
@@ -169,7 +188,7 @@ def run_check(tree):
     m = sc.COUNT.search(c.stdout)
     if c.returncode not in (0, 1) or not m or int(m.group(1)) != SOURCE_CHECKS:
         return None, f"the check did not run as {SOURCE_CHECKS} row(s) (exit {c.returncode})\n" + c.stdout + c.stderr
-    return {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CD\d+b?|CB-B\d+|CB\d+b?)\b", c.stdout, re.M)}, None
+    return {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CD\d+b?|CB-B\d+|CB\d+b?|DW1|DH1|D5|E3)\b", c.stdout, re.M)}, None
 
 
 def control_tree(td, tag, spec):

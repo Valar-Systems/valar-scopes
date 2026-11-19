@@ -41,7 +41,7 @@
 #include "MapPolicy.h"      // when to ask, and what each answer means (pure; CA4-CA11)
 #include "MapQuery.h"       // the request for the stored config (pure; CA1-CA3)
 #include "ConfigMigration.h" // step D: the map's two toggles resolve through ResolveToggle (DO1, DN1)
-#include "MapTerrain.h"     // step D: the "Terrain shading" setting (pure; D1)
+#include "MapTerrain.h"     // step D: the Terrain shading setting (pure; D1)
 #endif
 // THE MAP FETCH END
 // THE MAP DRAW BEGIN
