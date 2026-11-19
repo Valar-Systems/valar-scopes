@@ -5026,3 +5026,149 @@ reading. It was sent between 23:29:22Z (16k's push) and 23:34:40Z (the first `da
   - **Outcomes:** none found: B4 REFUTED. Any found: B4 live.
 - **B1 against B2, beyond T2,** is NOT SEPARABLE OFFLINE. It needs a board arm, for example NEW plus OLD's `format()`
   calls run and discarded inside A_LAYOUT, registered later.
+
+### 16m. 16l, read (2026-11-19 23:41:50-23:42:33Z, no board): D-1a T1 BLIND, A3 SUPPORTED, outline UNIFORM; D-P6 B3 REFUTED, UNIFORM (B1), B4 LIVE
+
+**What ran:** the tools accepted and sha'd before any read, in diag/ (the board dir):
+- `diag16l.py` `01b9eecb6db4`;
+- `guard_rate.cpp` `f46f6f58df28`, run by `guard_rate.sh` `da00d20a61ba` and `guard_rate_wrap.sh` `8c589451d0c6`;
+- G5''s headers, staged byte-equal to `d5623de606bb`.
+
+How the runs went:
+- **T1's method:** the superset amendment accepted before it ran (every position the table's rule allows, both arithmetic
+  models; 0 refused in both = A1 REFUTED; any refusal = T1 BLIND, A1 OPEN).
+- **Isolation:** each output was unread until its run exited. Every run exited 0 with 0 B of stderr.
+- **The checks:** every anchor equals the reader's REPORTED p50, and every tie held before and after. bgcheck
+  afterwards: PASS, 0 running.
+
+**The tools' red runs, before any read:**
+- `diag16l.py --selftest`: 7 of 7.
+- `guard_rate red`, r1: RIG. The control refused it: "vfmadd in plain 0, in fused 0", because GCC forms no FMA at
+  `-O1` (`fma_probe.sh` `ed963337bacf`: -O1 fused 0, -O2 12, -O3 12). Both builds moved to `-O2`. A rig fix caught by its
+  own control.
+- `guard_rate red`, r2: the control "plain 0, fused 12"; the plant refused in both models.
+
+**Graded per 16l, no cause claimed beyond each row (the reviewer accepted these as graded):**
+
+| test | read | per 16l |
+|---|---|---|
+| D-1a T1 | refusals in both models: 1552 of 33,872,400 darts (0.004582%); dots 0 of 9409 | **T1 BLIND**: A1 stays OPEN (a superset gives no rate) |
+| D-1a T2 | `outline` NEW − OLD +1.38 / +1.35, as 16k; but `contacts` +1.86 / +2.01 and `lbl_layout` +0.99 / +0.96 also moved over 0.5 in BOTH pairs (`lbl_draw` +0.44 / +0.49, the rest within 0.5) | **A3 SUPPORTED**: something beyond the outline code reaches the NEW arms |
+| D-1a T3 | `outline` d10/d50/d90 +1.42/+1.38/+1.39 and +1.39/+1.35/+1.28 | **UNIFORM**: a frame-constant cost ("A2, or A1 at a constant share") |
+| D-P6 T1 | `contacts` falls in NEW in both pairs: 12.52 → 11.71 (−0.81), 12.54 → 11.67 (−0.87) | **B3 REFUTED**; B1 and B2 live |
+| D-P6 T2 | `contacts` d10/d50/d90 −0.79/−0.81/−0.74 and −0.86/−0.87/−0.80 | **UNIFORM**: "B1 (or B3)", so B1, since B3 is refuted. B2's signature (a tail moving at least 2× the median) is absent |
+| D-P6 T3 | 5c (blipscope-93), independent, below | **B4 LIVE**, by the frozen rule |
+
+**D-P6 T3: 5c's listing.** It is cited by path and sha, and not copied here:
+`C:\Github\_handoffs\blipscope-5c\d16l\dp6-t3-second-read.md`, sha256 `e1ff8c07a953`, 205 lines.
+- **How it was read:** blind to my list, the code only, at `bench/gains-p6` `10d4517fc7c9` (`AircraftManager.cpp` blob
+  `3fdbac870d14`).
+- **What it found:** calls outside the three spans whose path CAN depend on the arm.
+  - `AircraftLabelBox`, after its A_LAYOUT: :5919 (the `n == 0` return) and :5923-5935 (the min/max over the n rows).
+  - In the loop: :4440 (the branch on its return), :4441 (`overlapFrame.Add` of the arm-set rect) and :4447-4448 (the
+    labelBox sums).
+  - Indirectly, every later `overlapFrame.Add` in the frame.
+- **So B4 is LIVE,** by 16l's frozen rule ("Any found: B4 live"), with no re-grade.
+- **Information beside it, not a re-grade:**
+  - that path does identical work when the two layouts agree, and 16k's G-UNTIMED read "6-CHECK [('227814', '0')]",
+    exactly one record with 0 mismatches;
+  - the 6-CHECK scene's coverage, from source (`bench/gains-p6` `10d4517fc7c9`, `FrameProfileScenes.h` :36-41,
+    `FrameBench.h` :40-43). 6-CHECK is scene S0, `{LABELS_CHECK, 40, true}`: the SAME kind settings as the timed arms
+    (level 40, weather on, the bench's fixed traffic, the same rung). It runs FIRST, in its own time window, and the
+    traffic orbits (only the still kinds hold the rows), so its frames put the contacts at different positions than
+    S2-S5's frames. **So the call-path route is zero on 6-CHECK's coverage only** (227,814 comparisons over its own
+    frames). The timed arms' own frames were not compared;
+  - 5c's machine-state channels (C1, cache; C2, allocator) are B1/B2, not boundable by reading.
+- 5c's other checks match my facts. The arm branch, Get/Refresh/PlaceCached and the LABELS_CHECK path are inside
+  A_LAYOUT. PlantLabels fires on scene 1 only, inside A_DRAW. `labelCache`'s only reader is :5844.
+
+**Citations, recorded as they stand.**
+- 5c reported a "citation difference": my D-1a span against its G6 span (:4484-4502). That came from the reviewer's
+  request, which pasted my D-1a span, given at `gains-p5b`, into the G6 request. The reviewer named it as his slip. My
+  citations stand for their own commits.
+- **And one real error of mine, small and named:** 16l's D-1a F1 gives the A_OUTLINE span as "4540-4574". At G5''s blob
+  (`d5623de606bb`, `AircraftManager.cpp` `0546dbcddf12`) the span is :4543 (`Cyc`) to :4574 (`AddCyc`). The start line is
+  off by 3. Nothing graded depends on it.
+
+**The reviewer's observation, for the record only, not a reading:** in both cuts the `contacts` remainder moved in the arm
+whose spans changed. That fits the remainder being sensitive to work elsewhere in the frame.
+
+**Next:** the board arms 16l names are left to a later registration. They are A2's sub-span timers, and NEW plus OLD's
+`format()` discarded inside A_LAYOUT for B1 against B2. Nothing runs under 16l. Nothing from P5 or P6 merges toward
+firmware.
+
+**The outputs, verbatim.** The diag16l outputs were written by Windows Python, so their line ends are CRLF. The blocks
+below are those files with CRLF normalized to LF, and each file's own sha is given. The T1 log is WSL's, LF already.
+
+D-1a T1 (`guard_rate_wrap.sh count c1`; `t1-count-c1.log` sha256 `8a8ca960c978`, 1 CRLF normalized):
+
+```
+[bg] STARTED 2026-11-19T23:41:50Z pid 188696 msys 1208050 pgid 1208049 tag bg-20261119T234150Z-39f1281c (bash.exe): 16l guard_rate count c1
+disk C: free 27.0 GiB at 23:41:50Z
+rule: FrameBenchTable.h 31: rMi = 1.0 + 7.0 * Frac(...) -> rMax 8 mi; FrameBench.h kRungMi 25 mi; SCREEN_SIZE/2 120 px; kCategoryA3 4
+region: centre (120, 120), R 48 px (the table's disc is 38.4 px)
+OutlineMask.h sha256 3067d21e675a; guard_rate.cpp f46f6f58df28
+control: vfmadd in plain 0 (want 0), in fused 12 (want > 0); cpu lines with fma 28
+plant (plain): exit 0: PLANT (x 7, y 120, heading 260, cat 4): refused
+plant (fused): exit 0: PLANT (x 7, y 120, heading 260, cat 4): refused
+count (plain): exit 0
+PLANT (x 7, y 120, heading 260, cat 4): refused
+region x, y in [72, 168] x [72, 168], headings 0.0-359.9 by 0.1, cat 4
+darts: refused 1552 of 33872400 (0.004582%)
+dots:  refused 0 of 9409
+count (fused): exit 0
+PLANT (x 7, y 120, heading 260, cat 4): refused
+region x, y in [72, 168] x [72, 168], headings 0.0-359.9 by 0.1, cat 4
+darts: refused 1552 of 33872400 (0.004582%)
+dots:  refused 0 of 9409
+guard_rate count done
+rc=0
+```
+
+D-1a T2 (`diag16l.py rows G5P`; `t2-rows-g5p.out` sha256 `547d176b4e62`, 5 CRLF normalized):
+
+```
+G5P: 4 of 4 named rows (others withheld)
+R-1a-OLD1    REPORTED   kind outline-8copy; fr p50 69.53; fr-wait p50 69.52; upd=14.90 wait=0.01 under=5.48 sweep=4.00 sw_raster=2.06 sw_blend=1.81 sw_beam=0.10 static=3.21 contacts=13.36 outline=7.57 lbl_layout=6.84 lbl_draw=9.67 rest=0.44 handover=3.98 flush=0.00; push avg 24.18; rebuild frames 1
+R-1a-NEW1    REPORTED   kind outline-mask; fr p50 74.19; fr-wait p50 74.18; upd=14.89 wait=0.01 under=5.49 sweep=4.00 sw_raster=2.06 sw_blend=1.81 sw_beam=0.10 static=3.21 contacts=15.22 outline=8.95 lbl_layout=7.83 lbl_draw=10.11 rest=0.45 handover=3.98 flush=0.00; push avg 24.15; rebuild frames 1
+R-1a-OLD2    REPORTED   kind outline-8copy; fr p50 69.44; fr-wait p50 69.43; upd=14.90 wait=0.01 under=5.49 sweep=4.00 sw_raster=2.06 sw_blend=1.81 sw_beam=0.10 static=3.21 contacts=13.28 outline=7.57 lbl_layout=6.84 lbl_draw=9.65 rest=0.44 handover=3.98 flush=0.00; push avg 24.18; rebuild frames 1
+R-1a-NEW2    REPORTED   kind outline-mask; fr p50 74.27; fr-wait p50 74.26; upd=14.89 wait=0.01 under=5.49 sweep=4.00 sw_raster=2.06 sw_blend=1.81 sw_beam=0.10 static=3.20 contacts=15.29 outline=8.92 lbl_layout=7.80 lbl_draw=10.14 rest=0.46 handover=3.98 flush=0.00; push avg 24.17; rebuild frames 1
+```
+
+D-1a T3 (`diag16l.py quant G5P`; `t3-quant-g5p.out` sha256 `1c5b4c7b9cc5`, 9 CRLF normalized):
+
+```
+tie (before): the raw file is the sealed file (463f526b0a80)
+1a-OLD1: outline n=1714 p10 7.28 p50 7.57 p90 7.99 ms; ANCHOR the reader's p50 7.57 -> equal
+1a-NEW1: outline n=1604 p10 8.70 p50 8.95 p90 9.38 ms; ANCHOR the reader's p50 8.95 -> equal
+1a-OLD2: outline n=1716 p10 7.30 p50 7.57 p90 8.02 ms; ANCHOR the reader's p50 7.57 -> equal
+1a-NEW2: outline n=1603 p10 8.69 p50 8.92 p90 9.30 ms; ANCHOR the reader's p50 8.92 -> equal
+tie (after): the raw file is the sealed file (463f526b0a80)
+1a-NEW1 - 1a-OLD1: d10 +1.42 d50 +1.38 d90 +1.39 ms -> UNIFORM
+1a-NEW2 - 1a-OLD2: d10 +1.39 d50 +1.35 d90 +1.28 ms -> UNIFORM
+VERDICT G5P outline: UNIFORM (NEW higher at p50, both pairs)
+```
+
+D-P6 T1 (`diag16l.py rows G6`; `t1-rows-g6.out` sha256 `2212edd0e45b`, 5 CRLF normalized):
+
+```
+G6: 4 of 4 named rows (others withheld)
+R-6-OLD1     REPORTED   kind labels-today; fr p50 71.50; fr-wait p50 71.49; upd=14.81 wait=0.01 under=5.48 sweep=6.03 sw_raster=2.07 sw_blend=3.83 sw_beam=0.09 static=3.22 contacts=12.52 outline=6.51 lbl_layout=8.41 lbl_draw=9.97 rest=0.42 handover=3.97 flush=0.00; push avg 24.17; rebuild frames 1
+R-6-NEW1     REPORTED   kind labels-cache; fr p50 65.28; fr-wait p50 65.27; upd=14.83 wait=0.01 under=5.49 sweep=6.03 sw_raster=2.06 sw_blend=3.83 sw_beam=0.09 static=3.23 contacts=11.71 outline=6.26 lbl_layout=4.23 lbl_draw=9.08 rest=0.43 handover=3.89 flush=0.00; push avg 24.09; rebuild frames 1
+R-6-OLD2     REPORTED   kind labels-today; fr p50 71.50; fr-wait p50 71.49; upd=14.79 wait=0.01 under=5.48 sweep=6.03 sw_raster=2.07 sw_blend=3.83 sw_beam=0.09 static=3.23 contacts=12.54 outline=6.45 lbl_layout=8.43 lbl_draw=10.02 rest=0.43 handover=3.97 flush=0.00; push avg 24.17; rebuild frames 1
+R-6-NEW2     REPORTED   kind labels-cache; fr p50 65.15; fr-wait p50 65.14; upd=14.82 wait=0.01 under=5.49 sweep=6.03 sw_raster=2.07 sw_blend=3.83 sw_beam=0.09 static=3.22 contacts=11.67 outline=6.21 lbl_layout=4.22 lbl_draw=9.07 rest=0.43 handover=3.89 flush=0.00; push avg 24.09; rebuild frames 1
+```
+
+D-P6 T2 (`diag16l.py quant G6`; `t2-quant-g6.out` sha256 `b9f756ade894`, 9 CRLF normalized):
+
+```
+tie (before): the raw file is the sealed file (2fee50de474b)
+6-OLD1: contacts n=1663 p10 12.30 p50 12.52 p90 12.97 ms; ANCHOR the reader's p50 12.52 -> equal
+6-NEW1: contacts n=1819 p10 11.51 p50 11.71 p90 12.23 ms; ANCHOR the reader's p50 11.71 -> equal
+6-OLD2: contacts n=1665 p10 12.32 p50 12.54 p90 13.03 ms; ANCHOR the reader's p50 12.54 -> equal
+6-NEW2: contacts n=1825 p10 11.46 p50 11.67 p90 12.23 ms; ANCHOR the reader's p50 11.67 -> equal
+tie (after): the raw file is the sealed file (2fee50de474b)
+6-NEW1 - 6-OLD1: d10 -0.79 d50 -0.81 d90 -0.74 ms -> UNIFORM
+6-NEW2 - 6-OLD2: d10 -0.86 d50 -0.87 d90 -0.80 ms -> UNIFORM
+VERDICT G6 contacts: UNIFORM (NEW lower at p50, both pairs)
+```
