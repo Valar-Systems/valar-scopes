@@ -4921,3 +4921,108 @@ grade_gains2 end 2026-11-19T23:22:43Z: exit 2
 
 The withheld rows stay unread and kept: `gains16r-read/G5P.read` and `G6.read`, beside the seals
 `traces/G5P-2.filtered` (`463f526b0a80`) and `traces/G6-2.filtered` (`2fee50de474b`).
+
+### 16l. Two registered diagnoses for 16k's STOPs, offline and with no board (accepted 2026-11-19 ~23:3xZ; frozen before any withheld row, trace value or tool output is read)
+
+**Why.** The reviewer's ruling (3) on 16k: a registered diagnosis for each STOP, frozen before any withheld R row or trace
+value is opened. For 1a, what in G5' makes `outline` slower. For P6, what moves `contacts` by ~0.8 ms when only
+`lbl_layout` changed.
+
+**A slip, named.** The draft of this section went to the reviewer stamped "~23:50Z". That was a guess, not a `date -u`
+reading. It was sent between 23:29:22Z (16k's push) and 23:34:40Z (the first `date -u` after it).
+
+**Common rules.**
+- **Inputs:**
+  - the seals `traces/G5P-2.filtered` (`463f526b0a80`) and `traces/G6-2.filtered` (`2fee50de474b`), each one's tie
+    re-checked before its read;
+  - the withheld rows in `gains16r-read/G5P.read` and `G6.read`, read ONLY for the rows named below;
+  - the source at `bench/gains-p5b` `d5623de606bb` (G5') and `bench/gains-p6` `10d4517fc7c9` (G6).
+- **No re-grade.** 16k's grades and the rulings on them stand. These diagnoses name causes only.
+- **Each alternative ends one of three ways:** SUPPORTED, REFUTED, or NOT SEPARABLE OFFLINE. NOT SEPARABLE OFFLINE means
+  only a board arm can separate it, and that arm is registered later and never run under this text.
+- **Outside the set, for both:** a read matching no row of its table; a tie failing; a row or arm absent; the two pairs
+  disagreeing in sign. Any of these: STOP. The instrument is unreliable at this scale, and the case goes to the
+  reviewer.
+- **New tools** are written after this section is pushed. Each is red first and sha'd in a note before its first use.
+- **The thresholds** (10%, ±0.3 ms, 2×) are this section's own, frozen here.
+
+#### D-1a: why `outline` is slower in 1a's NEW (MASK) arms, by +1.38 / +1.35 ms a frame (~34 µs a contact at 40)
+
+**Facts from source**, read before any data:
+- **F1.** The A_OUTLINE span (`AircraftManager.cpp` 4540-4574) holds only the arm's outline code: the 8 black copies
+  (OLD, 4557-4564) or `DrawOutlineMask` (NEW). The colour marker is drawn after the span.
+- **F2.** NEW, per contact (`OutlineMask.h` `DrawEdge`, :205). The guard runs first: `Fits`, then `Build` and `Same` at
+  the 8 offsets.
+  - **If the guard refuses:** the 8 copies are drawn, AFTER the guard's work.
+  - **If it accepts:** `scratch.Begin()` (`fillSprite` on a 32×32 1-bit `LGFX_Sprite`), the marker drawn into the
+    scratch, the 32 rows read back, the dilation, and one `drawFastHLine` per edge run.
+- **F3.** The trace carries NO count of guard refusals.
+- **F4.** The only arm branch in the loop, `OutlineOld()` (:4557), is inside the span.
+- **F5.** The 40 contacts are the bench's fixed traffic table (`FrameBench.h` `kLevel` 40; `fixed_traffic.py`, checked
+  against the device's libm at boot, TBL-DEV).
+
+**The alternatives:**
+- **A1, refusal.** A large share of contacts is refused, so NEW pays the guard plus the 8 copies.
+- **A2, per-contact cost.** An accepted mask costs more than its 8 copies: the scratch clear, the raster, the readback,
+  the dilation and the run writes.
+- **A3, not the outline code.** An order or state effect reaches the span.
+
+**The tests, in this order:**
+- **T1** (host, no device data): the guard's refusal count on the bench's own traffic.
+  - **What it runs:** `fixed_traffic.py`'s contacts for 1a's scenes, at the positions the table's own rule gives. The
+    tool reads that rule from the source and prints it. The positions go through the header-only `Build` / `Fits` /
+    `Same`, compiled for the host (the "one compiled body"), and it prints refused / total.
+  - **Red first:** a planted off-edge contact must count as refused.
+  - **A fresh disk reading is printed before the host compile.**
+  - **Outcomes:**
+    - 0 refused: A1 REFUTED.
+    - 10% or more refused: A1 SUPPORTED as a contributor, with no ms attributed to it.
+    - between 0 and 10%: A1 NOT SEPARABLE (minor at most).
+    - the host cannot reproduce the table's positions: T1 BLIND, and A1 stays open.
+- **T2** (`G5P.read`, 1a's four arms only): every phase per arm.
+  - **Predicted:** `outline` NEW − OLD = +1.38 / +1.35 as in 16k, and every other phase within 0.5 in both pairs.
+  - **Another phase over 0.5 in both pairs:** A3 SUPPORTED.
+- **T3** (the seal's per-frame dumps, 1a's four arms): `outline` p10 / p50 / p90 per arm.
+  - **Each quantile's NEW − OLD within ±0.3 ms of the p50 shift:** a frame-constant cost (A2, or A1 at a constant
+    share).
+  - **The p90 shift at least 2× the p50 shift:** a variable cost (A1 with a varying share, or A3).
+  - **Between the two** (outside the ±0.3 band, under 2×): NOT SEPARABLE by T3.
+- **A2's internal split** (clear, raster, readback, runs) is NOT SEPARABLE OFFLINE: it needs a board arm with sub-span
+  timers.
+
+#### D-P6: what moves `contacts` by 0.81 / 0.87 ms between P6's arms
+
+**Facts from source:**
+- **F1.** `contacts` is a REMAINDER: `contactsUs = loopUs − outlineUs − layoutUs − lblDrawUs` (`FrameProfile.h:175`).
+  Whatever the loop does outside the three spans lands in it.
+- **F2.** Both `LabelLayout` calls sit inside A_LAYOUT spans (`AircraftManager.cpp` 5877-5885, 5910-5916). Both
+  `drawString` paths sit inside A_DRAW (5887-5896). The only arm branch, `LabelsOld()` (:5841), is inside them.
+- **F3.** Both arms run in ONE image, so code placement is identical. What differs at run time:
+  - OLD's `format()` calls and String temporaries (malloc / free) per contact, inside the spans;
+  - NEW's cached strings, read from PSRAM entries (`LabelCache.h` :232, `heap_caps_malloc`).
+
+**The alternatives:**
+- **B1, cache pressure.** OLD's extra code and data per contact evict the residual's cache lines, so `contacts` FALLS in
+  NEW, by a near-constant amount a frame.
+- **B2, allocator state.** OLD's String churn leaves the heap so that the residual's own allocations run slower, so
+  `contacts` falls in NEW, with its tail moving more than its median.
+- **B3, PSRAM reads.** NEW's cached-string reads from PSRAM evict the residual's PSRAM-backed data, so `contacts` RISES in
+  NEW.
+- **B4, a span leak.** Arm-dependent work outside the spans. F2 says there is none; it is kept, and tested.
+
+**The tests, in this order:**
+- **T1** (`G6.read`, P6's four arms only): `contacts` p50 per arm.
+  - **Both pairs fall in NEW:** B1 and B2 live; B3 REFUTED.
+  - **Both pairs rise:** B3 live; B1 and B2 REFUTED.
+  - **The signs disagree:** outside the set.
+- **T2** (the seal's per-frame dumps, P6's four arms): `contacts` p10 / p50 / p90 per arm.
+  - **Each quantile within ±0.3 ms of the p50 shift:** B1 (or B3).
+  - **The p90 shift at least 2× the p50 shift:** B2.
+  - **Between the two:** NOT SEPARABLE by T2.
+- **T3** (source, a second reading by **5c (blipscope-93)**, independent of mine):
+  - **What it is:** a read-only listing of every call in G6's contact loop OUTSIDE the three spans, at `bench/gains-p6`
+    `10d4517fc7c9`, with whether each one's path can depend on the arm. It is sent to the reviewer and me, and 5c does
+    not see any list of mine first.
+  - **Outcomes:** none found: B4 REFUTED. Any found: B4 live.
+- **B1 against B2, beyond T2,** is NOT SEPARABLE OFFLINE. It needs a board arm, for example NEW plus OLD's `format()`
+  calls run and discarded inside A_LAYOUT, registered later.
