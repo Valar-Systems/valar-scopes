@@ -4376,3 +4376,63 @@ its anchor occurs once, and that the copy changed.
   goes below this section.
 - **Anything else off STOPS,** and I fix nothing before the ruling.
 - **A plant that reads green is off,** whatever the reason.
+
+### S4.50, 2026-11-19: S4.49 read (04:27-04:28Z): D and E2-E4 as predicted; E1 OFF on P3 and P3b's line counts (a dead raw leg); the fix, frozen
+
+**What ran:** against S4.49, frozen and pushed at `7ca4d95f8200` before anything ran.
+- **Part D** ran on this branch at `1d2924c61a74`, the `ALLOWED_MENTIONS` line, `scripts/skus.py` `57bd5f77b901`.
+- **Part E** ran on the code branch: wt-w7 at `b54ed38a86c3`, plus the three frozen files uncommitted
+  (`f3b2d17c186f`, `7371c64b1f63`, `777fe8e582f4`).
+- Every run was bare, with stdout and stderr to their own files; every stderr is 0 B.
+
+| row | read | stdout sha256 |
+|---|---|---|
+| D1 `--check-readers` | exit 0: `reader sweep OK: 17 reviewed mention(s), no parser but skus.py.` No new file, no stale entry | (printed) |
+| D1 `--check-readers-selftest` | exit 0, `SELFTEST PASSED` | |
+| D2 | pushed `1d2924c61a74` at 04:29Z; a fresh fetch reads the tip equal to the local HEAD (porcelain 0); `--check-readers` exit 0, 17 again | |
+| E1 `check_wx_stored.py --selftest` | exit 0, `WX-STORED SELFTEST PASSED`; every case's exit and rule set as frozen. **OFF: P3 and P3b printed 3 lines each, against 4** (below) | `3595c8cb7fbc` |
+| E2 the real tree | exit 0: `ok: WX_STORED is in one env (weatherscope-stored-s3-128), build-only with no slug in skus.yml, extended and interpolated by none` | `ae7f272f54cb` |
+| E3 `skus.py --check-readers` (code branch) | exit 0, `16 reviewed mention(s)` | `70129e2633b4` |
+| E4 `--check-wiring` | exit 0: `ok: 'OTA identity in the image' runs on every row, after the manifest, before the upload and the receipt` | `3f93715319ee` |
+
+**E1's off, and its cause.** In P3 and P3b the three env lines came (the live env and both benches define
+WX_STORED). The fourth, F1's RAW leg ("the live section names WX_STORED"), did not.
+- `NAMES_MACRO` was `(?<![A-Za-z0-9_])WX_STORED(?![A-Za-z0-9_])`.
+- In `-DWX_STORED` the character before the W is the D, a word character, so the lookbehind refuses. The raw leg
+  could see only a BARE mention, never a flag. That is the trap check_photo_mode.mjs's own comment names; its regex
+  carries an optional `(?:-[DU])?`, and this one dropped it.
+- The rule sets still matched only because the RESOLVED leg caught the same envs.
+- What it missed is `-DWX_STORED` in a section no env resolves yet: a shared section waiting to be interpolated
+  later.
+- The selftest PASSED with a dead leg because no plant exercised the raw leg alone. That is a guard without a plant,
+  inside the fence built for exactly that shape.
+- Reported at once; nothing was fixed before the ruling.
+
+**The ruling (the reviewer): fix (a).**
+- `NAMES_MACRO` gains `(?:-[DU]\s*)?`, as check_photo_mode does.
+- A new plant, **P6**: an unused `[wx-fence-shared]` section with `build_flags = -DWX_STORED`.
+- P6 reads GREEN on the current code FIRST, proving the leg dead. After the fix it reads RED on F1, with 1 line.
+- P3 and P3b go back to the frozen 4 lines; everything else as E1 read.
+- `check_wx_stored.py` only. **A second off on E1 goes to the reviewer.**
+
+**The change**, in two states, both frozen by sha before either runs:
+
+| state | `scripts/check_wx_stored.py` sha256 | what |
+|---|---|---|
+| state 1, installed now | `faf98695087d` (was `f3b2d17c186f`) | P6 added before B1. `NAMES_MACRO` unchanged |
+| state 2, after E1a | `4dde2e1fb27a` | state 1, plus `NAMES_MACRO = (?<![A-Za-z0-9_])(?:-[DU]\s*)?WX_STORED(?![A-Za-z0-9_])` and a 3-line comment saying why. Nothing else |
+
+Read before the freeze, so C0 cannot move: platformio.ini names `WX_STORED` on exactly one line, the stored env's own
+`build_flags` (1186), which the raw leg skips by construction.
+
+**THE PREDICTIONS** (Python only, before 16:20Z):
+
+| row | state | prediction |
+|---|---|---|
+| E1a `--selftest` | 1 | **P6 reads `FAIL ... exit 0, rules [] (want exit 1, ['F1'])`**: the planted flag is missed, so the leg is dead. Every other case as E1 read (P3 and P3b at 3 lines). `WX-STORED SELFTEST FAILED`, exit 1 |
+| E1b `--selftest` | 2 | `WX-STORED SELFTEST PASSED`, exit 0. P6: `ok`, exit 1, F1, one line, `F1 [wx-fence-shared] build_flags names WX_STORED`. P3: 4 lines; the fourth is `F1 [env:weatherscope-s3-128] build_flags names WX_STORED`. P3b: 4 lines; the fourth is `F1 [env:weatherscope-s3-128] build_src_flags names WX_STORED`. C0, P1, P2, P4, P5 and B1 exactly as E1 read |
+| E2b `check_wx_stored.py`, the real tree | 2 | exit 0, E2's line |
+
+**Outside the set:**
+- **A second off on E1 STOPS,** and goes to the reviewer.
+- **The rig:** a syntax error in state 2. Reported, fixed, repeated, and recorded below.
