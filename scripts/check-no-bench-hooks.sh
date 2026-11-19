@@ -48,7 +48,7 @@ set -u
 # and by the boot override line in main.cpp (an `if constexpr` on FORCE_NIGHT / REBOOT_CAP_IS_OVERRIDE). That
 # last one has no #if around it, so this scan is what proves its literal stays out of a shipping image. The
 # weather and map bench images print it, which is why their --expect lists name it.
-MARKERS=( "[alert-bench]" "[touch-bench]" "[photo-mode]" "[bench-force-starve]" "[ota-bench]" "[wx-bench]" "[card-bench]" "[map-bench]" "[bench]" )
+MARKERS=( "[alert-bench]" "[touch-bench]" "[photo-mode]" "[bench-force-starve]" "[ota-bench]" "[wx-bench]" "[card-bench]" "[map-bench]" "[map-key]" "[bench]" )
 ANCHOR="[build] env="
 
 anchored() {

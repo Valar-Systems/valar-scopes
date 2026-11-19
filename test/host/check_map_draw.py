@@ -561,14 +561,17 @@ def cd8(root):
 
 # ------------------------------------------------------------------------------------------------------- step D
 MAP_KEYS = ('"map-layer"', '"map-names"', '"map-terrain"')
-# (d)'s writers of the config namespace, plus the device's read and the page's header. Name a file here only after (d)
-# names it.
+# (d)'s writers of the config namespace, plus the device's read, the page's header and the mapkey bench line ((c),
+# V19S: a reader, bench-only). Name a file here only after (d) or (c) names it.
 DW1_NAMED = ["src/ConfigurationWebServer.cpp", "src/ConfigMigration.cpp", "src/FactoryReset.cpp",
-             "src/AircraftManager.cpp", "include/MapSettingsHtml.h"]
+             "src/AircraftManager.cpp", "include/MapSettingsHtml.h", "include/MapKeyLine.h"]
 SRC_EXTS = (".h", ".hpp", ".cpp", ".c", ".inc")
 MAP_GATE = "#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)"
 GATES = {norm(MAP_GATE), "#ifdef BLIPSCOPE_MAP_FETCH", "#if defined(BLIPSCOPE_MAP_FETCH)"}
-TERRAIN, LABEL, HDR_INCLUDE = '"map-terrain"', '"Terrain shading"', '#include "MapSettingsHtml.h"'
+KEY_GATES = {"#ifdef MAP_KEY_BENCH", "#if defined(MAP_KEY_BENCH)"}
+TERRAIN, LABEL = '"map-terrain"', '"Terrain shading"'
+# D5's two headers that ARE the setting's text: each exempt itself, each #included only inside its own gate.
+HEADERS = {"include/MapSettingsHtml.h": GATES, "include/MapKeyLine.h": KEY_GATES}
 DIRECTIVE = re.compile(r"#\s*(if|ifdef|ifndef|elif|else|endif)\b")
 
 
@@ -576,9 +579,10 @@ def src_files(root):
     return files_under(root, "src", SRC_EXTS) + files_under(root, "include", SRC_EXTS)
 
 
-def gated(text, rel):
+def gated(text, rel, gates=None):
     """Per line: inside the FIRST branch of an open #if whose line (comment removed, whitespace normalised) is one of
-    GATES. Line-based; an unbalanced #if/#endif is the rig."""
+    `gates` (default GATES). Line-based; an unbalanced #if/#endif is the rig."""
+    gates = GATES if gates is None else gates
     stack, out = [], []
     for ln in text.split("\n"):
         s = ln.strip()
@@ -586,7 +590,7 @@ def gated(text, rel):
         if m:
             d, line = m.group(1), norm(re.sub(r"//.*$", "", s))
             if d in ("if", "ifdef", "ifndef"):
-                stack.append(line in GATES)
+                stack.append(line in gates)
             elif d in ("elif", "else"):
                 if not stack:
                     raise Rig(f"{rel}: an #{d} without its #if")
@@ -633,18 +637,21 @@ def d5(root):
     why, seen = [], {}
     for rel in src_files(root):
         t = read(root, rel)
-        has = TERRAIN in t or LABEL in t
-        inc = HDR_INCLUDE in t
-        if not (has or inc) or (rel == "include/MapSettingsHtml.h" and not inc):
+        has = (TERRAIN in t or LABEL in t) and rel not in HEADERS
+        incs = [h for h in HEADERS if f'#include "{os.path.basename(h)}"' in t]
+        if not (has or incs):
             continue
         g = gated(t, rel)
         for i, ln in enumerate(t.split("\n")):
-            if (TERRAIN in ln or LABEL in ln) and rel != "include/MapSettingsHtml.h":
+            if has and (TERRAIN in ln or LABEL in ln):
                 seen[rel] = seen.get(rel, 0) + (1 if g[i] else 0)
                 if not g[i]:
                     why.append(f"{rel}:{i + 1} names map-terrain or the control's label outside the map's gate")
-            if HDR_INCLUDE in ln and not g[i]:
-                why.append(f"{rel}:{i + 1} includes MapSettingsHtml.h outside the map's gate")
+        for h in incs:
+            gh = gated(t, rel, HEADERS[h])
+            for i, ln in enumerate(t.split("\n")):
+                if f'#include "{os.path.basename(h)}"' in ln and not gh[i]:
+                    why.append(f"{rel}:{i + 1} includes {os.path.basename(h)} outside its gate")
     for rel in ("src/ConfigurationWebServer.cpp", "src/AircraftManager.cpp"):
         if not seen.get(rel):
             raise Rig(f"{rel}: no gated map-terrain found: the scan cannot see the setting")

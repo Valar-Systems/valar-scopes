@@ -15,7 +15,8 @@ a MARKERS line that cannot be read) exits 2. The original raised SystemExit with
     python -I scripts/bench-marker-xcheck.py [<tree>] --plant-hook    a virtual hook printing [zz-bench], unlisted: reads 1
     python -I scripts/bench-marker-xcheck.py [<tree>] --plant-drop    the list's last marker removed, as a merge would: reads 1
 
-A tag is bench-shaped when one of its hyphen-separated words is "bench", or it is [photo-mode]. It prints tags and
+A tag is bench-shaped when one of its hyphen-separated words is "bench", or it is in SPECIAL ([photo-mode]; step D's
+[map-key], the mapkey bench image's V19S line, whose text the registration fixed). It prints tags and
 counts only, never a source line. Named limits: a marker that is not bench-shaped (a diagnostic build's own tag) is
 invisible to this, and so is one assembled at run time rather than written as one literal.
 """
@@ -26,7 +27,7 @@ import sys
 
 LIT = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 TAG = re.compile(r"\[([a-z0-9]+(?:-[a-z0-9]+)*)\]")
-SPECIAL = {"photo-mode"}
+SPECIAL = {"photo-mode", "map-key"}
 EXT = (".c", ".cc", ".cpp", ".h", ".hpp", ".inc", ".ino")
 SCRIPT = "scripts/check-no-bench-hooks.sh"
 

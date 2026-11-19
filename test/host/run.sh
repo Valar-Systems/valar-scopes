@@ -2434,7 +2434,8 @@ note_block $? "MapCompose"
 
 # Step D (docs/blipscope-map-client-steps.md, "Step D" and "Step D's other half"): the page's map section
 # (include/MapSettingsHtml.h: DOC2, DNC2, D1's page row), the terrain setting (include/MapTerrain.h: D1; D3 against
-# test/host/ref/MapLayer_main.h, main's MapLayer.h before step D) and the town names in the composer (DNP1, DNP2). DOC1 and
+# test/host/ref/MapLayer_main.h, main's MapLayer.h before step D), the town names in the composer (DNP1, DNP2) and the
+# mapkey bench image's V19S line (include/MapKeyLine.h: MK1-MK4, classes never values). DOC1 and
 # DNC1 are in test_config_migration above. Their plants: python -I test/host/sabotage_map_settings.py.
 echo
 echo "== Step D: the map's settings =="
@@ -2448,8 +2449,11 @@ fi
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_map_names.cpp" -o "$OUT/test_map_names.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the town names test did not compile"; cat "$OUT/build.log"; exit 2
 fi
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_map_key_line.cpp" -o "$OUT/test_map_key_line.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the mapkey line test did not compile"; cat "$OUT/build.log"; exit 2
+fi
 worst=0
-for t in "test_map_settings_html.exe" "test_map_terrain.exe $ROOT/test/fixtures/wx" "test_map_names.exe $ROOT/test/fixtures/wx"; do
+for t in "test_map_settings_html.exe" "test_map_terrain.exe $ROOT/test/fixtures/wx" "test_map_names.exe $ROOT/test/fixtures/wx" "test_map_key_line.exe"; do
   # shellcheck disable=SC2086
   "$OUT/"$t
   rc=$?
