@@ -3505,3 +3505,139 @@ output to its own file, after the push and before 16:20Z.
 - The setup screens' drawing and the live map path.
 - `WeatherscopeManager::NeedsReverify()`, and `main.cpp` lines 1070-1073 under 5c's review.
 - Then W7-BUILD, W7-D1/D2 on the image, W7-S1 and W7-F1.
+
+### S4.39, 2026-11-19: W7 slice 3b (the wiring), registered before any code. Four questions
+
+**The rulings this builds on (the reviewer, 2026-11-19):**
+- **3a is accepted as read** (S4.38).
+- **3b's slot:** pio and S1 on Friday after B9 (~18:45Z), with the fallback after Saturday's restart. Today, before
+  16:20Z, only this registration, and its host rows if it is accepted in time.
+- **The basemap ruling:**
+  - Outside Bend, a live board draws its radar on PLAIN GROUND. Bend's stored package must never sit under another
+    location: a wrong map is a false picture.
+  - **Its row:** any location outside the stored package's extent draws 0 basemap pixels. **Its control:** Bend still
+    draws its map.
+  - No text overlay for now: the radar itself is honest.
+
+**What is true today** (branch `weatherscope/w7-live` at `47bde5285672`, which carries main `f89c3878016a`; read-only):
+
+| fact | where |
+|---|---|
+| The manager's modes are `Splash, Status, Scenario, Loop, Legend, Swipe`. Its feeds come from `wx::MakeFeeds()`, in its constructor | `WeatherscopeManager.h`; `WxFeedFactory.cpp` |
+| The stored cycle is Dallas's six scenarios then Bend's two, each built by `BuildScenario()`. The loop's `history[]` is filled ONCE, from flash, in `MakeBuffers()` | `WeatherscopeManager.cpp:62`, :244, :370 |
+| **Bend's package is applied whenever it validated, with no location test:** `EnsureBase()` returns only on `!pkgOk` | `WeatherscopeManager.cpp:543-569` |
+| A package's extent is its origin (`lat0Micro`, `lon0Micro`) and `radiusMm` | `include/BasemapPackage.h:80-86` |
+| `ScreenIn::base == nullptr` is the no-package path (3.5a's): plain ground | `WxScreens.h:688-696` |
+| The owner's display is already built. The frame time turns orange past 600 s (`kOrangeAfterS`), and the state line reads `RADAR STALE` past 1800 s (`kStaleAfterS`). The stored cycle includes a `Stale` kind, drawn by the same path | `WxScreens.h:435-470`; `WxScenarios.h:31` |
+| **The radar's /wx client:** `RequestWeather` queues the request to its fetch task and calls `OnSend` at the send, and a full queue is answered at once as a network failure. `ConsumeWeather` takes a 200 as a candidate only when the whole body arrived (`len == claimed`) and `wxcrop::Validate` is Ok; it finds "all 14" with a run scan and passes the claimed size as `bytes` | `AircraftManager.cpp:3516-3572` |
+| `GetBytes(url, params, headers, buf, cap, len&, etag&, maxAge&)` holds the shared client's mutex, as every request does | `HttpRequestManager.h:99-101`; `.cpp:616` |
+| **The radar's base** is NVS `cloud-url`, else the build's `CLOUD_FEED_BASE`. The Weatherscope env sets neither `FEATURE_CLOUD_FEED` nor `CLOUD_FEED_BASE`, and must not set `FEATURE_CLOUD_FEED`, because `CloudFeed.cpp` refuses a scoped build | `AircraftManager.cpp:1472-1474`; `platformio.ini:1160`; S4.32 |
+| `devheaders::Build(key, model, otaMem, usage, bootReason)` (#766), and `ota::ModelString(const Identity&, char*, size_t)` | `include/DeviceHeaders.h`; `include/OtaIdentity.h:125` |
+| `SetNeedsReverify` sits under `#ifdef BLIPSCOPE_RADAR_EDITION`, below a comment that says "Radar-only" | `main.cpp:1070-1074` |
+| D1 today matches only `Stored(Wx\|Obs\|Alert)Feed` | `tools/weatherscope/s32/s32.py:95` |
+| **F1 on main has no Weatherscope rule yet.** Today's rule matches `WeatherUrl(`, which `WeatherscopeWxUrl(` does not contain | `scripts/check_wx_device_cref.py` at `f89c3878016a` |
+
+**What 3b builds** (code under `src/weatherscope/`, except the granted `main.cpp` lines and any grant Q127/Q128 asks
+for):
+1. **ProxyWxFeed** (`src/weatherscope/ProxyWxFeed.h/.cpp`), a `wx::WxFeed`. It owns 3a's `wxanswer::Live`, the
+   `wxring::Ring`, and a 32 KB landing buffer in PSRAM. `Latest()` is the held crop; `History()` is the ring's.
+   - **The loop decides when to fetch:** `ShouldFetch(policy, Enabled(inputs), now)`, then `OnSend`, then it queues
+     ONE request. The URL is `WeatherscopeWxUrl(base, "shsr")` + `WeatherscopeWxQuery(lat, lon)`. The headers are
+     `devheaders::Build(RequestKey(cloud-key, cloud-key-fac), <ModelString>, "", "", "")` plus `If-None-Match` from
+     `IfNoneMatch()`.
+   - **One task** calls `GetBytes` and queues the reply. A full queue is answered as a network failure, as the radar
+     does.
+   - **The loop takes the reply:** it computes `valid`, the all-14 flag and `bytes` exactly as `ConsumeWeather` does,
+     then calls `wxanswer::OnReply`.
+   - **The three telemetry values are empty (my choice, open to the reviewer).** W7 sends no X-Blip-OTA-Mem, Usage or
+     Boot. Adding them later changes what is collected, which needs the README and support page in the same change
+     (the usage-telemetry rule).
+2. **The factory** (`WxFeedFactory.cpp`, D1's one file):
+   - In a live image the radar is ProxyWxFeed and `stored = false`.
+   - Obs, alerts and forecast are served as **unavailable** (`valid = false`, `available = false`), so Q126 (a)'s
+     pages show their words (slice 2) and never the stored Dallas data. They are tiny classes named only in the
+     factory's files.
+   - How an image is built live or stored is Q127.
+3. **The setup screens:** a pure `ComposeSetup(Canvas&, State, Refusal)` draws `Decide()`'s title and line on the Map
+   page. Its inputs:
+   - `wifi` = connected;
+   - `location` = `hasLatLon`;
+   - `key` = `RequestKey(...)` non-empty;
+   - `refused` = `Shown(latch)`;
+   - `frame` = the policy holds a crop.
+4. **The live map:**
+   - When `Decide()` says Live, the newest crop is decoded and composed by the existing `Compose`, through a pure
+     builder that fills `ScreenIn`.
+   - What the builder fills:
+     - the zoom ladder's radius;
+     - the frame's local clock;
+     - `ageS` = NTP now − `frameEpoch`;
+     - no warning, no towns, and no temperature (the obs feed is unavailable);
+     - `base` only when the package COVERS the view (item 5), else null.
+   - The tap loop plays the ring's history once it holds 3 frames.
+   - Without a set clock: Q129.
+5. **Coverage, for the ruling:** a pure `Covers(package, lat, lon, viewKm)` is true only when the whole view's disc
+   lies inside the package's disc: distance(origin, centre) + viewKm <= radius.
+   - **This strict reading is mine, open to the reviewer:** a map that would end mid-screen is not drawn.
+   - Bend's stored scenarios are centred on the package, so the control still draws.
+6. **`WeatherscopeManager::NeedsReverify()`** = `wxsetup::NeedsReverify(latch)`. `main.cpp` lines 1070-1073: the
+   comment names Weatherscope beside the radar, and the guard becomes
+   `#if defined(BLIPSCOPE_RADAR_EDITION) || defined(FEATURE_WEATHERSCOPE)`, in one commit, reviewed by 5c at its sha.
+
+**The questions:**
+
+**Q127, how an image is built live or stored.** The stored cycle is the bench and glass instrument; the shipping
+image should be live.
+- **(a) Recommended:** the factory builds live unless the build defines `WX_STORED`, set by a new env
+  `weatherscope-stored-s3-128` that keeps today's stored cycle for bench and glass work. That is a `platformio.ini`
+  change outside my directories, so it needs a grant. The env carries no slug: built in CI, never published.
+- **(b)** A runtime NVS switch. A customer's board could then show Dallas's weather as its own: refused by 1.4.
+- **(c)** Live only, with the stored cycle kept in host tests. The bench loses its fixed-input instrument.
+
+**Q128, where Weatherscope's proxy base comes from.**
+- **(a) Recommended:** the build constant `CLOUD_FEED_BASE`, the radar's own flag, set on the Weatherscope env to the
+  production base WITHOUT `FEATURE_CLOUD_FEED`. This is a `platformio.ini` grant. It has no NVS override, because
+  Weatherscope's page has no `cloud-url` field to set one.
+- **(b)** A Weatherscope-only constant in `src/weatherscope/`: a second place for the base, which the ini's own
+  comment warns against.
+
+**Q129, the live map before NTP sets the clock.**
+- **(a) Recommended:** the Map page says `WAITING FOR RADAR` until the clock is set. A frame of unknown age is never
+  shown, because "shown to 30 min" cannot be honoured without a clock.
+- **(b)** The frame is shown without an age.
+
+**Q130, the telemetry headers.**
+- **(a) Recommended:** empty in W7, as in item 1.
+- **(b)** The radar's one-shot reports, with the disclosure change in the same commit.
+
+**THE ROWS, frozen with exact values before any code once the questions are ruled** (host-side unless named; each
+sabotage red first):
+
+| row | holds when | sabotage |
+|---|---|---|
+| **W7-BASEMAP** (the ruling) | over a sweep of locations outside the package's extent, the live `ScreenIn` has no base and the composed screen holds 0 basemap pixels; **control:** at Bend's stored scenario the base is set and its pixels are drawn | `Covers` always true |
+| **W7-SETUP-DRAW** | each of the 8 setup screens (4 states, 4 refusal kinds) is pixel-equal to its frame plus its frozen title and line; Live draws no setup screen | NO LOCATION drawn in NO WI-FI's words |
+| **W7-LIVE-AGE** | through the live builder, a frame 601 s old has the orange time; at 1801 s the state line reads `RADAR STALE`; at 599 s neither | the age taken from the frame's own clock |
+| **W7-NOCLOCK** (Q129) | no set clock: Waiting, no frame drawn | the clock check removed |
+| **W7-INPUTS** | `Decide()`'s inputs are filled as item 3 says, from fixed inputs | `refused` filled from the last answer |
+| **W7-REQ** (static) | the one `devheaders::Build` call passes `RequestKey(...)` and the ModelString buffer, and `""` three times | the bare slug passed |
+| **W7-D1** (static, in `w7_static.py`) | no file outside the factory and ProxyWxFeed's own files names `ProxyWxFeed` or the unavailable feeds, or includes `ProxyWxFeed.h` | `ProxyWxFeed` named in `WeatherscopeManager.cpp` |
+| **W7-REVERIFY** (static) | the `main.cpp` guard includes `FEATURE_WEATHERSCOPE`, and its comment names Weatherscope | the guard without it |
+| **W7-BUILD** | `weatherscope-s3-128` compiles; the image carries `WAITING FOR RADAR`, every setup word, `/api/v1/blipscope/wx/` and `shsr` | |
+| **W7-D2** (image) | 0 hits of `weather.gov`, `noaa`, `ncep`, `mrms` or `amazonaws`, with the control plant found | a planted `api.weather.gov` |
+| **W7-S1** | every other env's image is identical outside the known stamps (`tools/weatherscope/s1/`) | S1's own |
+| **W7-F1** | `check_wx_device_cref.py` passes under uk-data's second rule, once it is on main | Q125 (a)'s rule with a third call site |
+
+**Outside the set:**
+- a row whose control reads blind;
+- any change outside `src/weatherscope/`, `test/host/`, `tools/weatherscope/` and the granted `main.cpp` lines;
+- a radar image that moves under S1.
+
+Any of these: STOP, and report.
+
+**The order, once this section is accepted:**
+1. Q127-Q130 are ruled.
+2. The exact values are frozen in a section of their own, with the plants' red sets.
+3. The host rows and their plants are written and run, red first, before 16:20Z today if the rulings come in time.
+4. The code.
+5. Friday after B9: the build, D2, S1, and the PR once F1's rule is on main.
