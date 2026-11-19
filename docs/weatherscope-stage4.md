@@ -3470,3 +3470,38 @@ output to its own file, after the push and before 16:20Z.
 - The setup screens' drawing and the live map path.
 - `WeatherscopeManager::NeedsReverify()`, and main.cpp lines 1070-1073, reviewed by 5c at its sha.
 - Then W7-BUILD, W7-D1/D2 on the image, W7-S1 and W7-F1, in a slot named when 3a is done.
+
+### S4.38, 2026-11-19: W7 slice 3a, read (02:39:22-02:39:43Z): every row as predicted
+
+- **What ran:** `weatherscope/w7-live` at `47bde5285672`, against S4.37, which was frozen and pushed at
+  `a1beb20aa331` (02:35:12Z) before the slice's code was committed.
+- **How the branch got there:**
+  - Main's push CI on `f89c3878016a` read clean first: all five workflows completed with success (firmware at
+    02:31:36Z).
+  - Main was merged in as `0be9d3137f87`. It changed none of W7's files, as predicted.
+  - The eight files were copied in, and each matched its frozen sha256 before the commit.
+  - The four gates all exit 0. The branch was pushed at 02:39:16Z, before the run.
+- **How:** WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`, through `p5p6-board/drop1c/w7_run3a.sh`
+  (`94a92194afc1`) and its bgcheck-registered wrapper (`a10d88ce7d34`).
+- **The rig:** all 12 steps exit 0 and every stderr is 0 B. No input file holds a CR byte. wt-w7's HEAD and porcelain
+  are unchanged before and after. bgcheck afterwards: PASS, 0 running.
+
+| step | read | output sha256 |
+|---|---|---|
+| `test_wx_answer` | **19 ok, exit 0**, `all WX answer checks passed`. Every value as frozen: sends `0,120,360,840,1440` s and latched at refusal `5`; streak `12`; requests `0, 0, 0, 60`; `360001` points, `0` differ, r `97`. LATCH-ONE-BIT: `100000` answers, `0` disagreements, latched in `10777`, a streak of 5+ not yet latched in `344` (both above 0, as predicted) | `305c8bc250bb` |
+| `sabotage_wx_answer.py` | **all 17 AS PREDICTED,** each red on exactly its frozen set, A-NOTIME's LATCH-ONE-BIT included; the real headers unchanged (`ec685f5cff70`, `65af75760f03`, `8cf45f935a38`); `W7 ANSWER PLANTS AS PREDICTED` | `04a015177f3f` |
+| `--anchors` | 17 plants, 17 anchors, each present exactly once | `b6e5ca2e2c08` |
+| `--control` | `test_wx_answer` 19 ok, as the table | `c784d6100cd4` |
+| `test_wx_live` | **14 ok, exit 0.** STATE-PRECEDENCE `8 cases, 0 wrong`; STATE-LIVE-NEEDS-FRAME `over all 80 inputs ... 0 violations`; every RING and URL row reads as S4.34 read it | `07da2f04f55d` |
+| `sabotage_wx_live.py` | **all 7 AS PREDICTED** on S4.33's red sets; unchanged headers `8cf45f935a38`, `ec685f5cff70`, `27968af7b553` | `42e1d402d0f5` |
+| its `--anchors` | 7 plants, 7 anchors; the same bytes as S4.34's | `bcd77c8b5ae7` |
+| its `--control` | `test_wx_live` 14 ok; the same bytes as S4.34's | `c7bb60e8cfed` |
+| `w7_static.py` | exactly S4.37's four lines: NOSHOW-CTL 1; W7-NOSHOW 0 hits in 26 files; W7-DEBOUNCE radar 5 / 900000 ms, Weatherscope 5 / 900000 ms; W7-ENROLLED-SIDE `src/ConfigurationWebServer.cpp:3183` reads cloud-key-fac alone | `670812b81173` |
+| `w7_static.py --selftest` | the real tree reads 0; each of the three plants is red on its own row alone; `W7-STATIC SELFTEST PASSED` | `e95a6b4af86f` |
+
+**What comes next:** slice 3b, frozen the same way before its code:
+- ProxyWxFeed on a task through `HttpRequestManager::GetBytes`, with `devheaders::Build` and `RequestKey`.
+- The factory switch and D1's extension.
+- The setup screens' drawing and the live map path.
+- `WeatherscopeManager::NeedsReverify()`, and `main.cpp` lines 1070-1073 under 5c's review.
+- Then W7-BUILD, W7-D1/D2 on the image, W7-S1 and W7-F1.
