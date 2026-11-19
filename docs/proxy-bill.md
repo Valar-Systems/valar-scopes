@@ -1374,3 +1374,53 @@ and (b2)'s design does not start from either number.
   range that spans both.
 
 **The trigger at this read:** unchanged, because no new whole day has been read. Step 4c's 11-17 gives **$1.24 a month**.
+
+## Step 5: lever (e), `/wx`'s F1 (`latest` cached per colo): the colo-occupancy read (registered 2026-11-19T00:01:15Z, before its reader exists; read-only)
+
+**What F1 is** (`docs/wx-cost.md`, "The fixes"):
+- Today every `/wx` poll reads R2's `latest` (`proxy/src/wx/handler.ts:26`), a 304 included.
+- F1 holds `latest` in the Cache API, which is shared per colo, for T seconds.
+- A poll that finds it saves one Class B read. A board alone in its colo polls every 60 s, so it gains only if T is
+  longer than one poll.
+
+**So the design turns on one quantity this account has never read: how many boards share a colo.**
+
+**The read:**
+- One closed hour of the proxy's Workers Logs `evt:"req"` lines, through the Workers Observability API, as step 3's
+  readers did.
+- **Every board's colo**, from each line's `colo` field (`proxy/src/index.ts:453`).
+- **The board key:** until Thursday's logs deploy, production's line carries `dev` (`metrics.ts:229` at the deployed
+  `074863fc`). After it, the line carries the label `devl`.
+- The reader keys on whichever the line carries, IN MEMORY ONLY.
+- **It prints only a histogram:** how many colos hold k boards, for each k. Never a colo code, a label, an id or a
+  line. Nothing is written but those counts.
+
+**The model, fixed now:**
+- Assume every active board polls `/wx` every P = 60 s (WD3 e), as all will once weather ships, at a random phase with
+  +/-2 s of jitter.
+- **A simulation, seeded and repeated 200 times per colo size,** counts the polls that find a live cache entry. That
+  gives the hit rate per k, weighted by the measured histogram.
+- **T is set off the 60 s boundary on purpose:**
+  - **T = 55 s:** shorter than one poll, so a lone board never hits;
+  - **T = 115 s:** just under two polls, so a lone board hits every other poll.
+
+| row | predicted | if not |
+|---|---|---|
+| **F1-K** | at least half of the hour's active boards are ALONE in their colo | the fleet shares colos more than assumed: F1's case is stronger than `wx-cost.md` says |
+| **F1-H55** | the fleet-weighted hit rate at T = 55 s is at most 25% | sharing is high: even a short hold pays |
+| **F1-H115** | at T = 115 s it is in `[50%, 75%]` | reported with the histogram |
+| **F1-CTL** (the model's control, run before the data) | a lone board (k = 1) simulates to 0% at T = 55 s and 50% (+/-2%) at T = 115 s; k = 10 at T = 55 s simulates above 75% | the simulation is wrong: stop before any data |
+| escape | a sampled hour; more than 5% of the hour's `req` lines without a colo or a board key; the two reads differ or are taken under 60 s apart; anything no row names | stop and report, with no reading |
+
+**The trade the design will have to state** (not graded here): a hold of T delays a new frame by up to T. Frames
+arrive about every 2 minutes, so at T = 115 s a board can show a frame one cycle late. That is visible, and it makes
+T the owner's call.
+
+**At fleet scale:** 600 boards share colos far more than today's 20 do. So today's histogram is a LOWER bound on F1's
+saving, and it says so.
+
+**The reader:** `tools/bill/colo_occupancy_read.py`, committed with its blob sha before it runs. Read-only; no
+wrangler; the token file's `observability-read`, never printed; error paths print the exception type only.
+
+**When:** after step 4d's read. The hour is the last closed hour at that time. It runs before Thursday's PC quiet
+(16:25Z): a multi-page reader is not allowed during it.
