@@ -3300,3 +3300,173 @@ and page dots). Nothing else is drawn on the page.
   - The debounce, copying the radar's thresholds, read at the freeze.
   - ENROLLED and REFUSED, each with a control; and the named pasted-key row above.
 - **The W7 PR** waits for slice 3 and for F1's second rule on main.
+
+### S4.37, 2026-11-19: W7 slice 3a (the refusal latch, the key, one answer), frozen before it first runs
+
+**The rulings (the reviewer, 2026-11-19 ~02:2xZ):**
+- **#766 is merged** as `f89c3878016a`. S1 held 10/10, so Ask A is (a): `devheaders::Build` is the one header builder.
+  `/enroll-key` and the `%ENROLLED%`/`%REFUSED%` substitutions are compiled for Weatherscope.
+- **Slice 3 is split.**
+  - **3a, tonight:** pure headers and host rows only. That is the refusal latch with the radar's thresholds,
+    `Decide()` reading the latch, the key precedence with ruling (a)'s row, and ProxyWxFeed's answer state machine.
+    It is frozen first, naming which of slice 1's STATE rows change and how.
+  - **3b, after 3a is read:** the wiring and the image rows. Its pio and S1 runs go only where nothing forbids them:
+    before Thursday 16:20Z, or after my gains run ends, and not inside Friday's S2b or L2 windows if map-client's
+    rules carry a PC quiet. Otherwise Friday after B9 (~18:45Z), or after Saturday's restart. I name the slot when 3a
+    is done.
+- **The main.cpp grant covers lines 1070-1071 too.** The comment there is reworded to name Weatherscope beside the
+  radar, in the same commit as line 1072, and 5c reviews it at its sha. That is 3b's.
+- **The branch takes main only after #766's push CI reads clean;** 5c reports it.
+
+**The branch:**
+- **How:** `weatherscope/w7-live` merges main `f89c3878016a` once its push CI reads clean (at 02:31Z its firmware
+  workflow was still running; the other four had passed). Then 3a lands as one commit.
+- **Why the merge cannot move W7's files:** main changed none of them since slice 1's base `237d5d163eb4`.
+  `git diff --stat` over `src/weatherscope/`, `test/host/run.sh`, `test_wx_live.cpp` and `tools/weatherscope/` is
+  empty.
+- **3a reaches no firmware unit.** Today only `test/host/test_wx_live.cpp` includes `WxSetup.h`, `WxRing.h` or
+  `WxLiveUrl.h` (read by grep); `WxAnswer.h` is new. So no image can move, and the device compile is 3b's.
+- **The bytes are frozen here.** The slice is written and has not been compiled or run, and the commit will carry
+  exactly these bytes. Every file is in `src/weatherscope/`, `test/host/` or `tools/weatherscope/`.
+
+| file | sha256 | what |
+|---|---|---|
+| `src/weatherscope/WxSetup.h` | `ec685f5cff70` (was `4fadd0487fb3`) | `Inputs::refused` replaces the last answer; the latch (`AuthLatch`, `OnAnswer`, `Shown`, `NeedsReverify`); `RequestKey` |
+| `src/weatherscope/WxAnswer.h` | `65af75760f03` (new) | `QueryOf`, `Enabled`, `SetQuery`, `OnReply`: one answer's effect on the policy, the latch and the ring |
+| `src/weatherscope/WxRing.h` | `8cf45f935a38` (was `5590a3e053ea`) | `Clear()`: count, next and the two "new frame" counters to 0, with the slots kept |
+| `test/host/test_wx_answer.cpp` | `8db389759c0a` (new) | the 19 rows below |
+| `test/host/sabotage_wx_answer.py` | `3e291d8bbe0c` (new) | the 17 plants below, with `--anchors` and `--control` |
+| `test/host/test_wx_live.cpp` | `436f0c6d1c69` (was `22ff8c90790a`) | the three STATE rows, as named below |
+| `tools/weatherscope/w7/w7_static.py` | `abbe0828a181` (was `c6833af3d863`) | two rows added (W7-DEBOUNCE, W7-ENROLLED-SIDE); one planted failure per row in `--selftest` |
+| `test/host/run.sh` | `15869367d768` (was `245dbe11b7d9`) | the W7 static block retitled; one block added for `test_wx_answer` |
+
+**The latch, as built** (`WxSetup.h`, the radar's debounce at `AircraftManager.cpp` 4168-4196):
+- **It latches** once the proxy has refused the key at least `kLatchStreak` = 5 times in a row AND for at least
+  `kLatchMs` = 900,000 ms since the streak's first refusal. A refusal is a 401, or a 403 of any kind.
+- **Any 200 or 304 clears everything at once.** It is proof the key works.
+- **Anything else is not evidence either way:** no answer, a 5xx, a 429, or another 4xx neither advances nor clears
+  the streak.
+- **The kind shown is the latest refusal's.** The device's own screen names it.
+- **It lives in RAM, since boot,** and is never stored.
+- **One bit:** `Shown()` is what `Decide()` is given (`Inputs::refused`). `NeedsReverify()`, which the page's
+  `%REFUSED%` will show through main.cpp in 3b, is `Shown() != None`. It is one evaluation, never two.
+
+**What 3a changes in slice 1, by name:**
+- **`WxSetup.h`:**
+  - `Inputs` loses `status` and `error` (the last answer) and gains `refused`, the latch's shown kind.
+  - `Decide()`'s refused line becomes `if (in.refused != Refusal::None) return State::Refused;`.
+  - `RefusalOf`, the precedence and every word are unchanged.
+- **`test_wx_live.cpp`'s STATE rows**, which built their inputs from a status:
+  - **STATE-PRECEDENCE** keeps 8 cases, with refusals given as kinds. The 401 case becomes `KeyRejected`. The 200 and
+    304 Live cases became one case once the status was gone, so the 8th case is now a latched `NotActivated` with no
+    frame: refused outranks waiting. It prints `8 cases, 0 wrong`, as before.
+  - **STATE-LIVE-NEEDS-FRAME** now covers 16 combinations × the 5 refusal kinds = 80 inputs (it was 16 × 6 statuses
+    = 96). It prints `over all 80 inputs`.
+  - **STATE-REFUSED** keeps its five `RefusalOf` checks. Its `Decide` checks become:
+    - a latched `KeyRejected` with a frame is Refused;
+    - `None` with a frame is Live;
+    - `None` without a frame is Waiting;
+    - a latched `Other` without a frame is Refused.
+    Its half "a server or network failure keeps the last frame" moves to LATCH-NOT-EVIDENCE, where that is now
+    decided.
+  - **Unchanged:** STATE-WORDS and every RING and URL row. `test_wx_live` stays at 14 rows.
+- **`sabotage_wx_live.py`** (unchanged) keeps its 7 plants, their anchors and their red sets.
+  - L-LIVENOFRAME still reddens STATE-PRECEDENCE (through the no-frame Waiting case), STATE-LIVE-NEEDS-FRAME, and
+    STATE-REFUSED (through `None` without a frame).
+  - Its output changes in one line only, "real headers unchanged", which names `WxRing.h`'s and `WxSetup.h`'s new
+    shas.
+
+**THE PREDICTIONS**, from WSL `Ubuntu-24.04` with `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`, run bare, each
+output to its own file, after the push and before 16:20Z.
+
+**1. `test_wx_answer`:** 19 rows, all ok, exit 0, ending `all WX answer checks passed`:
+
+| row | predicted |
+|---|---|
+| LATCH-BACKOFF | 401s paced by WxPolicy's backoff are sent at `0,120,360,840,1440` s; latched at refusal `5` |
+| LATCH-STREAK-NEEDS-TIME | 10 refusals in 9 s do not latch, nor one at 899.999 s; one at 900 s does; streak `12` |
+| LATCH-TIME-NEEDS-STREAK | 4 refusals over 30 min do not latch; the 5th, at 31 min, does |
+| LATCH-CLEAR | a 200 and a 304 each clear a latched refusal and its streak; the next refusal starts a streak of 1 |
+| LATCH-NOT-EVIDENCE | no answer, 500, 503, 429 and 404 neither advance nor clear the streak, before or after it latches |
+| LATCH-KIND | nothing is shown before the latch; then the latest refusal's kind (`NOT ACTIVATED YET`, then the others) |
+| LATCH-WRAP | a streak across `millis()`'s wrap latches at 900 s |
+| LATCH-ONE-BIT | `100000` answers, `0` disagreements. The latched count and the "streak of 5+ not yet latched" count are each above 0; their values are printed and read, not predicted |
+| KEY-PRECEDENCE | pasted, else factory, else none |
+| KEY-PASTED-ROW | a pasted key with an empty `cloud-key-fac` draws Live; no key at all is NOT ENROLLED |
+| ANSWER-200 | Replaced; the ring keeps it; the poll resets to 60 s; the streak clears |
+| ANSWER-304 | NotModified; the crop and the ring as they were; the poll resets; the streak clears |
+| ANSWER-401 | Error; the poll backs off to 120 s; streak 1, not latched |
+| ANSWER-STRAY | answers to another request, or with none in flight, touch nothing; the real one is taken |
+| ANSWER-KEPT | an invalid 200, one over 32,768 bytes, one for another query, and one older than the held frame are all Kept, none reaches the ring, and each clears the streak |
+| ANSWER-ETAG | If-None-Match only with the latest 200's ETag for this query; none after a query change |
+| ANSWER-QUERY-CHANGE | a new query empties the ring (3 frames to 0) and drops the crop, so the screen waits; the same query changes nothing; the new place's first frame is kept |
+| ANSWER-DISABLED | requests in an hour: no Wi-Fi `0`, no location `0`, no key `0`, all three set `60` |
+| QUERY-MATCH | `360001` points, `0` where the policy's query and the URL's 2 dp differ; the URL's r is `97` |
+
+**2. `sabotage_wx_answer.py`:** every plant is AS PREDICTED (suite exit 1, red on exactly its set below).
+- The real headers are unchanged: `WxSetup.h` `ec685f5cff70`, `WxAnswer.h` `65af75760f03`, `WxRing.h`
+  `8cf45f935a38`.
+- It prints `W7 ANSWER PLANTS AS PREDICTED` and exits 0.
+
+| plant | what it breaks | its red set |
+|---|---|---|
+| A-NOTIME | the latch ignores the 15 min | LATCH-STREAK-NEEDS-TIME, LATCH-ONE-BIT (its "not yet latched" count falls to 0) |
+| A-NOSTREAK | the latch ignores the streak of 5 | LATCH-TIME-NEEDS-STREAK |
+| A-WRAP | the 15 min taken as a signed 64-bit difference, which a wrap makes negative | LATCH-WRAP |
+| A-NOCLEAR | a 200 or 304 does not clear | LATCH-CLEAR, ANSWER-200, ANSWER-304, ANSWER-KEPT |
+| A-EVIDENCE | any answer that is not a refusal clears | LATCH-NOT-EVIDENCE |
+| A-TWOBITS | `NeedsReverify` reads the streak: a second evaluation | LATCH-STREAK-NEEDS-TIME, LATCH-ONE-BIT |
+| A-SCREENIGNORES | the refused screen ignores the latch | LATCH-ONE-BIT |
+| A-KINDFIRST | the screen keeps the first refusal's kind | LATCH-KIND |
+| A-FACTORYONLY | the pasted key is ignored | KEY-PRECEDENCE, KEY-PASTED-ROW |
+| A-STRAYCOUNTS | an answer to another request is taken | ANSWER-STRAY |
+| A-NOLATCHFEED | answers never reach the latch | LATCH-BACKOFF, ANSWER-401 |
+| A-NORING | a replacing 200 is not offered to the ring | ANSWER-200, ANSWER-304, ANSWER-QUERY-CHANGE |
+| A-RINGKEEPS | a new query keeps the old place's frames | ANSWER-QUERY-CHANGE |
+| A-QUERYKEEPS | a new query keeps the old crop and ETag | ANSWER-ETAG, ANSWER-QUERY-CHANGE |
+| A-ENABLEDWIFI | it requests without Wi-Fi | ANSWER-DISABLED |
+| A-QUERYTRUNC | the policy's latitude truncated, not rounded as the wire is | QUERY-MATCH |
+| A-CLEARPARITY | a cleared ring keeps its every-other count | ANSWER-QUERY-CHANGE |
+
+- `--anchors`: 17 plants, 17 anchors, each present exactly once. Before freezing, a read of the drafts found each
+  anchor exactly once; that was a text count, not the driver's run.
+- `--control`: `test_wx_answer` 19 ok.
+
+**3. Slice 1's suite, after the change:**
+- **`test_wx_live`:** 14 ok, exit 0. STATE-PRECEDENCE reads `8 cases, 0 wrong`; STATE-LIVE-NEEDS-FRAME reads `over
+  all 80 inputs, live never without a frame: 0 violations`. Every RING and URL row reads as S4.34 read it.
+- **`sabotage_wx_live.py`:** 7 AS PREDICTED on S4.33's red sets. Its unchanged-headers line names `WxRing.h`
+  `8cf45f935a38`, `WxSetup.h` `ec685f5cff70` and `WxLiveUrl.h` `27968af7b553`. Anchors 7/7; control 14.
+
+**4. `w7_static.py`:** exit 0, with these four lines:
+
+```
+  ok    NOSHOW-CTL  the scanner sees WhatToShow in include/WxPolicy.h: 1 occurrence(s)
+  ok    W7-NOSHOW   no file under src/weatherscope/ names WhatToShow: 0 hit(s) in 26 files
+  ok    W7-DEBOUNCE the refusal latch's thresholds equal the radar's: radar 5 / 900000 ms, Weatherscope 5 / 900000 ms
+  ok    W7-ENROLLED-SIDE the page's ENROLLED under the S4.36 citation (src/ConfigurationWebServer.cpp:3183) reads cloud-key-fac alone: yes
+```
+
+- **Where those numbers come from:**
+  - 26 files = main's 22 under `src/weatherscope/`, slice 1's 3, and `WxAnswer.h`.
+  - The radar's two thresholds are each defined once, at `AircraftManager.cpp:4173-4174`.
+  - The page cites S4.36 on exactly one line (`:3179`), and its `enrolled` line is `:3183`.
+  - All of these were read from main `f89c3878016a` before freezing.
+- **`--selftest`:** the real tree reads 0. Each of the three plants reads red on its own row alone (W7-NOSHOW,
+  W7-DEBOUNCE, W7-ENROLLED-SIDE). It prints `W7-STATIC SELFTEST PASSED` and exits 0.
+
+**Outside the set:**
+- **A compile failure is the RIG.** It is reported with its error lines and fixed, and the run is repeated. The fix
+  and the new shas land in a correction below this section.
+- **Anything else off STOPS the run:** a plant red on any other set, a count other than the ones above, or a static
+  line that differs. I report it and fix nothing before the ruling.
+- **A blind control STOPS the run:** either of LATCH-ONE-BIT's two counts at 0 with the code unplanted, or a BLIND
+  static row.
+
+**What waits, for 3b** (frozen the same way, after 3a is read):
+- ProxyWxFeed: the fetch on a task through `HttpRequestManager::GetBytes`, with
+  `devheaders::Build(key, ota::ModelString, ...)` and the key by `RequestKey`.
+- The factory switch and D1's extension.
+- The setup screens' drawing and the live map path.
+- `WeatherscopeManager::NeedsReverify()`, and main.cpp lines 1070-1073, reviewed by 5c at its sha.
+- Then W7-BUILD, W7-D1/D2 on the image, W7-S1 and W7-F1, in a slot named when 3a is done.
