@@ -3770,3 +3770,35 @@ Any of these: STOP, and report.
   section.
 - **Anything else off STOPS the run,** and I fix nothing before the ruling.
 - **A blind control STOPS the run:** LIVE-BASEMAP's Bend count at 0, or W7-NO-DALLAS's stored count at 0.
+
+### S4.41, 2026-11-19: W7 slice 3b's host rows, read (03:10:33-03:11:09Z): every row as predicted
+
+- **What ran:** `weatherscope/w7-live` at `1b929ba7d4e5`, against S4.40, which was frozen and pushed at
+  `892af28dade1` (03:08:02Z) before the run.
+  - The six files matched their frozen sha256s before the commit.
+  - The four gates all exit 0. The branch was pushed at 03:10:27Z.
+- **How:** WSL `Ubuntu-24.04`, `g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0`, through `p5p6-board/drop1c/w7_run3b.sh`
+  (`4ca82bdd4ebe`) and its bgcheck-registered wrapper (`42571e3d9af7`).
+- **The rig:** all 17 steps exit 0 and every stderr is 0 B. No input file holds a CR byte. wt-w7's HEAD and porcelain
+  are unchanged before and after. bgcheck afterwards: PASS, 0 running.
+
+| step | read | output sha256 |
+|---|---|---|
+| `test_wx_livemap` | **10 ok, exit 0**, `all WX live map checks passed`. Every frozen value: LIVE-COVERS `7 cases, 0 wrong`; LIVE-BASEMAP `40 points ... 0 pixels differ from plain ground, 0 carry a package field`, and at Bend's own frame the package is applied and `2802` pixels differ (above 0, as predicted); LIVE-AGE `599 s: time dim, 'NO RAIN 60 MI'; 601 s: time orange, 'NO RAIN 60 MI'; 1801 s: time orange, 'RADAR STALE'`; LIVE-LOOP `'NOW'` and `'4 MIN AGO'`; SETUP-DRAW `0 wrong, 0 pairs alike`; SETUP-FITS `15 rows, 0 wider`; INPUTS-FILL `6 cases, 0 wrong` | `09317a428c94` |
+| `sabotage_wx_livemap.py` | **all 12 AS PREDICTED,** each red on exactly its frozen set; the real headers unchanged (`3a3df02f29a5`, `74ea0335f5c7`, `c3eab3a3f6a6`); `W7 LIVE MAP PLANTS AS PREDICTED` | `9db569b872cc` |
+| its `--anchors` | 12 plants, 12 anchors, each present exactly once | `3b00f24862a0` |
+| its `--control` | `test_wx_livemap` 10 ok, as the table | `8d8a0a3fa027` |
+| `test_wx_answer` | 19 ok, byte-identical to S4.38's | `305c8bc250bb` |
+| `sabotage_wx_answer.py` | 17 AS PREDICTED; `diff` against S4.38's output finds one line, the headers line now naming `WxSetup.h` `3a3df02f29a5`. Its anchors (`b6e5ca2e2c08`) and control (`c784d6100cd4`) are byte-identical to S4.38's | |
+| `test_wx_live` | 14 ok, byte-identical to S4.38's | `07da2f04f55d` |
+| `sabotage_wx_live.py` | 7 AS PREDICTED; one line differs, the same headers line. Its anchors (`bcd77c8b5ae7`) and control (`c7bb60e8cfed`) are byte-identical | |
+| `w7_static.py` | S4.38's four lines, except W7-NOSHOW's count: `0 hit(s) in 28 files` | |
+| `w7_static.py --selftest` | `W7-STATIC SELFTEST PASSED`, each of the three plants red on its own row alone | |
+
+**What comes next, in order:**
+1. **3b's code:** ProxyWxFeed, the factory's live and stored branches, the manager's live path, `main.cpp` 1070-1073,
+   the stored env and the flag in `platformio.ini`, the CI row, and W7-REQ/D1/REVERIFY in `w7_static.py`.
+   - It is written next.
+   - It stays on a local branch until Friday's compile, with a patch copy in my handoffs folder.
+2. **Friday after B9 (~18:45Z):** W7-BUILD, W7-NO-DALLAS, W7-BASE-ELF, W7-WORDS, W7-D2 and W7-S1, as frozen in S4.40.
+3. **The PR,** once uk-data's F1 rule is on main.
