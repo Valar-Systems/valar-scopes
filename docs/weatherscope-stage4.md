@@ -4005,3 +4005,22 @@ The strip's inks are unchanged: `TimeText` colours by `ageS` (orange past 600 s)
 - **A compile failure is the RIG.** It is reported and fixed, the run is repeated, and the correction goes below this
   section.
 - **Anything else off STOPS the run,** and I fix nothing before the ruling.
+
+### S4.46, 2026-11-19: S4.45 read (03:41:02-03:41:24Z): every row as predicted
+
+- **What ran:** `weatherscope/w7-live` at `2d6c13a5f4fc`, against S4.45, which was frozen and pushed at `bee5898b6842`
+  before the change. The four gates all exit 0 on both. The change was pushed at 03:40:56Z.
+- **How:** WSL `Ubuntu-24.04`, `g++ 13.3.0`, through `p5p6-board/drop1c/w7_runclk.sh` (`717c7c0ce1b6`) and its
+  registered wrapper (`551b36f83567`).
+- **The rig:** all 5 steps exit 0 and every stderr is 0 B. No CR bytes; the tree unchanged. bgcheck afterwards: PASS,
+  0 running.
+- **A slip before the run, named:** the first copy of the runner was produced by a `sed` whose expression failed.
+  That left an EMPTY file, `e3b0c44298fc`, the empty sha, which `bash -n` passed. It was rewritten whole, and its size
+  and paths were checked, before anything ran.
+
+| step | read | output sha256 |
+|---|---|---|
+| `test_wx_livemap` | **11 ok, exit 0.** The 10 rows of S4.41 read as before, the Bend control at `2802` again (printed and read). LIVE-NOCLOCK: `482 live strips over 0-2 h: 0 clock times, 0 off the age format; 1000 min reads '999+ MIN AGO'` | `0cd7a6675b82` |
+| `sabotage_wx_livemap.py` | **all 15 AS PREDICTED,** M-AGEFRAME red on LIVE-AGE and LIVE-NOCLOCK, the three new plants on LIVE-NOCLOCK alone; the real headers unchanged (`3a3df02f29a5`, `cc83176cbcc5`, `c3eab3a3f6a6`) | `f573d925e1a8` |
+| `--anchors` | 15 plants, 15 anchors, each present once | `7c658ed03d7c` |
+| `--control` | `test_wx_livemap` 11 ok | `39cd3eb954dc` |
