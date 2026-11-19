@@ -1605,6 +1605,38 @@ newest. At this reading the lag is 1 commit (25 files), within a weekly refresh.
 - **Outside the set:** any other verdict, exit code or shape on any row. Stop and report. 4j is not used on Friday
   until the rows read as predicted.
 
+#### 4j's red-first rows, as read (2026-11-19 22:29:14-22:29:17Z; appended below the frozen 4j)
+
+**The tools:** the gate `route_upstream_gate.py` (sha256 `e271c7ceb361`), the read script `route_upstream_read.sh`
+(`d1f029741e2a`) and the row driver `r4j_rows.sh` (`33f969bbebe3`). The driver read the pin from 4j as committed at
+`ab3fa9b25efa`, never typed.
+
+**The driver's first run went BLIND (22:27Z) before any row.** `MSYS_NO_PATHCONV=1` stopped the `/c/...` path given to
+native `git -C` from being converted (exit 128), so the doc did not read. Nothing ran: no gate call, no synthetic
+input, no live read. The reviewer recorded it as an instrument failure and approved one fix, `git -C "$(cygpath -m
+"$W")"` on that line (the driver's sha256 was `ae36042e1e29` before it), and one run. The gate and the read script
+were not changed.
+
+| row | read | |
+|---|---|---|
+| G1 | `G-UP STOP: status is 'behind' (ahead_by 0, behind_by 1)`, exit 1 | as predicted |
+| G2 | `G-UP STOP: status is 'diverged' (ahead_by 1, behind_by 1)`, exit 1 | as predicted |
+| G3 | `G-UP PASS: status identical, behind_by 0, base = merge-base = the pin b775753b7280`; `ahead_by 0`; exit 0 | as predicted |
+| G4 | `G-UP STOP: the merge-base is not the pin`, exit 1 | as predicted |
+| G5 | `G-UP STOP: the compare did not resolve (gh exit 1)`, exit 1 | as predicted |
+| G6 | live, a made-up base: gh exit 1 (`Not Found (HTTP 404)`); `G-UP STOP: the compare did not resolve (gh exit 1)`, exit 1 | as predicted |
+| G7 | live, from the pin: gh exit 0; `G-UP PASS: status ahead, behind_by 0, base = merge-base = the pin b775753b7280`; information `ahead_by 1` and `8c2510f4a8a5 2026-11-19T04:49:35Z`; exit 0 | as predicted |
+
+**ALL SEVEN AS PREDICTED.** At this reading the routes would lag upstream by 1 commit.
+
+**One observation, which no row predicted.** On G6's 404, gh still wrote the response's error body (125 bytes, a "Not
+Found" message) to stdout, through `--jq`. So a failed compare does not leave the extract empty. The gate stopped on
+gh's exit status, which it checks first. Reading the gate's code, the same body would also be stopped by the field
+checks: it has no `ahead_by`, and its fields are not the foreseen set.
+
+**On Friday,** G-UP runs through the read script before each environment's step 2, using the gate and the read script
+at the shas above.
+
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 
 **The alternative.** The workflow holds no KV token. It POSTs batches of `[key, value]` and `delete` lists to a
