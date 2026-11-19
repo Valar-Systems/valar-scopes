@@ -166,12 +166,13 @@ def scan(src):
 
 
 def header_boxes(header):
-    """The checkbox names include/MapSettingsHtml.h renders: each Box("name", ...) call in its code, read from the
-    header itself (the other side of the contract), never typed here. None found is the rig."""
-    names = re.findall(r'\bBox\("([A-Za-z0-9_\-]+)"', re.sub(r"//[^\n]*", "", header))
+    """The checkbox names include/MapSettingsHtml.h renders: read from the header's own string literals with the page's
+    own BOX rule (the other side of the contract), never typed here. None found is the rig."""
+    _, literals, _, _ = scan(header)
+    names = {m.group(1) or m.group(2) for _, text in literals for m in BOX.finditer(text)}
     if not names:
-        raise Rig("include/MapSettingsHtml.h renders no Box(\"...\"): the map section's boxes cannot be read")
-    return set(names)
+        raise Rig("include/MapSettingsHtml.h holds no checkbox literal: the map section's boxes cannot be read")
+    return names
 
 
 def _tokens(expr, where):

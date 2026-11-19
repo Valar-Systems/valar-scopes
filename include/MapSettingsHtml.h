@@ -24,10 +24,15 @@ constexpr const char* kLabelMap = "Map";
 constexpr const char* kLabelNames = "Town names";
 constexpr const char* kLabelTerrain = "Terrain shading";
 
-inline std::string Box(const char* name, const char* label, bool on)
+// Each box's opening is ONE literal holding its whole `name="..." type="checkbox"` (never assembled from a name
+// argument): scripts/check-no-weather.sh (E1) finds name="map-layer" and name="map-names" in an image only as written
+// whole, and test/host/check_save_vocab.py reads the boxes from these literals as it reads the page's own.
+constexpr const char* kOpenMap = "<label class=\"check\"><input name=\"map-layer\" type=\"checkbox\" ";
+constexpr const char* kOpenNames = "<label class=\"check\"><input name=\"map-names\" type=\"checkbox\" ";
+
+inline std::string Box(const char* open, const char* label, bool on)
 {
-    return std::string("<label class=\"check\"><input name=\"") + name + "\" type=\"checkbox\" " + (on ? "checked" : "") +
-           "><span>" + label + "</span></label>";
+    return std::string(open) + (on ? "checked" : "") + "><span>" + label + "</span></label>";
 }
 
 /** The section for the stored values (nullptr or "" when a key is absent). */
@@ -46,8 +51,8 @@ inline std::string Html(const char* storedMap, const char* storedNames, const ch
                         {mapterrain::Level::Strong, "Strong"},
                         {mapterrain::Level::Xstrong, "Extra strong"}};
     std::string h = "<fieldset><legend>Map</legend><div class=\"grid3\">";
-    h += Box("map-layer", kLabelMap, map);
-    h += Box("map-names", kLabelNames, names);
+    h += Box(kOpenMap, kLabelMap, map);
+    h += Box(kOpenNames, kLabelNames, names);
     h += std::string("<label>") + kLabelTerrain + " <select name=\"map-terrain\">";
     for (const Opt& o : opts)
         h += std::string("<option value=\"") + mapterrain::Name(o.level) + "\"" + (o.level == lv ? " selected" : "") +

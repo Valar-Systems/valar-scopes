@@ -23,8 +23,10 @@
 
 set -u
 
-# The request's path, the page's box and look select, and the layer's own buffers.
-STRINGS=( "/wx/" 'name="wx-layer"' "Brighter rain" "[wx] buffers" )
+# The request's path, the page's box and look select, and the layer's own buffers. Step D (E1, docs/blipscope-map-client-
+# steps.md): the map ships with the weather, so its page controls join, written as name="wx-layer" is (MapSettingsHtml.h
+# holds each whole, never assembled from a name argument).
+STRINGS=( "/wx/" 'name="wx-layer"' "Brighter rain" "[wx] buffers" 'name="map-layer"' 'name="map-names"' 'name="map-terrain"' )
 ANCHOR="[build] env="
 
 anchored() {
