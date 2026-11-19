@@ -703,11 +703,18 @@ records the move.
 **The three items, GRADED through it on both services:**
 - **(f):** our own `evt:"req"` lines in the window are fetched behind the gate, and their own fields are tested
   locally against 5a C1's IP patterns. The plants' lines must be among those fetched; that is the positive control.
-- **(e)'s shape:** the 8-lowercase-hex shape of `devl` is tested locally on the same fetched lines. (e)'s presence half
-  is read as C9 says.
+  - (f)'s fetch carries the same server-side exclusions (`dev`, `x-blip-device`, `x-blip-key`), so no device value is
+    fetched. The completeness count uses the same filter.
+- **(e)'s shape:** the 8-lowercase-hex shape of `devl` is tested locally on the same fetched lines, so it inherits (f)'s
+  exclusions. (e)'s presence half is read as C9 says.
 - **(d)(ii):** every event of any type in the window is fetched behind the same gate, and its key NAMES are checked
   locally against the five envelope prefixes. The probe's control showed that a fetched event carries its envelope
   field names when they exist (seen on staging).
+  - **One exclusion, made on the server:** the fetch leaves out any event that carries a `dev` field or the device-id or
+    device-key header name (`x-blip-device`, `x-blip-key`). So no device value is ever fetched.
+  - No coverage is lost. Both header names are on (d)(i)'s listed names, so an event carrying either is still counted
+    by (d)(i). W2 and P also count each name directly. (Read from the reader's pinned name list three times: by its
+    owner, by the reviewer and by this plan's owner, each with a control.)
 - If the gate fails at the slot, each of the three falls back to UNPROVEN as C10 and C13 say, and is named in the
   step's verdict line.
 
