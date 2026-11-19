@@ -3920,3 +3920,25 @@ The files, frozen by sha before they compile or run (on `weatherscope/w7-live`, 
 - **A compile failure is the RIG.** It is reported and fixed, the run is repeated, and the correction goes below this
   section.
 - **Anything else off STOPS the run,** and I fix nothing before the ruling.
+
+### S4.44, 2026-11-19: S4.43's row, read (03:31:50-03:31:56Z): every row as predicted
+
+- **What ran:** `weatherscope/w7-live` at `3b1b37c6d585`, against S4.43, which was frozen and pushed at
+  `66a7328e18e1` before the slice.
+  - The four gates all exit 0 on both.
+  - The slice was pushed at 03:31:26Z.
+- **How:** WSL `Ubuntu-24.04`, `g++ 13.3.0`, through `p5p6-board/drop1c/w7_runerr.sh` (`8fc41c4ddc7e`) and its
+  registered wrapper (`3b1373c65f88`).
+- **The rig:** all 5 steps exit 0 and every stderr is 0 B. No CR bytes; the tree unchanged. bgcheck afterwards: PASS,
+  0 running.
+
+| step | read | output sha256 |
+|---|---|---|
+| `test_wx_errorbody` | **6 ok, exit 0**, each line as frozen: `'forbidden' -> NOT ACTIVATED YET`, `'fake_device_id' -> BOARD NOT RECOGNISED`, `5 malformed bodies, 0 read as a reason`, `(0 bytes read)` and `(23)` | `d72fb68f5724` |
+| `sabotage_wx_errorbody.py` | **all 3 AS PREDICTED**; the real header unchanged (`4316bcc0e811`); `W7 ERROR BODY PLANTS AS PREDICTED` | `79197abdd992` |
+| `--anchors` | 3 plants, 3 anchors, each present once | `c2c020ec1fc5` |
+| `--control` | `test_wx_errorbody` 6 ok | `92946c9ef8e5` |
+
+- **What it establishes:** with no body (what every 403 gets today), the device's reason is `""`, and a 403 shows
+  ACCESS REFUSED, never a guessed kind. When (a) lands, a whole token becomes its kind with no further Weatherscope
+  change.
