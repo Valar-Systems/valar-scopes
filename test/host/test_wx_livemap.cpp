@@ -148,7 +148,6 @@ int main(int argc, char** argv)
         std::printf("the RIG: the crop does not decode\n");
         return 2;
     }
-    const int off = wxscen::kBendOffsetMin;
     const int64_t F = h.frameEpoch;
     Scr sc(pk.maxVertices + 1);
     std::vector<uint8_t> img(wxbase::kSize * wxbase::kSize, 0);
@@ -181,20 +180,20 @@ int main(int argc, char** argv)
                 PointAt(pk, d * std::sin(a), -d * std::cos(a), &lat, &lon);
                 const wxcrop::Header m = MovedTo(h, lat, lon);
                 live = wxscreens::ScreenIn();
-                wxlivemap::FromLive(m, codes.data(), 60, F + 60, off, &live);
+                wxlivemap::FromLive(m, codes.data(), 60, F + 60, &live);
                 wxlivemap::LivePackage(pk, m, 60, false, sc.s, img.data(), &pv, &live);
                 if (live.base != nullptr || live.places != nullptr || live.peaks != nullptr || live.mask != 0) ++withBase;
                 ref = wxscreens::ScreenIn();
-                wxlivemap::FromLive(m, codes.data(), 60, F + 60, off, &ref);
+                wxlivemap::FromLive(m, codes.data(), 60, F + 60, &ref);
                 const Px a1 = ComposeIn(live, &out);
                 diff += a1.Diff(ComposeIn(ref, &out));
                 ++points;
             }
         live = wxscreens::ScreenIn();
-        wxlivemap::FromLive(h, codes.data(), 60, F + 60, off, &live);
+        wxlivemap::FromLive(h, codes.data(), 60, F + 60, &live);
         const bool applied = wxlivemap::LivePackage(pk, h, 60, false, sc.s, img.data(), &pv, &live);
         ref = wxscreens::ScreenIn();
-        wxlivemap::FromLive(h, codes.data(), 60, F + 60, off, &ref);
+        wxlivemap::FromLive(h, codes.data(), 60, F + 60, &ref);
         const Px b1 = ComposeIn(live, &out);
         const long bend = b1.Diff(ComposeIn(ref, &out));
         check(points == 40 && diff == 0 && withBase == 0 && applied && live.base != nullptr && bend > 0, "LIVE-BASEMAP",
@@ -215,7 +214,7 @@ int main(int argc, char** argv)
         static wxscreens::ScreenOut out;
         for (const Ag& a : ag) {
             in = wxscreens::ScreenIn();
-            wxlivemap::FromLive(h, codes.data(), 60, F + a.age, off, &in);
+            wxlivemap::FromLive(h, codes.data(), 60, F + a.age, &in);
             ComposeIn(in, &out);
             ok &= out.timeInk == a.ink && std::strcmp(in.state, a.state) == 0;
             seen += (seen.empty() ? "" : "; ") + std::to_string(a.age) + " s: time " + wxscenes::InkName(out.timeInk) +
@@ -227,8 +226,8 @@ int main(int argc, char** argv)
         static wxscreens::ScreenIn a, b;
         a = wxscreens::ScreenIn();
         b = wxscreens::ScreenIn();
-        wxlivemap::FromLive(h, codes.data(), 60, F + 60, off, &a);
-        wxlivemap::FromLiveLoopFrame(h, codes.data(), 3, (uint32_t)F, 60, off, &b);
+        wxlivemap::FromLive(h, codes.data(), 60, F + 60, &a);
+        wxlivemap::FromLiveLoopFrame(h, codes.data(), 3, (uint32_t)F, 60, F + 60, &b);
         const bool ok = a.towns == nullptr && a.nTowns == 0 && !a.warning && b.towns == nullptr && b.nTowns == 0;
         check(ok, "LIVE-NOTOWNS", "a live frame and a live loop frame carry no towns and no warning");
     }
@@ -236,11 +235,37 @@ int main(int argc, char** argv)
         static wxscreens::ScreenIn a, b;
         a = wxscreens::ScreenIn();
         b = wxscreens::ScreenIn();
-        wxlivemap::FromLiveLoopFrame(h, codes.data(), 3, (uint32_t)F, 60, off, &a);
-        wxlivemap::FromLiveLoopFrame(h, codes.data(), 0, (uint32_t)F + 240, 60, off, &b);
+        wxlivemap::FromLiveLoopFrame(h, codes.data(), 3, (uint32_t)F, 60, F + 60, &a);
+        wxlivemap::FromLiveLoopFrame(h, codes.data(), 0, (uint32_t)F + 240, 60, F + 300, &b);
         const bool ok = a.loop && a.loopIndex == 3 && a.ageS == 0 && std::strcmp(a.loopAge, "NOW") == 0 && b.loop &&
                         b.loopIndex == 0 && std::strcmp(b.loopAge, "4 MIN AGO") == 0;
         check(ok, "LIVE-LOOP", std::string("loop frames read '") + a.loopAge + "' and '" + b.loopAge + "'");
+    }
+    {
+        // Q131 (a): a live strip never prints a clock time. Every age from 0 to 2 h, by 30 s, through both live builders.
+        long texts = 0, clocks = 0, wrong = 0;
+        static wxscreens::ScreenIn a;
+        for (int64_t age = 0; age <= 7200; age += 30) {
+            for (int k = 0; k < 2; ++k) {
+                a = wxscreens::ScreenIn();
+                if (k == 0) wxlivemap::FromLive(h, codes.data(), 60, F + age, &a);
+                else wxlivemap::FromLiveLoopFrame(h, codes.data(), 0, (uint32_t)F, 60, F + age, &a);
+                ++texts;
+                if (std::strchr(a.clock, ':') || std::strstr(a.clock, "AM") || std::strstr(a.clock, "PM")) ++clocks;
+                char want[24];
+                if (age < 60) std::snprintf(want, sizeof want, "NOW");
+                else std::snprintf(want, sizeof want, "%d MIN AGO", (int)(age / 60));
+                if (std::strcmp(a.clock, want) != 0) ++wrong;
+            }
+        }
+        char far[16];
+        wxlivemap::LiveStripText(1000 * 60, far, sizeof far);
+        char clk[16];
+        wxscreens::ClockText(F, wxscen::kBendOffsetMin, clk, sizeof clk);
+        const bool control = std::strchr(clk, ':') != nullptr;   // the check can see a clock when there is one
+        check(texts == 482 && clocks == 0 && wrong == 0 && std::strcmp(far, "999+ MIN AGO") == 0 && control,
+              "LIVE-NOCLOCK", std::to_string(texts) + " live strips over 0-2 h: " + std::to_string(clocks) +
+                  " clock times, " + std::to_string(wrong) + " off the age format; 1000 min reads '" + far + "'");
     }
 
     // -------------------------------------------------------------------------------------------- the setup screens

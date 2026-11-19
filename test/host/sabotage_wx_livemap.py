@@ -1,12 +1,15 @@
 """Runs test_wx_livemap.cpp against SABOTAGED copies of W7 slice 3b's pure headers (src/weatherscope/WxSetup.h,
 WxLiveMap.h, WxSetupScreen.h); each must turn the suite red on EXACTLY the checks predicted in
-docs/weatherscope-stage4.md S4.40, and nothing else.
+docs/weatherscope-stage4.md S4.40 and S4.45, and nothing else.
 
     python -I test/host/sabotage_wx_livemap.py
 
   M-COVERSALWAYS  every view counts as covered            -> LIVE-COVERS, LIVE-BASEMAP
   M-PKGNOCHECK    the package is built without the check  -> LIVE-BASEMAP
-  M-AGEFRAME      a live frame's age read as 0             -> LIVE-AGE
+  M-AGEFRAME      a live frame's age read as 0             -> LIVE-AGE, LIVE-NOCLOCK
+  M-CLOCK         a live frame's strip prints a clock time -> LIVE-NOCLOCK
+  M-LOOPCLOCK     a live loop frame's strip prints one     -> LIVE-NOCLOCK
+  M-AGECUT        an age over 999 min cut to fit, not a range -> LIVE-NOCLOCK
   M-DALLASTOWNS   a live frame given WxTowns.h's towns     -> LIVE-NOTOWNS
   M-LOOPTOWNS     a live loop frame given them             -> LIVE-NOTOWNS
   M-LOOPNOTLOOP   a live loop frame not marked as the loop -> LIVE-LOOP
@@ -40,7 +43,16 @@ SABOTAGES = {
                                       "    (void)c;  // SABOTAGE: no coverage check")],
                      {"LIVE-BASEMAP"}),
     "M-AGEFRAME": ("WxLiveMap.h", [("    in->ageS = nowUtc - (int64_t)h.frameEpoch;", "    in->ageS = 0 * nowUtc;  // SABOTAGE")],
-                   {"LIVE-AGE"}),
+                   {"LIVE-AGE", "LIVE-NOCLOCK"}),
+    "M-CLOCK": ("WxLiveMap.h", [("    LiveStripText(in->ageS, in->clock, sizeof in->clock);   // the live frame's strip: an age, never a clock",
+                                 "    wxscreens::ClockText(h.frameEpoch, 0, in->clock, sizeof in->clock);  // SABOTAGE")],
+                {"LIVE-NOCLOCK"}),
+    "M-LOOPCLOCK": ("WxLiveMap.h", [("    LiveStripText(nowUtc - (int64_t)h.frameEpoch, in->clock, sizeof in->clock);   // the loop frame's strip, as live",
+                                     "    wxscreens::ClockText(h.frameEpoch, 0, in->clock, sizeof in->clock); (void)nowUtc;  // SABOTAGE")],
+                    {"LIVE-NOCLOCK"}),
+    "M-AGECUT": ("WxLiveMap.h", [('        snprintf(out, cap, "999+ MIN AGO");',
+                                  '        snprintf(out, cap, "%d MIN AGO", (int)(ageS / 60) % 1000);  // SABOTAGE')],
+                 {"LIVE-NOCLOCK"}),
     "M-DALLASTOWNS": ("WxLiveMap.h", [("    in->towns = nullptr;   // a live frame has no towns: WxTowns.h is Dallas's",
                                        "    in->towns = wxtowns::kTowns;  // SABOTAGE")],
                       {"LIVE-NOTOWNS"}),
@@ -133,7 +145,7 @@ def anchor_entries():
 
 
 # --control: this driver's unplanted run alone, the suite against its own count. run.sh runs it for every driver.
-LIVEMAP_OKS = 10   # the suite's count: the one place, read by the run path and by CONTROL_TABLE
+LIVEMAP_OKS = 11   # the suite's count: the one place, read by the run path and by CONTROL_TABLE
 CONTROL_TABLE = {"test_wx_livemap": ("ok", LIVEMAP_OKS)}
 
 

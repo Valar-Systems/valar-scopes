@@ -33,9 +33,24 @@ inline bool Covers(const bmpk::Package& pk, double lat, double lon, double viewK
     return sqrt(e * e + s * s) + viewKm <= pk.radiusMm / 1e6;
 }
 
-// A live frame's screen: the frame's own clock, its age by the board's clock, and the nearest echo in view.
-inline void FromLive(const wxcrop::Header& h, const uint8_t* codes, int radiusMi, int64_t nowUtc, int offsetMin,
-                     wxscreens::ScreenIn* in)
+// THE LIVE STRIP (Q131 (a), S4.45): a live board has no time zone, so its top strip says the frame's AGE, never a clock
+// time -- "NOW", then "6 MIN AGO" -- in the owner's inks (orange past 10 min, wxscreens::TimeText) with RADAR STALE past 30
+// (the state line). An age over 999 min reads "999+ MIN AGO": a range, never a cut number. The one hook for the live
+// strip's words; the stored scenarios keep their fixed-offset clocks.
+inline void LiveStripText(int64_t ageS, char* out, size_t cap)
+{
+    if (ageS < 60) {
+        snprintf(out, cap, "NOW");
+    } else if (ageS / 60 > 999) {
+        snprintf(out, cap, "999+ MIN AGO");
+    } else {
+        const int mins = (int)(ageS / 60);   // 1..999 here; "% 1000" changes no value, and bounds what the compiler
+        snprintf(out, cap, "%d MIN AGO", mins % 1000);   // sees, so a 16-byte ScreenIn::clock cannot read as truncation
+    }
+}
+
+// A live frame's screen: its age by the board's clock, as the strip's words and inks, and the nearest echo in view.
+inline void FromLive(const wxcrop::Header& h, const uint8_t* codes, int radiusMi, int64_t nowUtc, wxscreens::ScreenIn* in)
 {
     in->h = &h;
     in->codes = codes;
@@ -43,8 +58,8 @@ inline void FromLive(const wxcrop::Header& h, const uint8_t* codes, int radiusMi
     in->towns = nullptr;   // a live frame has no towns: WxTowns.h is Dallas's
     in->nTowns = 0;
     in->order = nullptr;
-    wxscreens::ClockText(h.frameEpoch, offsetMin, in->clock, sizeof in->clock);
     in->ageS = nowUtc - (int64_t)h.frameEpoch;
+    LiveStripText(in->ageS, in->clock, sizeof in->clock);   // the live frame's strip: an age, never a clock
     in->loop = false;
     in->warning = false;
     in->arrow = false;
@@ -54,9 +69,10 @@ inline void FromLive(const wxcrop::Header& h, const uint8_t* codes, int radiusMi
     wxscreens::StateLine(st, in->state, sizeof in->state, &in->stateInk);
 }
 
-// A live loop frame: WxScenes.h's FromLoopFrame, step for step, without its towns.
+// A live loop frame: WxScenes.h's FromLoopFrame, step for step, without its towns, and with the frame's age by the
+// board's clock in the strip in place of a clock time (Q131 (a)).
 inline void FromLiveLoopFrame(const wxcrop::Header& h, const uint8_t* codes, int index, uint32_t newestEpoch,
-                              int radiusMi, int offsetMin, wxscreens::ScreenIn* in)
+                              int radiusMi, int64_t nowUtc, wxscreens::ScreenIn* in)
 {
     in->h = &h;
     in->codes = codes;
@@ -64,7 +80,7 @@ inline void FromLiveLoopFrame(const wxcrop::Header& h, const uint8_t* codes, int
     in->towns = nullptr;   // the loop's frames have no towns either
     in->nTowns = 0;
     in->order = nullptr;
-    wxscreens::ClockText(h.frameEpoch, offsetMin, in->clock, sizeof in->clock);
+    LiveStripText(nowUtc - (int64_t)h.frameEpoch, in->clock, sizeof in->clock);   // the loop frame's strip, as live
     in->ageS = 0;
     in->warning = false;
     in->arrow = false;
