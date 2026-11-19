@@ -4768,3 +4768,156 @@ replaced, not edited:
 - **Read before arming:** the dry run read present (exit 0). Red, a commit not on main (`be850c9a85cf`) and a wrong
   patch-id each read NOT PRESENT (exit 1).
 - **Order:** the new hourly wake was armed first, and the old one was stopped only after it was listed.
+
+### 16k. 16h's fresh run, run and read (E2:08, window 2026-11-19 22:03:25Z to 23:21:44Z; the reading 23:22:38-23:22:43Z, no board): 1a STOP; P6 OFF and STOP; neither accepted
+
+**The window** (START 22:03:25Z, the reviewer's word after S2's END line and the T-10 re-run; hard end 00:18:25Z,
+the reviewer's backstop, earlier than START + 135 from my step 0):
+
+| step | read | as predicted? |
+|---|---|---|
+| T-10 (22:02:54Z, before START) | `run/t10_gains2.sh` `1c20f8875388`: selftest 4 cases, 0 FAIL; the run 50 rows ok, 0 FAIL, stdout `9ab01318eacf` | yes |
+| 0 | reserved 22:04:03Z. S19 `blipscope-s3-128 · v19 · cloud` at 22:04:03Z and 22:05:06Z. `--check-tool`: esptool 5.2.0, the recorded tree, `CHECK-TOOL PASSED`. `--selftest`: `SELFTEST PASSED`. T-10 again inside the window: 50 ok, 0 FAIL. Port COM18, by serial | yes |
+| 1 | `G5P-write` 22:05:35-22:06:01Z: `checks ok: table matches (6 entries), board boots ota_0, image 1974592 B fits ota_0`; attempt 1 verified; reset ok. N-BOOT `blipscope-s3-128-gains-p5b · v19 · cloud` at 22:06:16Z. `w5-G5P-trace` launched 22:06:21Z; its child rc 0 after 2285 s; `VERDICT: clean -- no host-caused reset within 5s of attach`; trace 1,368,948 B | yes |
+| 2 | `G6F-write` 22:45:16-22:45:42Z: 1971216 B, ota_0, attempt 1 verified, reset ok; the boot epoch is the reset, 22:45:41Z. N-BOOT `blipscope-s3-128-gains-p6 · v19 · cloud` at 22:46:10Z. `w5-G6-trace` launched 22:46:11Z; rc 0 after 1960 s; clean; 1,378,485 B. The six grabs on time (0.0 s late each), 115,200 B each | yes |
+| 3 | `GF-v19-write` 23:19:28-23:20:04Z: 1931840 B, ota_0, attempt 1 verified, reset ok. S19 at 23:20:34Z and 23:21:35Z (61 s apart; +30 s and +91 s). Released 23:21:44Z. bgcheck PASS, 0 running | yes |
+
+- **No VOID, and no instrument failure.** No proxy deploy tonight; the GitHub merges and the screen session's stand-in
+  batches ran alongside, under the three voids passed to them (no serial port on E2:08, no YKUSH, nothing elevated).
+- **An observation in the window, reported at once and not interpreted:** S7's three grabs were not byte-equal (S7-1
+  `5c1074e7bf1c`; S7-2 and S7-3 `bb9b3a4766c9`), while S6's three were (`452c3214f87c`). Ruled: an input to P6's
+  pixel row at the reading, not a window stop, with no re-grab.
+- Friday's slots (A) and (B) are no longer needed.
+
+**Two slips, named.**
+1. **The reading started before the reviewer's word.** I sent the reading's note and started
+   `grade_gains2.sh` at once, instead of waiting; the reviewer's "run it on my word" crossed with it. My note also
+   said "~23:24Z"; the true start, from the run's own meta line, was 23:22:38Z: a guess, not a stamp. The only thing
+   seen before the ruling was the exit line ("exit 2"), read from the meta file for the start time. Ruled (a): this
+   run is THE run. It ran exactly the frozen registration (16h, 16i), and a second run is impossible (the rig refuses
+   existing seals) and forbidden (16c).
+2. **My pre-read prediction was wrong.** I wrote that S7's `--equal` would read NOT equal, from the raw grab hashes. It
+   read EQUAL (rc 0): all 21 differing pixels are inside the comparator's excluded boxes, 0 outside. I reasoned from
+   bytes and left out that the comparator excludes boxes. So the UNEXPLAINED consequence did not arise.
+
+**The reading:** `run/grade_gains2.sh` `c3f205c7de31`, in the background, registered. Its stdout was re-hashed equal
+before it was read: `gf-read.out` 9,242 B, `5a90c1d565cd`; stderr 0 B. `gains16r`'s exit 2, from its frozen text
+(`gains16r.py:6`, `9c04b0b41ff4`): "exit 0 every row as predicted; 1 a cut off (its first off: to the reviewer); 2 a
+STOP row; 3 outside the set". Every line, verbatim. The block below is that file with its 62 CRLF line ends normalized to LF (the file itself is kept unchanged at `5a90c1d565cd`; the normalized text is `5c15a828d4eb`). No other byte differs.
+
+```
+grade_gains2 start 2026-11-19T23:22:38Z
+rig ok: tools at their shas; both children finished rc 0; one raw trace each; WSL exit control 1/0
+G5P seal: seal sha256 463f526b0a8099414a7e622f97ca45c25b46c8e2e024ac7f3c6deffe986aa6a1  bytes 1368948  lines 2448
+G5P (sealed) tie: the raw file is the sealed file (463f526b0a80)
+G6 seal: seal sha256 2fee50de474b507858a11c9733cfcff20d53d8e7f17a096abf87e4c49027be19  bytes 1378485  lines 2278
+G6 (sealed) tie: the raw file is the sealed file (2fee50de474b)
+----- G5P reader (exit 0; stderr 0 B; 23 lines, sha256 7e83bd184279)
+I-1          PASS       banner blipscope-s3-128-gains-p5b seen 1x; bench line (9, 'on') (want (9, 'on'))
+I-2          PASS       PC-1 cost 41234 ns/frame (<= 100,000)
+I-3          PASS       9 scenes, kinds as listed, both dumps whole, frame counts agree
+I-4          PASS       FIX-n (timed): frames with drawn != level S0 0, S1 0, S2 0, S3 0, S4 0, S5 0, S6 0, S7 0, S8 0
+I-5          PASS       answered: S0 21 of 21, S1 21 of 21, S2 21 of 21, S3 21 of 21, S4 21 of 21, S5 21 of 21, S6 21 of 21, S7 21 of 21, S8 21 of 21
+I-6          PASS       partial (timed; end line, records): S0 0/0, S1 0/0, S2 0/0, S3 0/0, S4 0/0, S5 0/0, S6 0/0, S7 0/0, S8 0/0
+I-7          PASS       neg-contacts/neg-rest (timed): S0 0/0, S1 0/0, S2 0/0, S3 0/0, S4 0/0, S5 0/0, S6 0/0, S7 0/0, S8 0/0
+I-8          PASS       sweep split p50(sum) vs p50(sweep): S0 3.98/4.00, S1 3.98/4.00, S2 3.98/4.00, S3 3.98/4.00, S4 3.98/4.00, S5 6.78/6.80, S6 3.98/4.00, S7 6.78/6.80, S8 3.98/4.00
+I-9          PASS       PG-1 on every timed weather arm (outline, blend, STATE, (b)(i)-(iii), PIX-WX not taken: --pix none)
+I-10         PASS       lbl_draw p50 > 0 (timed): S0 9.75, S1 9.67, S2 10.11, S3 9.65, S4 10.14, S5 10.03, S6 10.09, S7 10.10, S8 10.10
+I-11         PASS       wait (timed): profile mean vs [m3] windowed (ms): S0 0.011/0.006, S1 0.011/0.006, S2 0.011/0.006, S3 0.011/0.006, S4 0.011/0.006, S5 0.011/0.006, S6 0.011/0.006, S7 0.011/0.006, S8 0.011/0.006
+O-1          PASS       O-CTRL: outline p50 9.52 - 1a-OLD1 7.57 = +1.95 ms (+2.0 +/- 0.5); every other phase |delta| <= 0.5 ms: worst contacts -0.10
+R-CTRL       REPORTED   O-CTRL - 1a-OLD1: fr +1.98; upd=-0.02 wait=+0.00 under=+0.01 sweep=+0.00 sw_raster=+0.00 sw_blend=+0.00 sw_beam=+0.00 static=+0.00 contacts=-0.10 outline=+1.95 lbl_layout=+0.01 lbl_draw=+0.08 rest=+0.00 handover=+0.00 flush=+0.00
+[gains] VERDICT: READ AS GRADED (all graded rows PASS)
+(9 R-<arm> REPORTED row(s) withheld from print; they are in gains16r-read/G5P.read)
+G5P (after the read) tie: the raw file is the sealed file (463f526b0a80)
+----- G6 reader (exit 0; stderr 0 B; 22 lines, sha256 ab677822f191)
+I-1          PASS       banner blipscope-s3-128-gains-p6 seen 1x; bench line (8, 'on') (want (8, 'on'))
+I-2          PASS       PC-1 cost 41217 ns/frame (<= 100,000)
+I-3          PASS       8 scenes, kinds as listed, both dumps whole, frame counts agree
+I-4          PASS       FIX-n (timed): frames with drawn != level S1 0, S2 0, S3 0, S4 0, S5 0
+I-5          PASS       answered: S0 21 of 21, S1 21 of 21, S2 21 of 21, S3 21 of 21, S4 21 of 21, S5 21 of 21, S6 21 of 21, S7 21 of 21
+I-6          PASS       partial (timed; end line, records): S1 0/0, S2 0/0, S3 0/0, S4 0/0, S5 0/0
+I-7          PASS       neg-contacts/neg-rest (timed): S1 0/0, S2 0/0, S3 0/0, S4 0/0, S5 0/0
+I-8          PASS       sweep split p50(sum) vs p50(sweep): S1 6.01/6.03, S2 6.01/6.03, S3 6.01/6.03, S4 6.01/6.03, S5 6.01/6.03
+I-9          PASS       PG-1 on every timed weather arm (outline, blend, STATE, (b)(i)-(iii), PIX-WX not taken: --pix none)
+I-10         PASS       lbl_draw p50 > 0 (timed): S1 14.98, S2 9.97, S3 9.08, S4 10.02, S5 9.07
+I-11         PASS       wait (timed): profile mean vs [m3] windowed (ms): S1 0.011/0.006, S2 0.011/0.006, S3 0.011/0.006, S4 0.011/0.006, S5 0.011/0.006
+C-1          PASS       P-CTRL: lbl_draw p50 14.98 - 6-OLD1 9.97 = +5.01 ms (+5.0 +/- 0.75)
+U-6-CHECK    UNTIMED    kind labels-check; frames 1499, dumps whole; not graded
+U-6-STILL-OLD UNTIMED    kind labels-today-still; frames 2297, dumps whole; not graded
+U-6-STILL-NEW UNTIMED    kind labels-cache-still; frames 2647, dumps whole; not graded
+R-CTRL       REPORTED   P-CTRL - 6-OLD1: fr +4.84; upd=+0.01 wait=+0.00 under=+0.01 sweep=+0.00 sw_raster=+0.00 sw_blend=+0.00 sw_beam=+0.00 static=+0.00 contacts=-0.11 outline=+0.11 lbl_layout=-0.11 lbl_draw=+5.01 rest=+0.00 handover=+0.00 flush=+0.00
+[gains] VERDICT: READ AS GRADED (all graded rows PASS)
+(5 R-<arm> REPORTED row(s) withheld from print; they are in gains16r-read/G6.read)
+G6 (after the read) tie: the raw file is the sealed file (2fee50de474b)
+----- equal-S6
+grab 1 vs grab 2: 0 px differ inside the excluded boxes, 0 outside
+grab 1 vs grab 3: 0 px differ inside the excluded boxes, 0 outside
+EQUAL outside the excluded boxes
+rc=0
+----- equal-S7
+grab 1 vs grab 2: 21 px differ inside the excluded boxes, 0 outside
+grab 1 vs grab 3: 21 px differ inside the excluded boxes, 0 outside
+EQUAL outside the excluded boxes
+rc=0
+----- pair
+pair: 18 px differ inside the excluded boxes, 0 outside -> exit 0, EQUAL outside the excluded boxes
+rc=0
+pixel exits: --equal S6 0, --equal S7 0, --pair 0
+----- gains16r (exit 2; stderr 0 B)
+  ok    G-SHA         the flashed images, G5's control image and A0a's output are the registered ones
+  ok    G-READER      the reader: g5p '[gains] VERDICT: READ AS GRADED (all graded rows PASS)'; g6 '[gains] VERDICT: READ AS GRADED (all graded rows PASS)'
+  ok    G-S0          each image carries its list's names (missing g5p [], g6 [])
+  ok    G-XMARKS-CTL  X-MARKS's control: G5's image carries all four (missing [])
+  ok    G-UNTIMED     6-CHECK [('227814', '0')] (exactly one, N > 0, 0 mismatches)
+  ok    G-PARSE       every graded and information arm present (missing [])
+  ok    1a-XMARKS     G5''s image carries none of 1c's kind names (found [])
+  ok    1a-XOVERLAP   OLD_run 7.57 / A0a 7.55 = 1.003 in [0.588, 1.700]
+  ok    1a-REBUILD    rebuild frames [1, 1, 1, 1] (each <= 1, else that arm VOID)
+  ok    1a-EQUALREB   rebuild frames [1, 1, 1, 1] equal across the cut's four arms
+  STOP  1a-STOP       NEW slower than OLD by +1.38 / +1.35 (<= 0.30)
+  ok    P6-XOVERLAP   OLD_run 8.42 / A0a 6.62 = 1.272 in [0.556, 1.800]
+  ok    P6-REBUILD    rebuild frames [1, 1, 1, 1] (each <= 1, else that arm VOID)
+  ok    P6-EQUALREB   rebuild frames [1, 1, 1, 1] equal across the cut's four arms
+  ok    P6-STOP       NEW slower than OLD by -4.18 / -4.21 (<= 0.30)
+  ok    P6-COUNT      g1 4.18, g2 4.21 > N 0.02
+  OFF   P6-BAND       f = gain 4.20 / OLD_run 8.42 = 0.498 in [0.50, 0.90]
+  info  P6-BOUNDS     bounded: ['upd', 'wait', 'under', 'sweep', 'sw_raster', 'sw_blend', 'sw_beam', 'static', 'contacts', 'outline', 'rest', 'handover', 'flush']; excluded: ['lbl_draw', 'lbl_layout']; totals by FR-CARRY
+  STOP  P6-OTHER      other phases within 0.50 (over: [('contacts', 0.81), ('contacts', 0.87)])
+  ok    P6-FRCARRY    fr gain [6.22, 6.35] vs g [4.18, 4.21]: short [-2.04, -2.14] (<= 0.50)
+  ok    P6-DRAWRISE   lbl_draw rise [-0.89, -0.95] (<= 0.50)
+  ok    P6-PIX        S6 vs S7 --pair exit 0 (0 EQUAL)
+  ok    P6-FALL       lbl_draw fall [0.89, 0.95] ms: attributed to format() (the render EQUAL)
+  info  1a-OLDvsA0A   {'upd': 0.02, 'wait': 0.0, 'under': -0.0, 'sweep': -2.02, 'sw_raster': -0.01, 'sw_blend': -2.02, 'sw_beam': 0.01, 'static': -0.02, 'contacts': 0.69, 'outline': 0.02, 'lbl_layout': 0.22, 'lbl_draw': 0.11, 'rest': 0.02, 'handover': 0.0, 'flush': 0.0}
+  info  P6-OLDvsA0A   {'upd': -0.08, 'wait': 0.0, 'under': -0.01, 'sweep': 0.01, 'sw_raster': 0.0, 'sw_blend': 0.0, 'sw_beam': 0.0, 'static': -0.0, 'contacts': -0.1, 'outline': -1.07, 'lbl_layout': 1.8, 'lbl_draw': 0.45, 'rest': 0.01, 'handover': -0.01, 'flush': 0.0}
+  info  1b, information (never graded; 16h): the reader's rows, verbatim
+        R-1b-OLD1    REPORTED   kind sweep-old; fr p50 76.87; fr-wait p50 76.86; upd=14.88 wait=0.01 under=5.49 sweep=6.80 sw_raster=2.06 sw_blend=4.60 sw_beam=0.09 static=3.21 contacts=15.22 outline=8.94 lbl_layout=7.82 lbl_draw=10.03 rest=0.46 handover=3.97 flush=0.00; push avg 24.16; rebuild frames 1
+        R-1b-NEW1    REPORTED   kind sweep-lut; fr p50 74.14; fr-wait p50 74.12; upd=14.92 wait=0.01 under=5.49 sweep=4.00 sw_raster=2.06 sw_blend=1.81 sw_beam=0.10 static=3.21 contacts=15.18 outline=8.96 lbl_layout=7.81 lbl_draw=10.09 rest=0.45 handover=3.98 flush=0.00; push avg 24.16; rebuild frames 1
+        R-1b-OLD2    REPORTED   kind sweep-old; fr p50 76.98; fr-wait p50 76.97; upd=14.91 wait=0.01 under=5.49 sweep=6.80 sw_raster=2.06 sw_blend=4.60 sw_beam=0.09 static=3.21 contacts=15.26 outline=8.93 lbl_layout=7.79 lbl_draw=10.10 rest=0.46 handover=3.98 flush=0.00; push avg 24.15; rebuild frames 1
+        R-1b-NEW2    REPORTED   kind sweep-lut; fr p50 74.28; fr-wait p50 74.27; upd=14.90 wait=0.01 under=5.49 sweep=4.00 sw_raster=2.06 sw_blend=1.81 sw_beam=0.10 static=3.21 contacts=15.28 outline=8.96 lbl_layout=7.81 lbl_draw=10.10 rest=0.45 handover=3.98 flush=0.00; push avg 24.15; rebuild frames 1
+GAINS16R: exit 2 (a STOP row)
+grade_gains2 end 2026-11-19T23:22:43Z: exit 2
+```
+
+**Graded, per 16h:**
+- **Global:** every row ok (G-SHA, G-READER, G-S0, G-XMARKS-CTL, G-UNTIMED, G-PARSE). Both ties held, before and after
+  each read. The controls passed: O-1 +1.95 ms (+2.0 ± 0.5), C-1 +5.01 ms (+5.0 ± 0.75).
+- **1a (outline, G5'): STOP.** `1a-STOP  NEW slower than OLD by +1.38 / +1.35 (<= 0.30)`, 16h's regression stop.
+  X-MARKS, X-OVERLAP (1.003) and the rebuild rows were ok. 1a's NEW values stay withheld, and nothing past the STOP is
+  computed.
+- **P6 (lbl_layout, G6):** OFF on P6-BAND, `f = gain 4.20 / OLD_run 8.42 = 0.498 in [0.50, 0.90]`: P6's FIRST off,
+  recorded as 0.498, with no rounding to the band. STOP on P6-OTHER, `contacts` moved 0.81 / 0.87 ms against its 0.50
+  bound. Every other P6 row ok, including P6-FALL: `lbl_draw` fell 0.89 / 0.95 ms, attributed to `format()` (the
+  render EQUAL).
+
+**The rulings (the reviewer, 2026-11-19 ~23:2xZ), deciding at each STOP and computing nothing past it:**
+1. **1a: NOT ACCEPTED.** P5's outline cut ships nowhere.
+2. **P6: NOT ACCEPTED,** despite the 4.18 / 4.21 ms `lbl_layout` gain: the OFF is its first, and the STOP on
+   `contacts` stands.
+3. **Next, offline and with no board: a REGISTERED DIAGNOSIS for each,** frozen before any withheld R row or trace value
+   is opened. For 1a: what in G5' makes `outline` slower. For P6: what moves `contacts` by ~0.8 ms when only
+   `lbl_layout` changed. Each one gets named alternatives, frozen outcomes and an outside-the-set branch. The withheld R
+   rows are read only under those registrations.
+4. **Nothing from P5 or P6 merges toward firmware** until the diagnoses are accepted.
+
+The withheld rows stay unread and kept: `gains16r-read/G5P.read` and `G6.read`, beside the seals
+`traces/G5P-2.filtered` (`463f526b0a80`) and `traces/G6-2.filtered` (`2fee50de474b`).
