@@ -3802,3 +3802,49 @@ Any of these: STOP, and report.
    - It stays on a local branch until Friday's compile, with a patch copy in my handoffs folder.
 2. **Friday after B9 (~18:45Z):** W7-BUILD, W7-NO-DALLAS, W7-BASE-ELF, W7-WORDS, W7-D2 and W7-S1, as frozen in S4.40.
 3. **The PR,** once uk-data's F1 rule is on main.
+
+### S4.42, 2026-11-19: S4.40's no-stored-data row amended (the reviewer's ruling), before 3b's code
+
+**The ruling (the reviewer, 2026-11-19, on S4.41):**
+- **The embedded crop comes out.** Q127's row means "the live image carries no STORED SCENARIO DATA", not only no
+  town names. A Dallas radar crop in the live image is stored data, one step from being drawn as someone's sky.
+- **Grant extended:** `board_build.embed_files` moves from the live env to `weatherscope-stored-s3-128` only.
+- **The amended row:** the live image's ELF carries NO symbol and NO bytes of `kdfw-60mi.wxc`, or of any `.wxc`, with
+  the stored env's image as the control that carries them.
+
+**What the live image would otherwise carry** (read from the tree, before any code):
+- **Three routes in, not one:**
+  - `board_build.embed_files` adds `test/fixtures/wx/kdfw-60mi.wxc` (`platformio.ini:1172`).
+  - `src/weatherscope/WxLoopFrames.S` uses `.incbin` for Dallas's loop: 16 crops, its synthetic clear included.
+  - `src/weatherscope/WxBendData.S` uses `.incbin` for Bend's loop (16 crops, its synthetic clear included) and for
+    `test/fixtures/wx/basemap/bend.bmpk`.
+- **The count:** 33 distinct `.wxc` files and one package, all present in the tree.
+
+**How 3b removes them:**
+- `embed_files` moves to the stored env (the grant).
+- The whole of `WxLoopFrames.S`, and `WxBendData.S`'s crop `.incbin`s, go under `#ifdef WX_STORED`. A `.S` file is
+  preprocessed, so this needs no ini change. `StoredFeeds.cpp` goes under `WX_STORED` too.
+- **`bend.bmpk` stays in the live image.** It is Bend's MAP, not weather: the basemap ruling draws it when it covers
+  the whole view (LIVE-BASEMAP's control).
+
+**The amended row, W7-NO-STORED,** added beside S4.40's W7-NO-DALLAS, which stands as frozen. It runs Friday after B9
+on both images:
+
+| part | in the LIVE image | the control, in the STORED image |
+|---|---|---|
+| symbols (`nm` on the ELF) | 0 symbols matching `_binary_.*_wxc_(start\|end)`, `wx_loop_[0-9]+_(start\|end)`, `wx_synthetic_clear_(start\|end)`, `wx_bend_[0-9]+_(start\|end)` or `wx_bend_clear_(start\|end)` | each of those five families present |
+| bytes (`firmware.bin`) | each of the 33 `.wxc` files' whole contents occurs 0 times | each occurs at least once |
+| the scan can see an embedded file | `bend.bmpk`'s whole contents occur at least once, and `wx_bend_package_start`/`_end` are present | the same |
+
+- **Where the 33 paths come from:** the checker derives them at run time, from the `.incbin` lines of the two `.S`
+  files and the stored env's `embed_files`. That is the other side of the contract, not a copied list; it predicts
+  33.
+- **The checker:** `tools/weatherscope/w7/w7_image.py`, written with the code. It holds W7-NO-STORED, W7-NO-DALLAS,
+  W7-BASE-ELF and W7-WORDS.
+  - Its `--selftest` plants one crop's bytes onto a copy of the live image, and W7-NO-STORED must read FAIL, naming
+    that file.
+  - It plants a copy with `bend.bmpk`'s bytes removed, and the control must read BLIND.
+- **A blind control STOPS the run:** `bend.bmpk` not found in the live image, or any family missing from the stored
+  ELF.
+
+Then 3b's code: local, with a patch copy in my handoffs folder, built Friday after B9.
