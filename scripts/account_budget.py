@@ -100,6 +100,13 @@ def validate(b):
         for k in ("label", "included", "price", "unit", "round_up"):
             if k not in v:
                 raise Malformed(f"allowance {a} has no {k}")
+        # Section 11: an allowance may be in force only in some months ({from} and/or {until}, YYYY-MM, inclusive).
+        if "months" in v:
+            w = v["months"]
+            if (not isinstance(w, dict) or not w or set(w) - {"from", "until"}
+                    or not all(isinstance(x, str) and MONTH.match(x) for x in w.values())
+                    or ("from" in w and "until" in w and w["from"] > w["until"])):
+                raise Malformed(f"allowance {a}: months must be {{from: YYYY-MM}} and/or {{until: YYYY-MM}}, from <= until")
     for p, v in prods.items():
         if not v.get("states"):
             raise Malformed(f"product {p} has no states")
@@ -193,6 +200,14 @@ def anchor(b):
     return bad
 
 
+def in_force(al, m):
+    """Section 11: is the allowance in force in month m (YYYY-MM)? No months window means always."""
+    w = al.get("months")
+    if not w:
+        return True
+    return ("from" not in w or m >= w["from"]) and ("until" not in w or m <= w["until"])
+
+
 def cost(al, amount):
     over = max(0.0, amount - al["included"]) / al["unit"]
     if al["round_up"]:
@@ -229,6 +244,11 @@ def evaluate(b):
         days = (month_bounds(m)[1] - month_bounds(m)[0]).days if m else 30
         lines, overage = [], 0.0
         for a, al in b["allowances"].items():
+            # Section 11: out of force in this scenario's month (a 30-day scenario takes the file's month): no amount,
+            # no mark, no cost. The table and the report print n/a.
+            if not in_force(al, m or b["month"]):
+                lines.append((a, None, None, "", 0.0))
+                continue
             # Section 10: an allowance billed per month (R2 storage, a GB-month) is the month's average, whatever the
             # month's length, so a calendar month does not scale it: its weights (days/30, or hours/720) x 30/days.
             pm = 30 / days if al.get("per_month") else 1.0
@@ -270,6 +290,9 @@ def table(b, ev, names, ob):
         cells = []
         for s in names:
             _, amt, share, mark, c = ev[s]["lines"][i]
+            if amt is None:   # section 11: not in force in this scenario's month
+                cells.append("n/a")
+                continue
             cells.append(f"{fmt_amount(a, al, amt)} ({share:.0%})" + (f" **{mark}**" if mark else "") + (f", ${c:.2f}" if c else ""))
         if ob:
             cells.append(f"{fmt_amount(a, al, ob[a])} ({ob[a] / al['included']:.0%})" if a in ob else "not read")
@@ -315,6 +338,9 @@ def report(b):
         print(f"== {s}")
         for a, amt, share, mark, c in ev[s]["lines"]:
             al = b["allowances"][a]
+            if amt is None:   # section 11
+                print(f"  {a:14s} {'n/a':>14s} (not in force in this scenario's month)")
+                continue
             print(f"  {a:14s} {fmt_amount(a, al, amt):>14s} of {fmt_amount(a, al, al['included']):>10s}  {share:7.1%}  {mark:4s}  ${c:6.2f}")
         print(f"  overage a month (Read A): ${ev[s]['overage']:.2f}")
     ob = observed(b)
@@ -538,6 +564,48 @@ def selftest():
     tbl = next((c for c in rest.split("\n\n") if c.startswith("| allowance")), "")
     check("| dec |" in tbl.split("\n")[0] and " dec " not in head30 and " today " in head30,
           "R2: a month scenario renders in its month's table, never in the 30-day one")
+    # ---- 11: an allowance in force only in some months (December's Logs GB allowances) --------------------------------
+    plg = copy.deepcopy(pc)
+    plg["allowances"]["ev_old"] = {"label": "ev old", "included": 20e6, "price": 0.60, "unit": 1e6, "round_up": False,
+                                   "months": {"until": "2026-11"}}
+    plg["allowances"]["gb_new"] = {"label": "gb new", "included": 50, "price": 0.25, "unit": 1, "round_up": False,
+                                   "months": {"from": "2026-12"}}
+    for a, v in (("ev_old", 1.0e6), ("gb_new", 5.0)):
+        plg["rows"].append({"product": "proxy", "state": "now", "allowance": a, "value": v, "read": "r2",
+                            "basis": "measured", "how": "synthetic", "cadence": "steady"})
+    plg["scenarios"]["dec"] = {"month": "2026-12", "ingest": "silent"}
+    plg["scenarios"]["nov"] = {"month": "2026-11", "ingest": "silent"}
+    ok_lg = not refused(plg)
+    check(ok_lg and all(amt(plg, s, "cpu_ms") is not None for s in ("today", "dec", "nov")),
+          "M-LG0: CONTROL: valid months windows are accepted, and an allowance without one has an amount in every scenario")
+    check(ok_lg and amt(plg, "today", "ev_old") is None and amt(plg, "today", "gb_new") == 5.0,
+          "M-LG1: a 30-day scenario takes the file's month (2026-12): ev_old (until 2026-11) is n/a, gb_new reads 5.0")
+    check(ok_lg and amt(plg, "nov", "gb_new") is None and amt(plg, "nov", "ev_old") == 1.0e6,
+          "M-LG2: November: gb_new (from 2026-12) is n/a, ev_old reads 1.0 M")
+    g3 = amt(plg, "dec", "gb_new") if ok_lg else None
+    check(ok_lg and amt(plg, "dec", "ev_old") is None and g3 is not None and g3 > 0,
+          "M-LG3: December: ev_old is n/a, gb_new has an amount above 0")
+    msgs = []
+    for w in ({"from": "2026-13"}, {"after": "2026-12"}, {"from": "2026-12", "until": "2026-11"}):
+        pw = copy.deepcopy(plg)
+        pw["allowances"]["gb_new"]["months"] = w
+        msgs.append(why(pw))
+    check(all("months" in x for x in msgs),
+          "M-LG4: a malformed months window is refused, naming months (a month 2026-13, an unknown key, from after until)")
+    rlg = render(plg) if ok_lg else ""
+    check("| ev old | 20.000 M | n/a | n/a |" in rlg.split("**2026-11, calendar month")[0].split("\n"),
+          "M-LG5: the 30-day table's ev_old line is exactly | ev old | 20.000 M | n/a | n/a |")
+    pbig, pnone = copy.deepcopy(plg), copy.deepcopy(plg)
+    for r in pbig["rows"]:
+        if r["allowance"] == "ev_old":
+            r["value"] = 1000e6
+    pnone["rows"] = [r for r in pnone["rows"] if r["allowance"] != "ev_old"]
+    ok6 = False
+    if ok_lg:
+        eb, en = evaluate(pbig)["dec"], evaluate(pnone)["dec"]
+        lb = next(x for x in eb["lines"] if x[0] == "ev_old")
+        ok6 = lb[3] == "" and lb[4] == 0 and abs(eb["overage"] - en["overage"]) < 1e-9
+    check(ok6, "M-LG6: ev_old at 1,000 M (50x) in December raises no mark and no cost, and leaves the overage unchanged")
     print("SELFTEST " + ("PASSED" if not fails else f"FAILED: {len(fails)}"))
     return 0 if not fails else 1
 
