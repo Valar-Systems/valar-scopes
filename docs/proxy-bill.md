@@ -1715,6 +1715,10 @@ production; before the first F1 read in the new slot.
 
 The code commit and the plant are mine; the reviewer reads both. Nothing deploys.
 
+CORRECTION (append-only): a failed count is BLIND exit 6 per F1-R-1; F1-R's RIG/exit 2 for it is superseded.
+
+ADDED (append-only, before any row graded it): scan: 0 = last closed hour clean; 3 = not clean yet / no devl / rollback, each with its line.
+
 ## Step 5, amendment F1-R-1: a count is a value only at ABR 1 (registered 2026-11-19T13:27:50Z, the reviewer's condition on F1-R; append-only, nothing above is edited)
 
 **Why** (the reviewer, 2026-11-19, from map-server's finding the same day). The logs API applies QUERY-TIME sampling.
