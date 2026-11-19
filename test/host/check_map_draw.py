@@ -561,17 +561,18 @@ def cd8(root):
 
 # ------------------------------------------------------------------------------------------------------- step D
 MAP_KEYS = ('"map-layer"', '"map-names"', '"map-terrain"')
-# (d)'s writers of the config namespace, plus the device's read, the page's header and the mapkey bench line ((c),
-# V19S: a reader, bench-only). Name a file here only after (d) or (c) names it.
+# (d)'s writers of the config namespace, plus the device's read and the page's header. Name a file here only after (d)
+# names it. (The mapkey bench line, a reader, lives on its bench branch, which names include/MapKeyLine.h here too:
+# ruled 2026-11-19 ~02:08Z, bench pieces stay off main.)
 DW1_NAMED = ["src/ConfigurationWebServer.cpp", "src/ConfigMigration.cpp", "src/FactoryReset.cpp",
-             "src/AircraftManager.cpp", "include/MapSettingsHtml.h", "include/MapKeyLine.h"]
+             "src/AircraftManager.cpp", "include/MapSettingsHtml.h"]
 SRC_EXTS = (".h", ".hpp", ".cpp", ".c", ".inc")
 MAP_GATE = "#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)"
 GATES = {norm(MAP_GATE), "#ifdef BLIPSCOPE_MAP_FETCH", "#if defined(BLIPSCOPE_MAP_FETCH)"}
-KEY_GATES = {"#ifdef MAP_KEY_BENCH", "#if defined(MAP_KEY_BENCH)"}
 TERRAIN, LABEL = '"map-terrain"', '"Terrain shading"'
-# D5's two headers that ARE the setting's text: each exempt itself, each #included only inside its own gate.
-HEADERS = {"include/MapSettingsHtml.h": GATES, "include/MapKeyLine.h": KEY_GATES}
+# D5's header that IS the setting's text: exempt itself, #included only inside its own gate (S-D5-INC's subject). The
+# bench branch adds include/MapKeyLine.h under #ifdef MAP_KEY_BENCH.
+HEADERS = {"include/MapSettingsHtml.h": GATES}
 DIRECTIVE = re.compile(r"#\s*(if|ifdef|ifndef|elif|else|endif)\b")
 
 

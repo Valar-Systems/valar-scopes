@@ -32,6 +32,7 @@ Step D's (registered 2026-11-18, "Step D's other half" (b), (d), (e) and D5), on
   S-DH1           a hand-written map-layer box literal planted in the page: {DH1}
   S-D5            TrySaveParam("map-terrain") moved outside the map's gate: {D5}
   S-E3            mapLayerOn removed from MapEnabled()'s return: {E3}
+  S-D5-INC        MapSettingsHtml.h #included outside the map's gate: {D5}
   Each is graded AS PREDICTED only when the red set PARSED from the check's output equals its frozen set, so a FAIL
   regex that could not read a "CB-B" row would turn these plants off-prediction, never silently green.
 
@@ -72,6 +73,7 @@ STEPC_AT = '#include "MapLayer.h"       // maplayer::Load: the gate (CRC and for
 PLACES = os.path.join("include", "MapPlaces.h")
 LOGBOOK = os.path.join("src", "Logbook.cpp")
 CWS = os.path.join("src", "ConfigurationWebServer.cpp")
+MAP_GATE_LINE = "#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)"
 SOURCE_CHECKS = 17   # CD4, CB8, CB8b, CD1-CD3, CD5, CD6, CD6b, CD7, CB-B1, CB-B2, CD8, step D's DW1, DH1, D5, E3: the one
                      # place the count lives
 ARRIVAL_BUMP_AT = ("                if (mapairports::Changed(mapAirportsHeld, apHash)) ++mapAirportsGen;   // CD6, CD6b: only "
@@ -136,6 +138,9 @@ SABOTAGES = {
                    ('        TrySaveParam("wx-look");', '        TrySaveParam("map-terrain");\n        TrySaveParam("wx-look");')],
              {"D5"}),
     "S-E3": (AMCPP, [("    return mapLayerOn && useCloudSource", "    return useCloudSource")], {"E3"}),
+    # D5's header exemption (ruled 2026-11-19 ~02:08Z): the exempt header #included OUTSIDE its own gate.
+    "S-D5-INC": (CWS, [(MAP_GATE_LINE + '\n#include "MapSettingsHtml.h"', '#include "MapSettingsHtml.h"\n' + MAP_GATE_LINE)],
+                 {"D5"}),
 }
 
 # The instrument's two directions (registered with L1's fix): none is a {CD4}-set plant. Each runs in its own copy and is

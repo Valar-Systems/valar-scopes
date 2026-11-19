@@ -81,11 +81,6 @@ static_assert(joinfail::R_HANDSHAKE_TIMEOUT      == WIFI_REASON_HANDSHAKE_TIMEOU
 #ifdef SOAK_TEST
 #include "SoakHarness.h" // realistic-duty 24 h soak
 #endif
-#ifdef MAP_KEY_BENCH
-#include "MapKeyLine.h" // the mapkey bench image's boot line (step D, V19S): classes, never values
-#include <Preferences.h>
-#include <nvs.h>
-#endif
 
 LGFX tft;
 LGFX_Sprite backbuffer(&tft);
@@ -858,36 +853,6 @@ void setup()
   Serial.println("[photo-mode] OTA off: update check skipped");
 #else
   MaybeUpdateFirmware(tft, backbuffer, http);
-#endif
-
-#ifdef MAP_KEY_BENCH
-  // V19S (docs/blipscope-map-client-steps.md, "Step D's other half", (c)): ONE line, before configServer.Initialise and
-  // ConfigMigration::Apply touch the config namespace -- its keys as a COUNT, cfg-rev and the three map keys as CLASSES,
-  // never values (Daniel's rule: NVS bytes stay on the board; the board compares). Its marker, "[map-key]", is in
-  // scripts/check-no-bench-hooks.sh's list, refused in every slug-ful image.
-  {
-    int keys = 0;
-    nvs_iterator_t it = nullptr;
-    for (esp_err_t e = nvs_entry_find(NVS_DEFAULT_PART_NAME, "config", NVS_TYPE_ANY, &it); e == ESP_OK;
-         e = nvs_entry_next(&it))
-      ++keys;
-    nvs_release_iterator(it);
-    Preferences kp;
-    if (kp.begin("config", true)) {
-      const bool revPresent = kp.isKey("cfg-rev");
-      const int rev = revPresent ? kp.getInt("cfg-rev", 0) : 0;
-      const bool hm = kp.isKey(mapkeyline::kKeyMap), hn = kp.isKey(mapkeyline::kKeyNames),
-                 ht = kp.isKey(mapkeyline::kKeyTerrain);
-      const String sm = hm ? kp.getString(mapkeyline::kKeyMap, "") : String();
-      const String sn = hn ? kp.getString(mapkeyline::kKeyNames, "") : String();
-      const String st = ht ? kp.getString(mapkeyline::kKeyTerrain, "") : String();
-      kp.end();
-      Serial.println(mapkeyline::Line(keys, revPresent, rev, hm ? sm.c_str() : nullptr, hn ? sn.c_str() : nullptr,
-                                      ht ? st.c_str() : nullptr).c_str());
-    } else {
-      Serial.printf("%s config namespace not opened: nothing graded\n", mapkeyline::kMarker);
-    }
-  }
 #endif
 
   // begin background server for configuration
