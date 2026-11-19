@@ -1493,3 +1493,107 @@ three parts:
 
 Together these are about **65,700 writes a run in each environment, about 525,000 a month** across the two environments
 (four Mondays). Today that is about half the account's free million.
+
+### Step 4d's read and its grades (2026-11-19T00:34:34Z; reader blob `56917f86af58`)
+
+**First, an attempt that produced nothing.** A background job started read A at 00:31:03Z and read B 70 s later, and
+both exited 1. **The cause was not seen, because the job discarded their stderr.** That was my error, and the job
+gives no reading.
+- Its grade found no file to grade (exit 2, the rig).
+- Before the reads, it confirmed the run list again: **no KV-writing job (refresh-data, photos, routes-refresh) ran on
+  2026-11-18.**
+
+**The reads graded:**
+- Read A ran in the foreground at 00:32:32Z, and read B at 00:33:37Z, 65 s later, behind a wait that would not start
+  under 65 s.
+- stderr was kept: only the token file's permission note.
+- The two reads agree.
+
+**The anchor:** 2026-11-17 reads exactly as step 4c read it: production reads 416,175, writes 2,196, boards 19.
+
+**2026-11-18:** production reads **410,808**, writes **2,471**, boards **21**; the account's reads 411,421.
+
+| row | result | grade |
+|---|---|---|
+| **PB1** | R_b = 30 x 410,808 / 21 = **586,869** reads a board a month, in `[480,000, 750,000]` | **HOLDS** |
+| **PB2** | W_b = 30 x 2,471 / 21 = **3,530** writes a board a month, in `[2,500, 4,500]` | **HOLDS** |
+| **PB3** | **a new board costs $0.311 a month** in KV past the free tiers: reads $0.293 + writes $0.018 | **HOLDS** |
+| escape | not taken | |
+
+**The trigger:** 411,421 x 30 = 12,342,630 reads, so the projected read overage is **$1.17 a month**. That is not past $5.
+
+**What PB1 means at fleet scale** (arithmetic from the graded figures, not a new grade):
+- 600 x 586,869 = **352.1 M reads a month**, which is **$171 a month** past the free 10 M.
+- That is an UPPER bound, for the reason the registration gave. Step 4b2's fixed floor (gamma, about 16% of reads)
+  is spread over the boards here, and `ac:` is shared across the fleet.
+- Section 1's $115 used 401,000 reads a board a month, from a different week and a weekly denominator. It stays beside
+  this figure, and is not replaced here.
+
+## Step 4b2-D: lever (b2)'s design, an isolate cache over `/enrich`'s static families (registered 2026-11-19T00:34:34Z; nothing built or deployed)
+
+**What it starts from** (step 4b2, as graded):
+- `/enrich` requests are about **61%** of production's KV reads.
+- **At least 60%** of the chain's reads are families that change only at an ingest or a photo publish (KE4).
+- KE1 is OFF: the two instruments disagree about reads per request, 5.2 (step 4b2's fit) against 7.4 (step 2b's
+  whole window). **So the saving below is stated as a range spanning both, and the design measures the number itself**
+  (the instrument below).
+
+**The change** (`proxy/src`; the same shape as #689's `fw:` memo):
+- **One module-level cache per isolate,** in front of the static families only, keyed by the KV key.
+- It holds a HIT and a MISS alike: a key that is absent is a KV read too.
+
+| family | read at | TTL in the isolate | why that long |
+|---|---|---|---|
+| `tn:<type>` | `enrich.ts:102`, `:182`, `:699` | 1 h | changes only when a type name is added by hand |
+| `rt:<CS>`, the mirror | `enrich.ts:486` | 1 h | the route ingest is weekly |
+| `ap:<code>` | `enrich.ts:208` (`routeVerdict`, twice a request) | 1 h | refresh-data, weekly |
+| `ovr:`, `pa:`, `mil:` `<hex>` | `enrich.ts:673-675` | 1 h | refresh-data and hand edits |
+| the photo pointers, type and hex | `photos.ts:131` | **10 min** | a photo publish should show within minutes, not an hour |
+
+- **Never cached:** `ac:<hex>` (written on every miss, with short negative TTLs that the 2026-08-12 fix depends on);
+  the bucketed `rt:<cs>:<bucket>` (a runtime cache of its own); `fw:` (#689's own memo); anything outside `enrich.ts`
+  and `photos.ts`. A test pins this list: a read of an uncached family must reach KV every time.
+- **The bound:** at most 8,192 entries per isolate, the oldest dropped first. Values are short JSON, about 200 B each
+  at most, so about 1.6 MB, against an isolate's 128 MB.
+
+**The instrument, specified with the writer** (CLAUDE.md, "an instrument that fires into a void"):
+- Two doubles are APPENDED to the request point: `double5` = KV reads this request made, and `double6` = reads the
+  cache answered. Append-only: no existing blob or double moves.
+- **The reader:** `tools/bill/enrich_reads_read.py` gains one line: reads per non-SKIP `/enrich` request, weighted as
+  every reader here weights them, `sum(_sample_interval x double4 x double5) / sum(_sample_interval x double4)`, and the
+  same for `double6`. It prints at every proxy-bill read, beside the trigger, so it is read where
+  a person already looks.
+- This is also what settles KE1: a measured count per request, not a fit.
+
+**Predictions** (graded on the first whole UTC day after the deploy, which is the owner's call; it goes with #689,
+after v20's first week, not before):
+
+| row | predicted | if not |
+|---|---|---|
+| **BD1** | KV reads per non-SKIP `/enrich` request, from `double5`: in `[1.5, 3.5]`, down from the range the two instruments left (5.2 to 7.4) | the static families hit less than KE4 implies, so per-isolate reuse is low: the Cache API (per colo) is the named next step |
+| **BD2** | cache answers per non-SKIP request, `double6`: at least 2.0 | as BD1 |
+| **BD3** | `double5 + double6` per request is within 15% of that range (5.2 to 7.4): the cache moved reads, it did not change what the chain asks for | the instrument miscounts: stop before any saving is claimed |
+| **BD4** | production's daily KV reads per board (`R_b`, step 4d's method) fall by `[20%, 40%]` from the 7 days before the deploy | reported with the shares |
+| **BD-STALE** (a stated cost, not graded) | after an ingest, an isolate can serve a static row up to 1 h old; after a photo publish, up to 10 min | |
+| escape | a family outside the table answered from the cache; `double5`/`double6` missing on any request row; anything no row names | roll back to the version before (named at the deploy), and report |
+
+**The account, December, 600 boards** (from step 4d's graded `R_b`, 586,869 reads a board a month, and the trigger's
+formula):
+- **Today's design point:** 600 x 586,869 = 352.1 M reads, which is **$171 a month** past the free 10 M. This is an upper
+  bound (step 4d).
+- **With this cache, at BD4's band:** 211-282 M reads, which is **$100-$136**.
+- **With #689's `fw:` memo as well:** `fw:` is about 24-28% of reads (step 4b2's other-device term, step 2b's share).
+  The two together remove about **44-68%**: 113-197 M reads, which is **$51-$94** a month.
+- **The ranges are wide,** because both instruments disagree (KE1) and the per-isolate reuse has never been measured.
+  The instrument above is what narrows them after the deploy.
+
+**Controls, red first, before the code PR** (vitest; never during Thursday's PC quiet):
+- each family hits within its TTL and misses after it;
+- a cached MISS is a MISS until its TTL;
+- the 8,193rd entry drops the oldest;
+- an uncached family reaches KV on every read;
+- a KV write within the TTL is NOT seen. That is the staleness, stated as a test, so nobody mistakes it for a bug.
+- **The sabotage driver:** each control is turned red by its own plant.
+
+**What it needs, and whose call each part is:** the code PR (a reviewer's merge) is mine. The deploy is the owner's,
+with #689. Changing a TTL is a code change with its own registration.
