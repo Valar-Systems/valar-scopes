@@ -1456,3 +1456,40 @@ per run.
   does not skip.
 - That takes the account's ~530,000 job writes a month (4 Mondays x 2 environments x ~66,000) towards 0, and every
   change stays a CI script change, not a Worker deploy.
+
+### Step 4e's read and its grades (2026-11-19T00:23:41Z; reader blob `57666a9f5c88`)
+
+**The reads.** Read A ran at 00:21:44Z and read B at 00:23:01Z, 77 s apart, and they are identical. All four jobs
+succeeded, and stderr was empty. Counts only, from each job's log held in memory.
+
+| run | environment | `mil:` rows | `ap:` keys (shards written / changed) | sentinel | `apt:` tiles | sum | step 4c measured | diff |
+|---|---|---|---|---|---|---|---|---|
+| 11-09 | production | 17,616 | 38,652 (35 / 35 of 36) | 1 | 9,400 | 65,669 | 65,754 | -0.1% |
+| 11-09 | staging | 17,616 | 38,652 (35 / 35 of 36) | 1 | 9,400 | 65,669 | 65,678 | -0.0% |
+| 11-16 | production | 17,637 | 38,656 (35 / 35 of 36) | 1 | 9,402 | 65,696 | 66,338 | -1.0% |
+| 11-16 | staging | 17,637 | 38,656 (35 / 35 of 36) | 1 | 9,402 | 65,696 | 65,708 | -0.0% |
+
+**Grades:** **JW1 HOLDS** (mildb 17,616-17,637). **JW2 HOLDS** (airports 48,053-48,059). **JW3 HOLDS** (the sums sit
+within 1.0% of step 4c's measured job writes). Escape not taken.
+
+**What the logs say that the registration did not predict** (recorded, not graded):
+- **The `ap:` diff ran WITH its prior meta** ("no previous meta" absent in all four jobs). Even so, it counted **35 of 36
+  shards as changed** in both weeks, and rewrote about 38,650 keys each time. Its key total moved by 4 between the weeks.
+- **Two explanations fit, and these counts separate neither:**
+  - (i) the upstream genuinely edits a few rows a week, spread across most shards. At about 1,000 keys a shard, one
+    edited row rewrites its whole shard;
+  - (ii) the shard hash covers something that changes every run, even when the rows do not.
+
+  Telling them apart needs the source of `shardHash` and two weeks' inputs. That belongs to the fix PR's registration,
+  not to this read.
+- **`mil:` is a blind upsert,** as its header says: every row, every run.
+- **`apt:` tiles are a blind upsert too:** about 9,400 a run.
+
+**So lever (c)'s fix** (a later PR with its own registration, after Thursday's logs step and Friday's route run) has
+three parts:
+- a key-level diff for `mil:`;
+- the same for `apt:`;
+- the cause of `ap:`'s 35/36, found and fixed: either a row-level diff, if (i), or a stable hash, if (ii).
+
+Together these are about **65,700 writes a run in each environment, about 525,000 a month** across the two environments
+(four Mondays). Today that is about half the account's free million.
