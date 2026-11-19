@@ -2108,6 +2108,29 @@ fi
 )
 note_block $? "W7 answers (latch, key, answer)"
 
+# W7 slice 3b's pure parts (S4.40): the reviewer's basemap ruling on Bend's real package (plain ground wherever the
+# package does not cover the whole view), a live frame's age and its lack of towns, the setup screens, and Decide()'s
+# inputs. Its plants: test/host/sabotage_wx_livemap.py, in the drivers' passes above.
+echo
+echo "== W7 live map: the basemap ruling, the live frame, the setup screens, the inputs =="
+(
+  fail=0
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_wx_livemap.cpp" -o "$OUT/test_wx_livemap.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the W7 live map test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_wx_livemap.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the W7 live map test did not run or could not read its fixtures (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "W7 live map (basemap ruling, live frame, setup, inputs)"
+
 # The OTA identity record and the accept rule (include/OtaIdentity.h; docs/weatherscope-stage3.md A12.103, A12.104):
 # the real heads, every parse rule, and the two matrices over today's identities (test/fixtures/ota/identities.txt,
 # which CI's ota-identity job holds equal to the fleet). Its sabotages: python -I test/host/sabotage_ota_identity.py

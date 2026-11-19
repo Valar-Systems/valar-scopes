@@ -86,6 +86,20 @@ inline void OnAnswer(AuthLatch& l, int status, const char* error, uint32_t nowMs
 inline Refusal Shown(const AuthLatch& l) { return l.latched ? l.kind : Refusal::None; }
 inline bool NeedsReverify(const AuthLatch& l) { return Shown(l) != Refusal::None; }
 
+// Decide()'s inputs, filled ONE way (S4.39 item 3, S4.40): the key by RequestKey(), the refusal by the latch's Shown(),
+// and a frame only when one is held AND the clock is set. A frame of unknown age is never shown (Q129 (a)).
+inline Inputs InputsOf(bool wifi, bool hasLatLon, const char* pasted, const char* factory, const AuthLatch& latch,
+                       bool haveCrop, bool clockSet)
+{
+    Inputs in;
+    in.wifi = wifi;
+    in.location = hasLatLon;
+    in.key = RequestKey(pasted, factory)[0] != 0;
+    in.refused = Shown(latch);
+    in.frame = haveCrop && clockSet;
+    return in;
+}
+
 struct Words {
     const char* title;
     const char* line;
