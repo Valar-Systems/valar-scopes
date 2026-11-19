@@ -1,7 +1,8 @@
 {
- "version": 1,
- "built_at": "2026-11-12T21:00:00Z",
+ "version": 2,
+ "built_at": "2026-11-14T06:00:00Z",
  "tool": "tools/budget/build_budget.py",
+ "month": "2026-12",
  "allowances": {
   "r2_class_a": {
    "label": "R2 Class A (writes)",
@@ -22,7 +23,8 @@
    "included": 10,
    "price": 0.015,
    "unit": 1,
-   "round_up": true
+   "round_up": true,
+   "per_month": true
   },
   "kv_read": {
    "label": "KV reads",
@@ -90,9 +92,10 @@
  },
  "products": {
   "missileer-live": {
-   "label": "Missileer live stream (R2 bucket missileer-live; an external S3 client)",
+   "label": "Missileer live stream (R2 bucket missileer-live; an external S3 client); 'cut' is the lever",
    "states": [
-    "now"
+    "now",
+    "cut"
    ]
   },
   "missileer-clips": {
@@ -133,10 +136,11 @@
    ]
   },
   "shsr": {
-   "label": "US radar SeamlessHSR (projected from cref until built)",
+   "label": "US radar SeamlessHSR (blipscope-wx-ingest-shsr; live 2026-11-13 ~06:16Z; X10 as measured); 'built-no-list' is the weather lever",
    "states": [
     "absent",
-    "built"
+    "built",
+    "built-no-list"
    ]
   },
   "basemap-staging": {
@@ -183,17 +187,193 @@
   }
  },
  "scenarios": {
+  "before shsr": {
+   "opera-ten": "silent",
+   "shsr": "absent",
+   "missileer-live": "now"
+  },
   "today": {
    "opera-ten": "silent",
-   "shsr": "absent"
+   "shsr": "built",
+   "missileer-live": "now"
   },
   "OPERA running": {
    "opera-ten": "running",
-   "shsr": "absent"
+   "shsr": "absent",
+   "missileer-live": "now"
   },
   "OPERA running + shsr": {
    "opera-ten": "running",
-   "shsr": "built"
+   "shsr": "built",
+   "missileer-live": "now"
+  },
+  "Nov none": {
+   "month": "2026-11",
+   "opera-ten": "silent",
+   "shsr": [
+    {
+     "state": "absent"
+    },
+    {
+     "state": "built",
+     "from": "2026-11-13T06:16:00Z"
+    }
+   ],
+   "missileer-live": "now"
+  },
+  "Nov none + weather": {
+   "month": "2026-11",
+   "opera-ten": "silent",
+   "shsr": [
+    {
+     "state": "absent"
+    },
+    {
+     "state": "built",
+     "from": "2026-11-13T06:16:00Z"
+    },
+    {
+     "state": "built-no-list",
+     "from": "2026-11-17T00:00:00Z"
+    }
+   ],
+   "missileer-live": "now"
+  },
+  "Nov none + Missileer": {
+   "month": "2026-11",
+   "opera-ten": "silent",
+   "shsr": [
+    {
+     "state": "absent"
+    },
+    {
+     "state": "built",
+     "from": "2026-11-13T06:16:00Z"
+    }
+   ],
+   "missileer-live": [
+    {
+     "state": "now"
+    },
+    {
+     "state": "cut",
+     "from": "2026-11-17T00:00:00Z"
+    }
+   ]
+  },
+  "Nov fallback": {
+   "month": "2026-11",
+   "opera-ten": [
+    {
+     "state": "silent"
+    },
+    {
+     "state": "running",
+     "from": "2026-11-17T00:00:00Z"
+    }
+   ],
+   "shsr": [
+    {
+     "state": "absent"
+    },
+    {
+     "state": "built",
+     "from": "2026-11-13T06:16:00Z"
+    }
+   ],
+   "missileer-live": "now"
+  },
+  "Nov fallback + weather": {
+   "month": "2026-11",
+   "opera-ten": [
+    {
+     "state": "silent"
+    },
+    {
+     "state": "running",
+     "from": "2026-11-17T00:00:00Z"
+    }
+   ],
+   "shsr": [
+    {
+     "state": "absent"
+    },
+    {
+     "state": "built",
+     "from": "2026-11-13T06:16:00Z"
+    },
+    {
+     "state": "built-no-list",
+     "from": "2026-11-17T00:00:00Z"
+    }
+   ],
+   "missileer-live": "now"
+  },
+  "Nov fallback + Missileer": {
+   "month": "2026-11",
+   "opera-ten": [
+    {
+     "state": "silent"
+    },
+    {
+     "state": "running",
+     "from": "2026-11-17T00:00:00Z"
+    }
+   ],
+   "shsr": [
+    {
+     "state": "absent"
+    },
+    {
+     "state": "built",
+     "from": "2026-11-13T06:16:00Z"
+    }
+   ],
+   "missileer-live": [
+    {
+     "state": "now"
+    },
+    {
+     "state": "cut",
+     "from": "2026-11-17T00:00:00Z"
+    }
+   ]
+  },
+  "Dec none": {
+   "month": "2026-12",
+   "opera-ten": "silent",
+   "shsr": "built",
+   "missileer-live": "now"
+  },
+  "Dec none + weather": {
+   "month": "2026-12",
+   "opera-ten": "silent",
+   "shsr": "built-no-list",
+   "missileer-live": "now"
+  },
+  "Dec none + Missileer": {
+   "month": "2026-12",
+   "opera-ten": "silent",
+   "shsr": "built",
+   "missileer-live": "cut"
+  },
+  "Dec fallback": {
+   "month": "2026-12",
+   "opera-ten": "running",
+   "shsr": "built",
+   "missileer-live": "now"
+  },
+  "Dec fallback + weather": {
+   "month": "2026-12",
+   "opera-ten": "running",
+   "shsr": "built-no-list",
+   "missileer-live": "now"
+  },
+  "Dec fallback + Missileer": {
+   "month": "2026-12",
+   "opera-ten": "running",
+   "shsr": "built",
+   "missileer-live": "cut"
   }
  },
  "reads": {
@@ -203,6 +383,7 @@
     "2026-11-05T21:00:00Z",
     "2026-11-12T21:00:00Z"
    ],
+   "k": 4.285714,
    "totals": {
     "cpu_ms": 39044690,
     "requests": 2314123,
@@ -219,6 +400,7 @@
     "2026-11-11T21:00:00Z",
     "2026-11-12T21:00:00Z"
    ],
+   "k": 30.0,
    "totals": {
     "cpu_ms": 32796570,
     "requests": 2804850,
@@ -235,6 +417,7 @@
     "2026-11-11T21:00:00Z",
     "2026-11-12T21:00:00Z"
    ],
+   "k": 30.0,
    "totals": {
     "cpu_ms": 32796570,
     "requests": 2804850,
@@ -246,6 +429,24 @@
    },
    "observation": true
   },
+  "MTD-1114": {
+   "tool": "tools/budget/budget_read.py",
+   "window": [
+    "2026-11-01T00:00:00Z",
+    "2026-11-14T06:00:00Z"
+   ],
+   "k": 2.264151,
+   "totals": {
+    "cpu_ms": 39674507,
+    "requests": 2198137,
+    "r2_class_a": 905767,
+    "r2_class_b": 4782491,
+    "kv_delete": 5,
+    "kv_list": 11081,
+    "kv_read": 7020288,
+    "kv_write": 3350391
+   }
+  },
   "r-run": {
    "tool": "tools/budget/budget_read.py (take all), derived here",
    "window": [
@@ -255,13 +456,61 @@
    "totals": {},
    "note": "not anchored: only the ten's rows are kept, and their R2 rows are derived"
   },
+  "x10": {
+   "tool": "weatherscope S4.28b (9d8ed07d): shsr as measured, 520.2 ms x 43,050 invocations",
+   "window": [],
+   "k": 1,
+   "totals": {
+    "cpu_ms": 22392657,
+    "r2_class_a": 120780,
+    "requests": 43050
+   }
+  },
   "proj-shsr": {
-   "tool": "tools/budget/build_budget.py, projected from cref",
-   "window": [
-    "2026-11-05T21:00:00Z",
-    "2026-11-12T21:00:00Z"
-   ],
+   "tool": "docs/wx-server.md's design (X10 did not measure these)",
+   "window": [],
    "totals": {}
+  },
+  "levers": {
+   "tool": "tools/budget/build_budget.py: the levers as product states (9.8 iv)",
+   "window": [],
+   "totals": {}
+  },
+  "kv-days": {
+   "tool": "tools/budget/kv_by_day.py",
+   "window": [
+    "2026-11-01T00:00:00Z",
+    "2026-11-15T00:00:00Z"
+   ],
+   "totals": {},
+   "note": "not anchored here: per-day counts, by event; the background row counts every day, so the event days' own background is in both (named: about 1.5k a day)"
+  },
+  "kv-days-monday": {
+   "tool": "tools/budget/kv_by_day.py",
+   "window": [
+    "2026-11-01T00:00:00Z",
+    "2026-11-15T00:00:00Z"
+   ],
+   "totals": {},
+   "note": "the Monday rows of kv-days"
+  },
+  "kv-days-a-2026-11-13": {
+   "tool": "tools/budget/kv_by_day.py",
+   "window": [
+    "2026-11-01T00:00:00Z",
+    "2026-11-15T00:00:00Z"
+   ],
+   "totals": {},
+   "note": "the (A) rows of kv-days, a row per UTC day: (A) crossed UTC midnight (ruled 2026-11-15, B2); MISS (recorded, not graded): 9.4 graded (A) 2026-11-13 alone, 630,612 against 1,080,000-1,320,000. The refresh ran staging 2026-11-13 17:25-17:44Z and production 2026-11-14 01:37-01:52Z (docs/route-refresh-2026-11.md), and the predicted set gave an event crossing UTC midnight no meaning. The data stand on records that are not this instrument: 2026-11-13 proxy-staging 628,713 equals S5's run-window read exactly; 567,930 of 2026-11-14 proxy's 570,544 sit inside P5's run window, and the other 2,614 are unattributed and not graded; this row's day: 2026-11-13"
+  },
+  "kv-days-a-2026-11-14": {
+   "tool": "tools/budget/kv_by_day.py",
+   "window": [
+    "2026-11-01T00:00:00Z",
+    "2026-11-15T00:00:00Z"
+   ],
+   "totals": {},
+   "note": "the (A) rows of kv-days, a row per UTC day: (A) crossed UTC midnight (ruled 2026-11-15, B2); MISS (recorded, not graded): 9.4 graded (A) 2026-11-13 alone, 630,612 against 1,080,000-1,320,000. The refresh ran staging 2026-11-13 17:25-17:44Z and production 2026-11-14 01:37-01:52Z (docs/route-refresh-2026-11.md), and the predicted set gave an event crossing UTC midnight no meaning. The data stand on records that are not this instrument: 2026-11-13 proxy-staging 628,713 equals S5's run-window read exactly; 567,930 of 2026-11-14 proxy's 570,544 sit inside P5's run window, and the other 2,614 are unattributed and not graded; this row's day: 2026-11-14"
   },
   "derived-logs": {
    "tool": "requests x 3.175 events per invocation (account_cost_read.py A8)",
@@ -272,48 +521,53 @@
  "rows": [
   {
    "product": "basemap-bucket",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_class_b",
    "value": 16877,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-staging",
-   "state": "now",
+   "state": "excluded",
    "allowance": "cpu_ms",
    "value": 627005,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-staging",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_class_a",
    "value": 587,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-staging",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_class_b",
    "value": 1586,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-staging",
-   "state": "now",
+   "state": "excluded",
    "allowance": "requests",
    "value": 201,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "blipscope-wx-reads",
@@ -322,7 +576,8 @@
    "value": 1565104,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "cref",
@@ -331,88 +586,98 @@
    "value": 146829,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "cref",
-   "state": "now",
+   "state": "excluded",
    "allowance": "cpu_ms",
    "value": 26406129,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "cref",
-   "state": "now",
+   "state": "excluded",
    "allowance": "requests",
    "value": 43183,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "kiosk",
-   "state": "now",
+   "state": "excluded",
    "allowance": "cpu_ms",
    "value": 107838,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "kiosk",
-   "state": "now",
+   "state": "excluded",
    "allowance": "do_requests",
    "value": 82787,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "kiosk",
-   "state": "now",
+   "state": "excluded",
    "allowance": "requests",
    "value": 81416,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "missileer-clips",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_class_a",
    "value": 16719,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "missileer-clips",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_class_b",
    "value": 143323,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "missileer-live",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_class_a",
    "value": 703714,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "missileer-live",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_class_b",
    "value": 2922133,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "opera-ten",
@@ -421,7 +686,8 @@
    "value": 4331977,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "opera-ten",
@@ -430,214 +696,238 @@
    "value": 108681,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
-   "state": "now",
+   "state": "excluded",
    "allowance": "cpu_ms",
    "value": 7423033,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
-   "state": "now",
+   "state": "excluded",
    "allowance": "do_gb_s",
    "value": 1078,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
-   "state": "now",
+   "state": "excluded",
    "allowance": "do_requests",
    "value": 317567,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
-   "state": "now",
+   "state": "excluded",
    "allowance": "kv_list",
    "value": 5331,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
-   "state": "now",
+   "state": "excluded",
    "allowance": "kv_read",
    "value": 7222676,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
-   "state": "now",
+   "state": "excluded",
    "allowance": "kv_write",
    "value": 326786,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
-   "state": "now",
+   "state": "excluded",
    "allowance": "requests",
    "value": 2066794,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy-staging",
-   "state": "now",
+   "state": "excluded",
    "allowance": "cpu_ms",
    "value": 32578,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy-staging",
-   "state": "now",
+   "state": "excluded",
    "allowance": "do_requests",
    "value": 13,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy-staging",
-   "state": "now",
+   "state": "excluded",
    "allowance": "kv_list",
    "value": 47,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy-staging",
-   "state": "now",
+   "state": "excluded",
    "allowance": "kv_read",
    "value": 3009,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy-staging",
-   "state": "now",
+   "state": "excluded",
    "allowance": "kv_write",
    "value": 281533,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy-staging",
-   "state": "now",
+   "state": "excluded",
    "allowance": "requests",
    "value": 9017,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "wx-dev",
-   "state": "now",
+   "state": "excluded",
    "allowance": "cpu_ms",
    "value": 116129,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "wx-dev",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_class_a",
    "value": 523,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "wx-dev",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_class_b",
    "value": 13067,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "wx-dev",
-   "state": "now",
+   "state": "excluded",
    "allowance": "requests",
    "value": 4830,
    "read": "r-7d",
    "basis": "measured",
-   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571"
+   "how": "2026-11-05T21:00:00Z..2026-11-12T21:00:00Z (168 h) x 4.28571; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-bucket",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_storage_gb",
    "value": 1.761,
    "read": "r-7d",
    "basis": "measured",
-   "how": "the window's largest stored bytes, blipscope-basemap (not anchored: storage has no coarser total)"
+   "how": "the window's largest stored bytes, blipscope-basemap (not anchored: storage has no coarser total); an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-staging",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_storage_gb",
    "value": 0.008,
    "read": "r-7d",
    "basis": "measured",
-   "how": "the window's largest stored bytes, blipscope-basemap-pkg-staging (not anchored: storage has no coarser total)"
+   "how": "the window's largest stored bytes, blipscope-basemap-pkg-staging (not anchored: storage has no coarser total); an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "cref",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_storage_gb",
    "value": 0.791,
    "read": "r-7d",
    "basis": "measured",
-   "how": "the window's largest stored bytes, blipscope-wx (not anchored: storage has no coarser total)"
+   "how": "the window's largest stored bytes, blipscope-wx (not anchored: storage has no coarser total); an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "wx-dev",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_storage_gb",
    "value": 0.555,
    "read": "r-7d",
    "basis": "measured",
-   "how": "the window's largest stored bytes, blipscope-wx-dev (not anchored: storage has no coarser total)"
+   "how": "the window's largest stored bytes, blipscope-wx-dev (not anchored: storage has no coarser total); an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "missileer-clips",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_storage_gb",
    "value": 0.341,
    "read": "r-7d",
    "basis": "measured",
-   "how": "the window's largest stored bytes, missileer-clips (not anchored: storage has no coarser total)"
+   "how": "the window's largest stored bytes, missileer-clips (not anchored: storage has no coarser total); an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "missileer-live",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_storage_gb",
    "value": 0.001,
    "read": "r-7d",
    "basis": "measured",
-   "how": "the window's largest stored bytes, missileer-live (not anchored: storage has no coarser total)"
+   "how": "the window's largest stored bytes, missileer-live (not anchored: storage has no coarser total); an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-bucket",
@@ -646,7 +936,8 @@
    "value": 18840,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-staging",
@@ -655,7 +946,8 @@
    "value": 751891,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-staging",
@@ -664,7 +956,8 @@
    "value": 300,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-staging",
@@ -673,7 +966,8 @@
    "value": 930,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-staging",
@@ -682,16 +976,18 @@
    "value": 150,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "blipscope-wx-reads",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_class_b",
    "value": 1021200,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "cref",
@@ -700,7 +996,8 @@
    "value": 22767231,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "cref",
@@ -709,16 +1006,18 @@
    "value": 43170,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "cref",
-   "state": "now",
+   "state": "excluded",
    "allowance": "r2_class_a",
    "value": 132450,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "missileer-clips",
@@ -727,7 +1026,8 @@
    "value": 17190,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "missileer-clips",
@@ -736,7 +1036,8 @@
    "value": 164100,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "missileer-live",
@@ -745,7 +1046,8 @@
    "value": 780990,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "missileer-live",
@@ -754,25 +1056,28 @@
    "value": 3269130,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "opera-ten",
-   "state": "silent",
+   "state": "excluded",
    "allowance": "cpu_ms",
    "value": 1203934,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "opera-ten",
-   "state": "silent",
+   "state": "excluded",
    "allowance": "requests",
    "value": 430170,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
@@ -781,7 +1086,8 @@
    "value": 8009226,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
@@ -790,7 +1096,8 @@
    "value": 784,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
@@ -799,7 +1106,8 @@
    "value": 315810,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
@@ -808,7 +1116,8 @@
    "value": 5670,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
@@ -817,7 +1126,8 @@
    "value": 8285820,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
@@ -826,7 +1136,8 @@
    "value": 46920,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy",
@@ -835,7 +1146,8 @@
    "value": 2317080,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy-staging",
@@ -844,7 +1156,8 @@
    "value": 64289,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy-staging",
@@ -853,7 +1166,8 @@
    "value": 60,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy-staging",
@@ -862,7 +1176,8 @@
    "value": 120,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy-staging",
@@ -871,7 +1186,8 @@
    "value": 8880,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy-staging",
@@ -880,7 +1196,8 @@
    "value": 240,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "proxy-staging",
@@ -889,7 +1206,8 @@
    "value": 14280,
    "read": "r-silent",
    "basis": "measured",
-   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30"
+   "how": "2026-11-11T21:00:00Z..2026-11-12T21:00:00Z (24 h) x 30; an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-bucket",
@@ -898,7 +1216,8 @@
    "value": 1.761,
    "read": "r-silent",
    "basis": "measured",
-   "how": "the window's largest stored bytes, blipscope-basemap (not anchored: storage has no coarser total)"
+   "how": "the window's largest stored bytes, blipscope-basemap (not anchored: storage has no coarser total); an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "basemap-staging",
@@ -907,7 +1226,8 @@
    "value": 0.008,
    "read": "r-silent",
    "basis": "measured",
-   "how": "the window's largest stored bytes, blipscope-basemap-pkg-staging (not anchored: storage has no coarser total)"
+   "how": "the window's largest stored bytes, blipscope-basemap-pkg-staging (not anchored: storage has no coarser total); an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "cref",
@@ -916,7 +1236,8 @@
    "value": 0.79,
    "read": "r-silent",
    "basis": "measured",
-   "how": "the window's largest stored bytes, blipscope-wx (not anchored: storage has no coarser total)"
+   "how": "the window's largest stored bytes, blipscope-wx (not anchored: storage has no coarser total); an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "wx-dev",
@@ -925,7 +1246,8 @@
    "value": 0.555,
    "read": "r-silent",
    "basis": "measured",
-   "how": "the window's largest stored bytes, blipscope-wx-dev (not anchored: storage has no coarser total)"
+   "how": "the window's largest stored bytes, blipscope-wx-dev (not anchored: storage has no coarser total); an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "missileer-clips",
@@ -934,7 +1256,8 @@
    "value": 0.341,
    "read": "r-silent",
    "basis": "measured",
-   "how": "the window's largest stored bytes, missileer-clips (not anchored: storage has no coarser total)"
+   "how": "the window's largest stored bytes, missileer-clips (not anchored: storage has no coarser total); an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
   },
   {
    "product": "missileer-live",
@@ -943,7 +1266,488 @@
    "value": 0.001,
    "read": "r-silent",
    "basis": "measured",
-   "how": "the window's largest stored bytes, missileer-live (not anchored: storage has no coarser total)"
+   "how": "the window's largest stored bytes, missileer-live (not anchored: storage has no coarser total); an 11-12 read, kept so it anchors (9.8 v)",
+   "cadence": "steady"
+  },
+  {
+   "product": "account-level",
+   "state": "now",
+   "allowance": "r2_class_a",
+   "value": 18,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "basemap-bucket",
+   "state": "now",
+   "allowance": "r2_class_b",
+   "value": 12070,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "cpu_ms",
+   "value": 471567,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "r2_class_a",
+   "value": 312,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "r2_class_b",
+   "value": 842,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "requests",
+   "value": 165,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "blipscope-wx-reads",
+   "state": "now",
+   "allowance": "r2_class_b",
+   "value": 1382148,
+   "read": "MTD-1114",
+   "basis": "derived",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415; less shsr's first day, estimated 32,242 (9.9 b)",
+   "cadence": "steady"
+  },
+  {
+   "product": "shsr",
+   "state": "excluded",
+   "allowance": "r2_class_b",
+   "value": 32242,
+   "read": "MTD-1114",
+   "basis": "derived",
+   "how": "shsr's design Class B, 432,000 a month x 23.73 h / 720, scaled x 2.2642 (9.9 b)",
+   "cadence": "steady"
+  },
+  {
+   "product": "cref",
+   "state": "now",
+   "allowance": "cpu_ms",
+   "value": 27285727,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "cref",
+   "state": "now",
+   "allowance": "r2_class_a",
+   "value": 130536,
+   "read": "MTD-1114",
+   "basis": "derived",
+   "how": "cref at X10's anchor, 181.3 an hour x 720 (9.9 b); blipscope-wx's row was 147,926",
+   "cadence": "steady"
+  },
+  {
+   "product": "shsr",
+   "state": "excluded",
+   "allowance": "r2_class_a",
+   "value": 17390,
+   "read": "MTD-1114",
+   "basis": "derived",
+   "how": "blipscope-wx's Class A less cref's X10 share: shsr's first day (9.9 b), 7,681 raw",
+   "cadence": "steady"
+  },
+  {
+   "product": "cref",
+   "state": "now",
+   "allowance": "requests",
+   "value": 43225,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "kiosk",
+   "state": "now",
+   "allowance": "cpu_ms",
+   "value": 77339,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "kiosk",
+   "state": "now",
+   "allowance": "do_requests",
+   "value": 52512,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "kiosk",
+   "state": "now",
+   "allowance": "requests",
+   "value": 57276,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "missileer-clips",
+   "state": "now",
+   "allowance": "r2_class_a",
+   "value": 16836,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "missileer-clips",
+   "state": "now",
+   "allowance": "r2_class_b",
+   "value": 141278,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "missileer-live",
+   "state": "now",
+   "allowance": "r2_class_a",
+   "value": 739848,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "missileer-live",
+   "state": "now",
+   "allowance": "r2_class_b",
+   "value": 3202202,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "opera-ten",
+   "state": "silent",
+   "allowance": "cpu_ms",
+   "value": 2410422,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "opera-ten",
+   "state": "silent",
+   "allowance": "requests",
+   "value": 102222,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "cpu_ms",
+   "value": 7342292,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "do_gb_s",
+   "value": 974,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "do_requests",
+   "value": 255408,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "kv_delete",
+   "value": 2,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "kv_list",
+   "value": 8171,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "kv_read",
+   "value": 6923398,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy",
+   "state": "excluded",
+   "allowance": "kv_write",
+   "value": 1629435,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415; KV writes go by event (kv-days, 9.4)",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "requests",
+   "value": 1976142,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "cpu_ms",
+   "value": 23831,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "do_requests",
+   "value": 11,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "kv_delete",
+   "value": 2,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "kv_list",
+   "value": 2909,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "kv_read",
+   "value": 96890,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "excluded",
+   "allowance": "kv_write",
+   "value": 1720956,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415; KV writes go by event (kv-days, 9.4)",
+   "cadence": "steady"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "requests",
+   "value": 11753,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "shsr",
+   "state": "excluded",
+   "allowance": "cpu_ms",
+   "value": 1678769,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415; shsr's first day (9.9 b): X10 stands in built",
+   "cadence": "steady"
+  },
+  {
+   "product": "shsr",
+   "state": "excluded",
+   "allowance": "requests",
+   "value": 4254,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415; shsr's first day (9.9 b): X10 stands in built",
+   "cadence": "steady"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "cpu_ms",
+   "value": 384560,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "r2_class_a",
+   "value": 826,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "r2_class_b",
+   "value": 11708,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "requests",
+   "value": 3100,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "2026-11-01T00:00:00Z..2026-11-14T06:00:00Z (318 h) x 2.26415",
+   "cadence": "steady"
+  },
+  {
+   "product": "basemap-bucket",
+   "state": "now",
+   "allowance": "r2_storage_gb",
+   "value": 1.761,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, blipscope-basemap (not anchored: storage has no coarser total)",
+   "cadence": "steady"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "r2_storage_gb",
+   "value": 0.008,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, blipscope-basemap-pkg-staging (not anchored: storage has no coarser total)",
+   "cadence": "steady"
+  },
+  {
+   "product": "cref",
+   "state": "now",
+   "allowance": "r2_storage_gb",
+   "value": 0.791,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, blipscope-wx (not anchored: storage has no coarser total)",
+   "cadence": "steady"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "r2_storage_gb",
+   "value": 0.555,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, blipscope-wx-dev (not anchored: storage has no coarser total)",
+   "cadence": "steady"
+  },
+  {
+   "product": "missileer-clips",
+   "state": "now",
+   "allowance": "r2_storage_gb",
+   "value": 0.347,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, missileer-clips (not anchored: storage has no coarser total)",
+   "cadence": "steady"
+  },
+  {
+   "product": "missileer-live",
+   "state": "now",
+   "allowance": "r2_storage_gb",
+   "value": 0.001,
+   "read": "MTD-1114",
+   "basis": "measured",
+   "how": "the window's largest stored bytes, missileer-live (not anchored: storage has no coarser total)",
+   "cadence": "steady"
   },
   {
    "product": "opera-ten",
@@ -952,6 +1756,7 @@
    "value": 33445105,
    "read": "r-run",
    "basis": "measured",
+   "cadence": "steady",
    "how": "the ten's scripts, 2026-11-11T17:00:00Z..2026-11-11T20:00:00Z x 240"
   },
   {
@@ -961,6 +1766,7 @@
    "value": 427200,
    "read": "r-run",
    "basis": "measured",
+   "cadence": "steady",
    "how": "the ten's scripts, 2026-11-11T17:00:00Z..2026-11-11T20:00:00Z x 240"
   },
   {
@@ -970,6 +1776,7 @@
    "value": 172830,
    "read": "r-run",
    "basis": "derived",
+   "cadence": "steady",
    "how": "blipscope-wx in 2026-11-11T17:00:00Z..2026-11-11T20:00:00Z (x 240) minus r-silent's: 172,830"
   },
   {
@@ -979,34 +1786,38 @@
    "value": 5369760,
    "read": "r-run",
    "basis": "derived",
-   "how": "blipscope-wx in 2026-11-11T17:00:00Z..2026-11-11T20:00:00Z (x 240) minus r-silent's: 5,369,760 (the running hours also differ in time of day, so the proxy's /wx serving moves with them)"
-  },
-  {
-   "product": "shsr",
-   "state": "built",
-   "allowance": "r2_class_a",
-   "value": 132450,
-   "read": "proj-shsr",
-   "basis": "projected",
-   "how": "cref's Class A (r-silent)"
+   "cadence": "steady",
+   "how": "blipscope-wx in 2026-11-11T17:00:00Z..2026-11-11T20:00:00Z (x 240) minus r-silent's: 5,369,760"
   },
   {
    "product": "shsr",
    "state": "built",
    "allowance": "cpu_ms",
-   "value": 26406129,
-   "read": "proj-shsr",
-   "basis": "projected",
-   "how": "cref's CPU (r-7d)"
+   "value": 22392657,
+   "read": "x10",
+   "basis": "measured",
+   "cadence": "steady",
+   "how": "X10 (weatherscope S4.28b)"
+  },
+  {
+   "product": "shsr",
+   "state": "built",
+   "allowance": "r2_class_a",
+   "value": 120780,
+   "read": "x10",
+   "basis": "measured",
+   "cadence": "steady",
+   "how": "X10 (weatherscope S4.28b) \u00b1 13k"
   },
   {
    "product": "shsr",
    "state": "built",
    "allowance": "requests",
-   "value": 43183,
-   "read": "proj-shsr",
-   "basis": "projected",
-   "how": "cref's invocations (r-7d)"
+   "value": 43050,
+   "read": "x10",
+   "basis": "measured",
+   "cadence": "steady",
+   "how": "X10 (weatherscope S4.28b)"
   },
   {
    "product": "shsr",
@@ -1015,7 +1826,8 @@
    "value": 432000,
    "read": "proj-shsr",
    "basis": "projected",
-   "how": "docs/wx-server.md's design: 5 reads a check"
+   "cadence": "steady",
+   "how": "docs/wx-server.md's design: 5 reads a check (X10 did not measure Class B)"
   },
   {
    "product": "shsr",
@@ -1024,70 +1836,268 @@
    "value": 0.4,
    "read": "proj-shsr",
    "basis": "projected",
-   "how": "docs/wx-server.md's design: 31 frames"
+   "cadence": "steady",
+   "how": "docs/wx-server.md's design: 31 frames (X10 did not measure storage)"
+  },
+  {
+   "product": "shsr",
+   "state": "built-no-list",
+   "allowance": "cpu_ms",
+   "value": 22392657,
+   "read": "levers",
+   "basis": "projected",
+   "cadence": "steady",
+   "how": "shsr built, unchanged"
+  },
+  {
+   "product": "shsr",
+   "state": "built-no-list",
+   "allowance": "r2_class_a",
+   "value": 77730,
+   "read": "levers",
+   "basis": "projected",
+   "cadence": "steady",
+   "how": "shsr built, Class A less one ListObjects per invocation (43,050 a month)"
+  },
+  {
+   "product": "shsr",
+   "state": "built-no-list",
+   "allowance": "r2_class_b",
+   "value": 432000,
+   "read": "levers",
+   "basis": "projected",
+   "cadence": "steady",
+   "how": "shsr built, unchanged"
+  },
+  {
+   "product": "shsr",
+   "state": "built-no-list",
+   "allowance": "r2_storage_gb",
+   "value": 0.4,
+   "read": "levers",
+   "basis": "projected",
+   "cadence": "steady",
+   "how": "shsr built, unchanged"
+  },
+  {
+   "product": "shsr",
+   "state": "built-no-list",
+   "allowance": "requests",
+   "value": 43050,
+   "read": "levers",
+   "basis": "projected",
+   "cadence": "steady",
+   "how": "shsr built, unchanged"
+  },
+  {
+   "product": "missileer-live",
+   "state": "cut",
+   "allowance": "r2_class_a",
+   "value": 489848,
+   "read": "levers",
+   "basis": "projected",
+   "cadence": "steady",
+   "how": "missileer-live now, Class A less 250,000 a month, as sent to the owner"
+  },
+  {
+   "product": "missileer-live",
+   "state": "cut",
+   "allowance": "r2_class_b",
+   "value": 3202202,
+   "read": "levers",
+   "basis": "projected",
+   "cadence": "steady",
+   "how": "missileer-live now, unchanged"
+  },
+  {
+   "product": "missileer-live",
+   "state": "cut",
+   "allowance": "r2_storage_gb",
+   "value": 0.001,
+   "read": "levers",
+   "basis": "projected",
+   "cadence": "steady",
+   "how": "missileer-live now, unchanged"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "kv_write",
+   "value": 45630,
+   "read": "kv-days",
+   "basis": "measured",
+   "cadence": "steady",
+   "how": "background: the median of the 10 days without an event x 30"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "kv_write",
+   "value": 268788.0,
+   "read": "kv-days-monday",
+   "basis": "measured",
+   "cadence": "one-off",
+   "per_event": 67197.0,
+   "events": {
+    "2026-11": 5,
+    "2026-12": 4
+   },
+   "how": "refresh-data Monday: the mean of 2026-11-02 and 2026-11-09 (whole days)"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "kv_write",
+   "value": 0,
+   "read": "kv-days-a-2026-11-13",
+   "basis": "measured",
+   "cadence": "one-off",
+   "per_event": 1899,
+   "events": {
+    "2026-11": 1,
+    "2026-12": 0
+   },
+   "how": "the (A) route refresh, its UTC day 2026-11-13 (the whole day; a row per UTC day, ruled 2026-11-15)"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "kv_write",
+   "value": 0,
+   "read": "kv-days-a-2026-11-14",
+   "basis": "measured",
+   "cadence": "one-off",
+   "per_event": 570544,
+   "events": {
+    "2026-11": 1,
+    "2026-12": 0
+   },
+   "how": "the (A) route refresh, its UTC day 2026-11-14 (the whole day; a row per UTC day, ruled 2026-11-15)"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "kv_write",
+   "value": 0,
+   "read": "kv-days",
+   "basis": "measured",
+   "cadence": "steady",
+   "how": "background: the median of the 10 days without an event x 30"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "kv_write",
+   "value": 262694.0,
+   "read": "kv-days-monday",
+   "basis": "measured",
+   "cadence": "one-off",
+   "per_event": 65673.5,
+   "events": {
+    "2026-11": 5,
+    "2026-12": 4
+   },
+   "how": "refresh-data Monday: the mean of 2026-11-02 and 2026-11-09 (whole days)"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "kv_write",
+   "value": 0,
+   "read": "kv-days-a-2026-11-13",
+   "basis": "measured",
+   "cadence": "one-off",
+   "per_event": 628713,
+   "events": {
+    "2026-11": 1,
+    "2026-12": 0
+   },
+   "how": "the (A) route refresh, its UTC day 2026-11-13 (the whole day; a row per UTC day, ruled 2026-11-15)"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "kv_write",
+   "value": 0,
+   "read": "kv-days-a-2026-11-14",
+   "basis": "measured",
+   "cadence": "one-off",
+   "per_event": 3,
+   "events": {
+    "2026-11": 1,
+    "2026-12": 0
+   },
+   "how": "the (A) route refresh, its UTC day 2026-11-14 (the whole day; a row per UTC day, ruled 2026-11-15)"
   },
   {
    "product": "basemap-staging",
    "state": "now",
    "allowance": "logs_events",
-   "value": 638,
+   "value": 524,
    "read": "derived-logs",
    "basis": "derived",
-   "how": "r-7d's requests x 3.175"
+   "cadence": "steady",
+   "how": "MTD-1114's requests x 3.175"
   },
   {
    "product": "cref",
    "state": "now",
    "allowance": "logs_events",
-   "value": 137106,
+   "value": 137239,
    "read": "derived-logs",
    "basis": "derived",
-   "how": "r-7d's requests x 3.175"
+   "cadence": "steady",
+   "how": "MTD-1114's requests x 3.175"
   },
   {
    "product": "kiosk",
    "state": "now",
    "allowance": "logs_events",
-   "value": 258496,
+   "value": 181851,
    "read": "derived-logs",
    "basis": "derived",
-   "how": "r-7d's requests x 3.175"
-  },
-  {
-   "product": "proxy",
-   "state": "now",
-   "allowance": "logs_events",
-   "value": 6562071,
-   "read": "derived-logs",
-   "basis": "derived",
-   "how": "r-7d's requests x 3.175"
-  },
-  {
-   "product": "proxy-staging",
-   "state": "now",
-   "allowance": "logs_events",
-   "value": 28629,
-   "read": "derived-logs",
-   "basis": "derived",
-   "how": "r-7d's requests x 3.175"
-  },
-  {
-   "product": "wx-dev",
-   "state": "now",
-   "allowance": "logs_events",
-   "value": 15335,
-   "read": "derived-logs",
-   "basis": "derived",
-   "how": "r-7d's requests x 3.175"
+   "cadence": "steady",
+   "how": "MTD-1114's requests x 3.175"
   },
   {
    "product": "opera-ten",
    "state": "silent",
    "allowance": "logs_events",
-   "value": 1365790,
+   "value": 324555,
    "read": "derived-logs",
    "basis": "derived",
-   "how": "r-silent's requests x 3.175"
+   "cadence": "steady",
+   "how": "MTD-1114's requests x 3.175"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "logs_events",
+   "value": 6274251,
+   "read": "derived-logs",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "MTD-1114's requests x 3.175"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "logs_events",
+   "value": 37316,
+   "read": "derived-logs",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "MTD-1114's requests x 3.175"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "logs_events",
+   "value": 9842,
+   "read": "derived-logs",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "MTD-1114's requests x 3.175"
   },
   {
    "product": "opera-ten",
@@ -1096,16 +2106,28 @@
    "value": 1356360,
    "read": "derived-logs",
    "basis": "derived",
+   "cadence": "steady",
    "how": "r-run's requests x 3.175"
   },
   {
    "product": "shsr",
    "state": "built",
    "allowance": "logs_events",
-   "value": 137106,
+   "value": 136684,
    "read": "derived-logs",
    "basis": "derived",
-   "how": "proj-shsr's requests x 3.175"
+   "cadence": "steady",
+   "how": "x10's requests x 3.175"
+  },
+  {
+   "product": "shsr",
+   "state": "built-no-list",
+   "allowance": "logs_events",
+   "value": 136684,
+   "read": "derived-logs",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "levers's requests x 3.175"
   }
  ]
 }

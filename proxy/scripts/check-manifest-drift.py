@@ -34,6 +34,7 @@ Exit 0 clean, 1 drift, 2 could not verify -- and 2 is not a pass.
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -45,9 +46,12 @@ MANIFEST_KEY = "photo:manifest"
 def kv_get(ns: str, key: str) -> str:
     here = os.path.dirname(os.path.abspath(__file__))
     proxy = os.path.dirname(here)          # wrangler needs its own directory
+    # Through the helper (docs/wrangler-run.md): it runs the lockfile's wrangler and moves its debug log into a temp
+    # dir it removes. node resolved here, so no shell is needed on Windows either.
+    node = shutil.which("node") or "node"
     r = subprocess.run(
-        ["npx", "wrangler", "kv", "key", "get", "--remote", "--namespace-id", ns, key],
-        cwd=proxy, capture_output=True, text=True, encoding="utf-8", shell=(os.name == "nt"),
+        [node, os.path.join(here, "wrangler-run.mjs"), "kv", "key", "get", "--remote", "--namespace-id", ns, key],
+        cwd=proxy, capture_output=True, text=True, encoding="utf-8",
     )
     if r.returncode != 0:
         # stderr, not stdout: wrangler puts auth failures on stderr and a cheerful

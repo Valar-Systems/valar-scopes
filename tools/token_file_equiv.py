@@ -30,7 +30,7 @@ TOOLS = {  # path -> (argv after the script, extra env); OUT is replaced by a te
     "tools/wx/frames_get.py": (["OUT"], {}),
     "tools/wx/latest_check.py": (["opuk"], {}),
     "tools/wx/logver.py": (["blipscope-wx-ingest-opuk", A, B], {}),
-    "tools/wx/m_clock.py": (["opwe", "equiv", "s4"], {"M_PROXY": "OUT", "PLAN_S_WANT": ""}),
+    "tools/wx/m_clock.py": (["opwe", "equiv", "s4"], {"M_PROXY": "OUT", "PLAN_S_WANT": "", "PLAN_S_SCRATCH": "OUT"}),
     "tools/wx/pd6_fleet.py": ([A, B], {}),
     "tools/wx/r2_ops.py": ([A, B], {}),
     "tools/wx/r3_5b.py": (["opuk"], {}),
@@ -38,7 +38,7 @@ TOOLS = {  # path -> (argv after the script, extra env); OUT is replaced by a te
     "tools/wx/r3_minute_join.py": ([A, B], {}),
     "tools/wx/r3_reads.py": (["logs", A, B], {}),
     "tools/wx/r3p.py": (["lines", "blipscope-wx-ingest", A, B], {}),
-    "tools/wx/s_clock.py": (["opuk", "equiv", "s4"], {"M_PROXY": "OUT", "PLAN_S_WANT": ""}),
+    "tools/wx/s_clock.py": (["opuk", "equiv", "s4"], {"M_PROXY": "OUT", "PLAN_S_WANT": "", "PLAN_S_SCRATCH": "OUT"}),
     "tools/wx/s_reads.py": (["S1", A, B], {}),
     "tools/wx/share_range.py": ([A, B], {}),
 }

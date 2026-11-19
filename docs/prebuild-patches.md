@@ -29,7 +29,7 @@ Read from the release runs' logs: v18 run 39464041512 at `672eab7`, and v17 run 
 
 ## 1c: the cross-check that doesn't rely on the logs (predictions frozen before either is run)
 
-**What I read before freezing this,** about the instrument and not the result. The v18 asset `firmware-s3-128.bin` (1,928,192 B, sha256 `5a5f662b…`) embeds **37 framework source paths** beginning `/home/runner/.platformio/packages/framework-arduinoespressif32…` (`__FILE__` in framework macros). It embeds no project path. So **a plain Windows build cannot be identical outside the stamps, patched or not.** Its paths are `C:\Users\DanielFrenkel\.platformio\…`, a different length, which shifts the image. The comparison as ruled could not fail in the way that matters, so C2 equalises the path length first. C1 is a direct content check that needs no build at all.
+**What I read before freezing this,** about the instrument and not the result. The v18 asset `firmware-s3-128.bin` (1,928,192 B, sha256 `5a5f662b…`) embeds **37 framework source paths** beginning `/home/runner/.platformio/packages/framework-arduinoespressif32…` (`__FILE__` in framework macros). It embeds no project path. So **a plain Windows build cannot be identical outside the stamps, patched or not.** Its paths are `C:\Users\<user>\.platformio\…`, a different length, which shifts the image. The comparison as ruled could not fail in the way that matters, so C2 equalises the path length first. C1 is a direct content check that needs no build at all.
 
 ### C1: the patched strings are in the v18 image
 

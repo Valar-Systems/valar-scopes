@@ -14,7 +14,7 @@
 // THE DRY-RUN'S GUARD (the orchestrator, 18:01:52Z): its argv is built in ONE place (dryRunArgv) and guardedSpawn ASSERTS, immediately
 // before spawning, that it holds --dry-run and --outdir (and no --dry-run=<value>). If not, it refuses and spawns nothing. --outdir is
 // a fresh dir under the OS temp dir, checked to be outside every git tree, and deleted afterwards. The spawned command line is printed
-// on every run. wrangler runs as `node proxy/node_modules/wrangler/bin/wrangler.js` (no shell), in proxy/, with any Cloudflare token
+// on every run. wrangler runs through the helper, `node proxy/scripts/wrangler-run.mjs` (no shell; docs/wrangler-run.md), in proxy/, with any Cloudflare token
 // removed from its environment (a dry-run needs none).
 //
 //   node proxy/scripts/deploy-inputs.mjs set   <proxy|builder> <env>   the set, one repo-relative path per line; exit 0, or 2 refused
@@ -35,7 +35,7 @@ const REPO = resolve(process.env.DEPLOY_INPUTS_REPO ?? join(HERE, "..", ".."));
 const PROXY = join(REPO, "proxy");
 const CONFIG = { proxy: "wrangler.toml", builder: "basemap.wrangler.toml" };
 const PACKAGE_FILES = ["proxy/tsconfig.json", "proxy/package.json", "proxy/package-lock.json"];
-const MACHINERY_BUILDER = ["proxy/scripts/deploy.sh", "proxy/scripts/deploy-inputs.mjs", "scripts/session-claim.py"];
+const MACHINERY_BUILDER = ["proxy/scripts/deploy.sh", "proxy/scripts/deploy-inputs.mjs", "proxy/scripts/wrangler-run.mjs", "scripts/session-claim.py"];
 const MACHINERY = { builder: MACHINERY_BUILDER, proxy: [...MACHINERY_BUILDER, "proxy/scripts/confirm-deploy.sh", "proxy/scripts/healthz-commit.sh"] };
 const TARGETS = ["proxy", "builder"];
 const slash = (p) => p.replace(/\\/g, "/");
@@ -43,7 +43,7 @@ const q = (s) => (/[\s"'$]/.test(s) ? JSON.stringify(s) : s);
 
 // ---- the dry-run: its argv in ONE place, and the guard immediately before the spawn ---------------------------------------------
 function dryRunArgv(target, env, outdir) {
-  const wrangler = join(PROXY, "node_modules", "wrangler", "bin", "wrangler.js");
+  const wrangler = join(PROXY, "scripts", "wrangler-run.mjs");   // the helper runs node_modules/wrangler (docs/wrangler-run.md)
   return [process.execPath, wrangler, "deploy", ...(target === "builder" ? ["--config", CONFIG.builder] : []), "--env", env,
     "--dry-run", "--outdir", outdir, "--metafile", join(outdir, "meta.json")];
 }

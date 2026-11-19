@@ -69,12 +69,12 @@ EARGS=()
 T="$(mktemp -d)"
 TW="$(cygpath -m "$T" 2>/dev/null || echo "$T")"   # the same folder, as a path Windows Python can open
 echo "deploy start $(date -u +%H:%M:%S.%3NZ): $NAME (-c $TOML${ENV:+ -e $ENV}), the claim held for $CLAIM_TARGET"
-npx wrangler deploy -c "$TOML" ${EARGS[@]+"${EARGS[@]}"} > "$T/dep.out" 2> "$T/dep.err" < /dev/null
+node scripts/wrangler-run.mjs deploy -c "$TOML" ${EARGS[@]+"${EARGS[@]}"} > "$T/dep.out" 2> "$T/dep.err" < /dev/null   # docs/wrangler-run.md
 rc=$?
 echo "deploy end $(date -u +%H:%M:%S.%3NZ) exit $rc"
 tail -8 "$T/dep.out"
 echo "stderr bytes $(wc -c < "$T/dep.err")"; head -5 "$T/dep.err"
-npx wrangler deployments status -c "$TOML" ${EARGS[@]+"${EARGS[@]}"} --json > "$T/ds.out" 2> "$T/ds.err" < /dev/null
+node scripts/wrangler-run.mjs deployments status -c "$TOML" ${EARGS[@]+"${EARGS[@]}"} --json > "$T/ds.out" 2> "$T/ds.err" < /dev/null
 "$CLAIM_PY" -c "import json,sys; d=json.load(open(sys.argv[1])); print('$NAME runs now:', [(v['version_id'][:8], v['percentage']) for v in d['versions']])" "$TW/ds.out" \
   || { echo "the read-back is unreadable"; head -3 "$T/ds.err"; }
 rm -rf "$T"

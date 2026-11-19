@@ -5,6 +5,10 @@ rollback, so a rollback goes ahead, is logged beside the claims, and the session
 
 The caller names itself with BLIPSCOPE_SESSION=<name> in the command, or in its environment. Exit 2 refuses the tool call, and
 what this prints on stderr is shown to the session. Anything that isn't one of the gated commands passes untouched.
+
+Also (docs/wrangler-run.md H2, ruled 2026-11-13): a hand-typed DIRECT key list, key get or tail is refused whoever asks, and the
+helper is named. wrangler logs their output to ~/.wrangler/logs; proxy/scripts/wrangler-run.mjs moves that into a temp dir it
+removes. No claim is involved: this is about where the output lands, not who may deploy.
 """
 import importlib.util
 import json
@@ -13,8 +17,15 @@ import re
 import sys
 from datetime import datetime, timezone
 
-GATED = re.compile(r'\bwrangler(?:\.cmd)?\s+(?:deploy\b|secret\s+(?:put|bulk)\b|versions\s+deploy\b)')
-ROLLBACK = re.compile(r'\bwrangler(?:\.cmd)?\s+rollback\b')
+# `wrangler-run(.mjs)` is the helper every call now goes through (docs/wrangler-run.md H1): without it here, the helper
+# would be a path around the deploy claim.
+GATED = re.compile(r'\bwrangler(?:\.cmd|-run(?:\.mjs)?)?\s+(?:deploy\b|secret\s+(?:put|bulk)\b|versions\s+deploy\b)')
+ROLLBACK = re.compile(r'\bwrangler(?:\.cmd|-run(?:\.mjs)?)?\s+rollback\b')
+# Only the direct form: `wrangler-run.mjs kv key list` has no whitespace after `wrangler`, so the helper passes.
+DIRECT_READ = re.compile(r'\bwrangler(?:\.cmd)?\s+(?:kv[:\s]+key\s+(?:list|get)\b|tail\b)')
+DIRECT_READ_MSG = ('claim-hook: REFUSED. A direct key list, key get or tail writes its output into the debug log under '
+                   '~/.wrangler/logs. Run the same arguments through node proxy/scripts/wrangler-run.mjs <args> (docs/wrangler-run.md). '
+                   'Device-prefix keys (enr:dev:, fw:, lb:dev:, act:, ...) are read only through a count-only reader.')
 DRY = re.compile(r'--dry-run\b')
 NAMED = re.compile(r'\bBLIPSCOPE_SESSION=([A-Za-z0-9][A-Za-z0-9._-]{0,63})\b')
 
@@ -31,6 +42,8 @@ def decide(command, env_session):
     """(exit code, message). 0 lets the command run; 2 refuses it."""
     if 'wrangler' not in command:
         return 0, ''
+    if DIRECT_READ.search(command):
+        return 2, DIRECT_READ_MSG
     sc = claims()
     if ROLLBACK.search(command):
         m = NAMED.search(command)

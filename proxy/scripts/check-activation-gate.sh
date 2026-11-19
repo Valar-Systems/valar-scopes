@@ -14,7 +14,7 @@ fail=0
 for pair in "production:$want_prod" "staging:enforce"; do
   env="${pair%%:*}"; want="${pair#*:}"
   out="$(mktemp -d)"
-  log="$(npx wrangler deploy --dry-run --env "$env" --outdir "$out/bundle" 2>&1)"; rc=$?
+  log="$(node scripts/wrangler-run.mjs deploy --dry-run --env "$env" --outdir "$out/bundle" 2>&1)"; rc=$?   # docs/wrangler-run.md
   rm -rf "$out"
   if [ "$rc" -ne 0 ]; then echo "CANNOT SEE: the $env dry run failed (exit $rc)"; exit 2; fi
   got="$(printf '%s\n' "$log" | sed -E 's/\x1b\[[0-9;]*m//g' | grep -oE 'env\.ACTIVATION_GATE \("[^"]*"\)' | head -1)"

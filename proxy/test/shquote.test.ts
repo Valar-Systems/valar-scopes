@@ -24,8 +24,8 @@ const B = String.fromCharCode(92);
 /** The normaliser exactly as it shipped broken, rebuilt from characters. */
 const brokenSh = (p: string) => p.replace(new RegExp(B + B + B + B, "g"), "/");
 
-/** A real path off this project: what tmpdir()+join() hands us on Windows. */
-const WINDOWS_PATH = "C:" + B + "Users" + B + "DANIEL~1" + B + "AppData" + B + "Local" +
+/** A real-shaped path: what tmpdir()+join() hands us on Windows, its user directory in 8.3 form (a GitHub runner's). */
+const WINDOWS_PATH = "C:" + B + "Users" + B + "RUNNER~1" + B + "AppData" + B + "Local" +
   B + "Temp" + B + "routes-a1b2c3" + B + "sd.tar.gz";
 
 describe("sh() -- shell path normaliser", () => {
@@ -47,7 +47,7 @@ describe("sh() -- shell path normaliser", () => {
     const out = sh(WINDOWS_PATH);
     expect(out).not.toBe(WINDOWS_PATH);
     expect(hasBackslash(out)).toBe(false);
-    expect(out).toBe("C:/Users/DANIEL~1/AppData/Local/Temp/routes-a1b2c3/sd.tar.gz");
+    expect(out).toBe("C:/Users/RUNNER~1/AppData/Local/Temp/routes-a1b2c3/sd.tar.gz");
   });
 
   it("removes EVERY separator, not just the first", () => {
@@ -68,7 +68,7 @@ describe("sh() -- shell path normaliser", () => {
 
 describe("q() -- shell quoting", () => {
   it("quotes only when there is a space", () => {
-    expect(q("C:/Users/Daniel/sd.tar.gz")).toBe("C:/Users/Daniel/sd.tar.gz");
+    expect(q("C:/Users/runneradmin/sd.tar.gz")).toBe("C:/Users/runneradmin/sd.tar.gz");
     expect(q("C:/Program Files/sd.tar.gz")).toBe('"C:/Program Files/sd.tar.gz"');
   });
 

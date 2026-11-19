@@ -299,6 +299,28 @@ fi
 )
 note_block $? "FollowState + FollowGeometry"
 
+# --- the detail card's no-photo layout (#670, 2026-11-12) -------------------
+#
+# With no decoded photo and the Follow control offered, a 240 px card's slot
+# layout started its rows at y 162 against a floor of 166, so every row dropped
+# and the card showed only its callsign (v9 through v19). CL1 is that case;
+# CL2 (480 px) and CL3 (no Follow) are its controls (docs/card-nophoto-fix.md).
+# Its own block, OUTSIDE the FollowState subshell above: inside it, a red CL1
+# was reported as "FollowState + FollowGeometry" (read in WSL, 2026-11-12).
+# The subshell's exit is the binary's: 1 is a failure, anything but 0 or 1
+# (127: it did not run; 2: it did not compile) is the rig.
+echo
+echo "== card layout: the no-photo card's rows (#670) =="
+(
+if ! "$CXX" $FLAGS $INCLUDES "$ROOT/test/host/test_card_layout.cpp"       -o "$OUT/test_card_layout.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the card layout test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_card_layout.exe"
+)
+note_block $? "card layout: the no-photo card's rows (#670)"
+
 # --- what actually collides on the radar (2026-09-17) ----------------------
 #
 # The first version of this counter measured label boxes only. A frame saved
@@ -332,7 +354,7 @@ note_block $? "overlap count (labels AND badges)"
 #
 # Found by the fresh-boot acceptance stalling at step 2 on an iPhone: the lat/lon
 # boxes carried inputmode="decimal", whose keypad has no minus key -- and the
-# hint beneath them said "No minus key? Write 121.315 W", on a keypad with no W
+# hint beneath them said "No minus key? Write 121.31 W", on a keypad with no W
 # either. The advice was unreachable on the one device it addressed.
 #
 # ONE EXTRA -I, AND IT IS NOT ON $INCLUDES. include/CoordParse.h is the single
@@ -1946,6 +1968,21 @@ else
   [ "$?" -ne 0 ] && fail=1
 fi
 
+echo
+echo "== Config save: no toggle counted that the page never renders (the v20 'left unchanged' fix) =="
+# Read from the source, for the shipping radar env (platformio.ini, -D only) and the same + WX_LAYER_SHIPS: every
+# SaveToggle compiled into a build has a checkbox in that build, so a full-form save counts nothing as "left
+# unchanged". The selftest first: each of its plants must turn exactly its own assertion red.
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; the config save's vocabulary cannot be checked."
+  fail=1
+else
+  "$PY" "$ROOT/test/host/check_save_vocab.py" "$ROOT" --selftest
+  [ "$?" -ne 0 ] && fail=1
+  "$PY" "$ROOT/test/host/check_save_vocab.py" "$ROOT"
+  [ "$?" -ne 0 ] && fail=1
+fi
+
 # WD5e's bench analysis (scripts/wx-fb-check.py; docs/wx-device.md, WD5 addendum 4) is graded here on synthetic
 # frames, one verdict each, so it is known to fail, refuse and go blind before it ever reads a real capture.
 echo
@@ -2244,8 +2281,9 @@ fi
 note_block $? "WxLayout"
 
 # Weatherscope 3.5b's device code (docs/weatherscope-stage3.md A10.11, as A12.39 restates it): the BMPK reader
-# (include/BasemapPackage.h), the basemap rasteriser (WxBasemap.h), the fold, the basemap key and the peaks -- 84 named
-# cases, and A12.53's 8 for the key's reason: 92, and S4.21's 4 for the bridge: 96. Its sabotages: python -I test/host/sabotage_wx_basemap.py
+# (include/BasemapPackage.h), the basemap rasteriser (WxBasemap.h), the fold, the basemap key and the peaks -- the
+# test's kCases named cases, in its kFamilies (S4.30: checked every run, so no count is typed here). Its sabotages:
+# python -I test/host/sabotage_wx_basemap.py
 echo
 echo "== WxBasemap =="
 (
@@ -2347,6 +2385,98 @@ echo "== MapDraw =="
   exit "$rc"
 )
 note_block $? "MapDraw"
+
+# The Blipscope's place names, step B (docs/blipscope-map-client-steps.md, "MapPlaces.h (CB6-CB8)"): include/MapPlaces.h
+# held to CB6 (the registered counts over KJAC, KSFO and Bend, every ladder step and 8 rotations, and the rule's
+# properties) and CB7 (the anchors against Build's mapping and radarproj::Project): 32 cases. CB8 and CB8b are source
+# rows in check_map_draw.py (the MapDraw block). Its sabotages: python -I test/host/sabotage_map_places.py (run by the
+# driver blocks below).
+echo
+echo "== MapPlaces =="
+(
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_map_places.cpp" -o "$OUT/test_map_places.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the place-name test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_map_places.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the place-name test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "MapPlaces"
+
+# The Blipscope's composer and stale test, step B (docs/blipscope-map-client-steps.md, "MapCompose.h (CB1-CB5, CB9,
+# CB11)" and Q-MC14's re-freeze): include/MapCompose.h held to its 28 rows (step C: CB9 slice and spans) over the KJAC fixture -- S3's order, the byte
+# order, no allocation before a package, the key (one Build per changed input, none per frame, a failed Build not
+# retried), one compose per weather change, all-or-none allocation with Forget and growth, and the names refused over
+# 128 airports. Its sabotages: python -I test/host/sabotage_map_compose.py (run by the driver blocks below).
+echo
+echo "== MapCompose =="
+(
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_map_draw.cpp" -o "$OUT/test_map_draw.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the composer test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_map_draw.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the composer test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "MapCompose"
+
+# Step C's scope addition (docs/blipscope-map-client-steps.md, "Step C's scope addition: airportsGen moves only when the
+# airports CONTENT changes", and its amendment): include/MapAirportsKey.h held to its 13 rows -- an identical refetch,
+# empty or listed, is no change; the empty list's hash is kEmptyHash and the boot value; each field the names' obstacles
+# read, the order and the length each make a change; a refetch after the clear is one. Its sabotages: python -I
+# test/host/sabotage_map_airports.py (run by the driver blocks above).
+echo
+echo "== MapAirportsKey =="
+(
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_map_airports.cpp" -o "$OUT/test_map_airports.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the airports key test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_map_airports.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the airports key test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "MapAirportsKey"
+
+# Step C, the sweep over the map (docs/blipscope-map-client-steps.md, "Step C: the wedge's green added to the map"; S7):
+# include/MapSweep.h held to its 9 rows -- over black the add is today's wedge for every level (CS1, CS3), red and blue
+# are kept and green capped (CS2), the weather's drawn codes are untouched (CS4-A/-B), each pixel is added to once and the
+# marks cleared (CS5), and Bend's map stays visible under the beam (CS6). Its sabotages: python -I
+# test/host/sabotage_map_sweep.py (run by the driver blocks above).
+echo
+echo "== MapSweep =="
+(
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_map_sweep.cpp" -o "$OUT/test_map_sweep.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the sweep test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_map_sweep.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the sweep test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "MapSweep"
 
 # Weatherscope 3.5a's K rows: 25 screens through the device's path (WxScenes.h + Compose) against ref35.py's
 # independent rendering (test/fixtures/wx/k35.ref.txt, regenerated by ref35.py --k --check), docs/weatherscope-stage3.md
@@ -2579,6 +2709,50 @@ rc=$?
 exit 2
 )
 note_block $? "image-compare selftest (#656)"
+
+echo
+echo "== bench markers, from the other side: the hooks' tags == check-no-bench-hooks.sh's MARKERS =="
+# scripts/bench-marker-xcheck.py derives the marker set from the hooks themselves (bench-shaped tags in string literals
+# under src/ and include/) and requires it to EQUAL the MARKERS line. So a hook added without its marker, or a marker
+# left after its hook is gone, is red here on every PR, not discovered in a release scan. Its two plants are this
+# block's controls, each graded on the WHOLE difference line: an unlisted hook must read exactly [zz-bench], and a
+# dropped marker exactly the list's last entry. Here-strings, not pipes: under pipefail a `printf | grep -q` can read
+# as a failure when grep exits first. A missing python or an instrument failure is the rig (exit 2), never a red.
+(
+if [ -z "$PY" ]; then
+  echo "FAIL: no working python; the bench-marker cross-check cannot run. This is the RIG, not the code."
+  exit 2
+fi
+X="$ROOT/scripts/bench-marker-xcheck.py"
+bad=0
+out="$("$PY" -I -B "$X" "$ROOT")"; rc=$?
+grep -E '^(  DIFF|in the source|MARKER XCHECK|STOP|[0-9]+ source files)' <<< "$out"
+[ "$rc" -eq 2 ] && exit 2
+if [ "$rc" -eq 0 ] && grep -qx 'MARKER XCHECK: EQUAL' <<< "$out"; then
+  echo "  ok   the hooks' tags equal MARKERS"
+else
+  echo "  FAIL the hooks' tags and MARKERS differ (exit $rc)"; bad=1
+fi
+out="$("$PY" -I -B "$X" "$ROOT" --plant-hook)"; rc=$?
+[ "$rc" -eq 2 ] && { printf '%s\n' "$out"; exit 2; }
+want="in the source, not in MARKERS: ['zz-bench']; in MARKERS, not in the source: []"
+if [ "$rc" -eq 1 ] && grep -qxF "$want" <<< "$out"; then
+  echo "  ok   CONTROL: an unlisted hook reads exactly [zz-bench]"
+else
+  echo "  FAIL CONTROL: the planted unlisted hook did not read exactly [zz-bench] (exit $rc)"; bad=1
+fi
+out="$("$PY" -I -B "$X" "$ROOT" --plant-drop)"; rc=$?
+[ "$rc" -eq 2 ] && { printf '%s\n' "$out"; exit 2; }
+last="$(sed -n "s/^PLANT: MARKERS' last entry \[\(.*\)\] removed.*/\1/p" <<< "$out")"
+want="in the source, not in MARKERS: ['$last']; in MARKERS, not in the source: []"
+if [ "$rc" -eq 1 ] && [ -n "$last" ] && grep -qxF "$want" <<< "$out"; then
+  echo "  ok   CONTROL: a dropped marker reads exactly [$last]"
+else
+  echo "  FAIL CONTROL: the dropped marker did not read exactly as the list's last entry (exit $rc)"; bad=1
+fi
+exit "$bad"
+)
+note_block $? "bench markers, from the other side"
 
 echo
 if [ -n "$RIG_BLOCKS$FAILED_BLOCKS" ]; then

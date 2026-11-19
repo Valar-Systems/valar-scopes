@@ -1,4 +1,5 @@
 import type { BasemapBranch } from "./basemap/handler";
+import { normDeviceId } from "./devlabel";
 import type { Env } from "./types";
 
 export interface RequestMetric {
@@ -13,6 +14,9 @@ export interface RequestMetric {
   // The authenticated device id, or "" -- see setDeviceAttribution() for why
   // this is only ever populated on the device-key path.
   dev?: string;
+  /** The device LABEL (src/devlabel.ts): what our console line carries INSTEAD of `dev`, which stays only in the
+   *  Analytics Engine point. Set in index.ts right after setDeviceAttribution(); absent when no device is attributed. */
+  devl?: string;
   fw?: string; // X-Blip-FW, digits only, same authentication rule as `dev`
   /**
    * Which credential authenticated this request. Undefined when no auth ran.
@@ -53,8 +57,9 @@ export interface RequestMetric {
 // this is the boundary where the value stops being a credential and becomes
 // stored data.
 export function setDeviceAttribution(m: RequestMetric, request: Request): void {
-  const id = (request.headers.get("X-Blip-Device") ?? "").trim().toLowerCase();
-  if (/^[0-9a-f]{8,32}$/.test(id)) m.dev = id;
+  // ONE rule for what a device id is, shared with the label helper (src/devlabel.ts).
+  const id = normDeviceId(request.headers.get("X-Blip-Device") ?? "");
+  if (id !== null) m.dev = id;
   const fw = (request.headers.get("X-Blip-FW") ?? "").trim();
   if (/^\d{1,6}$/.test(fw)) m.fw = fw;
 }
@@ -226,7 +231,11 @@ const HIT_SAMPLE_RATE = 0.1;
 // One structured log line per request, plus an Analytics Engine data point.
 // Metrics must never fail a request.
 export function record(env: Env, m: RequestMetric): void {
-  console.log(JSON.stringify({ evt: "req", ...m }));
+  // The console line carries `devl`, the device LABEL, and NEVER `dev` (the owner's ruling, 2026-11-17;
+  // docs/workers-logs-invocation-off.md). `dev` stays in the Analytics Engine point below. test/device-label.test.ts
+  // pins the line's EXACT key set, so `dev` coming back, or a new field such as an address, turns it red.
+  const { dev: _dev, ...line } = m;
+  console.log(JSON.stringify({ evt: "req", ...line }));
   try {
     const sampled = m.status < 400 && (m.cache === "HIT" || m.cache === "STALE");
     if (sampled && Math.random() >= HIT_SAMPLE_RATE) return;

@@ -18,6 +18,7 @@ import {
 import { FONTS } from "./fonts.generated";
 import { indexHtml, supportHtml, notfoundHtml } from "./pages.generated";
 import { record, recordOtaMem, recordUsage, setDeviceAttribution, type RequestMetric, recordBoot } from "./metrics";
+import { deviceLabel } from "./devlabel";
 import { handleMissileer, isMissileerPath } from "./missileer";
 import { handleCredits, handlePhoto } from "./photos";
 import { verifyDeviceKey } from "./deviceauth";
@@ -30,6 +31,7 @@ import { handleWx, wxHealth } from "./wx/handler";
 import { basemapHealth, handleBasemap } from "./basemap/handler";
 import { PRODUCTS, ROUTED } from "./wx/products";
 import { handleWeatherscope, weatherscopeHealth } from "./weatherscope/handler";
+import { routesHealth } from "./routeshealth";
 
 // Authenticate a request. Per-device keys are now the ONLY way in: an
 // HMAC-derived key that is only valid when presented with the X-Blip-Device id
@@ -94,8 +96,11 @@ async function handleHealth(env: Env): Promise<Response> {
   // `basemap`: "not_configured" while the BASEMAP binding is absent, else {rev, store, commit} from this isolate's last
   // builder response, null before the first one (docs/basemap-deploy.md, Q4). D3 reads `commit` to prove which builder
   // is bound.
+  //
+  // `routes`: the rt: mirror's age from meta:routes (src/routeshealth.ts, docs/route-mirror-age.md), never a made-up
+  // age. Flat, with no arrays and no "commit" key, for the same two readers' sake as `wx` above.
   return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS, ROUTED), basemap: basemapHealth(env),
-                        weatherscope: weatherscopeHealth() });
+                        weatherscope: weatherscopeHealth(), routes: await routesHealth(env) });
 }
 
 // ---- edition-namespaced URLs (see docs/web-url-convention.md) ---------------
@@ -359,6 +364,12 @@ async function route(
   // Attribute the metric to the device only now that its key has been verified;
   // see setDeviceAttribution() for why unauthenticated headers are never stored.
   setDeviceAttribution(meta, request);
+  // The device LABEL for our own log line, which carries it INSTEAD of the id (src/devlabel.ts; record()). Computed
+  // here because the digest is async and record() is not. Failure-safe: a failed digest leaves the label out and never
+  // fails the request; the missing label is then visible in the stored lines (docs/workers-logs-invocation-off.md (e)).
+  if (meta.dev) {
+    try { meta.devl = await deviceLabel(meta.dev); } catch { /* no label; see above */ }
+  }
   // WHICH CREDENTIAL WAS ACCEPTED — echoed to the device, not merely recorded.
   //
   // Now always "device": reaching here at all means the per-device path passed,

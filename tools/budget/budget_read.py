@@ -56,7 +56,12 @@ def gql(q, a, b):
 def script_product(s, opera_state):
     if s.startswith("blipscope-wx-ingest-op"):
         return "opera-ten", opera_state
+    if s in SCRIPT_STATE:
+        return SCRIPT_STATE[s]
     return SCRIPT.get(s, "unattributed"), "now"
+
+
+SCRIPT_STATE = {"blipscope-wx-ingest-shsr": ("shsr", "built")}   # 9.4: its product's live state, so a read attributes it
 
 
 def main():
@@ -119,6 +124,10 @@ def main():
     # The account's totals from SEPARATE, coarser queries (no script, bucket or namespace dimension), so the checker's
     # anchor compares the attributed rows against something they were not summed from: a truncated grouped query
     # (limit 1000) or a group the mapping skipped shows as a gap.
+    # PREMISE the checker depends on (scripts/account_budget.py anchor, 9.12): each total below is rounded ONCE, to the
+    # unit, on its raw sum x k, and each row further down is rounded once on its own. So a scaled read's rows and total
+    # can differ by up to 0.5 x (rows + 1) from rounding alone, which is the allowance the anchor grants where k != 1.
+    # Round anything here differently and that bound changes with it.
     totals = {}
     tw = gql("workersInvocationsAdaptive(limit: 10, filter: {datetime_geq: $a, datetime_lt: $b}) { sum { cpuTimeUs requests } }", a, b)
     totals["cpu_ms"] = round(sum(g["sum"]["cpuTimeUs"] for g in tw["workersInvocationsAdaptive"]) / 1000.0 * k)
@@ -133,7 +142,7 @@ def main():
     rows = []
     for (p, s, al), v in sorted(acc.items()):
         if al in ("kv_read", "kv_write", "kv_list", "kv_delete", "cpu_ms", "requests", "r2_class_a", "r2_class_b", "do_requests", "do_gb_s"):
-            month = round(v * k)
+            month = round(v * k)   # once per row, to the unit: the anchor's rounding allowance (9.12) assumes it
             rows.append({"product": p, "state": s, "allowance": al, "value": month, "read": rid, "basis": "measured",
                          "how": f"{a}..{b} ({hours:g} h) x {k:g}"})
     for bk, by in sorted(store.items()):
@@ -146,7 +155,9 @@ def main():
         rows.append({"product": p, "state": "excluded" if take == "opera" else "now", "allowance": "r2_storage_gb", "value": gb,
                      "read": rid, "basis": "measured",
                      "how": f"the window's largest stored bytes, {bk} (not anchored: storage has no coarser total)"})
-    read = {"tool": "tools/budget/budget_read.py", "window": [a, b], "totals": totals}
+    # k: the checker's anchor reads it, and only asks whether it is 1. Six places: a full float repr (720/318 written in
+    # full has 16 digits after the point) can carry 16 digits in a row, which the device-id guard rightly reads as an id.
+    read = {"tool": "tools/budget/budget_read.py", "window": [a, b], "k": round(k, 6), "totals": totals}
     if observation:
         read["observation"] = True
         rows = []   # totals only: printed beside the graded figure, never summed (section 5.1)

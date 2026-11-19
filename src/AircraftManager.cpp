@@ -1,5 +1,6 @@
 #include "AircraftManager.h"
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
+#include "AirportBoxes.h"      // an airport's mark and code: the one rule the map's names avoid (CB8)
 #include "DrawHelpers.h"       // DrawRadarSweepBeam: today's beam over the weather sweep (WD6)
 #include "BrightnessCarry.h"
 #include "NightOverride.h"
@@ -13,6 +14,7 @@
 #include "TlsAllocator.h"
 #include "Registration.h"
 #include "LabelLines.h"
+#include "CardLayout.h"       // the detail card's vertical layout, graded on the host (#670)
 
 #include <algorithm>
 #include <cmath>
@@ -34,6 +36,99 @@
 constexpr uint8_t kMapWhyUnread = 0xFF;
 #endif
 // THE MAP FETCH END
+// THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+// The map's bench image (docs/blipscope-map-client-steps.md, "The mapbench env"). The two packages are built in
+// (board_build.embed_files); nothing is fetched. Every line it prints is counts: no place name, anchor or coordinate.
+extern const uint8_t kMapBenchBend[] asm("_binary_test_fixtures_wx_basemap_bend_bmpk_start");
+extern const uint8_t kMapBenchBendEnd[] asm("_binary_test_fixtures_wx_basemap_bend_bmpk_end");
+extern const uint8_t kMapBenchKsfo[] asm("_binary_test_fixtures_wx_basemap_ksfo_bmpk_start");
+extern const uint8_t kMapBenchKsfoEnd[] asm("_binary_test_fixtures_wx_basemap_ksfo_bmpk_end");
+
+// One built-in package into PSRAM, as step A's landing buffer would hold a fetched one, through the gate
+// (maplayer::Load), and accepted: the package, its length and a new sequence, as ConsumeBasemap's Accepted does.
+void AircraftManager::MapBenchAccept(int which)
+{
+    const uint8_t* s = which == 1 ? kMapBenchKsfo : kMapBenchBend;
+    const size_t len = (size_t)((which == 1 ? kMapBenchKsfoEnd : kMapBenchBendEnd) - s);
+    if (mapLanding == nullptr || mapLandingCap < len) {
+        if (mapLanding != nullptr) heap_caps_free(mapLanding);
+        mapLanding = (uint8_t*)heap_caps_malloc(len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        mapLandingCap = mapLanding != nullptr ? len : 0;
+    }
+    if (mapLanding == nullptr) {
+        Serial.println("[map-bench] package refused: no PSRAM for it");
+        return;
+    }
+    memcpy(mapLanding, s, len);
+    bmpk::Package pk;
+    const maplayer::Verdict v = maplayer::Load(mapLanding, len, &pk);
+    if (!v.accepted) {
+        Serial.printf("[map-bench] package %d refused by the gate (status %d)\n", which, (int)v.why);
+        return;
+    }
+    mapPkg = pk;
+    mapHeldLen = len;
+    ++mapPkgSeq;
+}
+
+// The phases, one step per 30 s health tick (the registered table): P0 holds until the first allocation; P1 the
+// weather off and the map alternating, 20 pairs; P2 the weather on and the map alternating, 20 pairs; P3 Bend's zoom
+// ladder stepped once a tick, 25 ticks; P4 KSFO's, 25 ticks, after Initialise moves the home (the radar's own
+// config-change path, on this loop task); then done. Each line says the state the NEXT interval runs in.
+void AircraftManager::MapBenchTick()
+{
+    if (mapBench.phase == 0 || mapBench.phase == 3 || mapBench.phase == 4) {
+        const maplayer::BuildInfo& bi = mapDraw.info;   // the last rebuild's passes (CF5): one zoom step per tick
+        Serial.printf("[map-bench] passes s1=%lu water=%lu rivers=%lu roads=%lu colour=%lu total=%lu\n",
+                      (unsigned long)bi.usS1, (unsigned long)bi.usWater, (unsigned long)bi.usRivers,
+                      (unsigned long)bi.usRoads, (unsigned long)bi.usColour, (unsigned long)bi.usTotal);
+    }
+    ++mapBench.ticks;
+    const auto next = [&](int phase) {
+        mapBench.phase = phase;
+        mapBench.ticks = 0;
+    };
+    const auto zoomStep = [&]() {
+        ApplyZoom((zoomIdx + 1) % (zoomLadder.Top() + 1), radarzoom::Edge::None, "map-bench");
+    };
+    switch (mapBench.phase) {
+    case 0:
+        if (mapDraw.allocated) next(1);
+        break;
+    case 1:
+        mapBench.wxOff = true;
+        mapBench.mapOff = !mapBench.mapOff;
+        if (mapBench.ticks >= 40) next(2);
+        break;
+    case 2:
+        mapBench.wxOff = false;
+        mapBench.mapOff = !mapBench.mapOff;
+        if (mapBench.ticks >= 40) {
+            mapBench.mapOff = false;
+            next(3);
+        }
+        break;
+    case 3:
+        zoomStep();
+        if (mapBench.ticks >= 25) {
+            next(4);
+            mapBench.which = 1;   // KSFO: Initialise's bench region moves the home, MapConfigure drops Bend
+            Initialise();
+        }
+        break;
+    case 4:
+        zoomStep();
+        if (mapBench.ticks >= 25) next(5);
+        break;
+    default:
+        break;
+    }
+    Serial.printf("[map-bench] phase P%d map=%s wx=%s zoom=%.0f%s\n", mapBench.phase, mapBench.mapOff ? "off" : "on",
+                  mapBench.wxOff ? "off" : "on", viewRadiusDisplay, rangeUnit.c_str());
+}
+#endif
+// THE MAP BENCH END
 #include "PollCadence.h"    // the poll cadence and the weekly reboot; the web build's kiosk (docs/web-kiosk-airfield.md)
 #include "mbedtls/sha256.h" // WD5t1: each weather 200 logs its sha256 prefix
 
@@ -49,6 +144,26 @@ constexpr uint8_t kMapWhyUnread = 0xFF;
 static constexpr uint32_t ZOOM_IDLE_MS = RADAR_ZOOM_IDLE_MS;
 #else
 static constexpr uint32_t ZOOM_IDLE_MS = radarzoom::IDLE_RETURN_MS;
+#endif
+
+#ifdef CARD_BENCH
+#if defined(ALERT_BENCH) || defined(FOLLOW_BENCH) || defined(SOAK_TEST) || defined(TOUCH_WEDGE_BENCH)
+#error "CARD_BENCH reads the serial console and scripts the touch sample: build it alone"
+#endif
+// BENCH ONLY (env:blipscope-s3-128-cardbench; docs/card-nophoto-fix.md, section 5). Every bench contact's key starts
+// with this prefix. A tap on one claims nothing (ClaimTappedAircraft), and its outbound paths are pre-marked as sent.
+static const char* const CARD_BENCH_PREFIX = "zzcard";
+// A scripted tap, substituted in HandleTouch where SOAK_TEST substitutes its own: pressed for `left - 1` polls, then
+// one release sample. The touch watchdog still sees only the real chip.
+struct CardBenchTap { int x, y, left; };
+static CardBenchTap g_cardBenchTap = { 0, 0, 0 };
+// M7, FT's control (I-6 style): a planted busy-wait inside DrawDetailCard, set by `Z <us>`. The graded frame time must
+// move by it, or the instrument cannot see a slowdown.
+static uint32_t g_cardBenchDelayUs = 0;
+// M7 (2): local details switched to Cloud while a bench PHOTO card is open under fixed traffic, so the card's own
+// lookup can fetch its library photo. Cleared by ExitDetail -- every way a card closes -- BEFORE the same Update can
+// reach the radar enrichment, so a fixed contact is never enriched.
+static bool g_cardBenchCloudDetails = false;
 #endif
 
 // The touch-wedge cap: one driver for the radar and Weatherscope (TouchWedgeCap.h, A12.119),
@@ -817,6 +932,26 @@ void AircraftManager::Initialise()
     // note on hasLocation in the header. A factory-fresh or factory-reset device
     // lands here with both empty, and the radar has nothing to centre on.
     hasLocation = latStr.length() > 0 && lonStr.length() > 0;
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    // The bench's home is the held package's centre, so the radar, the weather and the map agree. Set here, before the
+    // radius is computed from the latitude below; nothing prints it.
+    if (mapBench.which < 0) {
+        mapBench.which = 0;
+        Serial.println("[map-bench] the map's bench image: Bend, then KSFO, built in; nothing fetched");
+    }
+    {
+        const uint8_t* s = mapBench.which == 1 ? kMapBenchKsfo : kMapBenchBend;
+        const size_t len = (size_t)((mapBench.which == 1 ? kMapBenchKsfoEnd : kMapBenchBendEnd) - s);
+        bmpk::Package pk;
+        if (bmpk::Validate(s, len, &pk) == bmpk::Status::kOk) {
+            lat = pk.lat0Micro / 1e6;
+            lon = pk.lon0Micro / 1e6;
+            hasLocation = true;
+        }
+    }
+#endif
+    // THE MAP BENCH END
     // Follow's home field is resolved once and cached (see ResolveHomeField).
     // Initialise re-runs on every config save, and a save is the only way the
     // location can move -- so this is exactly where the cache must be dropped.
@@ -914,6 +1049,11 @@ void AircraftManager::Initialise()
     airportsMin = airportsMinStr == "large" ? AirportsMin::LargeOnly
                 : airportsMinStr == "med"   ? AirportsMin::MedLarge
                                             : AirportsMin::All;
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    ++mapAirportsGen;   // displayAirports and airportsMin, just written: the names' obstacles may have changed (CD6)
+#endif
+    // THE MAP DRAW END
     const String renderTrail = configServer.GetStoredString("trail");
     const String renderAltColor = configServer.GetStoredString("altcolor");
     const String renderHighlight = configServer.GetStoredString("highlight");
@@ -1364,6 +1504,12 @@ void AircraftManager::Initialise()
         lastCloudAirportsFetch = 0;
         cloudAirportsRetryMs = 0; // a config save clears any failure backoff too
         cloudAirports.clear();
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        mapAirportsHeld.h = mapairports::kEmptyHash;   // CD6b: the list is empty again, so an empty arrival is no change
+        ++mapAirportsGen;   // the long tail dropped: the names' obstacles change (CD6)
+#endif
+        // THE MAP DRAW END
         Serial.printf("[source] Blipscope Cloud: %s (active %lu ms; cfg pending)\n",
                       cloudUrl.c_str(), cloudCfg.pollActiveMs);
     } else
@@ -1492,6 +1638,9 @@ void AircraftManager::Update()
 #endif
 #ifdef TOUCH_WEDGE_BENCH
     PollTouchBench();
+#endif
+#ifdef CARD_BENCH
+    PollCardBench();
 #endif
 
     // advance the radar sweep + paint the contacts it crossed this frame, before
@@ -2449,6 +2598,11 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
         benchPhase = (benchPhase + 1) % 2;
         followDrawTrack = true;             // constant: its cost is already known
         displayAirports = true;             // settled: -0.09 ms, leave it on
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        ++mapAirportsGen;   // CD6: every write of the airport switch
+#endif
+        // THE MAP DRAW END
         displayInfoText = (benchPhase == 0);
         Serial.printf("[bench] NEXT     %s\n", PHASE[benchPhase]);
     }
@@ -2816,6 +2970,11 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                       (unsigned long)wd.probesOk, (unsigned long)wd.probesFailed,
                       (unsigned long)wd.maxOutageMs, (unsigned long)wd.rebootsRecommended);
     }
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    MapBenchTick();   // after every [health] line of this interval: the next phase starts on a clean tick
+#endif
+    // THE MAP BENCH END
 }
 
 uint32_t AircraftManager::AllocFailureCount() const { return allocFailures; }
@@ -3448,6 +3607,10 @@ void AircraftManager::MapConfigure(double distance, double kmPerUnit)
         mapHeldLen = 0;               // the package belongs to the old view: dropped, not drawn (CA10)
         mapPkg = bmpk::Package();
         mapAllocFailed = false;       // a new config earns a new allocation attempt
+        // THE MAP DRAW BEGIN
+        mapcompose::Forget(mapDraw);  // ...and so do the draw's buffers: one reset, one flag (Q-MC14, Q-MW3)
+        ++mapPkgSeq;
+        // THE MAP DRAW END
     }
     if (!mapBegun) {
         mapBegun = true;
@@ -3477,6 +3640,12 @@ static std::vector<std::pair<String, String>> MapParamPairs(const char* params)
 
 bool AircraftManager::RequestBasemap(unsigned long now)
 {
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    (void)now;
+    return false;   // the bench's packages are built in: nothing is ever fetched
+#endif
+    // THE MAP BENCH END
     if (!MapEnabled()) return false;
     // The landing buffer: PSRAM only, never the internal heap a TLS handshake needs (CLAUDE.md). Allocated at the cap
     // of the request about to go out, and again only when a later request needs more. Nothing is held and nothing is in
@@ -3525,6 +3694,9 @@ void AircraftManager::ConsumeBasemap(int status, size_t len, size_t claimed, con
     if (o == mappolicy::Outcome::Accepted) {
         mapPkg = pk;
         mapHeldLen = len;
+        // THE MAP DRAW BEGIN
+        ++mapPkgSeq;   // a new package: the names reload and the map rebuilds (CB4 package)
+        // THE MAP DRAW END
     }
     // One line per answer: the status, the size, what the gate said and why, what the policy made of it, and the wait it
     // set. A wait is printed only for the outcomes that set one; the boot's spread is never one of them (CA13).
@@ -3581,6 +3753,11 @@ bool AircraftManager::RebuildWeatherLayer()
     wxBuiltLook = wxLook;
     wxSpriteReady = true;
     wxNeedsRebuild = false;
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    ++mapWxGen;   // the map's composite recomposes over the new layer, without a Build (CB5)
+#endif
+    // THE MAP DRAW END
     // B1 reads this: a rebuild is a one-frame spike, barred at 40 ms on the s3-128.
     Serial.printf("[wx] layer rebuilt in %lu ms (look %c)\n", millis() - t0, wxLook == wxs2::Look::A ? 'A' : 'B');
     return true;
@@ -3589,22 +3766,57 @@ bool AircraftManager::RebuildWeatherLayer()
 bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
 {
     wxShowing = wxpolicy::Show::Nothing;
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    mapFrameDrawn = false;   // step C: nothing of the map is on this frame until DrawMapBase copies it
+    mapFrameWx = false;
+#endif
+    // THE MAP DRAW END
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    if (mapBench.wxOff) return DrawMapBase(canvas, nullptr);   // P1: the weather forced off; the map alone, or the clear
+#endif
+    // THE MAP BENCH END
     // Only the radar scope itself: not the List, Stats or Follow faces, not under a card, not the no-location or
     // night-clock faces, which own their whole screen.
-    if (!WxEnabled() || !IsRadarView() || !hasLocation || NightClockActive()) return false;
+    if (!WxEnabled() || !IsRadarView() || !hasLocation || NightClockActive()) {
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        return DrawMapBase(canvas, nullptr);   // no weather this frame: the map alone, else today's clear
+#endif
+        // THE MAP DRAW END
+        return false;
+    }
     const time_t now = time(nullptr);
     wxShowing = wxpolicy::WhatToShow(wxState, true, now > 1600000000, (uint32_t)now);
-    if (wxShowing != wxpolicy::Show::Crop) return false;
+    if (wxShowing != wxpolicy::Show::Crop) {
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        return DrawMapBase(canvas, nullptr);   // the weather shows nothing: the map alone, else today's clear
+#endif
+        // THE MAP DRAW END
+        return false;
+    }
     const bool stale = wxNeedsRebuild || !wxSpriteReady || wxBuiltLat != lat || wxBuiltLon != lon ||
                        wxBuiltRadLat != viewRadLat || wxBuiltRadLon != viewRadLon || wxBuiltRotSin != rotSin ||
                        wxBuiltRotCos != rotCos || wxBuiltLook != wxLook;
     if (stale && !RebuildWeatherLayer()) {
         wxShowing = wxpolicy::Show::Nothing;
+        // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+        return DrawMapBase(canvas, nullptr);   // the layer did not rebuild: the map alone, else today's clear
+#endif
+        // THE MAP DRAW END
         return false;
     }
     // The B1 fix (docs/wx-device.md): one memcpy of the whole layer when the canvas is one band of the whole frame in
     // the layer's own format -- the guard DrawSweepOverWeather uses. Step C timed the sprite push at 6.82 ms against a
     // 5.15 ms memcpy of the same 115,200 B. Anything else pushes the sprite, as before.
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    if (DrawMapBase(canvas, (const uint16_t*)(const void*)wxLayer565)) return true;   // this weather over the map
+#endif
+    // THE MAP DRAW END
     LGFX_Sprite& sp = canvas.sprite();
     uint8_t* const dst = (uint8_t*)sp.getBuffer();
     const bool flat = canvas.offsetY() == 0 && sp.width() == SCREEN_SIZE && sp.height() == SCREEN_SIZE &&
@@ -3617,8 +3829,191 @@ bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
     return true;
 }
 
+// THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+// The base draw with the map (docs/blipscope-map-client-steps.md, step B, the wiring). On the radar scope with a held
+// package, the composer's buffer -- the map with its names, and `wx` over it when the weather shows -- replaces the
+// clear in one memcpy. False leaves today's path to run, byte for byte. Rebuilds happen here on the loop task, at the
+// next shown radar frame, as the weather layer's do, and never per frame (CB4).
+bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
+{
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    if (mapBench.mapOff) return false;   // P1 and P2: an "off" tick
+    if (mapHeldLen == 0 && mapBench.which >= 0) MapBenchAccept(mapBench.which);   // built in, never fetched
+#endif
+    // THE MAP BENCH END
+    if (!MapEnabled() || !IsRadarView() || !hasLocation || NightClockActive() || mapHeldLen == 0) return false;
+    LGFX_Sprite& sp = canvas.sprite();
+    uint8_t* const dst = (uint8_t*)sp.getBuffer();
+    if (canvas.offsetY() != 0 || sp.width() != SCREEN_SIZE || sp.height() != SCREEN_SIZE || sp.getColorDepth() != 16 ||
+        dst == nullptr)
+        return false;   // DrawWeatherUnder's flat-canvas guard: one band of the whole frame, in the layer's format
+    if (mapDraw.alloc == nullptr) mapcompose::Init(mapDraw, MapAlloc, MapFree);
+    mapcompose::Key k;
+    k.view.homeLat = lat;   // CD3: the weather layer's six fields, exactly (RebuildWeatherLayer)
+    k.view.homeLon = lon;
+    k.view.rLat = viewRadLat;
+    k.view.rLon = viewRadLon;
+    k.view.rotSin = rotSin;
+    k.view.rotCos = rotCos;
+    k.view.size = SCREEN_SIZE;
+    // Q-MW4: Cap and Inner read the PHYSICAL radius in statute miles (1.609344 km each), whatever unit the rings print.
+    k.radiusMi = (int)lround(viewRadLat * 111.0 / 1.609344);
+    k.pkSeq = mapPkgSeq;
+    k.airportsGen = mapAirportsGen;
+    k.nFixed = mapplaces::RingLabels(viewRadiusDisplay, rangeUnit.c_str(), k.fixed);
+    k.nFixed += mapplaces::Cardinals(radarUpDeg, k.fixed + k.nFixed);
+    k.fixed[k.nFixed++] = mapplaces::IndicatorRow();
+    mapcompose::Inputs in;
+    in.build = &maplayer::Build;
+    in.airports = &AircraftManager::MapAirportBoxes;
+    in.ctx = this;
+    in.askedMm = mapReq.rvMm;
+    // THE MAP BENCH BEGIN
+#ifdef MAP_BENCH
+    in.clock = []() -> uint32_t { return (uint32_t)micros(); };   // CF5: Build times its passes
+    if (mapBench.phase == 0 && !mapDraw.allocated && !mapDraw.refused) {
+        // CBF4: the first allocation, bracketed in this pass by the PSRAM and internal free sizes.
+        const uint32_t ps0 = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+        const uint32_t in0 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        const bool got = mapcompose::Allocate(mapDraw, mapPkg.maxVertices);
+        const uint32_t ps1 = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+        const uint32_t in1 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+        Serial.printf("[map-bench] alloc vertices=%u price=%u psram_free %u -> %u internal %u -> %u%s\n",
+                      (unsigned)mapPkg.maxVertices, (unsigned)mapcompose::Price(mapPkg.maxVertices), (unsigned)ps0,
+                      (unsigned)ps1, (unsigned)in0, (unsigned)in1, got ? "" : " REFUSED");
+    }
+#endif
+    // THE MAP BENCH END
+    const bool rebuild = mapcompose::Stale(mapDraw, k);
+    const bool wasRefused = mapDraw.refused;
+    const unsigned long t0 = millis();
+    const uint16_t* b = mapcompose::Frame(mapDraw, &mapPkg, k, wx, mapWxGen, in);
+    if (mapDraw.refused && !wasRefused) {
+        mapAllocFailed = true;   // Q-MW3: one flag; the next config change clears it, and Forget the refusal
+        Serial.println("[map] draw: buffers refused");
+    } else if (rebuild && mapDraw.attempted) {
+        Serial.printf("[map] draw: rebuilt in %lu ms, %d label(s)%s\n", millis() - t0, mapDraw.nPlaced,
+                      mapDraw.ready ? "" : ", Build refused the package");
+    }
+    if (b == nullptr) return false;
+    memcpy(dst, b, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2);
+    mapFrameDrawn = true;          // step C's gate: the background is the map's composite, copied this frame
+    mapFrameWx = wx != nullptr;    // and it carries this frame's weather layer only when one was passed
+    return true;
+}
+
+// The airports DrawAirports draws at this view, as the names' obstacles: its list, its filters and its cull, held
+// equal to DrawAirports' own lines by CD7 (check_map_draw.py), then the one box rule (mapplaces::AirportObstacles,
+// radarbox::Airport). Every airport is counted, so more than the buffer holds refuses the names (CB11).
+int AircraftManager::MapAirportBoxes(void* ctx, mapplaces::Box* out, int maxAirports)
+{
+    const AircraftManager& self = *static_cast<const AircraftManager*>(ctx);
+    if (!self.displayAirports) return 0;   // no airports drawn: none to avoid
+    const double& lat = self.lat;          // DrawAirports' own names, so its lines can be held here as written
+    const double& lon = self.lon;
+    const double& viewRadLat = self.viewRadLat;
+    const double& viewRadLon = self.viewRadLon;
+    int n = 0;
+    const auto add = [&](float apLat, float apLon, const char* code) {
+        if (fabsf(apLat - (float)lat) > (float)viewRadLat ||   // CD7: DrawAirports' VIEW box
+            fabsf(apLon - (float)lon) > (float)viewRadLon)
+            return;
+        if (n < maxAirports) {
+            auto [x, y] = self.ProjectCoordinateToScreen(apLat, apLon);
+            mapplaces::AirportObstacles(x, y, code, &out[2 * n]);
+        }
+        ++n;
+    };
+#ifdef FEATURE_CLOUD_FEED
+    const AirportsMin& airportsMin = self.airportsMin;
+    const std::vector<CloudFeed::CloudAirport>& cloudAirports = self.cloudAirports;
+    if (!cloudAirports.empty()) {
+        const bool wide = viewRadLat > 0.55f;   // CD7: DrawAirports' strip threshold
+        for (const CloudFeed::CloudAirport& ap : cloudAirports) {
+            if (airportsMin == AirportsMin::LargeOnly && ap.kind != 'L')
+                continue;
+            if (airportsMin == AirportsMin::MedLarge && ap.kind == 'S')
+                continue;
+            if (airportsMin == AirportsMin::All && wide && ap.kind == 'S')
+                continue;
+            add(ap.lat, ap.lon, ap.code);
+        }
+        return n;
+    }
+#endif
+    for (size_t i = 0; i < AIRPORT_COUNT; ++i) {
+        const Airport& ap = AIRPORTS[i];
+        add(ap.lat, ap.lon, ap.code);
+    }
+    return n;
+}
+
+void* AircraftManager::MapAlloc(size_t bytes)
+{
+    return heap_caps_aligned_alloc(8, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);   // CD5: PSRAM, the price's premise
+}
+
+void AircraftManager::MapFree(void* p) { heap_caps_free(p); }
+
+// Step C (docs/blipscope-map-client-steps.md, "Step C: the wedge's green added to the map"; S7): the sweep over a
+// frame whose background DrawMapBase copied. A SECOND PATH beside DrawSweepOverWeather's, so it re-establishes the
+// four things that gate establishes before it blends: the background is known (mapFrameDrawn, set only after the
+// copy and cleared at every frame's clear); the codes match the pixels (wxPixels only when the composite was built
+// from this frame's weather layer, mapFrameWx; 0 for the map alone, never a stale crop's); the slice is clean
+// (zeroed when mapcompose allocates it, cleared by the blend); and the sprite's format (the same check). False
+// draws today's opaque wedge.
+bool AircraftManager::DrawSweepOverMap(BandCanvas& canvas, int cx, int cy, int radius, float angle)
+{
+    if (!mapDraw.allocated || mapDraw.slice == nullptr || mapDraw.spans == nullptr) return false;
+    LGFX_Sprite& sp = canvas.sprite();
+    if (canvas.offsetY() != 0 || sp.width() != SCREEN_SIZE || sp.height() != SCREEN_SIZE || sp.getColorDepth() != 16)
+        return false;
+    uint16_t* const px = (uint16_t*)sp.getBuffer();
+    if (px == nullptr) return false;
+    int y0 = 0, y1 = -1;
+#ifdef WX_LOOK_AB
+    const uint32_t tRaster = micros();   // the bench's three parts, as the weather's sweep times them
+#endif
+    int16_t* const rowLo = mapDraw.spans;
+    int16_t* const rowHi = rowLo + SCREEN_SIZE;
+    wxsweep::Rasterise(cx, cy, radius, angle, mapDraw.slice, SCREEN_SIZE, SCREEN_SIZE, &y0, &y1, rowLo, rowHi);
+#ifdef WX_LOOK_AB
+    const uint32_t tBlend = micros();
+#endif
+    const bool withWx = mapFrameWx && wxBuffersOk && wxPixels != nullptr;
+    // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped, so swap in and out.
+    const uint32_t blended = mapsweep::Blend(
+        wxs2::Percent(wxLook), mapDraw.slice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+        [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
+        [&](int x, int y) -> uint16_t { return __builtin_bswap16(px[(size_t)y * SCREEN_SIZE + x]); },
+        [&](int x, int y) -> uint8_t { return withWx ? wxPixels[(size_t)y * SCREEN_SIZE + x] : 0; });
+#ifdef WX_LOOK_AB
+    const uint32_t tBeam = micros();
+#endif
+    DrawRadarSweepBeam(canvas, cx, cy, radius, angle);   // the beam and its head, as today
+#ifdef WX_LOOK_AB
+    RecordSweepParts(tBlend - tRaster, tBeam - tBlend, micros() - tBeam);
+    for (int y = y0; y <= y1; ++y)
+        if (rowHi[y] >= rowLo[y]) sweepScanBytes += (uint32_t)(rowHi[y] - rowLo[y] + 1);
+    sweepScanPx += blended;
+    sweepScanCalls++;
+#else
+    (void)blended;
+#endif
+    return true;
+}
+#endif
+// THE MAP DRAW END
+
 bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, int radius, float angle)
 {
+    // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+    if (mapFrameDrawn) return DrawSweepOverMap(canvas, cx, cy, radius, angle);   // step C: the map's frame (S7)
+#endif
+    // THE MAP DRAW END
     // Only over a layer DrawWeatherUnder pushed this frame; with the layer off, today's opaque wedge draws instead.
     if (wxShowing != wxpolicy::Show::Crop || !wxBuffersOk || wxSweepSlice == nullptr || wxSweepSpans == nullptr)
         return false;
@@ -3722,6 +4117,20 @@ void AircraftManager::ConsumeFetchResult()
     if (res->kind == FetchKind::Airports) {
         if (res->ok) {
             cloudAirports = std::move(res->airports);
+            // THE MAP DRAW BEGIN
+#ifdef BLIPSCOPE_MAP_FETCH
+            {
+                // Step C's scope addition: a refetch whose content is identical changes nothing on screen, so it moves
+                // no generation and causes no redraw (an empty list re-fetches every 5 min, APT_EMPTY_RETRY_MS).
+                const uint32_t apHash = mapairports::ContentHash(cloudAirports.data(), cloudAirports.size());
+                const uint32_t genBefore = mapAirportsGen;
+                if (mapairports::Changed(mapAirportsHeld, apHash)) ++mapAirportsGen;   // CD6, CD6b: only on a change
+                Serial.printf("[map] airports: rows=%u (%s), %s\n", (unsigned)cloudAirports.size(),
+                              cloudAirports.empty() ? "empty" : "listed",
+                              mapAirportsGen != genBefore ? "changed: rebuild" : "unchanged: no rebuild");
+            }
+#endif
+            // THE MAP DRAW END
             cloudAirportsRetryMs = 0; // back to the default rule
             Serial.printf("[cloud] airports: %u within %d km\n",
                           (unsigned)cloudAirports.size(), (int)lround(rangeKmCfg));
@@ -5380,8 +5789,13 @@ void AircraftManager::DrawAirports(BandCanvas& backbuffer) const
             fabsf(apLon - (float)lon) > (float)viewRadLon)
             return;
         auto [x, y] = ProjectCoordinateToScreen(apLat, apLon);
-        backbuffer.drawRect(x - 2, y - 2, 5, 5, MARK);
-        backbuffer.drawString(code, x + 5, y - 3);
+        // ONE RULE for the two boxes (include/AirportBoxes.h, CB8): the map's place names avoid exactly these,
+        // so a name cannot drift onto a code. The same pixels as before: drawRect(x - 2, y - 2, 5, 5), the code at
+        // (x + 5, y - 3).
+        radarbox::Box mark, codeBox;
+        radarbox::Airport(x, y, (int)strlen(code), &mark, &codeBox);
+        backbuffer.drawRect(mark.x0, mark.y0, mark.x1 - mark.x0 + 1, mark.y1 - mark.y0 + 1, MARK);
+        backbuffer.drawString(code, codeBox.x0, codeBox.y0);
     };
 
 #ifdef FEATURE_CLOUD_FEED
@@ -6072,6 +6486,10 @@ void AircraftManager::ClaimTappedAircraft(TrackedAircraft& tracked)
     // Binding it to the tap would silently drop every claim on a cold contact.
     if (!logbookEnabled || tracked.typeCode.isEmpty() || tracked.claimFired)
         return;
+#ifdef CARD_BENCH
+    if (tracked.state.icao24.startsWith(CARD_BENCH_PREFIX))
+        return;   // a bench card claims nothing: its type and operator are EXAMPLE values
+#endif
     if (!logbook.ClaimType(tracked.typeCode))
         return; // already claimed (or never seen): nothing to celebrate
 
@@ -6699,6 +7117,190 @@ void AircraftManager::PollAlertBench()
             Serial.printf("[alert-bench] t=%lu touch stamped\n", now);
         }
     }
+    auto it = benchIcao.isEmpty() ? trackedAircraft.end() : trackedAircraft.find(benchIcao);
+    if (it != trackedAircraft.end()) it->second.lastSeen = now;   // never pruned as absent
+}
+#endif
+
+#ifdef CARD_BENCH
+// BENCH ONLY -- compiled into env:blipscope-s3-128-cardbench and nothing else (docs/card-nophoto-fix.md, section 5).
+// scripts/check-no-bench-hooks.sh fails CI if the "[card-bench]" marker below is ever in a shipping image, and CI's
+// --expect on THIS env proves the marker is real.
+//
+// Shows a chosen detail card on the glass with no hands, for /diag/fb captures:
+//   n  a contact with a route, type and operator, enriched, no photo: the no-photo card
+//   l  the same, its photo never resolving: the photo-loading card
+//   p  the same text, with a live contact's LIBRARY PHOTO, fetched as usual: the card with a photo. It prints the
+//      P line that recreates exactly this card, so a later session (after a flash) shows the same photo
+//   P <0|1> </api/v1/blipscope/photo/...>   that card, from its representative flag and photo path
+//   o  tap the bench contact at its drawn marker, through HandleTouch (the touch poll's own path)
+//   d  tap the open card's centre (on a photo card, to its data page)
+//   x  remove the bench contact
+//   F <url>  M4: the traffic from a local aircraft.json (the frame bench's fixed_traffic.py) for FT1/FT2, RAM ONLY:
+//      the local source with its details Off, so the fixed contacts are never enriched. No config is written, the
+//      URL (it carries a LAN address) is never printed, and any reboot undoes it. Local mode with details Off skips
+//      the card's photo step, so a photo card is opened (and its photo decoded) in cloud mode first.
+// The text is EXAMPLE values on every card (XAAA -> XBBB, XTYP, Example Airways), so the before and after pictures
+// differ only by the code between them. One bench contact at a time. Its key is not hexadecimal, so no feed can
+// produce or update it, and its lastSeen is refreshed every loop so the absence prune never evicts it.
+// A FAKE MUST NEVER LEAVE THE BOARD: its alert and MQTT paths are pre-marked as sent; no enrich lookup is ever made
+// for it (its metadata is already Fetched, or held at Fetching for l); and a tap on it claims nothing.
+void AircraftManager::PollCardBench()
+{
+    static bool announced = false;
+    static String benchIcao;          // the injected contact's key ("" = none)
+    if (!announced) {
+        announced = true;
+        Serial.println("[card-bench] keys: n=no-photo card l=photo-loading card p=card with a photo "
+                       "P <0|1> <path>=that photo card again o=tap it d=tap the card x=remove "
+                       "F <url>=local traffic, RAM only Z <us>=planted card delay");
+    }
+    const unsigned long now = millis();
+    auto inject = [&](char kind, const String& photoPath, bool representative) {
+        if (inDetail) {
+            Serial.printf("[card-bench] t=%lu a card is open: close it first, then inject\n", now);
+            return;
+        }
+        if (!benchIcao.isEmpty()) trackedAircraft.erase(benchIcao);
+        Aircraft ac{};
+        const float cosLat = std::max(0.01f, cosf(radians((float)lat)));
+        const float offDeg = (float)rangeKmCfg * 0.5f / 111.0f;          // 0.5 x the radius, bearing 045
+        ac.latitude  = (float)lat + offDeg * 0.7071f;
+        ac.longitude = (float)lon + offDeg * 0.7071f / cosLat;
+        ac.baroAltitude = ac.geoAltitude = 10668.0f;                      // 35,000 ft
+        ac.velocity = 231.5f;                                             // 450 kt
+        ac.trueTrack = 270.0f;
+        ac.onGround = false;
+        ac.category = 4;
+        ac.callsign = "EXA123";
+        benchIcao = String(CARD_BENCH_PREFIX) + kind;
+        ac.icao24 = benchIcao;
+        TrackedAircraft t{ ac, now };
+        t.emgNotified = t.watchNotified = t.overheadNotified = true;
+        t.mqttEventFlags = 0xFF;
+        t.claimable = false;
+        t.typeCode = "XTYP";
+        t.typeName = "Example Aircraft 100";
+        t.operatorName = "Example Airways";
+        t.routeOrigin = "XAAA";
+        t.routeDest = "XBBB";
+        t.photoUrl = photoPath.isEmpty() ? String("") : cloudUrl + photoPath;
+        t.photoRepresentative = !photoPath.isEmpty() && representative;
+        t.metadataState = kind == 'l' ? TrackedAircraft::MetadataState::Fetching   // held: the photo step never runs
+                                      : TrackedAircraft::MetadataState::Fetched;
+        trackedAircraft.emplace(benchIcao, t);
+        Serial.printf("[card-bench] t=%lu injected %s (%s)\n", now, benchIcao.c_str(),
+                      kind == 'n' ? "no photo" : kind == 'l' ? "photo loading" : "with a library photo");
+    };
+    auto tap = [&](int x, int y, const char* what) {
+        g_cardBenchTap = { x, y, 4 };   // three pressed polls, then the release: a tap, never a hold
+        Serial.printf("[card-bench] t=%lu tap %s at %d,%d\n", now, what, x, y);
+    };
+    while (Serial.available()) {
+        const int ch = Serial.read();
+        if (ch == 'n' || ch == 'l') {
+            inject((char)ch, "", false);
+        } else if (ch == 'p') {
+            const TrackedAircraft* donor = nullptr;
+            for (const auto& [icao, t] : trackedAircraft)
+                if (!icao.startsWith(CARD_BENCH_PREFIX) && !t.photoUrl.isEmpty() &&
+                    t.photoUrl.startsWith(cloudUrl) && t.metadataState == TrackedAircraft::MetadataState::Fetched) {
+                    donor = &t;
+                    break;
+                }
+            if (donor == nullptr) {
+                Serial.printf("[card-bench] t=%lu p: no live contact has a library photo yet; nothing injected\n", now);
+                continue;
+            }
+            const String path = donor->photoUrl.substring(cloudUrl.length());
+            const bool rep = donor->photoRepresentative;
+            inject('p', path, rep);
+            Serial.printf("[card-bench] repeat with: P %d %s\n", rep ? 1 : 0, path.c_str());
+        } else if (ch == 'P') {
+            String rest = Serial.readStringUntil('\n');
+            rest.trim();
+            const int sp = rest.indexOf(' ');
+            const String flag = sp > 0 ? rest.substring(0, sp) : String("");
+            String path = sp > 0 ? rest.substring(sp + 1) : String("");
+            path.trim();
+            if ((flag != "0" && flag != "1") || !path.startsWith("/api/v1/blipscope/photo/") || path.indexOf(' ') >= 0) {
+                Serial.printf("[card-bench] t=%lu P: want 'P <0|1> /api/v1/blipscope/photo/<key>'; nothing injected\n", now);
+                continue;
+            }
+            inject('p', path, flag == "1");
+        } else if (ch == 'F') {
+            String url = Serial.readStringUntil('\n');
+            url.trim();
+            if (!url.startsWith("http://") || url.indexOf(' ') >= 0) {
+                Serial.printf("[card-bench] t=%lu F: want 'F http://<host>:<port>/aircraft.json?...'; nothing changed\n", now);
+                continue;
+            }
+            // RAM only, the same three fields Initialise sets from the stored config; nothing is written.
+            useLocalSource = true;
+            localUrl = normalizeLocalUrl(url);
+            localDetails = LocalDetails::Off;   // the fixed contacts are never enriched: nothing about them leaves
+#ifdef FEATURE_CLOUD_FEED
+            useCloudSource = false;
+#endif
+            Serial.printf("[card-bench] t=%lu traffic: the local source, details off, RAM only (no config write)\n", now);
+        } else if (ch == 'o') {
+            auto it = benchIcao.isEmpty() ? trackedAircraft.end() : trackedAircraft.find(benchIcao);
+            if (it == trackedAircraft.end() || inDetail || screen != Screen::Radar) {
+                Serial.printf("[card-bench] t=%lu o: needs a bench contact, the Radar screen and no card open\n", now);
+                continue;
+            }
+            // Where the hit test looks: the drawn (latched) position, projected the same way (HandleTap).
+            auto [la, lo] = RadarBlipPosition(it->second);
+            auto [x, y] = ProjectCoordinateToScreen(la, lo);
+            // M5 (1): a scripted tap is always a FIRST tap. The hit test cycles to the next stacked candidate when a
+            // tap lands within 18 px of the last one, and every o lands on the same marker: in the window of
+            // 2026-11-12 the second o opened a live contact instead of the bench card. This is the same reset a tap on
+            // empty radar makes, so the nearest marker -- the bench contact, at distance 0 -- is the one opened.
+            lastTapX = lastTapY = -1000;
+            tap(x, y, "the bench contact's marker");
+        } else if (ch == 'd') {
+            if (!inDetail) {
+                Serial.printf("[card-bench] t=%lu d: no card is open\n", now);
+                continue;
+            }
+            tap(SCREEN_SIZE_DIV_2, SCREEN_SIZE_DIV_2, "the card's centre");
+        } else if (ch == 'x' && !benchIcao.isEmpty()) {
+            trackedAircraft.erase(benchIcao);
+            Serial.printf("[card-bench] t=%lu removed %s\n", now, benchIcao.c_str());
+            benchIcao = "";
+        } else if (ch == 'Z') {
+            // M7, FT's control: a planted busy-wait inside DrawDetailCard, 0 .. 20,000 us; 0 removes it.
+            String arg = Serial.readStringUntil('\n');
+            arg.trim();
+            const long us = arg.toInt();
+            if (arg.isEmpty() || us < 0 || us > 20000 || (us == 0 && arg != "0")) {
+                Serial.printf("[card-bench] t=%lu Z: want 'Z <0..20000>' (microseconds); nothing changed\n", now);
+                continue;
+            }
+            g_cardBenchDelayUs = (uint32_t)us;
+            Serial.printf("[card-bench] t=%lu planted card delay %lu us\n", now, (unsigned long)g_cardBenchDelayUs);
+        }
+    }
+    // M5 (2): name the card that opened, so the window's driver can refuse any card that is not a bench card (CN0's
+    // precondition, on the bench). Only a bench key is printed; any other contact is "a live contact".
+    static bool wasInDetail = false;
+    if (inDetail && !wasInDetail) {
+        Serial.printf("[card-bench] t=%lu card open on %s\n", now,
+                      selectedIcao.startsWith(CARD_BENCH_PREFIX) ? selectedIcao.c_str() : "a live contact (not a bench key)");
+        // M7 (2): under fixed traffic (local, details Off) a bench PHOTO card gets Cloud details for its lifetime, so
+        // its own lookup fetches the library photo (URL + device key only). While a card is open Update() returns
+        // before the radar enrichment, and ExitDetail turns this off on every close, before the next enrichment.
+        if (selectedIcao == String(CARD_BENCH_PREFIX) + "p" && useLocalSource && localDetails == LocalDetails::Off) {
+            localDetails = LocalDetails::Cloud;
+            g_cardBenchCloudDetails = true;
+            Serial.printf("[card-bench] t=%lu details: Cloud while the bench photo card is open\n", now);
+        }
+    }
+    if (!inDetail && g_cardBenchCloudDetails) {   // a backstop: ExitDetail already does this on every close
+        localDetails = LocalDetails::Off;
+        g_cardBenchCloudDetails = false;
+    }
+    wasInDetail = inDetail;
     auto it = benchIcao.isEmpty() ? trackedAircraft.end() : trackedAircraft.find(benchIcao);
     if (it != trackedAircraft.end()) it->second.lastSeen = now;   // never pruned as absent
 }
@@ -9528,6 +10130,15 @@ void AircraftManager::HandleTouch()
         ProcessTouchSample(sTouched, sx, sy);
     else
         ProcessTouchSample(touched, tx, ty);
+#elif defined(CARD_BENCH)
+    // The card bench's scripted tap (PollCardBench's o and d): the sample goes through ProcessTouchSample, so the
+    // classifier, the hit test and the card open are the real ones. Pressed for left - 1 polls, then one release.
+    if (g_cardBenchTap.left > 0) {
+        --g_cardBenchTap.left;
+        ProcessTouchSample(g_cardBenchTap.left > 0, g_cardBenchTap.x, g_cardBenchTap.y);
+    } else {
+        ProcessTouchSample(touched, tx, ty);
+    }
 #else
     ProcessTouchSample(touched, tx, ty);
 #endif
@@ -9691,6 +10302,14 @@ void AircraftManager::ExitDetail()
 {
     inDetail = false;
     detailPage = 0;
+#ifdef CARD_BENCH
+    // M7 (2): the bench photo card's Cloud details end with the card, here, before this Update can reach
+    // ProcessMetadataLookups: the fixed contacts are never enriched.
+    if (g_cardBenchCloudDetails) {
+        localDetails = LocalDetails::Off;
+        g_cardBenchCloudDetails = false;
+    }
+#endif
     // RETAIN the photo sprite on PSRAM boards; free it only where it is actually
     // contended. The original reasoning -- "holding it allocated is what tips the
     // heap below what an adsbdb/photo TLS handshake needs" -- is a C3 statement:
@@ -11551,6 +12170,11 @@ bool AircraftManager::OpenFollowFromCard()
 
 void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircraft& tracked)
 {
+#ifdef CARD_BENCH
+    // M7, FT's control: a planted delay INSIDE the card's draw path (`Z <us>`; 0 = none). Bench images only.
+    if (g_cardBenchDelayUs > 0)
+        delayMicroseconds(g_cardBenchDelayUs);
+#endif
     const Aircraft& s = tracked.state;
     constexpr int cx = SCREEN_SIZE_DIV_2;
 
@@ -11696,49 +12320,7 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
     backbuffer.fillScreen(lgfx::color888(0, 0, 0));
     // frame ring to match the round display
     backbuffer.drawCircle(cx - 1, cx - 1, SCREEN_SIZE_DIV_2 - 1, lgfx::color888(0, 200, 0));
-    if (useSlot) {
-        if (photoSettled) {
-            DrawAircraftSilhouette(backbuffer, cx, 76, tracked);
-            backbuffer.setTextSize(1);
-            backbuffer.setTextColor(lgfx::color888(0, 120, 0));
-            centered("No photo available", 120);
-        } else {
-            backbuffer.setTextSize(1);
-            backbuffer.setTextColor(lgfx::color888(0, 120, 0));
-            centered("Loading photo...", 74);
-        }
-        backbuffer.setTextSize(2);
-        backbuffer.setTextColor(lgfx::color888(0, 255, 0));
-        centered(title, 136);
-        y = 162;
-    } else {
-        backbuffer.setTextSize(2);
-        centered(title, 36);
-        y = 70;
-        if (tracked.photoRepresentative) {
-            // Provenance for the stock library: this is a generic shot of the TYPE,
-            // not this airframe (a per-hex override is uncaptioned). It moved here
-            // from the photo page with the other category-descriptive fields --
-            // it describes where the picture came from, which is the same kind of
-            // fact as "Type:" and belongs beside it.
-            backbuffer.setTextSize(1);
-            backbuffer.setTextColor(lgfx::color888(0, 130, 0));
-            centered("representative photo", 58);
-            backbuffer.setTextColor(lgfx::color888(0, 200, 0));
-        }
-    }
 
-    backbuffer.setTextSize(1);
-    backbuffer.setTextColor(lgfx::color888(0, 200, 0));
-    const int lineHeight = backbuffer.fontHeight() + 5;
-    // 240 px screens: the flowed stat block can reach the fixed footer hints
-    // (drawn at SCREEN_SIZE-46/-34), interleaving text -- seen on the s3-128's
-    // photo-less military card, whose flow starts at y=162 and needs 5 lines.
-    // Telemetry outranks the static gesture hints, so the flow owns the space:
-    // the hints render only if the flow never entered their zone (sparse cards
-    // keep them), and the flow itself stops at the bezel margin so no line can
-    // ever draw off the round panel.
-    const int hintZoneY   = SCREEN_SIZE - 58; // hints need everything below this
     // THE FOLLOW CONTROL IS RESERVED, unlike the gesture hints below it.
     //
     // The existing rule is that telemetry outranks the footer hints, and that is
@@ -11747,15 +12329,71 @@ void AircraftManager::DrawDetailCard(BandCanvas& backbuffer, const TrackedAircra
     // data-rich is a target the customer cannot rely on, and worse, its hit box
     // would still be armed under whatever drew over it. So the flow stops above
     // it, at the cost of a line or two on the densest cards.
+    //
+    // Decided BEFORE the slot is laid out (#670): the slot's layout depends on how
+    // much room this floor leaves.
     const bool followCtl =
         follow::OutcomeForSwipe(!tracked.routeOrigin.isEmpty() &&
                                 !tracked.routeDest.isEmpty(),
                                 hasLocation) != follow::SwipeOutcome::Decline;
-    const int hardBottomY = followCtl ? SCREEN_SIZE - 74   // clear of the control
-                                      : SCREEN_SIZE - 12;  // bezel margin
+    const int hardBottomY = cardlayout::HardBottomY(SCREEN_SIZE, followCtl); // clear of the control, else the bezel
+    backbuffer.setTextSize(1);
+    const int rowFontH = backbuffer.fontHeight();   // the flowed rows' text size
+    const int lineHeight = rowFontH + 5;
+
+    if (useSlot) {
+        // #670: with no photo, a 240 px card offering Follow had no room for a single
+        // row below the slot's silhouette and mid-card title -- it showed only the
+        // callsign. Where the flow cannot hold the identity rows (route, type,
+        // operator), the slot lays out as the data page does instead: no silhouette,
+        // the title at the top, the caption under it, the rows from there.
+        // Everywhere else (480 px; 240 px without Follow) the layout is unchanged.
+        const bool compact = cardlayout::SlotCompact(SCREEN_SIZE, followCtl, rowFontH, lineHeight);
+        if (photoSettled) {
+            if (!compact)
+                DrawAircraftSilhouette(backbuffer, cx, cardlayout::SLOT_SILHOUETTE_Y, tracked);
+            backbuffer.setTextSize(1);
+            backbuffer.setTextColor(lgfx::color888(0, 120, 0));
+            centered("No photo available", compact ? cardlayout::DATA_CAPTION_Y : cardlayout::SLOT_NOPHOTO_Y);
+        } else {
+            backbuffer.setTextSize(1);
+            backbuffer.setTextColor(lgfx::color888(0, 120, 0));
+            centered("Loading photo...", compact ? cardlayout::DATA_CAPTION_Y : cardlayout::SLOT_LOADING_Y);
+        }
+        backbuffer.setTextSize(2);
+        backbuffer.setTextColor(lgfx::color888(0, 255, 0));
+        centered(title, compact ? cardlayout::DATA_TITLE_Y : cardlayout::SLOT_TITLE_Y);
+        y = cardlayout::SlotFlowStartY(SCREEN_SIZE, followCtl, rowFontH, lineHeight);
+    } else {
+        backbuffer.setTextSize(2);
+        centered(title, cardlayout::DATA_TITLE_Y);
+        y = cardlayout::DATA_FLOW_Y;
+        if (tracked.photoRepresentative) {
+            // Provenance for the stock library: this is a generic shot of the TYPE,
+            // not this airframe (a per-hex override is uncaptioned). It moved here
+            // from the photo page with the other category-descriptive fields --
+            // it describes where the picture came from, which is the same kind of
+            // fact as "Type:" and belongs beside it.
+            backbuffer.setTextSize(1);
+            backbuffer.setTextColor(lgfx::color888(0, 130, 0));
+            centered("representative photo", cardlayout::DATA_CAPTION_Y);
+            backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+        }
+    }
+
+    backbuffer.setTextSize(1);
+    backbuffer.setTextColor(lgfx::color888(0, 200, 0));
+    // 240 px screens: the flowed stat block can reach the fixed footer hints
+    // (drawn at SCREEN_SIZE-46/-34), interleaving text -- seen on the s3-128's
+    // photo-less military card, whose flow starts at y=162 and needs 5 lines.
+    // Telemetry outranks the static gesture hints, so the flow owns the space:
+    // the hints render only if the flow never entered their zone (sparse cards
+    // keep them), and the flow itself stops at the bezel margin so no line can
+    // ever draw off the round panel.
+    const int hintZoneY   = SCREEN_SIZE - 58; // hints need everything below this
     auto line = [&](const String& str) {
         if (str.isEmpty()) return;
-        if (y + backbuffer.fontHeight() > hardBottomY) return; // no room: drop
+        if (!cardlayout::RowFits(y, hardBottomY, backbuffer.fontHeight())) return; // no room: drop
         centered(str, y);
         y += lineHeight;
     };

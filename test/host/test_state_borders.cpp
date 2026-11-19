@@ -418,7 +418,7 @@ int main()
     static const View kViews[] = {
         { "SEA -> BUR",   -122.3088f, 47.4502f, -118.3587f, 34.2007f, 500.0f },
         { "PDX -> LAX",   -122.5960f, 45.5887f, -118.4085f, 33.9416f, 500.0f },
-        { "ORD -> YYZ",    -87.9048f, 41.9786f,  -79.6306f, 43.6777f, 500.0f },
+        { "ORD -> YYZ",    -87.9048f, 41.9786f,  -79.6306f, 42.3456f, 500.0f },
         { "the Atlantic",  -30.0000f, 40.0000f,  -25.0000f, 42.0000f, 500.0f },
     };
     for (size_t i = 0; i < sizeof(kViews)/sizeof(kViews[0]); ++i) {
