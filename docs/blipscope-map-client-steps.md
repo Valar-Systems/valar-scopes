@@ -5768,6 +5768,29 @@ Any control off: the instrument is not trusted, and that is the row's first off 
 - The baseline is #764's two finished docs-only PR runs, at `dbb896c48e2c` and `1038e4115b13`, each 35 = 33/2/0.
 - Both started after `e3ccf6b4` (#761), the last change to `.github/workflows/`.
 
+#### The rulings on Q-6b-1 to Q-6b-4 (the orchestrator, 2026-11-19 ~00:18Z)
+
+- **Q-6b-1: the WIDER set.** Text means valid UTF-8 with no control byte except tab, CR and LF, then at least one NUL,
+  and only NULs after it.
+  - Why: customer-visible strings on these screens can carry non-ASCII, the degree sign being the obvious one. A check
+    of customer text that cannot see them leaves a hole in exactly the gate's job.
+  - Invalid UTF-8 does not count, so code bytes stay out.
+  - **C-ARR gains a second case:** a planted array holding a non-ASCII text (a degree sign), which must be found as
+    exactly 1 added.
+- **Q-6b-2: the default.** One character; no length floor.
+- **Q-6b-3: the default, plus two more masks.** Every output masks four shapes:
+  - IPv4-shaped strings;
+  - hex runs of 16 or more characters;
+  - **MAC-shaped strings** (six colon-separated hex pairs);
+  - **any decimal number with 3 or more places** (coordinate-shaped).
+  - Each mask gets a planted case that must come out masked.
+  - Version-string controls (for example "v20" and "1.2.3") must come out NOT masked.
+- **Q-6b-4: the default.** `scripts/strings_elf.py`, in the repo, with `--selftest` on synthetic objects, run in CI.
+  Its text follows the public-repo rules: no names, no workflow file names, roles only.
+
+**CI for this push (docs-only), predicted: 35 check runs: 33 success, 2 skipped, 0 failed.** The baseline is this
+PR's own first head, `d6f469287c8a`. No workflow file has changed since.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
