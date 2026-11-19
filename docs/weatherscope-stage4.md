@@ -3942,3 +3942,66 @@ The files, frozen by sha before they compile or run (on `weatherscope/w7-live`, 
 - **What it establishes:** with no body (what every 403 gets today), the device's reason is `""`, and a 403 shows
   ACCESS REFUSED, never a guessed kind. When (a) lands, a whole token becomes its kind with no further Weatherscope
   change.
+
+### S4.45, 2026-11-19: Q131 ruled, the live strip says the frame's AGE; frozen before it runs
+
+**Q131, the finding:** the top strip shows the frame's time as a local clock (`TimeText`, "4:24 PM"). The stored
+scenarios pass fixed offsets (Dallas CDT, Bend PDT). A live board has no time-zone setting, and nothing on the device
+maps a location to a zone. Offset 0 would print UTC as if it were local: a false clock.
+
+**The ruling (the reviewer, 2026-11-19): (a), for W7's LIVE strip.**
+- It shows the frame's AGE ("NOW", "6 MIN AGO"), orange past 10 min, with RADAR STALE past 30. The owner's Q15/Q18
+  rules are about age, and age needs no zone.
+- (b), UTC with a suffix, is honest but strange on a desk device. (c), a time-zone setting, and (d), the offset from
+  the proxy, are outside W7's scope.
+- **The stored scenarios keep their fixed-offset clocks.**
+- **Logged as a LOOK item for the owner:** "Weatherscope live shows the radar's age, not a clock time, because the
+  device has no time zone". It is decided when the edition's look reaches him, with (c) as the alternative then.
+- **Its row:** the live strip never prints a clock time, only an age, or WAITING / STALE.
+
+**The change** (on `weatherscope/w7-live`, after `3b1b37c6d585`), frozen by sha before it compiles or runs:
+
+| file | sha256 | what |
+|---|---|---|
+| `src/weatherscope/WxLiveMap.h` | `cc83176cbcc5` (was `74ea0335f5c7`) | the one hook, `LiveStripText(ageS)`: under 60 s `NOW`; then `<n> MIN AGO`; over 999 min `999+ MIN AGO`, a range, never a cut number. `FromLive` drops its offset and writes the age into the strip. `FromLiveLoopFrame` takes the board's clock (`nowUtc`) in place of an offset and writes each frame's age there too |
+| `test/host/test_wx_livemap.cpp` | `81d257d01915` (was `f40ed64e41aa`) | the calls follow the signatures; one row added, LIVE-NOCLOCK |
+| `test/host/sabotage_wx_livemap.py` | `f66d26424147` (was `ac7cb8e55530`) | three plants added; M-AGEFRAME's red set grows; the count is 11 |
+
+The strip's inks are unchanged: `TimeText` colours by `ageS` (orange past 600 s), and the state line says
+`RADAR STALE` past 1800 s. The words were the only clock.
+
+**THE PREDICTIONS**, from WSL `Ubuntu-24.04` with `g++ 13.3.0`, run bare, after the push, before 16:20Z.
+
+**1. `test_wx_livemap`:** 11 rows, all ok, exit 0.
+- The 10 rows of S4.40 read as S4.41 read them. One value is excepted: LIVE-BASEMAP's Bend control count. The strip's
+  words have changed, so its value is printed and read, not predicted, as S4.40 already said; it must be above 0.
+  LIVE-BASEMAP's `0 pixels differ`, `0 carry a package field`, and LIVE-AGE's `599 s: time dim ... 1801 s: time
+  orange, 'RADAR STALE'` are unchanged.
+- **LIVE-NOCLOCK:** `482 live strips over 0-2 h: 0 clock times, 0 off the age format; 1000 min reads '999+ MIN AGO'`.
+  - That is every age from 0 to 7,200 s, by 30 s, through `FromLive` and `FromLiveLoopFrame`.
+  - A clock time is any `:`, `AM` or `PM`.
+  - The format is `NOW` under 60 s, else `<age/60> MIN AGO`.
+  - **Its control:** the stored clock (`ClockText` at Bend's offset) does contain `:`, so the check can see a clock
+    when there is one.
+
+**2. `sabotage_wx_livemap.py`:** all 15 plants AS PREDICTED, the real headers unchanged (`3a3df02f29a5`,
+`cc83176cbcc5`, `c3eab3a3f6a6`), `W7 LIVE MAP PLANTS AS PREDICTED`.
+- The 12 plants of S4.40 keep their red sets, except **M-AGEFRAME, now LIVE-AGE and LIVE-NOCLOCK**: with the age read
+  as 0, every live strip reads `NOW`.
+- The new plants:
+
+| plant | what it breaks | its red set |
+|---|---|---|
+| M-CLOCK | the live frame's strip prints a clock time | LIVE-NOCLOCK |
+| M-LOOPCLOCK | the live loop frame's strip prints one | LIVE-NOCLOCK |
+| M-AGECUT | an age over 999 min cut to fit (`0 MIN AGO`), not a range | LIVE-NOCLOCK |
+
+- `--anchors`: 15 plants, 15 anchors, each present once (a read of the drafts found each once).
+- `--control`: `test_wx_livemap` 11 ok.
+
+**Unaffected, named:** no other suite includes `WxLiveMap.h`, so every other W7 suite is untouched.
+
+**Outside the set:**
+- **A compile failure is the RIG.** It is reported and fixed, the run is repeated, and the correction goes below this
+  section.
+- **Anything else off STOPS the run,** and I fix nothing before the ruling.
