@@ -4436,3 +4436,22 @@ Read before the freeze, so C0 cannot move: platformio.ini names `WX_STORED` on e
 **Outside the set:**
 - **A second off on E1 STOPS,** and goes to the reviewer.
 - **The rig:** a syntax error in state 2. Reported, fixed, repeated, and recorded below.
+
+### S4.51, 2026-11-19: S4.50 read (04:31Z): every row as predicted; the fence's raw leg is proven dead, then alive
+
+- **What ran:** S4.50 was frozen and pushed at `8c2d897e54ba` before anything ran. `--check-readers` exits 0 (17)
+  before that push and after it.
+- **Against:** wt-w7 at `b54ed38a86c3`, plus the frozen files uncommitted. Python only; every stderr is 0 B.
+
+| row | state (`check_wx_stored.py`) | read | stdout sha256 |
+|---|---|---|---|
+| E1a `--selftest` | 1, `faf98695087d` | **P6 `FAIL ... exit 0, rules [] (want exit 1, ['F1'])`**: the planted flag missed, so the leg was dead, as frozen. Every other case as E1 read (P3 and P3b at 3 lines). `WX-STORED SELFTEST FAILED`, exit 1 | `ca39bd5d79cc` |
+| E1b `--selftest` | 2, `4dde2e1fb27a` | `WX-STORED SELFTEST PASSED`, exit 0. **P6** red on F1 with one line, `F1 [wx-fence-shared] build_flags names WX_STORED`. **P3**'s fourth line is `F1 [env:weatherscope-s3-128] build_flags names WX_STORED`; **P3b**'s is `... build_src_flags names WX_STORED`. C0, P1, P2, P4, P5 and B1 exactly as E1 | `d4c115d5cf7a` |
+| E2b, the real tree | 2 | exit 0, E2's line; its stdout sha equals E2's | `ae7f272f54cb` |
+
+- **Committed LOCALLY** as `b781a94f`, on `weatherscope/w7-live-3b-code`, not pushed before Friday's compile:
+  - `scripts/check_wx_stored.py` `4dde2e1fb27a`;
+  - `tools/weatherscope/w7/w7_image.py` `7371c64b1f63`;
+  - the firmware workflow `777fe8e582f4`.
+  Patch copy 0008.
+- **Friday** adds S4.49 part F to its rows: F-CI1 and F-CI2 on the built images, and F-CI3 from the matrix.
