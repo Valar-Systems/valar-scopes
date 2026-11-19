@@ -3848,3 +3848,75 @@ on both images:
   ELF.
 
 Then 3b's code: local, with a patch copy in my handoffs folder, built Friday after B9.
+
+### S4.43, 2026-11-19: a correction below S4.33 and S4.40 (a 403's reason cannot reach the device yet), and its row, frozen before it runs
+
+**The finding** (from the code, while writing 3b's ProxyWxFeed): `HttpRequestManager::GetBytes` reads no body on a
+non-200 answer. Its `responseCode != 200` branch leaves the bytes unread and the caller gets only the status. So the
+proxy's JSON `error` (`fake_device_id`, `forbidden`) never reaches the device.
+
+**The ruling (the reviewer, 2026-11-19):**
+- **(b), now.** W7 ships the generic `ACCESS REFUSED` / `CONTACT SUPPORT` for every 403. A 401 stays
+  `KEY NOT ACCEPTED`, by its status alone.
+- **(a)**, reading a small 401/403 body in `GetBytes`, is the right fix. It changes the shipping radar's network code
+  and moves its images, so it is queued for blipscope-5c AFTER v20's cut, under S1. ProxyWxFeed already reads a
+  reason whenever a body arrives, so (a) needs no further Weatherscope change.
+- **(c)**, a second request to read the reason, is refused: it doubles requests on exactly the boards being refused.
+
+**THE CORRECTION** (below S4.33 and S4.40; neither is edited):
+- **W7-REFUSED's device-side row** grades `ACCESS REFUSED` / `CONTACT SUPPORT` for ANY 403 until (a) lands, and
+  `KEY NOT ACCEPTED` / `ENROL THIS BOARD AGAIN` for a 401.
+- **The host rows stand as frozen.** STATE-REFUSED and LATCH-KIND grade the mapping given a reason string, and that
+  mapping is unchanged.
+
+**Its row, as the reviewer asked.** A pure reader, `wxerror::ErrorOf()` in `src/weatherscope/WxErrorBody.h`. It reads
+`{"error":"<token>"}` only from a body that holds one whole. No body, a malformed one, or a token too long for its
+buffer all give `""`, which `RefusalOf` maps to Other. It never guesses a kind, and never truncates one: half a token is
+a different token. The reviewer asked for a static row; this is a host row, which runs the function. The static half
+comes with the code: W7-ERRORPATH, below.
+
+The files, frozen by sha before they compile or run (on `weatherscope/w7-live`, after `1b929ba7d4e5`):
+
+| file | sha256 | what |
+|---|---|---|
+| `src/weatherscope/WxErrorBody.h` | `4316bcc0e811` (new) | `wxerror::ErrorOf` |
+| `test/host/test_wx_errorbody.cpp` | `c786b65f2333` (new) | the 6 rows below |
+| `test/host/sabotage_wx_errorbody.py` | `cf7f68de0fa1` (new) | the 3 plants below |
+| `test/host/run.sh` | `ebb481547b25` (was `240f923b2b8d`) | one block added; nothing else changes |
+
+**THE PREDICTIONS**, from WSL `Ubuntu-24.04` with `g++ 13.3.0`, run bare, after the push, before 16:20Z.
+
+**1. `test_wx_errorbody`:** 6 rows, all ok, exit 0, ending `all WX error body checks passed`:
+
+| row | predicted |
+|---|---|
+| ERR-NOBODY | no body (null, or a length of 0): no reason, and a 403 is Other |
+| ERR-FORBIDDEN | `'forbidden' -> NOT ACTIVATED YET` |
+| ERR-FAKE | `'fake_device_id' -> BOARD NOT RECOGNISED` |
+| ERR-MALFORMED | `5 malformed bodies, 0 read as a reason`: no closing quote, another key, a space after the colon, an empty token, an escape |
+| ERR-LONG | a 30-byte token in a 24-byte buffer is refused whole, with `(0 bytes read)`; a 23-byte one fits, `(23)` |
+| ERR-401 | a 401 is `KEY NOT ACCEPTED` by its status alone |
+
+**2. `sabotage_wx_errorbody.py`:** every plant AS PREDICTED; the real header unchanged (`4316bcc0e811`);
+`W7 ERROR BODY PLANTS AS PREDICTED`.
+
+| plant | what it breaks | its red set |
+|---|---|---|
+| E-GUESS | no body read as `forbidden`: a guessed kind | ERR-NOBODY |
+| E-TRUNCATE | a token too long for the buffer, cut to fit | ERR-LONG |
+| E-NOQUOTE | a body with no closing quote read to its end | ERR-MALFORMED |
+
+- `--anchors`: 3 plants, 3 anchors, each present once (a read of the drafts found each once).
+- `--control`: `test_wx_errorbody` 6 ok.
+- **ERR-401 has no plant here, named:** its function is `WxSetup.h`'s `RefusalOf`, which this driver does not plant.
+
+**3. W7-ERRORPATH, a static row in `w7_static.py`, with 3b's code (Friday):**
+- `ProxyWxFeed.cpp` calls `wxerror::ErrorOf(landing_, a.len, ...)` exactly once, on a 401 or 403.
+- The reason buffer starts as `""`.
+- Nothing else writes a reason.
+- A selftest plant that hard-codes a reason must read red on that row alone.
+
+**Outside the set:**
+- **A compile failure is the RIG.** It is reported and fixed, the run is repeated, and the correction goes below this
+  section.
+- **Anything else off STOPS the run,** and I fix nothing before the ruling.
