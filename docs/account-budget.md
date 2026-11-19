@@ -1045,3 +1045,13 @@ a stated rounding tie at the boundary.
     - The two tie cells printed 30%.
   - **The checker's report** changed only in its Logs lines and its row and read counts. Every overage line and the
     FLAGS line are unchanged.
+
+### 11.3 A dated note (2026-11-19): the logs-off deploy moved to Saturday; no figure changes
+
+- 11.1 says "the re-read graded after Thursday's deploy" replaces the December GB figures. **Thursday's deploy did not
+  happen.** On 2026-11-19 the logs step stopped before any deploy, so nothing changed in production, and both
+  environments still run with invocation logs ON.
+- **The new slot, set by the owner:** Saturday 2026-11-21, T0 09:30Z, from the same commit (EXPECT `4a02123c`), as
+  `docs/workers-logs-invocation-off.md` sets it out with its corrections 7g-7i.
+- So 11.1's re-read is graded after **Saturday's** deploy. Until then the December GB figures stay the upper bound
+  11.1 names. No allowance, row, read or rendered cell changes here.
