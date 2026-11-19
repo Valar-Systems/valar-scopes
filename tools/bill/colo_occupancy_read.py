@@ -16,10 +16,13 @@ A query is a VALUE only at ABR 1 (F1-R-1, map-server's rule (i)): HTTP 200, a st
 REASK_S apart (chosen on resolution only, never on the count); still not a value -> exit 6, and F1 does not run on it.
 
   python -X utf8 -I tools/bill/colo_occupancy_read.py ctl                       F1-CTL: the model's own control, no data
-  python -X utf8 -I tools/bill/colo_occupancy_read.py lc                        LC-1..LC-4 + LC-SUM, count only, on LC_HOUR
-  python -X utf8 -I tools/bill/colo_occupancy_read.py scan [<last hour ISO>]    when `devl` first appears; is the last closed hour clean
+  python -X utf8 -I tools/bill/colo_occupancy_read.py lc <out.json>             LC-1..LC-4 + LC-SUM, count only, on LC_HOUR
+  python -X utf8 -I tools/bill/colo_occupancy_read.py scan <out.json> [<last hour ISO>]   when `devl` first appears; clean?
   python -X utf8 -I tools/bill/colo_occupancy_read.py read <hour start ISO> <out.json>
   python -X utf8 -I tools/bill/colo_occupancy_read.py grade <read1> <read2>      the reads agree, then F1-K/H55/H115
+Every command prints one `attempts <query>:` line per query on every graded exit (0, 3, 5, 6); lc and scan also write
+every attempt to <out.json> on those exits, and read writes them into its own result file (F1-R-1's recording clause;
+ruling (4)). A rig error (exit 2) prints its exception type only, and nothing else.
 
 The model (frozen in the registration): every active board polls /wx every P = 60 s at a random phase, each poll
 jittered +/-2 s; a per-colo hold of `latest` lasts T s from the miss that filled it; 200 seeded runs of one hour per
@@ -221,6 +224,45 @@ def blind(label, log):
     return 6
 
 
+def print_attempts(log):
+    """One line per query, every attempt on it (F1-R-1): status, abr_level, and the count only on a value."""
+    order = []
+    for a in log:
+        if a["query"] not in order:
+            order.append(a["query"])
+    for q in order:
+        parts = []
+        for a in log:
+            if a["query"] != q:
+                continue
+            abr = (a["statistics"] or {}).get("abr_level") if a["abr_present"] else "absent"
+            s = "%d: status %s abr %s" % (a["attempt"], a["status"], abr)
+            if a.get("error"):
+                s += " error %s" % a["error"]
+            if a["value"]:
+                s += (" count %d" % a["count"]) if "count" in a else ""
+                s += " (value)"
+            else:
+                s += " (not a value)"
+            parts.append(s)
+        print("  attempts %s: %s" % (q, "; ".join(parts)))
+
+
+def write_record(path, kind, extra, log):
+    """lc's and scan's record, on EVERY exit path: counts and statistics only, never an id or a line."""
+    rec = dict(extra, kind=kind, at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), attempts=log)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(rec, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+
+
+def done(rc, log, path=None, kind=None, extra=None):
+    print_attempts(log)
+    if path:
+        write_record(path, kind, extra or {}, log)
+    return rc
+
+
 def read(hour, path):
     h1 = parse_hour(hour)
     if h1 + timedelta(hours=1) > datetime.now(timezone.utc):
@@ -231,12 +273,12 @@ def read(hour, path):
         pre = count_query(h1, params(DEV_EXISTS), tok, log, "preflight")
     except Blind:
         print("fetched 0 event(s), 0 with dev; no events request was made")
-        return blind("preflight", log)
+        return done(blind("preflight", log), log)
     print("preflight dev count %d" % pre)
     if pre:
         print("fetched 0 event(s), 0 with dev; no events request was made")
         print("REFUSED (pre-flight): %d req line(s) in the hour carry the device id. Nothing fetched, nothing kept." % pre)
-        return 5
+        return done(5, log)
     colos, lines, no_colo, no_label, abr, offset, pages, fetched, fetched_dev = {}, 0, 0, 0, set(), None, 0, 0, 0
     while True:
         body = {"queryId": "proxy-bill-colo-occupancy", "timeframe": hour_bounds(h1), "view": "events", "limit": 2000,
@@ -248,7 +290,7 @@ def read(hour, path):
         if res is None:
             colos.clear()        # the partial histogram is discarded, never written
             print("fetched %d event(s), %d with dev" % (fetched, fetched_dev))
-            return blind(label, log)
+            return done(blind(label, log), log)
         abr.add(res["statistics"]["abr_level"])
         page = res["events"]["events"]
         pages += 1
@@ -264,7 +306,7 @@ def read(hour, path):
                 colos.clear()
                 print("fetched %d event(s), %d with dev" % (fetched, fetched_dev))
                 print("REFUSED (backstop): a fetched req line carries the device id. Nothing kept.")
-                return 5
+                return done(5, log)
             lines += 1
             c, d = o.get("colo"), o.get("devl")
             if not isinstance(c, str) or not c:
@@ -291,16 +333,18 @@ def read(hour, path):
     print("fetched %d event(s), %d with dev" % (fetched, fetched_dev))
     print("read %s: %d page(s), ABR %s, req lines %d, no colo %d, no label %d, histogram %s" % (
         out["hour"], pages, out["abr"], lines, no_colo, no_label, out["histogram"]))
-    return 0
+    return done(0, log)
 
 
-def scan(last=None):
+def scan(path, last=None):
     """F1-R: when `devl` first appears, measured. Count only, newest hour first, CALL_GAP_S between calls."""
     h = parse_hour(last) if last else last_closed_hour()
     if h + timedelta(hours=1) > datetime.now(timezone.utc):
         raise Rig("the hour has not closed")
     tok = TOKEN_FILE.token("observability-read")
     log, rows, calls = [], [], 0
+    fin = lambda rc: done(rc, log, path, "scan", {"exit": rc, "calls": calls, "rows": [
+        [t.strftime("%Y-%m-%dT%H:00Z"), dv, dl] for t, dv, dl in rows]})
     stopped = False
     for _ in range(SCAN_MAX_H):
         vals = []
@@ -312,7 +356,7 @@ def scan(last=None):
             try:
                 vals.append(count_query(h, params(leaf), tok, log, label))
             except Blind:
-                return blind(label, log)
+                return fin(blind(label, log))
         rows.append((h, vals[0], vals[1]))
         print("  %s dev %d devl %d" % (h.strftime("%Y-%m-%dT%H:00Z"), vals[0], vals[1]))
         if vals[1] == 0:
@@ -324,7 +368,7 @@ def scan(last=None):
     seen = [r for r in fwd if r[2] > 0]
     if not seen:
         print("devl not seen in the last closed hour: no clean hour; no reading possible now")
-        return 3
+        return fin(3)
     first = seen[0][0].strftime("%Y-%m-%dT%H:00Z")
     print(("devl first appears in the hour starting %s" if stopped else "devl first appears before %s") % first)
     clean_at, rollback = None, False
@@ -336,20 +380,21 @@ def scan(last=None):
     print("first clean hour %s" % (clean_at.strftime("%Y-%m-%dT%H:00Z") if clean_at else "none"))
     if rollback:
         print("ROLLBACK: an hour with dev after a clean hour; stop and report")
-        return 3
+        return fin(3)
     newest = rows[0]
     if newest[1] == 0 and newest[2] > 0:
         print("last closed hour %s: clean" % newest[0].strftime("%Y-%m-%dT%H:00Z"))
-        return 0
+        return fin(0)
     print("last closed hour %s: not clean; wait for the next closed hour" % newest[0].strftime("%Y-%m-%dT%H:00Z"))
-    return 3
+    return fin(3)
 
 
-def lc():
+def lc(path):
     """F1-R's live controls, count only, on LC_HOUR; each graded only as a value (ABR 1)."""
     h1 = parse_hour(LC_HOUR)
     tok = TOKEN_FILE.token("observability-read")
     log, v = [], {}
+    fin = lambda rc, grades=None: done(rc, log, path, "lc", {"exit": rc, "hour": LC_HOUR, "values": v, "grades": grades})
     rows = (("LC-1", params()), ("LC-2", params(DEV_EXISTS)), ("LC-3", params(DEV_ABSENT)),
             ("LC-4", params(IMPOSSIBLE, scope=False)))
     for i, (name, prm) in enumerate(rows):
@@ -358,7 +403,7 @@ def lc():
         try:
             v[name] = count_query(h1, prm, tok, log, name)
         except Blind:
-            return blind(name, log)
+            return fin(blind(name, log))
     g = lambda ok: "HOLDS" if ok else "OFF"
     res = [("LC-1 scope > 0", v["LC-1"] > 0),
            ("LC-2 dev exists > 0 and <= LC-1", 0 < v["LC-2"] <= v["LC-1"]),
@@ -368,7 +413,7 @@ def lc():
     print("LC hour %s, all at ABR 1: LC-1 %d, LC-2 %d, LC-3 %d, LC-4 %d" % (LC_HOUR, v["LC-1"], v["LC-2"], v["LC-3"], v["LC-4"]))
     for name, ok in res:
         print("  %s -> %s" % (name, g(ok)))
-    return 0 if all(ok for _, ok in res) else 3
+    return fin(0 if all(ok for _, ok in res) else 3, {name: g(ok) for name, ok in res})
 
 
 def stamp(s):
@@ -421,10 +466,10 @@ def main(argv):
     try:
         if argv == ["ctl"]:
             return ctl()
-        if argv == ["lc"]:
-            return lc()
-        if argv[:1] == ["scan"] and len(argv) <= 2:
-            return scan(argv[1] if len(argv) == 2 else None)
+        if len(argv) == 2 and argv[0] == "lc":
+            return lc(argv[1])
+        if argv[:1] == ["scan"] and len(argv) in (2, 3):
+            return scan(argv[1], argv[2] if len(argv) == 3 else None)
         if len(argv) == 3 and argv[0] == "read":
             return read(argv[1], argv[2])
         if len(argv) == 3 and argv[0] == "grade":

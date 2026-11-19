@@ -5,10 +5,12 @@ Synthetic data only, no network, no token: each reader is loaded from a temp cop
 `post` is replaced by the fake's, which RECORDS every event it returns. So the fetched counts below are the fake's
 record, one instrument for the old reader and the new.
 
-  python -X utf8 -I tools/bill/colo_occupancy_plant.py <old reader .py> <new reader .py>
+  python -X utf8 -I tools/bill/colo_occupancy_plant.py <old reader .py> <new reader .py> <pre-recording reader .py>
 
-The old reader is the one F1-R replaces (blob af55507b9ad7). Rows, in the registered order: the fake's own controls,
-R-RED, R-PRE, R-CLEAN, R-BACKSTOP, R-SCAN, R-ABR-RED (a byte-asserted sabotage), R-ABR, R-ABR-ABSENT, R-ABR-RECOVER.
+The old reader is the one F1-R replaces (blob af55507b9ad7); the pre-recording reader is F1-R's first commit of the
+change (blob 74556db07510), which kept lc's and scan's attempts in memory only (the reviewer's ruling (4)). Rows, in
+the registered order: the fake's own controls, R-RED, R-PRE, R-CLEAN, R-BACKSTOP, R-SCAN, R-ABR-RED (a byte-asserted
+sabotage), R-ABR, R-ABR-ABSENT, R-ABR-RECOVER, then R-REC-RED, R-REC, R-REC-SCAN-RED and R-REC-SCAN (red first).
 Exit 0 when every row reads as predicted; 1 when any is OFF; 2 the rig (a plant that did not apply, a fake control off).
 """
 import contextlib
@@ -25,6 +27,7 @@ SVC = "blipscope-proxy"
 H = datetime(2000, 1, 1, tzinfo=timezone.utc)          # the plant's hour (synthetic)
 HIS = "2000-01-01T00:00:00Z"
 EXAMPLE_ID = "0" * 16                                    # the example id (CLAUDE.md), synthetic
+LC_H = datetime(2026, 11, 19, 12, tzinfo=timezone.utc)  # the reader's LC_HOUR; R-REC's events there are synthetic
 GATE = '    if not (isinstance(st, dict) and "abr_level" in st and _num(st["abr_level"]) and st["abr_level"] == 1):\n'
 GATE_PLANT = '    if not isinstance(st, dict):   # PLANT R-ABR-RED: the ABR gate removed\n'
 
@@ -49,6 +52,18 @@ def hour_h(d_in):
     if d_in:
         evs.append(ev(7, t, evt="req", colo="ZZ1", dev=EXAMPLE_ID))                # D-in
     return evs
+
+
+def lc_set():
+    """R-REC's LC hour (the reader's LC_HOUR), synthetic: scope 5, dev 1, no dev 4, impossible 0."""
+    t = LC_H + timedelta(minutes=1)
+    return [ev(21, t, evt="req", colo="ZZ1", devl="lbl-a"),
+            ev(22, t, evt="req", colo="ZZ1", devl="lbl-b"),
+            ev(23, t, evt="req", colo="ZZ2", devl="lbl-c"),
+            ev(24, t, evt="req", colo="ZZ1"),
+            ev(25, t, evt="other", colo="ZZ1"),
+            ev(26, t, svc="some-other-worker", evt="req", colo="ZZ2", devl="lbl-x"),
+            ev(27, t, evt="req", colo="ZZ1", dev=EXAMPLE_ID)]
 
 
 def scan_set():
@@ -151,7 +166,7 @@ def run(mod, fake, argv):
 
 
 def main(argv):
-    if len(argv) != 2:
+    if len(argv) != 3:
         print(__doc__)
         return 2
     tmp = tempfile.mkdtemp(prefix="f1r-plant-")
@@ -160,7 +175,7 @@ def main(argv):
         with open(os.path.join(tmp, "tools", "token_file.py"), "w", encoding="utf-8") as fh:
             fh.write('def token(purpose):\n    return "plant-token"\n')
         paths = {}
-        for name, src in (("old_reader", argv[0]), ("new_reader", argv[1])):
+        for name, src in (("old_reader", argv[0]), ("new_reader", argv[1]), ("prerec_reader", argv[2])):
             paths[name] = os.path.join(tmp, "tools", "bill", name + ".py")
             shutil.copyfile(src, paths[name])
         new_src = open(paths["new_reader"], encoding="utf-8").read()
@@ -175,7 +190,7 @@ def main(argv):
         with open(paths["sab_reader"], "w", encoding="utf-8", newline="\n") as fh:
             fh.write(sab)
         print("sabotage R-ABR-RED planted: the gate line replaced once; reader changed (%d -> %d bytes)" % (len(new_src), len(sab)))
-        old, new, sbr = (load(paths[n], n) for n in ("old_reader", "new_reader", "sab_reader"))
+        old, new, sbr, prerec = (load(paths[n], n) for n in ("old_reader", "new_reader", "sab_reader", "prerec_reader"))
 
         # The fake's own controls, in the new reader's own query form.
         f = Fake(hour_h(True))
@@ -222,10 +237,10 @@ def main(argv):
                                written=os.path.exists(out("back"))),
             dict(exit=5, returned=7, with_dev=1, backstop=True, written=False))
 
-        f = Fake(scan_set()); rc, o = run(new, f, ["scan", HIS])
+        f = Fake(scan_set()); rc, o = run(new, f, ["scan", out("scan"), HIS])
         lines = [l.strip() for l in o.splitlines()]
         row("R-SCAN", dict(exit=rc, counts=f.count_requests, events_requests=f.events_requests, returned=len(f.returned),
-                           rows=[l for l in lines if " dev " in l and " devl " in l],
+                           rows=[l for l in lines if " dev " in l and " devl " in l and not l.startswith("attempts ")],
                            first=[l for l in lines if l.startswith("devl first appears")],
                            clean=[l for l in lines if l.startswith("first clean hour")]),
             dict(exit=0, counts=6, events_requests=0, returned=0,
@@ -255,6 +270,40 @@ def main(argv):
         row("R-ABR-RECOVER", dict(exit=rc, preflight_attempts=f.preflight_attempts, events_requests=f.events_requests,
                                   preflight_count="preflight dev count 1" in o),
             dict(exit=5, preflight_attempts=2, events_requests=0, preflight_count=True))
+
+        # R-REC (the reviewer's ruling (4)): every attempt on record. LC-2 first answers at ABR 100, then at ABR 1.
+        def rec_json(path, q=None):
+            if not os.path.exists(path):
+                return None
+            d = json.load(open(path, encoding="utf-8"))
+            at = [a for a in d["attempts"] if q is None or a["query"] == q]
+            return [[a["attempt"], (a["statistics"] or {}).get("abr_level"), a["value"], a.get("count")] for a in at]
+
+        def printed(o, prefix):
+            return [l.strip() for l in o.splitlines() if l.strip().startswith(prefix)]
+
+        lc2_first_sampled = [{"abr": 100, "count": 0}, {"abr": 1, "count": None}]
+        f = Fake(lc_set(), preflight=lc2_first_sampled); rc, o = run(prerec, f, ["lc"])
+        row("R-REC-RED", dict(exit=rc, lc2_printed=printed(o, "attempts LC-2:"), lc2_json=None),
+            dict(exit=0, lc2_printed=[], lc2_json=None))
+
+        f = Fake(lc_set(), preflight=lc2_first_sampled); rc, o = run(new, f, ["lc", out("lcrec")])
+        row("R-REC", dict(exit=rc, lc2_printed=printed(o, "attempts LC-2:"), lc2_json=rec_json(out("lcrec"), "LC-2")),
+            dict(exit=0, lc2_printed=["attempts LC-2: 1: status 200 abr 100 (not a value); 2: status 200 abr 1 count 1 (value)"],
+                 lc2_json=[[1, 100, False, None], [2, 1, True, 1]]))
+
+        f = Fake(scan_set()); rc, o = run(prerec, f, ["scan", HIS])
+        row("R-REC-SCAN-RED", dict(exit=rc, printed=len(printed(o, "attempts scan ")), json=None),
+            dict(exit=0, printed=0, json=None))
+
+        f = Fake(scan_set()); rc, o = run(new, f, ["scan", out("scanrec"), HIS])
+        sj = rec_json(out("scanrec"))
+        rows_json = json.load(open(out("scanrec"), encoding="utf-8"))["rows"] if os.path.exists(out("scanrec")) else None
+        row("R-REC-SCAN", dict(exit=rc, printed=len(printed(o, "attempts scan ")),
+                               json=None if sj is None else dict(attempts=len(sj), all_values_first_try=all(a[0] == 1 and a[2] for a in sj),
+                                                                 rows=rows_json)),
+            dict(exit=0, printed=6, json=dict(attempts=6, all_values_first_try=True,
+                                              rows=[["2000-01-01T00:00Z", 0, 3], ["1999-12-31T23:00Z", 1, 2], ["1999-12-31T22:00Z", 1, 0]])))
 
         print("rows %d, as predicted %d, OFF %d" % (len(rows), len(rows) - off, off))
         return 0 if off == 0 else 1

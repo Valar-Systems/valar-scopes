@@ -1767,3 +1767,5 @@ class): stop, and F1 does not run.
 
 R-RED, R-PRE, R-CLEAN, R-BACKSTOP and R-SCAN are unchanged; their fake answers at ABR 1 unless a row says otherwise.
 The order of section F1-R's **Order** stands, with these four rows run after R-SCAN.
+
+ADDED (append-only, 2026-11-19T13:55:22Z, before it ran; the reviewer's ruling (4) on F1-R-1's recording clause): R-REC, red first. `lc` on a synthetic LC hour (scope 5, dev 1, no dev 4) whose LC-2 first answers at ABR 100 with count 0, then at ABR 1 with the true count. R-REC-RED, the reader at blob `74556db07510`: exit 0, and no `attempts LC-2:` line and no record file. R-REC, the fixed reader: exit 0; printed `attempts LC-2: 1: status 200 abr 100 (not a value); 2: status 200 abr 1 count 1 (value)`; the JSON holds the same two attempts, `[1, 100, not a value, no count]` and `[2, 1, value, 1]`. R-REC-SCAN-RED and R-REC-SCAN, the same for `scan` on R-SCAN's hours: 0 `attempts scan` lines and no record against `74556db07510`; against the fixed reader 6 lines, and a record of 6 attempts, each a value on its first try, with R-SCAN's three rows.
