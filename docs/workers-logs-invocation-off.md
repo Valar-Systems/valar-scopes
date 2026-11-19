@@ -661,6 +661,28 @@ read only when the events query that finds the W2 line is a value under C5. Othe
 If the events query returns no `abr_level`, (g) cannot be certified under C5 and is BLIND by construction. Whether it
 does is to be shown before the new slot.
 
+#### 7h. The gates as read before the new slot (2026-11-19; appended below 7g, which stays the rules)
+
+7g says how each row is read. This section records what the fixed reader's own registered probes found on 2026-11-19,
+before any new slot was proposed. Each line names the correction it applies to.
+
+- **C14: MET on both services.** The events query that finds the W2 line returns `abr_level` on staging and on
+  production. So (g) is read under C5, with C7's re-ask, and is not BLIND by construction. The events query samples too:
+  one repeat came back below full resolution. So C5 and C7 apply to it exactly as written.
+- **C10's gate 3: NOT MET.** The values endpoint was incomplete on both services. Under this reader, (f) is
+  **UNPROVEN**, and the step's verdict line names it.
+- **C9, (e)'s shape: UNPROVEN.** C9 checks the 8-hex shape by C10's local match over `devl`'s values, which rides the
+  same values endpoint. (e)'s presence half, A - B = 0 with `devl` existing and read at full resolution, is still
+  certifiable.
+- **C13, production: (d)(ii) UNPROVEN.** The keys endpoint was not shown complete for production.
+- **C13, staging: (d)(ii) UNPROVEN** (the keys probe read INCOMPLETE). The keys endpoint, asked three times about the
+  same closed staging window, listed a planted name twice, then returned a much shorter list without it. So a keys "0"
+  cannot be trusted.
+
+**For the step's verdict line under this reader, as the gates read on 2026-11-19:**
+- **certifiable:** (a), (b)/(c), (d)(i), (e)'s presence, (g), and both plants by exact match;
+- **UNPROVEN:** (d)(ii) on both services, (f), and (e)'s shape.
+
 ## 8. The label code, red first
 
 **Registration (this commit): the tests and a STUB `src/devlabel.ts`, both of whose functions throw.**
