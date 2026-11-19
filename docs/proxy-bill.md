@@ -1424,3 +1424,35 @@ wrangler; the token file's `observability-read`, never printed; error paths prin
 
 **When:** after step 4d's read. The hour is the last closed hour at that time. It runs before Thursday's PC quiet
 (16:25Z): a multi-page reader is not allowed during it.
+
+## Step 4e: lever (c), what the refresh-data job writes (registered 2026-11-19T00:14:57Z, before its reader exists; read-only, GitHub only)
+
+**Why.** Step 4c showed that production's KV writes are the Worker's request path, plus the refresh-data job at about
+**66,000 writes a run in EACH environment** (11-16: production 66,338, staging 65,708 above background). The job's two
+ingests explain that number differently:
+- `ingest-mildb.ts` bulk-puts EVERY row, every run. Its header says "~17k rows".
+- `ingest-airports.ts` diffs by shard hash: "do not blind-upsert 34k keys on every run" (`:363`).
+
+So about 49,000 of each run's writes are not accounted for, and lever (c)'s design cannot start until they are.
+
+**The read.** No Cloudflare call, only GitHub:
+- the two runs step 4c measured: run `42655120486` (2026-11-09) and `43901417755` (2026-11-16);
+- each one's job logs, from the GitHub API, per environment's job;
+- **counts only:** the rows each ingest says it bulk-put, and the diff's own summary of shards written and skipped.
+
+The logs hold no key or value, only counts and shard letters. The reader prints counts per ingest, per environment,
+per run.
+
+| row | predicted | if not |
+|---|---|---|
+| **JW1** | `ingest-mildb` bulk-puts **15,000-20,000** rows, per environment, per run | the header's "~17k" is stale: report the count |
+| **JW2** | `ingest-airports` writes the rest: about **45,000-52,000**, per environment, per run. Its shard diff does NOT skip the shards (an `ap:` or tile family rewritten whole each run) | if airports writes about 0, the ~49k is a third writer in the job: name it from the log before any design |
+| **JW3** | per environment, per run, the two ingests sum to step 4c's measured job writes within 2% (11-16: 66,338 production, 65,708 staging) | the logs and KV analytics disagree: the instrument, stop |
+| escape | a log that has expired or is unreadable; a count line missing from a run that succeeded; anything no row names | stop and report, with no reading |
+
+**What it is for:** lever (c)'s design.
+- If JW1 and JW2 hold, both ingests write whole families every week.
+- The design is a shard diff for mildb (airports' own method, already in the tree), plus the reason airports' diff
+  does not skip.
+- That takes the account's ~530,000 job writes a month (4 Mondays x 2 environments x ~66,000) towards 0, and every
+  change stays a CI script change, not a Worker deploy.
