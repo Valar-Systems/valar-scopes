@@ -3641,3 +3641,132 @@ Any of these: STOP, and report.
 3. The host rows and their plants are written and run, red first, before 16:20Z today if the rulings come in time.
 4. The code.
 5. Friday after B9: the build, D2, S1, and the PR once F1's rule is on main.
+
+### S4.40, 2026-11-19: W7 slice 3b, ruled; its host rows frozen before they first run, and its image rows for Friday
+
+**The rulings (the reviewer, 2026-11-19, on S4.39):**
+- **Covers():** the strict reading. The package is used only when the whole view lies inside its disc.
+- **Q127 (a):** live is the default. `WX_STORED` is set only by a new slug-less env, `weatherscope-stored-s3-128`, so
+  the stored cycle stays for bench and glass work.
+  - **Grant:** `platformio.ini` for that env.
+  - **Condition** (an env out of CI quietly stops compiling): a slug-less CI matrix row in the same PR, plus the
+    launch gate's `plant_target` case if the gate needs one. That is a one-row firmware-workflow edit, granted for
+    exactly that row.
+  - **New row:** the LIVE env's image carries no stored scenario data (a Dallas string count of 0), with the stored env
+    as its control.
+- **Q128 (a):** `CLOUD_FEED_BASE` on the Weatherscope env, without `FEATURE_CLOUD_FEED`.
+  - **Grant:** `platformio.ini` for that flag.
+  - **New row:** the ini cannot prove the flag took (the `-U`/`-D` asymmetry), so the base URL string must be found in
+    the BUILT image's ELF.
+- **Q129 (a):** WAITING FOR RADAR. A frame of unknown age is never shown.
+- **Q130 (a):** the telemetry headers are empty in W7.
+
+**Measured before freezing** (read from the fixtures and the tree; no new code ran):
+- **Bend's package** (`test/fixtures/wx/basemap/bend.bmpk`) has `radiusMm` 97,000,000: a 97.0 km disc.
+- **Bend's stored crops** (`bend-loop/`) are centred on the package's origin, 0.000 km away. I read four: three loop
+  frames and the synthetic clear.
+- **The margins under the strict rule:** a 60 mi view is a 96.56064 km disc, leaving 0.43936 km; a 30 mi view is
+  48.28032 km, leaving 48.71968 km.
+- **Bend's synthetic clear crop has no echo within 60 mi.** The K reference reads Bend dry's band as `NO RAIN 60 MI`,
+  dim (`k35b.ref.txt`).
+- **The six town names** `Dallas city`, `Fort Worth city`, `Arlington city`, `Denton city`, `McKinney city` and
+  `Plano city` occur as string literals in code ONLY in `WxTowns.h`'s table.
+- **The dark theme's inks differ:** `uiWarn` is (255, 176, 40) and `uiFg` is (230, 237, 234).
+- **A consequence of the strict rule, named so it is not discovered later:** a live board whose crop centre is more
+  than 0.44 km from Bend's package origin draws plain ground at 60 mi. Within 48.72 km it gets the map at 30 mi and
+  closer. The owner sees this when the edition's look reaches him.
+
+**The host slice** (`weatherscope/w7-live`, after 3a), written and frozen here by sha before it compiles or runs:
+
+| file | sha256 | what |
+|---|---|---|
+| `src/weatherscope/WxSetup.h` | `3a3df02f29a5` (was `ec685f5cff70`) | adds `InputsOf()`: the key by `RequestKey`, the refusal by `Shown(latch)`, and a frame only when one is held AND the clock is set (Q129) |
+| `src/weatherscope/WxLiveMap.h` | `74ea0335f5c7` (new) | `Covers()` in the package's own planar metric; `FromLive()` and `FromLiveLoopFrame()`, with no towns, no warning and no temperature; `LivePackage()`, which builds the base only when it covers |
+| `src/weatherscope/WxSetupScreen.h` | `c3eab3a3f6a6` (new) | `ComposeSetup()`: the swipe frame titled `RADAR` with the Map page's dot; the state's title at y 104, size 1 (`uiWarn` for a refusal, `uiFg` otherwise); its line at y 120, size 1, `uiDim`; nothing for Live |
+| `test/host/test_wx_livemap.cpp` | `f40ed64e41aa` (new) | the 10 rows below |
+| `test/host/sabotage_wx_livemap.py` | `ac7cb8e55530` (new) | the 12 plants below |
+| `test/host/run.sh` | `240f923b2b8d` (was `15869367d768`) | one block for `test_wx_livemap`, given `test/fixtures/wx` |
+
+- **The setup screen's layout is mine, open to the reviewer.** The frame's own title row (y 9) is about 104 px wide
+  on the disc. `BOARD NOT RECOGNISED` is 119 px, so the state's words sit near the centre.
+
+**THE PREDICTIONS**, from WSL `Ubuntu-24.04` with `g++ 13.3.0`, run bare, after the push, before 16:20Z:
+
+**1. `test_wx_livemap`:** 10 rows, all ok, exit 0, ending `all WX live map checks passed`:
+
+| row | predicted |
+|---|---|
+| LIVE-COVERS | `7 cases, 0 wrong`: at the origin, and 0.43 km east and north, a 60 mi view is covered; at 0.45 km it is not. At 48.70 km a 30 mi view is covered; at 48.75 km it is not |
+| LIVE-BASEMAP (the ruling's row) | `40 points outside`, at 8 bearings × 1, 20, 97, 145 and 193 km, every view overlapping the package's disc: `0 pixels differ from plain ground, 0 carry a package field`. **Control:** at Bend's own frame the package is applied, and the number of differing pixels is above 0 (printed and read, not predicted) |
+| LIVE-AGE | `599 s: time dim, 'NO RAIN 60 MI'; 601 s: time orange, 'NO RAIN 60 MI'; 1801 s: time orange, 'RADAR STALE'` |
+| LIVE-NOTOWNS | a live frame and a live loop frame carry no towns and no warning |
+| LIVE-LOOP | loop frames read `'NOW'` and `'4 MIN AGO'` |
+| SETUP-DRAW | `0 wrong, 0 pairs alike` |
+| SETUP-LIVE-BLANK | Live draws nothing |
+| SETUP-FITS | `15 rows, 0 wider than the disc at their row` |
+| INPUTS-FILL | `6 cases, 0 wrong` |
+| NOCLOCK | a held frame before the clock is set reads Waiting (`WAITING FOR RADAR`); once the clock is set, Live |
+
+**2. `sabotage_wx_livemap.py`:** every plant is AS PREDICTED (suite exit 1, red on exactly its set).
+- The real headers are unchanged: `3a3df02f29a5`, `74ea0335f5c7`, `c3eab3a3f6a6`.
+- It prints `W7 LIVE MAP PLANTS AS PREDICTED` and exits 0.
+
+| plant | what it breaks | its red set |
+|---|---|---|
+| M-COVERSALWAYS | every view counts as covered | LIVE-COVERS, LIVE-BASEMAP |
+| M-PKGNOCHECK | the package is built without the check | LIVE-BASEMAP |
+| M-AGEFRAME | a live frame's age read as 0 | LIVE-AGE |
+| M-DALLASTOWNS | a live frame given `WxTowns.h`'s towns | LIVE-NOTOWNS |
+| M-LOOPTOWNS | a live loop frame given them | LIVE-NOTOWNS |
+| M-LOOPNOTLOOP | a live loop frame not marked as the loop | LIVE-LOOP |
+| M-REFUSEDINK | a refusal's title in the plain ink | SETUP-DRAW |
+| M-WRONGWORDS | every setup screen in NO WI-FI's words | SETUP-DRAW |
+| M-LIVEDRAWS | Live draws a setup screen | SETUP-LIVE-BLANK |
+| M-TITLETOP | the title in the frame's narrow top row | SETUP-FITS |
+| M-NOCLOCKCHECK | a frame shown before the clock is set | INPUTS-FILL, NOCLOCK |
+| M-INPUTSKIND | the refusal read from the streak's kind, not the latch | INPUTS-FILL |
+
+- `--anchors`: 12 plants, 12 anchors, each present exactly once. A read of the drafts before freezing found each
+  anchor once; that was a text count, not the driver's run.
+- `--control`: `test_wx_livemap` 10 ok.
+
+**3. The earlier slices, after `WxSetup.h` gains `InputsOf`:**
+- `test_wx_answer`: 19 ok, its output byte-identical to S4.38's (`305c8bc250bb`).
+- `test_wx_live`: 14 ok, byte-identical to S4.38's (`07da2f04f55d`).
+- Both drivers stay AS PREDICTED, their outputs differing from S4.38's only in the "real headers unchanged" line,
+  which names `WxSetup.h` `3a3df02f29a5`. Their anchors and controls are byte-identical to S4.38's.
+
+**4. `w7_static.py`:** exit 0, with S4.38's four lines except W7-NOSHOW's count: `0 hit(s) in 28 files` (26 +
+`WxLiveMap.h` + `WxSetupScreen.h`). `--selftest` PASSED, each plant red on its own row alone.
+
+**The image rows, frozen now, run in Friday's slot after B9 (~18:45Z):**
+
+| row | predicted |
+|---|---|
+| **W7-BUILD** | `weatherscope-s3-128` (live) and `weatherscope-stored-s3-128` each compile, exit 0 |
+| **W7-NO-DALLAS** (the ruling's row) | in the LIVE image each of the six names above occurs 0 times; **control:** in the STORED image each occurs at least once |
+| **W7-BASE-ELF** (the ruling's row) | the live ELF contains `https://scopes.valarsystems.com` at least once; **control:** the radar's `blipscope-s3-128` ELF from S1's head build contains it too (that env carries `${cloud.prod}`, `platformio.ini:242`) |
+| **W7-WORDS** | the live image carries `RADAR`, every setup title, `/api/v1/blipscope/wx/` and `shsr`, each at least once |
+| **W7-D2** | 0 hits of `weather.gov`, `noaa`, `ncep`, `mrms` or `amazonaws` in the live image, with the planted control found |
+| **W7-S1** | every other env's image is identical outside the known stamps |
+| **W7-F1** | once uk-data's second rule is on main |
+| **W7-REQ, W7-D1, W7-REVERIFY** (static rows, added to `w7_static.py` with the code) | each ok, and each red alone under its own `--selftest` plant |
+
+- **For W7-NO-DALLAS to hold:** the live build must not link the stored cycle. The manager's stored code and the
+  factory's stored branch go under `#ifdef WX_STORED`, and `FromScenario`/`FromLoopFrame`, which name `WxTowns.h`,
+  are reached only there.
+- **One thing the ruled row does not cover, named:** the Weatherscope env still embeds the stored crop
+  `kdfw-60mi.wxc` (`board_build.embed_files`), which holds radar bytes, not names. Taking it out of the live env is a
+  `platformio.ini` change to that env beyond the granted flag. I leave it unless you want it.
+
+**The code** (ProxyWxFeed, the factory, the manager's live path, `main.cpp` 1070-1073, the stored env and the flag in
+`platformio.ini`, and the CI row):
+- It is written after these host rows are read.
+- It stays on a local branch until Friday's compile (the compile-before-push rule), with a patch copy in my handoffs
+  folder so a scratchpad wipe cannot lose it.
+
+**Outside the set:**
+- **A compile failure is the RIG.** It is reported and fixed, the run is repeated, and the correction goes below this
+  section.
+- **Anything else off STOPS the run,** and I fix nothing before the ruling.
+- **A blind control STOPS the run:** LIVE-BASEMAP's Bend count at 0, or W7-NO-DALLAS's stored count at 0.
