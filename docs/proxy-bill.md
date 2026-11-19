@@ -1599,3 +1599,118 @@ formula):
 
 **What it needs, and whose call each part is:** the code PR (a reviewer's merge) is mine. The deploy is the owner's,
 with #689. Changing a TTL is a code change with its own registration.
+
+## Step 5, amendment F1-R: the F1 reader makes a `dev` line unreachable (registered 2026-11-19T13:24:03Z, before the change exists; nothing runs before the logs step's new slot)
+
+**Why** (the reviewer, 2026-11-19). The reader at blob `af55507b9ad7` refuses a `dev` line only after it has fetched it.
+- Its query carries no filter at all (`"parameters": {}`, `colo_occupancy_read.py:107-108`). Every event of the hour, from
+  every Worker on the account, comes into the process.
+- `:121-123` then refuses on the first req line that holds `dev`.
+- So any hour holding one old-version line pulls device ids into memory before the refusal. That includes an hour after
+  the logs deploy, if the window starts before the new version reached 100%.
+- The change makes such a line unreachable. `:121-123` stays as the backstop.
+
+**Read from the artifact at this freeze.** One read-only call to the telemetry keys endpoint, at 2026-11-19T13:12:39Z
+(names only, never values; outside every window, and the reviewer recorded it as fine). Hour 2026-11-19T12:00Z-13:00Z;
+one leaf, `$metadata.service eq blipscope-proxy`.
+- 156 keys came back.
+- `evt`, `dev`, `colo` and `$metadata.service` are present as bare names. There is no `source.*` form.
+- `devl` is absent, because production (`fcc33692`) still writes `dev`.
+- The filters below use exactly those names.
+
+**What the API documents** (Cloudflare API reference, Workers Observability, telemetry query; read 2026-11-19):
+- A filter leaf's `operation` includes `eq`, `exists` and `DOES_NOT_EXIST`.
+- `parameters.filterCombination` is `"and"` or `"or"`, default `"and"`. A group is
+  `{kind: "group", filterCombination, filters}`.
+- `view: "calculations"` takes `{operator: "count"}`.
+- The Query Builder page lists "Exists" and "Does not exist" for string fields.
+- A peer session saw two bare leaves act like OR on the keys endpoint (2026-11-17). So every query here states
+  `filterCombination: "and"`, and the live controls below test it rather than trusting the default.
+
+**The change** (`tools/bill/colo_occupancy_read.py`). One function builds every filter set, so the read and the live
+controls share one query form.
+1. **Scope, on every query:** `$metadata.service eq blipscope-proxy` AND `evt eq req`.
+2. **The pre-flight, a count only:** `view: "calculations"`, `count`, over the hour, scope AND `dev exists`.
+   - A nonzero count: `REFUSED (pre-flight, exit 5)` BEFORE any events request. No line is fetched.
+   - A failed count: RIG (exit 2), with no events request either.
+   - This also refuses a mixed hour (the deploy reaching 100% inside it), so a reading never comes from a part-old
+     hour, where the filter would silently drop the boards that spoke before 100%.
+   - What it touches: one number, the count of the hour's req lines that carry the `dev` key, tested on the server.
+     No id and no line come back. **The reviewer rules whether this is allowed under the devl-only rule.** The named
+     alternative is no pre-flight, the filter alone. That fetches no `dev` line either, but a mixed hour then reads LOW
+     with no signal: a dropped row that looks like data.
+3. **The events query:** scope AND `dev DOES_NOT_EXIST`, `filterCombination: "and"`. A `dev` line is excluded on the
+   server even if the count missed it.
+4. **The backstop, unchanged:** `:121-123`'s refusal of a fetched req line that holds `dev`, now worded
+   `REFUSED (backstop, exit 5)`.
+5. **New output:** `preflight dev count C`, and `fetched N event(s), M with dev`. Every event the API returned is
+   counted before any local test, so a fetched `dev` line is counted, not just refused.
+
+After the deploy no new line carries `dev`, so the filter drops nothing the old reader kept. The measured population
+(the hour's req lines from `blipscope-proxy`) is the same, and the frozen rows F1-K, F1-H55, F1-H115, F1-CTL and the
+escape (`:1407-1413`) are unchanged.
+
+**When `devl` first appears is measured, not assumed.** The `scan` step: count only, in the new slot, before the
+first read.
+- From the last closed hour backward, one hour at a time, it makes two counts per hour: scope AND `dev exists`, and
+  scope AND `devl exists`. Calls are at least 60 s apart.
+- It stops at the first hour (going back) where `devl` counts 0, which is before the deploy, or after 6 hours.
+- It prints counts only: one row per hour (`HH:00Z dev C1 devl C2`), then two lines:
+  - `devl first appears in the hour starting X`, or `before X` if 6 hours were not enough;
+  - `first clean hour X`: the first hour, going forward, with `dev` 0 and `devl` above 0.
+- No count here is graded; they set the hour.
+- An hour with `dev` above 0 AFTER a clean hour means the old version came back (a rollback): stop and report.
+
+**The hour.** As frozen (`:1425`), the last closed hour at the read, and now only if the scan found it clean. If it is
+not clean, the read waits for the next closed hour, which the pre-flight checks again. If the pre-flight refuses an
+hour the scan called clean, the next closed hour is taken, ONCE. A second refusal: stop and report, with no reading.
+
+**The plant, red first.** Offline; synthetic data only; no network.
+- A fake API (in the plant harness, not the reader) answers from a fixed event list and RECORDS every event it returns.
+  It implements the timeframe, the `eq`/`exists`/`DOES_NOT_EXIST` leaves, `filterCombination` and groups, `events`
+  paging (`limit`, `offset`), and `calculations` `count`.
+- **The fake's own controls run first:** an impossible `evt` value AND the service counts 0; the scope alone counts
+  exactly the plant's req lines.
+- **The plant's hour** H = 2000-01-01T00:00Z (synthetic). It holds:
+  - three labelled req lines, two in colo `ZZ1` and one in `ZZ2` (synthetic codes and labels);
+  - one unattributed req line (a colo, no label);
+  - one non-req event, and one event from another service;
+  - **`D-in`**: a req line with `dev = "0000000000000000"` (the example id) inside H;
+  - **`D-before`**: the same, 1 s before H.
+- The harness runs the CURRENT reader (`af55507b9ad7`, from `git show`) and the NEW reader against the same fake, with
+  the token read replaced. The fetched counts are the fake's record, so both readers are measured by one instrument.
+
+| row | run | predicted | if not |
+|---|---|---|---|
+| **R-RED** | the current reader, H with `D-in` | the fake returned 7 events, **1 with dev**; exit 5 after the fetch. That is the defect, shown | it did not plant: stop |
+| **R-PRE** | the new reader, H with `D-in` | 1 count call, **0 events requests, 0 events returned**; exit 5 from the pre-flight | the change does not hold: stop |
+| **R-CLEAN** | the new reader, H without `D-in` (`D-before` still present) | 1 count call (0), then 4 events returned, **0 with dev**; exit 0; req lines 4, no colo 0, no label 1, histogram `{"1": 1, "2": 1}` | stop |
+| **R-BACKSTOP** (the control that the counter can see a dev line) | the new reader, H with `D-in`, against a fake told to IGNORE filters and answer every count with 0 | 7 events returned, **1 with dev**; exit 5 from the backstop | if it reads 0 with dev, the counter is blind and R-PRE's 0 proves nothing: stop |
+| **R-SCAN** | `scan` on three synthetic hours ending at H: H-2 has one `dev` line and no `devl`; H-1 has one `dev` line and two `devl` lines; H has `devl` lines only (R-CLEAN's three labelled lines) | rows: H dev 0 devl 3; H-1 dev 1 devl 2; H-2 dev 1 devl 0, then it stops. `devl first appears in the hour starting H-1`; `first clean hour H`; 6 count calls, **0 events requests, 0 events returned** | stop |
+
+`D-before` is outside H's timeframe, so the timeframe alone already keeps it out of BOTH readers. It is in the plant as
+a control on the timeframe, not as a test of the change. The in-hour line is the one only the change excludes.
+
+**Live controls.** Count only (`view: "calculations"`, never `events`); built by the read's own function; against
+production; before the first F1 read in the new slot.
+- The hour L = 2026-11-19T12:00Z: closed, before the deploy, with production writing `dev`. It stays readable until
+  2026-11-26.
+- Four calls, at least 60 s apart.
+
+| row | count | predicted | if not |
+|---|---|---|---|
+| **LC-1** | scope | > 0 | the key form `evt eq req` does not match: stop, F1 does not run |
+| **LC-2** | scope AND `dev exists` | > 0 and <= LC-1 | the pre-flight is blind to a `dev` line: stop |
+| **LC-3** | scope AND `dev DOES_NOT_EXIST` | < LC-1 | the operation is ignored: stop |
+| **LC-4** | service AND `evt eq __f1r_impossible__` | 0 | the leaves combine as OR, not AND: stop |
+| LC-SUM (recorded, graded only if L is unsampled) | LC-2 + LC-3 | = LC-1 | reported |
+| escape | anything no row names | | stop and report; F1 does not run |
+
+**Order.**
+1. The change is committed with its blob sha. A reviewer reads it.
+2. R-RED, R-PRE, R-CLEAN, R-BACKSTOP and R-SCAN run offline, in that order, red first. Not during Thursday's PC quiet.
+3. In the logs step's new slot, outside any PC quiet: LC-1 to LC-4, then `scan`, then the two reads at least 60 s apart,
+   then the grade.
+4. F1 runs as frozen at `:1378-1426`, with this amendment.
+
+The code commit and the plant are mine; the reviewer reads both. Nothing deploys.
