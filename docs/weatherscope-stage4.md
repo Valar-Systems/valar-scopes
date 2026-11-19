@@ -4273,3 +4273,106 @@ the change.
 - **A promotion of the stored row to shipping is refused by NO check (P2).** It sits behind a visible skus.yml edit,
   which is prose. The proposed fence, a WX_STORED twin of check_photo_mode.mjs, is in S4.47. It is not built and
   waits for a ruling.
+
+### S4.49, 2026-11-19: Q134 ruled; the WX_STORED fence, W7-NO-STORED in CI, and the reader-sweep fix; frozen before they run
+
+**The rulings (the reviewer, 2026-11-19).**
+- **The fence: (a), in 3b's PR.** 3b creates the second path to the `weatherscope-` identity, so the fence lands
+  with it.
+  - The grant: `scripts/` for a new check, and the firmware workflow's skus job, to run it.
+  - Its rules are F1, F2 and F3 below. Its selftest reads red first on P1, P2, WX_STORED in the live env, and a
+    shipping env extending the stored one, with C0 green.
+- **Q134 (a):** W7-NO-STORED runs in CI on the live build-only leg on EVERY run, plus any future slug-ful
+  Weatherscope leg: a guard nobody sees run is the thing to avoid.
+  - The grant: ONE step in the build job, after the build, beside the other image scans, and nowhere near the OTA
+    identity step.
+- **My slip, recorded.** S4.47 and S4.48 name the firmware workflow's file path in public text.
+  - That breaks the reviewer's standing rule (public text never names that file), and it trips `skus.py`'s reader
+    sweep: `--check-readers` exits 1 on this branch at `4cd6d90b7007`, naming this document.
+  - Frozen text is never edited (the owner's rule), and that rule wins. The reviewer makes a named exception to his
+    own: one `ALLOWED_MENTIONS` line in `scripts/skus.py`, on this branch.
+  - New text never cites that path again; it says "the firmware workflow".
+  - `--check-readers` runs before every plan-doc push from now on.
+- **A second slip, named.** `check_ota_identity.py --check-wiring` was run once on the code branch at ~04:21Z,
+  BEFORE this section existed. It exited 0; its output was not read. That read is not evidence. Row E4 below is the
+  graded run.
+
+**The change**, frozen by sha. Part D is on THIS branch. Parts E and F are on `weatherscope/w7-live-3b-code`, after
+`b54ed38a86c3`, which stays local until Friday's compile.
+
+| file | sha256 | what |
+|---|---|---|
+| `scripts/skus.py` (this branch) | `57bd5f77b901` (blob was `5be322bb8ec4`) | `ALLOWED_MENTIONS` gains `docs/weatherscope-stage4.md`, with "the Stage 4 plan; cites the firmware workflow's publish steps by line (S4.47, S4.48); parses nothing (a named exception: frozen text, cannot be reworded)". 3 lines added, nothing else |
+| `scripts/check_wx_stored.py` (new) | `f3b2d17c186f` | the fence: F1, F2 and F3; `--selftest` |
+| `tools/weatherscope/w7/w7_image.py` | `7371c64b1f63` (was `a8c222c064cb`) | the `--ci [--selftest] <repo> <bin> <elf>` mode: W7-NO-STORED on one image, controlled by that image's own bytes |
+| the firmware workflow | `777fe8e582f4` (was `c64219cf37ac`) | the skus job: two steps after the photo-mode fence (the selftest, then the check). The build job: one step after "Weather strings in the bench image", `if: matrix.env == 'weatherscope-s3-128' \|\| (matrix.slug && startsWith(matrix.env, 'weatherscope-'))`, running `w7_image.py --ci --selftest` on the leg's `firmware.bin` and `firmware.elf` |
+
+**The fence's rules** (`check_wx_stored.py`):
+- **F1:** WX_STORED is defined in exactly one env, `weatherscope-stored-s3-128`.
+  - Its resolved `build_flags` define it.
+  - No other env's resolved `build_flags` or `build_src_flags` define it.
+  - No other section names it at all, with comments stripped.
+- **F2:** skus.yml lists that env build-only with NO slug. It is read with `skus.parse`, not `validate`, so the fence
+  sees a slug on a build-only row itself.
+- **F3:** no section extends that env, or interpolates `${env:weatherscope-stored-s3-128.<option>}`.
+- **Its own resolver,** because the skus job has no PlatformIO:
+  - `extends` is comma-separated, and the first parent that has the option wins;
+  - `${section.option}` is expanded recursively;
+  - `;` comments are stripped;
+  - -D/-U are read last-one-wins.
+- **Its control:** the stored env must resolve `FEATURE_WEATHERSCOPE`, which it has only through interpolating the
+  live env's `build_flags`. If it does not, the result is BLIND (exit 2).
+- **Read, and nothing found:** platformio.ini has no `extra_configs` and no bare `[env]` section, so the one file is
+  the whole config. Neither new file contains the workflow's file name.
+
+**THE PREDICTIONS.**
+
+**Part D, this branch: the reader sweep.**
+- **D1** (before the push, on the commit carrying the line): `skus.py --check-readers` exits 0, `reader sweep OK: N
+  reviewed mention(s), no parser but skus.py.` N is printed and read. The graded part: no new file and no stale
+  entry. `--check-readers-selftest` exits 0.
+- **D2** (after the push): a fresh fetch reads the branch tip equal to the local HEAD, and `--check-readers` exits 0
+  again, on that tree.
+
+**Part E, the code branch: the fence, the sweep and the wiring.** All of it is Python only: no pio, no g++. It runs
+before 16:20Z.
+
+| step | prediction |
+|---|---|
+| E1 `check_wx_stored.py --selftest` | `WX-STORED SELFTEST PASSED`, exit 0, with each case as in the next table |
+| E2 `check_wx_stored.py` (the real tree) | exit 0: `ok: WX_STORED is in one env (weatherscope-stored-s3-128), build-only with no slug in skus.yml, extended and interpolated by none` |
+| E3 `skus.py --check-readers` | exit 0, `reader sweep OK: 16 reviewed mention(s), no parser but skus.py.`, as read at 04:18Z before any of this. Neither new file adds a mention |
+| E4 `check_ota_identity.py --check-wiring` | exit 0, `ok: 'OTA identity in the image' runs on every row, after the manifest, before the upload and the receipt`. The new build step sits before the factory-image step, away from the identity step's order |
+| E5 `w7_static.py` and its selftest | as at Friday's freeze: they read `src/weatherscope/` and main.cpp only. Not run now; named so Friday's freeze lists them |
+
+E1's cases. Each plant is made in an in-memory COPY of the real platformio.ini and skus.yml; each plant asserts that
+its anchor occurs once, and that the copy changed.
+
+| case | exit | rules | its lines |
+|---|---|---|---|
+| C0, the real files | 0 | none | none |
+| P1, a slug on the stored row, still build-only | 1 | F2 | 1: the slug, `firmware-weatherscope-s3-128.bin` |
+| P2, the stored row promoted to shipping | 1 | F2 | 2: the status, and the slug |
+| P3, `-DWX_STORED` added to the live env's `build_flags` (planted inside its section only) | 1 | F1 | 4: the live env, the OTA bench and the touch bench (both interpolate the live env's flags) define it, and the live section names it |
+| P3b, `build_src_flags = -DWX_STORED` in the live env | 1 | F1 | 4: the same three envs, through `build_src_flags` (the benches inherit it by `extends`), and the live section names it |
+| P4, a shipping env extending the stored env (an added section and skus.yml row) | 1 | F1, F3 | 2: it defines WX_STORED, and it extends the stored env |
+| P5, an env interpolating the stored env's `build_flags` | 1 | F1, F3 | 2: it defines WX_STORED, and it interpolates the stored env |
+| B1, BLIND: the live env's section renamed, so the stored env's `${...}` cannot resolve | 2 | BLIND | the resolver names the missing `FEATURE_WEATHERSCOPE` |
+
+**Part F, Friday, on the built images** (after B9, with the builds of S4.40). These are added to Friday's rows:
+- **F-CI1:** `w7_image.py --ci --selftest . live.bin live.elf`:
+  - `ok  W7-NO-STORED 33 crops: 0 in this image; crop symbols in its ELF 0; bend.bmpk and its symbols in this image
+    (the control)`;
+  - the appended crop reads FAIL, naming it; the blanked package reads BLIND;
+  - `W7-IMAGE CI SELFTEST PASSED`, exit 0.
+- **F-CI2, the real-embedding control:** `w7_image.py --ci` on the STORED image reads FAIL, with `33 in this image`
+  and crop symbols above 0. That proves the CI mode sees crops the build really embedded, not only an appended copy.
+- **F-CI3:** the step's condition, read from the workflow: it is true for `weatherscope-s3-128`, and false for
+  `weatherscope-stored-s3-128`, `weatherscope-bench-s3-128` and every non-Weatherscope env. That is today's matrix,
+  from `skus.py --matrix-json`.
+
+**Outside the set:**
+- **The rig:** a syntax error or a traceback in a new file. It is reported, fixed and repeated, and the correction
+  goes below this section.
+- **Anything else off STOPS,** and I fix nothing before the ruling.
+- **A plant that reads green is off,** whatever the reason.
