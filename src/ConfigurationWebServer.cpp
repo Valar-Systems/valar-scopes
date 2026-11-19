@@ -3173,6 +3173,15 @@ void ConfigurationWebServer::Initialise() {
         const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
         const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
         const String theme = prefs.getString("wx-theme", "");   // compared, never emitted (3.5t t5, A12.66)
+        // ENROLLED and REFUSED by the radar's own rules (see its loader above): enrolled means the FACTORY slot
+        // holds a key -- a pasted cloud-key is not enrolled -- and refused is the one bit published by the loop
+        // (SetNeedsReverify), false until Weatherscope publishes it, so a false "refused" can never show.
+        // ONE DELIBERATE DIFFERENCE FROM THE DEVICE (docs/weatherscope-stage4.md S4.36, ruling (a), the pasted-key
+        // row): the device's request key follows the radar's precedence (cloud-key, else cloud-key-fac), so a board
+        // with a pasted cloud-key and an empty cloud-key-fac draws Live while this page says "not enrolled" --
+        // which is true of its factory identity.
+        const bool enrolled = prefs.getString("cloud-key-fac", "").length() > 0;
+        const bool refused = needsReverify;
 #endif
         prefs.end();
 
@@ -3565,7 +3574,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, autoDimEnabled, brightness, theme]
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, autoDimEnabled, brightness, theme, enrolled, refused]
             (const String& var) -> String {
                 if (var == "LATITUDE")       return latitude;
                 if (var == "LONGITUDE")      return longitude;
@@ -3578,6 +3587,8 @@ void ConfigurationWebServer::Initialise() {
                 // The id the touch-unavailable strip names (A12.119, Q84): the same string, so a customer
                 // can match the two. A free function, like BUILD_ID below -- no capture list change.
                 if (var == "DEVICE_ID")      return DeviceIdentity::LeaderboardId();
+                if (var == "ENROLLED")       return enrolled ? "1" : "0";
+                if (var == "REFUSED")        return refused ? "1" : "0";
                 if (var == "FW_VERSION")     return String(FW_VERSION);
                 // Free function, so no capture list changes -- every edition's
                 // processor answers this identically. See BuildIdentity.h.
@@ -4167,7 +4178,9 @@ void ConfigurationWebServer::Initialise() {
 
     // Forget WiFi credentials and reboot into the WiFiManager setup portal. The
     // response is sent first; the restart is deferred a moment so it can flush.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if (!defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)) || defined(FEATURE_WEATHERSCOPE)
+    // Weatherscope too (its Ask B, docs/weatherscope-stage4.md S4.32): the route is unchanged, and the board
+    // reads the same NVS keys the radar does.
     /* -----------------------------------------------------------------------
      * ENROLLMENT KEY LANDING — the only path that may write "cloud-key-fac".
      *
