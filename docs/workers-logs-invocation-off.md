@@ -571,10 +571,11 @@ from constants, so it does not follow traffic. No other check reads `/v1/blips`.
 
 #### 7g. Corrections C5-C14: how the rows are read with the fixed stored-log reader (ruled 2026-11-19; appended below 7b-7f)
 
-**Why.** On Thursday 2026-11-19 the BEFORE windows were read twice. The first read held, every control exact. The
-second came back sampled (the API's query-time ABR level was above 1) and with HTTP 500s, so the two reads disagreed,
-controls included, and the step stopped before any deploy. The reader has since been fixed, and its design was
-accepted by the reviewer. These corrections say how each touched row of sections 5, 5a and 6 is read under it.
+**Why.** On Thursday 2026-11-19 the BEFORE windows were read twice. The first read's controls all read as
+predicted. The second returned estimated counts (`sampleInterval` above 1) and HTTP 500s, so the two reads disagreed,
+controls included, and the step stopped before any deploy. A third read, which saved the API's statistics, showed the
+query-time ABR level varying from one query to the next. The reader has since been fixed, and its design was accepted
+by the reviewer. These corrections say how each touched row of sections 5, 5a and 6 is read under it.
 
 - **No frozen line is edited.** Every correction is appended here.
 - **No predicted value changes.** C13 changes one check's status.
@@ -590,7 +591,8 @@ Line numbers are this file's at sha256 328e83431c52. Everything they cite sits a
 - the predicted list at L208-217.
 
 A count is certified only by a query that returned HTTP 200 with a statistics block whose `abr_level` is PRESENT and
-equal to 1, and with every `sampleInterval` equal to 1. An absent `abr_level` is not taken as 1. A "= 0" is exact only
+equal to 1, and with every `sampleInterval` equal to 0 or 1. A zero-count row at full resolution carries 0 (the
+reader design's Amendment 1, ruled before its A/B probe ran). An absent `abr_level` is not taken as 1. A "= 0" is exact only
 from such a query, and one query's resolution proves nothing about another's.
 
 **C6. Section 6 gains a cause of BLIND.** It sits beside L281's "any control = 0". A control, or a graded row, that is
@@ -656,6 +658,8 @@ mapping, which proposed "information".)
 **C14. (g) needs the W2 line found at full resolution.** (g) (L148; section 6 L279-280) reads the W2 request's
 `devl` from the W2 line, which is found by an events query. Under sampling that query can return no line. So (g) is
 read only when the events query that finds the W2 line is a value under C5. Otherwise (g) is BLIND, never "not equal".
+If the events query returns no `abr_level`, (g) cannot be certified under C5 and is BLIND by construction. Whether it
+does is to be shown before the new slot.
 
 ## 8. The label code, red first
 
