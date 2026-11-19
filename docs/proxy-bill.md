@@ -1714,3 +1714,52 @@ production; before the first F1 read in the new slot.
 4. F1 runs as frozen at `:1378-1426`, with this amendment.
 
 The code commit and the plant are mine; the reviewer reads both. Nothing deploys.
+
+## Step 5, amendment F1-R-1: a count is a value only at ABR 1 (registered 2026-11-19T13:27:50Z, the reviewer's condition on F1-R; append-only, nothing above is edited)
+
+**Why** (the reviewer, 2026-11-19, from map-server's finding the same day). The logs API applies QUERY-TIME sampling.
+- That sampling is `statistics.abr_level`. It does not show in `sampleInterval`, which is INGEST sampling.
+- Above ABR 1, real events can read 0. map-server saw staging's 7 read 0, and production's two plants each read 0.
+- As F1-R was written, a sampled pre-flight or scan could read `dev` 0 and call a mixed hour clean. That is the silent
+  gap F1-R exists to close.
+
+**The rule:** map-server's rule (i), `logsfix26.design.md` (sha256 `ebc916cd19f4`, local-only-20261119), applied to
+every query this reader makes: the pre-flight, the scan, LC-1 to LC-4, and every events page.
+- **A query is a VALUE only if** all of these hold:
+  - HTTP 200;
+  - a `statistics` block is present;
+  - `statistics.abr_level` is PRESENT and == 1 (an absent `abr_level` is not taken as 1);
+  - for a count, every `aggregates[].sampleInterval` is 0 or 1, as the reviewer worded it. An empty `aggregates`
+    (a count of 0) has no sampleInterval to fail.
+- **Anything else is BLIND.** A BLIND count is never 0, never a pass and never OFF, and its number is never printed as
+  a value.
+- **A "0" is exact only from a value** (ABR 1 on THAT query).
+- **Bounded re-ask, chosen on resolution only.** A query that is not a value is re-asked up to 2 more times, 30 s apart.
+  The first attempt that is a value is taken. The choice never looks at the count.
+  - Every attempt is recorded: status, `abr_level`, sampleInterval, and the count only on attempts that are values.
+  - A query with no value after 3 attempts stays BLIND.
+  - The 30 s is a module constant; only the plant harness sets it to 0.
+- **What BLIND stops:** a new exit, **6 BLIND**: "a query never reached ABR 1; F1 does not run on it". F1 does not run
+  on a BLIND pre-flight, a BLIND scan count, a BLIND LC row or a BLIND events page.
+  - An events page that is not a value is re-asked like a count; after 3 attempts the read stops BLIND, and its partial
+    histogram is discarded and never written.
+- **The frozen escape's "a sampled hour"** (`:1413`) now means: any page whose `abr_level` is absent or not 1. The
+  reader at `af55507b9ad7` accepted an absent one (`:168`, `[]`); that acceptance goes.
+- **Recorded in the result file:** per query, every attempt's four statistics keys, as map-server's `logsoff26s`
+  does, so a reading can be re-graded without a re-run.
+
+**LC-1 to LC-4 are graded only at ABR 1,** each one a value by the rule above. LC-SUM is now GRADED, because all three
+of its counts are values: LC-2 + LC-3 = LC-1 exactly. If not, the counts disagree at full resolution (map-server's F5
+class): stop, and F1 does not run.
+
+**The plant gains one row, red first:**
+
+| row | run | predicted | if not |
+|---|---|---|---|
+| **R-ABR-RED** (the sabotage) | the new reader with its ABR gate removed by a byte-asserted plant; H with `D-in`; the fake answers the PRE-FLIGHT with `abr_level` 100 and a count of 0 (a sampled zero), and everything else at ABR 1 | it goes on past the pre-flight and reads the mixed hour: 4 events returned, 0 with dev, exit 0, histogram `{"1": 1, "2": 1}`. That is the silent gap, shown | the plant did not plant: stop |
+| **R-ABR** | the new reader, intact; the same fake | 3 pre-flight attempts, all at `abr_level` 100, each recorded without a count; **0 events requests, 0 events returned**; exit **6 BLIND** | the gate does not hold: stop |
+| **R-ABR-ABSENT** | the same, but the fake OMITS `abr_level` on the pre-flight | as R-ABR: 3 attempts, exit 6, 0 events requests | an absent level is being taken as 1: stop |
+| **R-ABR-RECOVER** | the fake answers the pre-flight's first attempt at ABR 100 and its second at ABR 1, with the true count 1 | 2 attempts; the second is the value; pre-flight count 1; exit 5 from the pre-flight; 0 events requests | the re-ask does not hold: stop |
+
+R-RED, R-PRE, R-CLEAN, R-BACKSTOP and R-SCAN are unchanged; their fake answers at ABR 1 unless a row says otherwise.
+The order of section F1-R's **Order** stands, with these four rows run after R-SCAN.
