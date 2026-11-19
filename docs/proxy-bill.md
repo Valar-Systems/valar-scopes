@@ -1425,6 +1425,8 @@ wrangler; the token file's `observability-read`, never printed; error paths prin
 **When:** after step 4d's read. The hour is the last closed hour at that time. It runs before Thursday's PC quiet
 (16:25Z): a multi-page reader is not allowed during it.
 
+CORRECTION (append-only): keys on devl only per the reviewer's 2026-11-19 ruling; a dev line refuses (reader :121-123).
+
 ## Step 4e: lever (c), what the refresh-data job writes (registered 2026-11-19T00:14:57Z, before its reader exists; read-only, GitHub only)
 
 **Why.** Step 4c showed that production's KV writes are the Worker's request path, plus the refresh-data job at about
