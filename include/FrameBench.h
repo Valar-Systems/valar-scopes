@@ -40,7 +40,12 @@ namespace framebench {
 // (the OLD path, only in AircraftManager's FRAME_BENCH region), LABELS_CACHE through the cache, and LABELS_CHECK
 // through the cache with today's layout alongside, counting mismatches (untimed: the check costs a second layout).
 enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, LABELS_TODAY = 4, LABELS_CACHE = 5,
-                      LABELS_CHECK = 6, LABELS_TODAY_STILL = 7, LABELS_CACHE_STILL = 8, kKinds };
+                      LABELS_CHECK = 6, LABELS_TODAY_STILL = 7, LABELS_CACHE_STILL = 8,
+                      // P6-DIAG (include/DiagP6.h): every arm with its rows HELD (the still arms' hold, without their
+                      // sweep- and trails-off), so the check scene covers exactly the timed arms' positions.
+                      LABELS_CHECK_HELD = 9, LABELS_TODAY_HELD = 10, LABELS_CACHE_HELD = 11, LABELS_X1_HELD = 12,
+                      LABELS_X2_HELD = 13,
+                      kKinds };
 // docs/speed-p5p6.md 15c (2): G6's still label arms (p4's gains list S6/S7, untimed): today's layout (STILL_TODAY) and
 // the cache (STILL_CACHE), the rows held at kTblT with gs 0, the sweep and the trails off BY KIND after Initialise()
 // (ProfileOverride answers "scanline" and "trail" true), so S6 and S7 can be compared by pixels (15b-1's row).
@@ -88,8 +93,10 @@ static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
 static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "labels-today", "labels-cache",
-                                        "labels-check", "labels-today-still", "labels-cache-still"};
-constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0};
+                                        "labels-check", "labels-today-still", "labels-cache-still",
+                                        "labels-check-held", "labels-today-held", "labels-cache-held", "labels-x1-held",
+                                        "labels-x2-held"};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 // A kind without an entry in both tables fails the build (docs/speed-p5p6.md section 0, "the kind tables").
 static_assert(sizeof(kKindName) / sizeof(kKindName[0]) == kKinds, "kKindName needs one entry per Kind");
 static_assert(sizeof(kPushDelayMs) / sizeof(kPushDelayMs[0]) == kKinds, "kPushDelayMs needs one entry per Kind");
@@ -194,14 +201,28 @@ inline int Level() { return InScene() ? (int)kScenes[S().scene].level : kLevel; 
 // P6: lay labels out as before the cache (the OLD path) in this scene; or check the cache against that, per contact.
 inline bool LabelsOld()
 {
-    return InScene() && (kScenes[S().scene].kind == LABELS_TODAY || kScenes[S().scene].kind == LABELS_TODAY_STILL);
+    return InScene() && (kScenes[S().scene].kind == LABELS_TODAY || kScenes[S().scene].kind == LABELS_TODAY_STILL ||
+                         kScenes[S().scene].kind == LABELS_TODAY_HELD);
 }
 // 15c (2): a still label arm, either path: the rows held (OnCloudPoll), the sweep and trails off (applyScene).
 inline bool LabelsStill()
 {
     return InScene() && (kScenes[S().scene].kind == LABELS_TODAY_STILL || kScenes[S().scene].kind == LABELS_CACHE_STILL);
 }
-inline bool LabelsCheck() { return InScene() && kScenes[S().scene].kind == LABELS_CHECK; }
+inline bool LabelsCheck()
+{
+    return InScene() && (kScenes[S().scene].kind == LABELS_CHECK || kScenes[S().scene].kind == LABELS_CHECK_HELD);
+}
+// P6-DIAG: the rows held (OnCloudPoll) with the sweep and trails left as they are; and the two extra-work arms.
+inline bool LabelsHeld()
+{
+    if (!InScene()) return false;
+    const Kind k = kScenes[S().scene].kind;
+    return k == LABELS_CHECK_HELD || k == LABELS_TODAY_HELD || k == LABELS_CACHE_HELD || k == LABELS_X1_HELD ||
+           k == LABELS_X2_HELD;
+}
+inline bool LabelsX1() { return InScene() && kScenes[S().scene].kind == LABELS_X1_HELD; }
+inline bool LabelsX2() { return InScene() && kScenes[S().scene].kind == LABELS_X2_HELD; }
 inline void NoteLabel(bool same)
 {
     State& s = S();
@@ -408,7 +429,7 @@ inline void OnCloudPoll(JsonDocument& doc, Rows& rows, long& dataEpoch, Parse pa
     // 15c (2), ported from bench/speed-p5 c33529a41f3d (the anchor's hold): in a still label arm the rows are computed
     // at kTblT and served with gs 0, so PredictPosition's displacement is 0 and the contacts hold still; the wire's "t"
     // stays `now`, so the stale ladder is untouched.
-    const bool hold = LabelsStill();
+    const bool hold = LabelsStill() || LabelsHeld();   // P6-DIAG: the held arms take the hold too
     for (int i = 0; i < n; ++i) {
         fbtable::Row r = fbtable::At(lat0, lon0, i, hold ? (double)kTblT : (double)now);
         if (hold) r.gs = 0.0;
@@ -549,7 +570,7 @@ inline void EndMeasure()
     s.dumpPos = 0;
     s.dumpScene = s.scene;
     Serial.printf("[frame-bench] scene S%d end frames=%d over-cap=%d\n", s.scene, s.n, s.overflowFrames);
-    if (s.scene >= 0 && kScenes[s.scene].kind == LABELS_CHECK) {   // P6's equality row: predicted 0 mismatches
+    if (s.scene >= 0 && (kScenes[s.scene].kind == LABELS_CHECK || kScenes[s.scene].kind == LABELS_CHECK_HELD)) {   // P6's equality row: predicted 0 mismatches
         Serial.printf("[speed-p6] labels S%d checked %lu mismatches %lu\n", s.scene, (unsigned long)s.labelChecks,
                       (unsigned long)s.labelMismatches);
         s.labelChecks = s.labelMismatches = 0;

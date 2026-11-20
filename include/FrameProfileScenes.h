@@ -43,8 +43,20 @@ static const char* const kArmName[] = {"6-CHECK", "P-CTRL", "6-OLD1", "6-NEW1", 
                                        "6-STILL-NEW"};
 constexpr bool kLabelsPlant[] = {false, true, false, false, false, false, false, false};
 constexpr bool kOutlinePlant[] = {false, false, false, false, false, false, false, false};
+#elif defined(FRAME_PROFILE_GAINS) && FRAME_PROFILE_GAINS == 8
+// P6-DIAG (weatherscope, REG-diag-images.md f020896cbfe1, accepted): G6 plus the diagnostic arms (include/DiagP6.h).
+// Every scene level 40, weather on, rows HELD. S0 the check at the held positions (untimed); then OLD, NEW, X1, X2,
+// OLD, NEW, timed. No plant arm (the registration lists none).
+static const Scene kScenes[] = {
+    {LABELS_CHECK_HELD, 40, true},
+    {LABELS_TODAY_HELD, 40, true}, {LABELS_CACHE_HELD, 40, true}, {LABELS_X1_HELD, 40, true}, {LABELS_X2_HELD, 40, true},
+    {LABELS_TODAY_HELD, 40, true}, {LABELS_CACHE_HELD, 40, true},
+};
+static const char* const kArmName[] = {"6-CHECK-H", "6-OLD1", "6-NEW1", "6-X1", "6-X2", "6-OLD2", "6-NEW2"};
+constexpr bool kLabelsPlant[] = {false, false, false, false, false, false, false};
+constexpr bool kOutlinePlant[] = {false, false, false, false, false, false, false};
 #elif defined(FRAME_PROFILE_GAINS)
-#error "FRAME_PROFILE_GAINS is 5 (G5, bench/speed-p5) or 6 (G6, bench/speed-p6)"
+#error "FRAME_PROFILE_GAINS is 5 (G5, bench/speed-p5), 6 (G6, bench/speed-p6) or 8 (P6-DIAG, bench/diag-p6)"
 #else
 static const Scene kScenes[] = {
     {C1, 20, false}, {C1, 40, false}, {C1, 60, false},

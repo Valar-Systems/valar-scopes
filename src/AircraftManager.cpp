@@ -7,6 +7,7 @@
 // THE FRAME PROFILE BEGIN
 #ifdef FRAME_PROFILE
 #include "FrameProfile.h"   // the frame profile, P1 (docs/frame-profile.md)
+#include "DiagP6.h"   // P6-DIAG (REG-diag-images.md): defines DIAG_P6_ON only when FRAME_PROFILE_GAINS == 8
 #endif
 // THE FRAME PROFILE END
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
@@ -2217,6 +2218,9 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     fb.overflowFrames = 0;
                     fb.marginProbe = 0;   // A2: a margin scene's first probe is due as its measure starts
                     fb.marginNextMs = nowMs;
+#ifdef DIAG_P6_ON
+                    diagp6::MeasureStart();   // P6-DIAG: the heap at this measure window's start
+#endif
                     Serial.printf("[frame-bench] scene S%d measure\n", fb.scene);
                 }
             } else if (nowMs - fb.phaseStartMs >= framebench::MeasureMs(fb.scene)) {
@@ -2224,6 +2228,9 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                 // THE FRAME PROFILE BEGIN
 #ifdef FRAME_PROFILE
                 frameprofile::EndMeasure(fb.scene);
+#endif
+#ifdef DIAG_P6_ON
+                diagp6::Print(fb.scene);   // P6-DIAG: one [diag-p6] heap line per scene
 #endif
                 // THE FRAME PROFILE END
                 const int next = fb.scene + 1;
@@ -5857,6 +5864,16 @@ int AircraftManager::LabelLayout(const TrackedAircraft& tracked, int x, int y,
                        f.Format(ti[k]) == e->text[s[k]];
             framebench::NoteLabel(same);
         }
+#ifdef DIAG_P6_ON
+        if (framebench::LabelsX1()) {   // P6-DIAG X1: OLD's layout format() work, run and discarded (inside A_LAYOUT)
+            int ti[labelcache::kLines], tx[labelcache::kLines], ty[labelcache::kLines], tw[labelcache::kLines];
+            const int tn = labelcache::LayoutToday(f, x, y, ti, tx, ty, tw);
+            uint32_t acc = (uint32_t)tn;
+            for (int k = 0; k < tn; ++k) acc += (uint32_t)(ti[k] + tx[k] + ty[k] + tw[k]);
+            diagp6::Sink(acc);
+        }
+        if (framebench::LabelsX2()) diagp6::AllocLikeToday();   // P6-DIAG X2: String churn only, no format() code
+#endif
 #endif
         // THE FRAME BENCH END
         if (entryOut) *entryOut = e;
