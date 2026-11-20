@@ -11,6 +11,14 @@ void BenchScratchCheck();   // defined beside the scratch it checks (TheOutlineS
 // THE FRAME PROFILE BEGIN
 #ifdef FRAME_PROFILE
 #include "FrameProfile.h"   // the frame profile, P1 (docs/frame-profile.md)
+#include "DiagP5.h"   // P5-DIAG (REG-diag-images.md): defines DIAG_P5_ON only when FRAME_PROFILE_GAINS == 7
+#ifdef DIAG_P5_ON
+namespace {
+// defined beside the scratch they use (TheOutlineScratch), in this unnamed namespace
+void BenchOutlineSub(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, bool triangles, int upDeg);
+void BenchOutlineDiscard(int x, int y, const TrackedAircraft& tracked, bool triangles, int upDeg);
+}
+#endif
 #endif
 // THE FRAME PROFILE END
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
@@ -2222,6 +2230,9 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     fb.anchorStage = framebench::AnchorScene() ? 1 : 0;
                     fb.anchorP1Ms = nowMs + framebench::kAnchorP1Ms;
                     fb.anchorN = 0;
+#ifdef DIAG_P5_ON
+                    diagp5::Reset();   // P5-DIAG: the per-scene totals count this measure window only
+#endif
                     Serial.printf("[frame-bench] scene S%d measure\n", fb.scene);
                 }
             } else if (nowMs - fb.phaseStartMs >= framebench::MeasureMs(fb.scene)) {
@@ -2229,6 +2240,9 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                 // THE FRAME PROFILE BEGIN
 #ifdef FRAME_PROFILE
                 frameprofile::EndMeasure(fb.scene);
+#endif
+#ifdef DIAG_P5_ON
+                diagp5::Print(fb.scene);   // P5-DIAG: one [diag-p5] line per scene (every scene; zero where unused)
 #endif
                 // THE FRAME PROFILE END
                 const int next = fb.scene + 1;
@@ -4563,6 +4577,22 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
                         else backbuffer.fillCircle(x + ox, y + oy, 3, 0u);
                     }
             }
+#ifdef DIAG_P5_ON
+            if (outline && framebench::OutlineSub()) {   // P5-DIAG 1a-SUB: the mask, timed per step
+                outlineMask = false;
+                BenchOutlineSub(backbuffer, x, y, tracked, displayTriangles, radarUpDeg);
+            }
+            if (outline && framebench::OutlineDiscard()) {   // P5-DIAG 1a-DISCARD: NEW's code, then OLD's pixels
+                outlineMask = false;
+                BenchOutlineDiscard(x, y, tracked, displayTriangles, radarUpDeg);
+                for (int oy = -1; oy <= 1; ++oy)
+                    for (int ox = -1; ox <= 1; ++ox) {
+                        if (ox == 0 && oy == 0) continue;
+                        if (displayTriangles) DrawAircraftTriangle(backbuffer, x + ox, y + oy, tracked, 0u);
+                        else backbuffer.fillCircle(x + ox, y + oy, 3, 0u);
+                    }
+            }
+#endif
 #endif
             // THE FRAME BENCH END
             if (outlineMask) DrawOutlineMask(backbuffer, x, y, tracked);
@@ -6078,6 +6108,40 @@ void BenchScratchCheck()
     Serial.printf("[speed-p5] scratch bytes %d mismatches %d\n", scratchcheck::kBytes,
                   scratchcheck::Mismatches(s, scratchcheck::kTable));
 }
+#ifdef DIAG_P5_ON
+// P5-DIAG's 1a-SUB: DrawOutlineMask's body (below) with the TIMED COPY of DrawEdge (include/DiagP5.h). Counts only
+// while the scene measures.
+void BenchOutlineSub(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, bool triangles, int upDeg)
+{
+    OutlineScratch& scratch = TheOutlineScratch();
+    const bool count = framebench::S().measuring;
+    if (triangles) {
+        const outlinemask::Dir d = outlinemask::Heading(tracked.state.trueTrack, upDeg);
+        const int cat = tracked.state.category;
+        diagp5::DrawEdgeTimed(backbuffer, scratch, outlinemask::Build(cat, d, x, y),
+                              [&](int ax, int ay) { return outlinemask::Build(cat, d, ax, ay); }, x, y, 0u, count);
+    } else {
+        diagp5::DrawEdgeTimed(backbuffer, scratch, outlinemask::BuildDot(x, y),
+                              [](int ax, int ay) { return outlinemask::BuildDot(ax, ay); }, x, y, 0u, count);
+    }
+}
+// P5-DIAG's 1a-DISCARD: DrawOutlineMask's body with the SHIPPING DrawEdge, against a canvas that keeps nothing. The
+// caller then draws today's 8 copies.
+void BenchOutlineDiscard(int x, int y, const TrackedAircraft& tracked, bool triangles, int upDeg)
+{
+    OutlineScratch& scratch = TheOutlineScratch();
+    diagp5::DiscardCanvas none;
+    if (triangles) {
+        const outlinemask::Dir d = outlinemask::Heading(tracked.state.trueTrack, upDeg);
+        const int cat = tracked.state.category;
+        outlinemask::DrawEdge(none, scratch, outlinemask::Build(cat, d, x, y),
+                              [&](int ax, int ay) { return outlinemask::Build(cat, d, ax, ay); }, x, y, 0u);
+    } else {
+        outlinemask::DrawEdge(none, scratch, outlinemask::BuildDot(x, y),
+                              [](int ax, int ay) { return outlinemask::BuildDot(ax, ay); }, x, y, 0u);
+    }
+}
+#endif
 #endif
 // THE FRAME BENCH END
 }  // namespace

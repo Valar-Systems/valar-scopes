@@ -44,7 +44,9 @@ namespace framebench {
 // ANCHOR_8COPY serves kAnchorLevel contacts with today's 8 copies. Both: positions at kTblT with gs 0 (they hold
 // still), radius kAnchorRungMi, and the Override set in Override(); each prints its contacts twice ([speed-p5] anchor).
 enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, OUTLINE_8COPY = 4, OUTLINE_MASK = 5,
-                      SWEEP_OLD = 6, SWEEP_LUT = 7, ANCHOR_BG = 8, ANCHOR_8COPY = 9, kKinds };
+                      SWEEP_OLD = 6, SWEEP_LUT = 7, ANCHOR_BG = 8, ANCHOR_8COPY = 9,
+                      OUTLINE_MASK_SUB = 10, OUTLINE_MASK_DISCARD = 11,   // P5-DIAG (include/DiagP5.h)
+                      kKinds };
 constexpr int kLevel = 40;      // C1's level: a scene's default, and Level() outside a scene
 constexpr int kTableMax = 60;   // the rows TBL-HOST verifies (tbl_host_lv.py: i < 60); Allocate() refuses a level above
 constexpr int kAnchorLevel = 20;      // 7e's pick (tools/speed-p5p6/anchor_pick.cpp): L 20 ...
@@ -104,8 +106,9 @@ static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
 static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "outline-8copy", "outline-mask",
-                                        "sweep-old", "sweep-lut", "anchor-bg", "anchor-8copy"};
-constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0, 0};
+                                        "sweep-old", "sweep-lut", "anchor-bg", "anchor-8copy", "outline-sub",
+                                        "outline-discard"};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 // A kind without an entry in both tables fails the build (docs/speed-p5p6.md section 0, "the kind tables").
 static_assert(sizeof(kKindName) / sizeof(kKindName[0]) == kKinds, "kKindName needs one entry per Kind");
 static_assert(sizeof(kPushDelayMs) / sizeof(kPushDelayMs[0]) == kKinds, "kPushDelayMs needs one entry per Kind");
@@ -235,6 +238,9 @@ inline bool OutlineOld()
 {
     return InScene() && (kScenes[S().scene].kind == OUTLINE_8COPY || kScenes[S().scene].kind == ANCHOR_8COPY);
 }
+// P5-DIAG (include/DiagP5.h): the mask timed per step, and NEW's code with OLD's pixels.
+inline bool OutlineSub() { return InScene() && kScenes[S().scene].kind == OUTLINE_MASK_SUB; }
+inline bool OutlineDiscard() { return InScene() && kScenes[S().scene].kind == OUTLINE_MASK_DISCARD; }
 // P5 1b: blend the wedge with today's per-pixel wxsweep::Blend (the OLD path) in this scene.
 inline bool SweepOld() { return InScene() && kScenes[S().scene].kind == SWEEP_OLD; }
 
