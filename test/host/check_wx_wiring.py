@@ -43,16 +43,33 @@ def wd5b_page(page):
     return (not bad), (f"{len(defaults)} default(s), all \"true\"" if not bad else f"defaults {defaults}")
 
 
+WP1_GATE = '#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS)'
+WP1_GATE_LINE = re.compile(r'^' + re.escape(WP1_GATE) + r'[ \t]*(//[^\n]*)?$', re.M)
+
+
 def wp1(page):
     """The weather section's markup is compiled only under WX_LAYER_SHIPS, and the other branch is an empty section. The
-    page cannot be rendered on a host, so this reads the #if that decides it; check-no-weather.sh reads the built image."""
-    gate = '#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS)'
-    i, m, e = page.find(gate), page.find('name=\\"wx-layer\\"'), page.find('if (var == "WXSECTION")      return "";')
+    page cannot be rendered on a host, so this reads the #if that decides it; check-no-weather.sh reads the built image.
+    The anchor is the LAST line before the markup that IS the weather gate (the gate alone, or with a // comment): a
+    longer condition that merely begins with the same text (map-client step D's map gates) is not it. The first-match
+    anchor this replaced is kept as _wp1_first, for the selftest's decoy case only."""
+    m, e = page.find('name=\\"wx-layer\\"'), page.find('if (var == "WXSECTION")      return "";')
+    gates = [g.start() for g in WP1_GATE_LINE.finditer(page) if m < 0 or g.start() < m]
+    i = gates[-1] if gates else -1
     if i < 0 or m < 0 or e < 0:
         return False, f"gate {i >= 0}, markup {m >= 0}, empty branch {e >= 0}"
-    between = page[i + len(gate):m]
+    between = page[i + len(WP1_GATE):m]
     ok = i < m < e and "#else" not in between and "#endif" not in between and "#else" in page[m:e]
     return ok, ("the markup is under WX_LAYER_SHIPS, the other branch is empty" if ok else "the markup is not under the switch")
+
+
+def _wp1_first(page):
+    """The anchor before the fix (page.find: the FIRST gate text), kept for the selftest's decoy case only."""
+    i, m, e = page.find(WP1_GATE), page.find('name=\\"wx-layer\\"'), page.find('if (var == "WXSECTION")      return "";')
+    if i < 0 or m < 0 or e < 0:
+        return False, f"gate {i >= 0}, markup {m >= 0}, empty branch {e >= 0}"
+    between = page[i + len(WP1_GATE):m]
+    return (i < m < e and "#else" not in between and "#endif" not in between and "#else" in page[m:e]), ""
 
 
 def get_bytes_body(hrm):
@@ -223,6 +240,16 @@ def main():
             ok = red == [target]
             print(f"  SELFTEST {label}: red = {red} ({'exactly its own check' if ok else 'WRONG'})")
             bad += 0 if ok else 1
+        # the decoy (wp1_fix_predictions.txt F2): a block before everything whose #if BEGINS with the weather gate's text.
+        # The fixed WP1 must allow it, and the first-match anchor it replaced must read it red.
+        decoy = '#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(DECOY)\n#include "Decoy.h"\n#endif\n'
+        copy = dict(src); copy["page"] = decoy + src["page"]
+        red = [n for n, ok, _ in run(copy) if not ok]
+        old_red = not _wp1_first(copy["page"])[0]
+        ok = red == [] and old_red
+        print(f"  SELFTEST a decoy gate placed before everything: red = {red} (allowed); the first-gate anchor reads it "
+              f"red: {old_red} ({'as wanted' if ok else 'WRONG'})")
+        bad += 0 if ok else 1
         print("SELFTEST PASSED" if bad == 0 else f"SELFTEST FAILED ({bad})")
         return 0 if bad == 0 else 3
     fails = 0
