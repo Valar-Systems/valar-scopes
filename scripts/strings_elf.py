@@ -4,7 +4,8 @@
 Which strings does a candidate build ADD against a reference build, read from the boundaries the compiler already wrote
 in each object file, not from the linked image:
 
-  T1  every PROGBITS section flagged mergeable-strings (SHF_MERGE|SHF_STRINGS, the .rodata.str1.N family), split on NUL.
+  T1  every ALLOCATED PROGBITS section flagged mergeable-strings (SHF_ALLOC|SHF_MERGE|SHF_STRINGS, the .rodata.str1.N
+      family), split on NUL. Not .debug_str or .comment: they carry M and S but not A, and never reach the image.
   T2  every OBJECT symbol in a non-T1 .rodata* section, read by its own extent; text only if the bytes before the first
       NUL are valid UTF-8 with no control character but tab, CR and LF, at least one NUL follows, only NULs come after
       it, and there is at least one character. A symbol any of whose bytes lies under a relocation is never text
@@ -114,7 +115,9 @@ def read_object(tool, path):
 # ---------------------------------------------------------------------------------------------------- the rules
 
 def is_t1(sec):
-    return sec["type"] == "PROGBITS" and "M" in sec["flags"] and "S" in sec["flags"]
+    """Allocated (A), mergeable (M) strings (S). Without A, .debug_str and .comment came in: never in the image (the
+    C-ARR control's first off, 2026-11-20)."""
+    return sec["type"] == "PROGBITS" and all(f in sec["flags"] for f in "AMS")
 
 
 def is_text(b):
@@ -250,7 +253,8 @@ EM_XTENSA, R_XTENSA_32 = 94, 1
 
 
 def write_elf(path, secs):
-    """secs: [(name, kind, bytes, [(symbol, offset, size)], [reloc offsets])], kind in text|str|ro.
+    """secs: [(name, kind, bytes, [(symbol, offset, size)], [reloc offsets])], kind in text|str|ro|dbgstr (dbgstr: M+S
+    without A, as a compiler's .debug_str).
     Writes an ELF32 LE ET_REL xtensa object: .rodata.str1.1-style sections flagged AMS (entsize 1), OBJECT symbols,
     and a .rela.<sec> per section with relocations (R_XTENSA_32 against the first strings section's symbol)."""
     shstr, strtab = bytearray(b"\0"), bytearray(b"\0")
@@ -262,8 +266,10 @@ def write_elf(path, secs):
 
     hdrs = [None]                                         # [ (name, type, flags, data, link, info, align, es) ]
     for name, kind, data, _, _ in secs:
-        flags = {"text": SHF_ALLOC | SHF_EXEC, "str": SHF_ALLOC | SHF_MERGE | SHF_STRINGS, "ro": SHF_ALLOC}[kind]
-        hdrs.append([name, 1, flags, bytes(data), 0, 0, 1 if kind == "str" else 4, 1 if kind == "str" else 0])
+        flags = {"text": SHF_ALLOC | SHF_EXEC, "str": SHF_ALLOC | SHF_MERGE | SHF_STRINGS, "ro": SHF_ALLOC,
+                 "dbgstr": SHF_MERGE | SHF_STRINGS}[kind]
+        isstr = kind in ("str", "dbgstr")
+        hdrs.append([name, 1, flags, bytes(data), 0, 0, 1 if isstr else 4, 1 if isstr else 0])
     sym_index = len(hdrs)
     syms = [struct.pack("<IIIBBH", 0, 0, 0, 0, 0, 0)]
     secsym = {}
@@ -375,6 +381,8 @@ def selftest(tool):
                                        (".rodata.str1.1", "str", DEAD + b"\0", [], [])]}, image(),
          ([], [DEAD], 0)),
         ("S-REM", base(drop=[B1]), {}, image(drop=[B1]), ([], [], 1)),
+        ("S-DEBUG", base(extra_secs=[(".debug_str", "dbgstr", b"k6b debug only name\0", [], [])]), {}, image(),
+         ([], [], 0)),
         ("S-MASK", base(extra_lits=[MIP, MHEX, MMAC, MDEC, V1, V2]), {}, image([MIP, MHEX, MMAC, MDEC, V1, V2]),
          ([(MIP, "T1"), (MHEX, "T1"), (MMAC, "T1"), (MDEC, "T1"), (V1, "T1"), (V2, "T1")], [], 0)),
         ("R-BADUTF8", base(extra_secs=[ro("r1", b"\xff\xfeAB\0\0\0\0")]), {}, image(), ([], [], 0)),

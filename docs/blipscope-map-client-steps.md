@@ -5857,6 +5857,31 @@ link.
   and this file). So the same four workflows run, the ones that run on every pull request.
 - The script is not yet wired into any job (Q-6b-6), so no job count changes.
 
+#### Correction 1 to 6b's tool: the C-ARR control's catch (2026-11-20)
+
+**What the control caught.** The c-arr build read
+`NOT-LINKED T1 src/main.cpp.o .debug_str "k6bArr"`: not-linked 1, against 0 predicted. That is the new array's NAME,
+in the debug strings. The added clause held (the planted text, T2). Recorded as the C-ARR row's first off reading.
+
+**The defect.** T1 took every PROGBITS section flagged M and S, without requiring A. `.debug_str` and `.comment` carry
+M and S but are not allocated, so they never reach the image. On the base build, 3,491 T1 strings came from allocated
+sections and 47,798 from non-allocated ones, 47,414 of them only there.
+- So the string counts in the table above are debug-inflated: P6's "51,010 strings a side" was mostly debug and
+  compiler-ident text. P6's added, removed and not-linked counts of 0 still held: it read one build against itself.
+- **Why nothing earlier saw it:** the selftest's synthetic objects carried no debug sections; P6 compared a build with
+  itself; C-POS adds a literal but no new name. C-ARR was the first control to add a name.
+
+**The fix (ruled F1-F5, predictions frozen first):**
+- T1 requires A, M and S (`SHF_ALLOC|SHF_MERGE|SHF_STRINGS`).
+- The selftest gains S-DEBUG: a non-allocated `.debug_str` holding a new string reads 0 added, 0 not-linked. That
+  makes 19 rows, and they hold with both readelfs.
+- PL-4 (A dropped) turns exactly S-DEBUG off; PL-1 to PL-3 keep their off rows.
+- The fixed tool re-graded C-NULL, C-POS and C-ARR with the SAME predictions: all hold, and C-ARR's not-linked reads 0.
+  It then graded C-ARR-DEG for the first time.
+- P6, re-run twice 65 s apart, reads 0/0/0 with 3,886 strings a side, the allocated sets.
+
+The table above is left as it was run.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
