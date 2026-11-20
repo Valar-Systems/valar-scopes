@@ -10,6 +10,30 @@ The review's core finding: the firmware architecture is sound, and the cheap val
 
 ---
 
+## Missileer — LAUNCH BLOCKERS
+
+Missileer (`FEATURE_EAM`, the EAM monitor) is not shipping yet: no `missileer-*` row in
+[skus.yml](skus.yml) has a slug. This file is the Aviation roadmap, but Missileer's
+blockers go here, at the top, until Missileer has a roadmap of its own. Nothing on this
+list is optional: each item is done or ruled out before the first Missileer reaches a
+customer.
+
+- **The Clock's heritage lines are sample data** (added 2026-10-12). Before any Missileer
+  ships to a customer, the Clock's heritage lines ("1961: SAC airborne alert begins",
+  "1991: HFGCS keeps the watch") are either real data from a public-domain source we can
+  name, or removed.
+  - **Where they are:** `kHeritageSample` in
+    [src/eam/EamScreens.cpp](src/eam/EamScreens.cpp), lines 34–37. They cycle on the
+    Clock's ambient line with the day's real counts.
+  - **The source comment says what they are:** `// "this-day in HFGCS heritage" sample
+    lines. SAMPLE DATA -- ship empty or move to a bundled JSON; here just to exercise the
+    idle clock's ambient line.`
+  - **Already handled in the photo build:** the Missileer photo build (`PHOTO_MODE`,
+    PR #394, `docs/missileer-photo-mode.md`) leaves both lines out under the
+    real-data-only rule. The shipping build still shows them.
+
+---
+
 ## Open work, consolidated 2026-08-13
 
 Everything outstanding across sessions, in one place, so the tracker is the tree's
