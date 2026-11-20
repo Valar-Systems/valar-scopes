@@ -5882,6 +5882,44 @@ sections and 47,798 from non-allocated ones, 47,414 of them only there.
 
 The table above is left as it was run.
 
+#### 6b's controls, as read (2026-11-20)
+
+**Registered before any build** (predictions `d05ec9633cc3`; Q-6bc-1 ruled YES: C-DEAD's function is non-static, alone
+in its own translation unit). The base is `cf0dce7333b0` and the env `blipscope-s3-128`, one clean build per image.
+- Each control is ONE commit off the base, on a local bench branch that is never pushed.
+- Every build ran in one worktree path, with `SOURCE_DATE_EPOCH` and the macro prefix map pinned, and its output and
+  libdeps on a second drive.
+- The C: drive was gated by a DIRECT count of the bytes written per build (PlatformIO's home and the temp folder, the
+  sessions' own scratch excluded), not by a free-space delta. The largest single build wrote 16.3 MiB.
+- Every read is the fixed tool's (Correction 1 above), with the toolchain's own readelf 2.43.1, and base-a as the
+  reference.
+
+| control | the image | read | verdict |
+|---|---|---|---|
+| C-NULL | the base, built twice | 0 added, 0 removed, 0 not-linked; objects equal; K equal (432); the two `firmware.bin` byte-identical | holds |
+| C-POS | + `Serial.println("6b-ctl C-POS planted")` | exactly 1 added, that text, T1 (`.rodata._Z5setupv.str1.1`) | holds |
+| C-ARR | + `static const char k6bArr[] = "6b-ctl C-ARR planted"` | exactly 1 added, that text, T2 (`.rodata._ZZ5setupvE6k6bArr`); 0 not-linked | holds (its first off, recorded in Correction 1, fixed) |
+| C-ARR-DEG | + an array holding "6b-ctl 21°C planted" (a degree sign) | exactly 1 added, that text, T2 | holds |
+| C-PTR | + a 6-slot `const char*` table over six literals already compiled in `setup()` | 0 added, 0 removed; all six literals present in the base; `T2 skipped for relocations` 432 -> 433, exactly the table | holds |
+| C-ADDR | + a noinline function of 256 nops, called from `setup()` | 0 added, 0 removed; the bin differs from the base's at 1,050,635 bytes (the addresses moved) | holds |
+| C-DEAD | + a non-static function alone in `src/k6b_dead.cpp`, called by nothing | 0 added; exactly 1 compiled, not linked: that text, T1 (`src/k6b_dead.cpp.o`, `.rodata._Z7k6bDeadv.str1.1`); objects + 1; the bin is 48 bytes larger than the base's (the size was not predicted) | holds |
+
+The function sections give each function its own strings section (`.rodata.<function>.str1.1`). T1 finds those by
+their flags, not their names.
+
+**What the six show, together with the selftest:**
+- the tool sees an added literal (C-POS) and an added named array (C-ARR, C-ARR-DEG);
+- it does not count a pointer table as text (C-PTR, the case both earlier instruments failed);
+- moved addresses change nothing it reads (C-ADDR);
+- and it tells a literal that was compiled but not linked from one that was linked (C-DEAD).
+
+**Next:** the gate read (v19's release against the v20 candidate, each rebuilt and proven against its published
+binary) waits on the candidate. The `run.sh` block is the harness owner's.
+
+**CI for this push (two commits: Correction 1's fix and this record), predicted: 35 check runs: 33 success, 2 skipped
+(`promote`, `version`), 0 failed.** The baseline is this PR's own first head, `1435d13c772d` (35 = 33/2/0). The same
+two files change, and no workflow file has changed since.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
