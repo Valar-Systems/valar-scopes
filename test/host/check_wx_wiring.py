@@ -250,6 +250,21 @@ def main():
         print(f"  SELFTEST a decoy gate placed before everything: red = {red} (allowed); the first-gate anchor reads it "
               f"red: {old_red} ({'as wanted' if ok else 'WRONG'})")
         bad += 0 if ok else 1
+        # the comment branch (wp1_comment_predictions.txt CC): a // comment on the weather gate line is still the gate
+        page = src["page"]
+        m0 = page.find('name=\\"wx-layer\\"')
+        lines = [g for g in WP1_GATE_LINE.finditer(page) if g.start() < m0]
+        if len(lines) != 1:
+            print(f"  SELFTEST a // comment on the weather gate line: {len(lines)} weather-gate lines before the markup, "
+                  f"not 1 (WRONG)")
+            bad += 1
+        else:
+            g = lines[0]
+            copy = dict(src); copy["page"] = page[:g.end()] + " // x" + page[g.end():]
+            red = [n for n, ok, _ in run(copy) if not ok]
+            ok = copy["page"] != page and red == []
+            print(f"  SELFTEST a // comment on the weather gate line: red = {red} ({'allowed' if ok else 'WRONG'})")
+            bad += 0 if ok else 1
         print("SELFTEST PASSED" if bad == 0 else f"SELFTEST FAILED ({bad})")
         return 0 if bad == 0 else 3
     fails = 0
