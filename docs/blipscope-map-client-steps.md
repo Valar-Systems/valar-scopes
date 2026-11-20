@@ -5791,6 +5791,72 @@ Any control off: the instrument is not trusted, and that is the row's first off 
 **CI for this push (docs-only), predicted: 35 check runs: 33 success, 2 skipped, 0 failed.** The baseline is this
 PR's own first head, `d6f469287c8a`. No workflow file has changed since.
 
+#### 6b's tool, as run (2026-11-20)
+
+**What landed:** `scripts/strings_elf.py`, standard-library Python. readelf (`-S`, `-s`, `-r`) supplies every
+structure, and bytes are read at the offsets it reports; a short read is a RIG error, never a reading. T1, T2 and T3 are
+as registered above, with the ruled text rule (Q-6b-1) and the four ruled masks (Q-6b-3), plus Q-6b-5 below. A strings
+section with an entsize other than 1 is a refusal (exit 2), not a guess.
+
+**A fact read before the predictions (read-only, the xtensa toolchain's readelf on an existing build's objects):** a
+pointer table in a RELOCATABLE xtensa object is not zero. Each slot holds its target's offset in place, under an
+`R_XTENSA_32` relocation. One 16-slot table's first bytes were `0f 00 03 07 07 10 19 1c 22 2f 3b 45 4f 58 13 5f`, each
+followed by three NULs.
+- A table of two or more slots is still rejected by the registered T2 rule: only NULs may follow the first NUL. C-PTR's
+  "0 added" stands.
+- A ONE-slot table at a printable offset reads as one character of text. Q-6b-5 closes that.
+
+| Q | the question | the ruling (the orchestrator, 2026-11-20) |
+|---|---|---|
+| Q-6b-5 | Does T2 refuse a symbol whose bytes lie under a relocation? | **YES.** Refused, COUNTED and printed (`T2 skipped for relocations`), never hidden |
+| Q-6b-6 | How does "run in CI" (Q-6b-4) reach CI? | **A `test/host/run.sh` block, which is the harness owner's.** It MUST be wrapped with `note_block`, so that its red is listed. This PR is the script plus this record |
+
+**The selftest** writes its own synthetic objects (ELF32 little-endian, relocatable, Xtensa) and reads them through the
+tool's own code path. Strings shaped like an address, an id, a MAC or a coordinate are built at run time from parts, so
+none is a literal in the file. Each row is the base plus one change, and asserts the added AND the not-linked lists
+exactly:
+- S-RE, an anchor: readelf reads back exactly what was written.
+- S-NULL, S-POS (T1), S-ARR (T2), S-ARR-DEG (a degree sign, T2), S-PTR (6 in-place slots under relocations: 0 added),
+  S-PTR1 (1 slot: 0 added, by Q-6b-5), S-ADDR, S-DEAD (1 not-linked), S-REM (1 removed).
+- S-MASK: 6 added, 4 masked, and "fw v20" and "ver 1.2.3" printed verbatim. Asserted on the whole printed lines.
+- R-BADUTF8, R-CTRL, R-C1, R-AFTER, R-NONUL and R-EMPTY: 0 added each. R-TABS: 1, the rule's positive control.
+
+**As run** (predictions `2e2dc8b4616f`, frozen first; the tool `4bfe7c15d6df`):
+
+| run | result |
+|---|---|
+| P1: selftest, WSL readelf 2.42 | 18 rows hold, `SELFTEST PASSED`, exit 0 |
+| P2: selftest, the xtensa toolchain's readelf 2.35.1 | the same 18; output byte-identical to P1's but for CR |
+| PL-1: T2 replaced by the earlier instruments' NUL-split scan, run on objects | off, exactly {S-PTR, S-PTR1, R-AFTER, R-NONUL}: `SELFTEST FAILED (4)`, exit 1 |
+| PL-2: T2's NUL rule dropped | off, exactly {R-AFTER, R-NONUL}: `SELFTEST FAILED (2)`, exit 1 |
+| PL-3: Q-6b-5's relocation test dropped | off, exactly {S-PTR1}: `SELFTEST FAILED (1)`, exit 1 |
+| the clean tool after the plants | `SELFTEST PASSED`, exit 0 |
+| P6: real objects, read-only: one existing build's 259 objects as both reference and candidate, with its own `firmware.bin` and its own toolchain's readelf (2.43.1), read twice 65 s apart | both reads: 51,010 strings a side, added 0, removed 0, not-linked 0, `T2 skipped for relocations 432`, exit 0; the two outputs byte-identical; the directory's file fingerprint unchanged before and after each read |
+
+Plants: PL-1 `e1d2a08395ea`, PL-2 `62b75f766cf3`, PL-3 `4550e45b41f7`, one asserted replacement each.
+
+**The tool's first off reading, in DETAIL only (recorded by the orchestrator).** The off rows, counts and exits all held.
+But the predictions wrote each planted string as "added", while T3 classed them "compiled, not linked": each row's
+synthetic bin holds only the base strings and that row's own extras. The one exception is ".", which T3 finds as ".\0"
+because a base literal ends in "...". Correction 1 is recorded below the frozen predictions; nothing was tuned.
+
+**A limit, recorded for the gate:** T3 cannot tell whether a one-character string is real text, because X+NUL is almost
+always somewhere in an image. Q-6b-5 is what keeps the in-place pointer bytes out of T2 in the first place.
+
+**Noted for the control-build registration (not ruled here):** C-DEAD is registered as an unused STATIC function. The
+compiler drops an unused static function at compile time, so its literal may never reach an object, and C-DEAD would
+read 0 not-linked. The registration will propose a non-static function alone in its own translation unit, collected at
+link.
+
+**Next:** the harness owner's `run.sh` block (Q-6b-6), then the six control builds, registered before any build.
+
+**CI for this PR, predicted: 35 check runs: 33 success, 2 skipped (`promote`, `version`), 0 failed.**
+- The baseline is #773's finished PR run at `5039e85eb73e`: 35 = 33/2/0. It started at 05:59:40Z, after `e3ccf6b4`
+  (#761), which is still the last change to `.github/workflows/`.
+- That PR changed only files that no path-filtered workflow matches, and so does this one (`scripts/strings_elf.py`
+  and this file). So the same four workflows run, the ones that run on every pull request.
+- The script is not yet wired into any job (Q-6b-6), so no job count changes.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
