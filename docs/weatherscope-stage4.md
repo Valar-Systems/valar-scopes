@@ -4455,3 +4455,42 @@ Read before the freeze, so C0 cannot move: platformio.ini names `WX_STORED` on e
   - the firmware workflow `777fe8e582f4`.
   Patch copy 0008.
 - **Friday** adds S4.49 part F to its rows: F-CI1 and F-CI2 on the built images, and F-CI3 from the matrix.
+
+### S4.52, 2026-11-20: Weatherscope stops as a separate product; W7 parked as listed (recorded 00:0xZ)
+
+**The owner's decision** (2026-11-19 21:52Z, relayed by the reviewer): Weatherscope STOPS as a separate product. The goal
+is ONE unified device: one firmware on the Blipscope identity, with weather (these screens) and later night sky as MODES
+the user switches between. v20's scope, gates and date are unchanged. Work only a separate product needs stops. Code the
+unified device will reuse (the weather screens and W7's live radar) is KEPT. Nothing is discarded without his word.
+
+**His ruling on the park** (2026-11-19 23:58Z), verbatim: "weather park: as listed. One condition: the wiring's patch
+files live under C:\Github\_handoffs, not in a Temp scratch folder, and the park list names their path. Tell me if they
+had to be moved." They did not have to be moved.
+
+**Friday's W7 3b items:**
+- **Not landed:** the live code, the live default on the edition env, the WX_STORED split, the stored env, its skus.yml
+  row, and the OTA identity table and counts (S4.47-S4.51).
+- **The Friday compile after B9 is dropped.** Nothing is merged and nothing is discarded.
+- **The stored-data fence** (`check_wx_stored`, W7-NO-STORED in CI) is kept as a DESIGN, to be re-pointed at the unified
+  image. There, a test-data build would carry the Blipscope identity (board `s3-128`, no scope), the channel every sold
+  board updates from.
+
+**The park list** (read 2026-11-19 23:52Z; main `bc4edd0f31ed`):
+
+| item | state | for |
+|---|---|---|
+| `weatherscope/w7-live-3b-code` `b781a94f672b` | LOCAL only, never compiled. Its durable copy: **`C:\Github\_handoffs\weatherscope\w7-3b\`**, patches 0001-0008 (`0a02e9c061b6` … `e4bcaa6267ec`) and `SHA256SUMS` (`5110b3b33990`) | W7 3b's wiring, S4.39-S4.51 |
+| `weatherscope/w7-live` `2d6c13a5f4fc` | pushed, 7 ahead of main, no PR | W7's live-radar logic and its host rows (edition-agnostic; kept for reuse) |
+| `weatherscope/stage4-plan` (this branch) | pushed, no PR | this record. Its `skus.py` `ALLOWED_MENTIONS` line (`1d2924c6`) stays with it |
+| `weatherscope/stage3-5b-plan` `dd28057d15f4`, `stage3-5a-wip` `9d6c575e32e9` | pushed, unmerged | Stage 3 plan records |
+| `weatherscope/3-5b-krows` `a055d35d970c`, `build-q` `207caeb0b7e7`, `hold-pause-probe` `550aa33658c0`, `light-bench` `eb4f46858bcc`, `w3-probe` `1db0659e9a50` | pushed, unmerged | earlier stage work and run records |
+| draft PRs #437 (`docs/weatherscope-stage2-plan` `82bef6c5d691`) and #435 (`bench/weatherscope-stage1-diag` `8da2ab9c8c29`) | open, draft | Stage 2's plan; Stage 1's diagnostic run (already parked by ruling) |
+| `weatherscope/touchwd` `9d47c09adfe6` | local only | superseded by main's scrubbed copy; never pushed (ruled 2026-11-19) |
+
+**The patches, verified by command before this line** (2026-11-20 00:02:49Z):
+- There are 8 patches, and `git rev-list --count weatherscope/w7-live..weatherscope/w7-live-3b-code` reads 8.
+- Each patch's From line equals its commit, in order. 0008's From is `b781a94f672b`, the branch tip.
+- `sha256sum -c SHA256SUMS`: all 8 OK.
+
+**Not parked:** v20's speed work (`weatherscope/speed-p5p6`, `bench/speed-p5`, `bench/speed-p6`) continues unchanged. The
+bench board 6E:64 is unreserved, and its fate is in the owner's first-step plan.
