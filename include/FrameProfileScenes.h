@@ -39,15 +39,16 @@ constexpr bool kLabelsPlant[] = {false, true, false, false, false, false, false,
 constexpr bool kOutlinePlant[] = {false, false, false, false, false, false, false, false};
 #elif defined(FRAME_PROFILE_GAINS) && FRAME_PROFILE_GAINS == 7
 // P5-DIAG (weatherscope, REG-diag-images.md f020896cbfe1, accepted): G5' plus two diagnostic arms (include/DiagP5.h).
-// Six timed scenes, level 40, weather on, as registered: OLD and NEW as the controls, SUB, DISCARD, then OLD and NEW.
-// No plant arm (the registration lists none).
+// Seven timed scenes, level 40, weather on: O-CTRL first (REG-diag-arms.md AMENDMENT A, A1: the outline plant, +2.0 ms
+// once a frame, beside 1a-OLD1, as in G5'), then OLD and NEW as the controls, SUB, DISCARD, then OLD and NEW.
 static const Scene kScenes[] = {
+    {OUTLINE_8COPY, 40, true},
     {OUTLINE_8COPY, 40, true}, {OUTLINE_MASK, 40, true}, {OUTLINE_MASK_SUB, 40, true}, {OUTLINE_MASK_DISCARD, 40, true},
     {OUTLINE_8COPY, 40, true}, {OUTLINE_MASK, 40, true},
 };
-static const char* const kArmName[] = {"1a-OLD1", "1a-NEW1", "1a-SUB", "1a-DISCARD", "1a-OLD2", "1a-NEW2"};
-constexpr bool kLabelsPlant[] = {false, false, false, false, false, false};
-constexpr bool kOutlinePlant[] = {false, false, false, false, false, false};
+static const char* const kArmName[] = {"O-CTRL", "1a-OLD1", "1a-NEW1", "1a-SUB", "1a-DISCARD", "1a-OLD2", "1a-NEW2"};
+constexpr bool kLabelsPlant[] = {false, false, false, false, false, false, false};
+constexpr bool kOutlinePlant[] = {true, false, false, false, false, false, false};
 #elif defined(FRAME_PROFILE_GAINS)
 #error "FRAME_PROFILE_GAINS is 5 (G5, bench/speed-p5), 6 (G6, bench/speed-p6) or 7 (P5-DIAG, bench/diag-p5)"
 #else
