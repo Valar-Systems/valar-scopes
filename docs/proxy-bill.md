@@ -1427,6 +1427,22 @@ wrangler; the token file's `observability-read`, never printed; error paths prin
 
 CORRECTION (append-only): keys on devl only per the reviewer's 2026-11-19 ruling; a dev line refuses (reader :121-123).
 CORRECTION (append-only, 2026-11-20T04:57:42Z from date -u): **When** moved to SATURDAY 2026-11-21, by ruling (the logs deploy moved there). F1 starts at the later of 14:00Z and map-server's row-5 END line (rollback end 14:30Z at worst), on the orchestrator's start word. It runs: scan, read A, read B at least 60 s later, grade. The hour is the last closed hour at the start (13:00-14:00Z when the scan reads clean); the fallback is the 14:00Z hour from 15:05Z; the hard end is 16:30Z. V19S's two E2:08 boots in that window need no avoidance: F1 counts distinct boards per colo, E2:08 is one board with one `devl` either way, and a boot's extra lines sit far under the 5% escape.
+AMENDMENT F1-S (append-only, 2026-11-20T10:22:11Z from date -u): the orchestrator's rulings for Saturday's run (~10:20Z). Nothing above is edited.
+- **F1-CTL runs AGAIN Saturday, before the data** (`ctl`). A control from another day does not prove Saturday's environment; 11-19's HOLD is history.
+- **LC-1 to LC-4 RUN in the slot** (`lc`), as the order says (:1713). "No LC re-run" was scoped to 11-19. This slot is where the recording fix (R-REC) is proven live.
+- **One new folder,** `C:\Github\_handoffs\blipscope-5c\f1-20261121\`. Its creation REFUSES if it already exists (a plain `mkdir`, no `-p`). Every output is named here, before Saturday, each command's stderr to its own `.err`:
+  - `ctl.out`
+  - `lc.json`, `lc.out`
+  - `scan.json`, `scan.out`. The paced `scan` runs in the BACKGROUND, registered in the bg ledger, with bgcheck at the end.
+  - `readA.json`, `readA.out`
+  - `readB.json`, `readB.out`
+  - `grade.out`
+  - the fallback's `readA2.json`, `readA2.out`, `readB2.json`, `readB2.out`, `grade2.out`
+  - `bgcheck.out`
+- **A BLIND (exit 6) on the 13:00Z hour's reads is an instrument outcome, not a red.**
+  - ONE fallback is pre-registered: the 14:00Z hour's reads, from 15:05Z (:1429), into the `*2` files.
+  - A second BLIND means STOP and report to the orchestrator, with no third attempt.
+- **map-server's row-5 END line reaches 5c only inside the orchestrator's start word,** quoted with its stamp.
 
 ## Step 4e: lever (c), what the refresh-data job writes (registered 2026-11-19T00:14:57Z, before its reader exists; read-only, GitHub only)
 
