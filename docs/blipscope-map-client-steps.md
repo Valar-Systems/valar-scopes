@@ -5871,3 +5871,16 @@ its two standing environment blocks, with 44 drivers (43 run, 1 skipped).
 - **D5's header exemption gained its plant**, S-D5-INC.
 - **The page's boxes are whole literals.** A name assembled from an argument never appears whole in an image, so E1's
   control could not have passed.
+
+**CORRECTION (2026-11-20, appended below; nothing above is edited).** The sentence in "The plants" above, that the
+full `run.sh` under WSL "failed only its two standing environment blocks", is **false**. Both runs' own logs
+(`runsh_stepd.log` `6e5ff104d32e` and `runsh_stepd2.log` `7fb800b8aabf`) hold, in the "WX wiring" block,
+`FAIL WP1: the markup is not under the switch` and `SELFTEST FAILED (9)`.
+- **Why the sentence was wrong:** it was read from run.sh's `FAILED BLOCKS:` summary, and that summary never lists the
+  block. It is one of 14 blocks that set the run's verdict directly instead of going through `note_block` (run.sh
+  `:75-87`, `:1957-1969`, `:2791-2795`). A WSL run always carries the two environment blocks, so it exits 2 either
+  way, and the failure showed only in the block's own lines. CI on #772 then failed on it (host-tests, 3 of 3).
+- **The cause in the code:** WP1 anchored on the FIRST copy of the weather gate's text, and step D's six map gates
+  begin with that text. The weather section itself was still under its switch.
+- **The fix,** under its own predictions: WP1 anchors on the weather gate line nearest the markup, with a decoy plant
+  that the old anchor reads red and the new one allows. The harness defect is routed to its owner.
