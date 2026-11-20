@@ -5172,3 +5172,108 @@ tie (after): the raw file is the sealed file (2fee50de474b)
 6-NEW2 - 6-OLD2: d10 -0.86 d50 -0.87 d90 -0.80 ms -> UNIFORM
 VERDICT G6 contacts: UNIFORM (NEW lower at p50, both pairs)
 ```
+
+### 16n. D-FOOT: each arm's per-contact code footprint, read from the built ELFs, offline (registered 2026-11-20, committed 03:58:15Z by date -u; frozen before any size is read)
+
+**Why.** The account offered (not graded) after 16m is that the two cuts share one mechanism: instruction-cache pressure from
+per-contact code size. In each pair, the arm running more distinct per-contact code had the slower remainder: 1a's mask
+path, and P6's OLD format path. This section measures the code each arm adds, from the ELFs that were flashed, with no
+build and no board. (The reviewer accepted D-FOOT on 2026-11-20 with four additions, all included below.)
+
+**What this cannot do, said first.**
+- **Both predicted directions are expected almost by construction.** The mask arm adds code, and OLD runs `format()`. So
+  a match in direction counts only as CONSISTENT.
+- **The readings that carry information are the REFUTE branch and the MAGNITUDE,** against the cache's size.
+- **A footprint cannot exclude the other channels:**
+  - data-cache or PSRAM traffic (the 1-bit scratch sprite; P6's PSRAM entries);
+  - the allocator (OLD's String churn).
+  Separating those is the job of the board arms registered in the reviewer's (c) ruling (P5-DIAG's MASK-DISCARD;
+  P6-DIAG's X1/X2), not of this section.
+
+**The cache, from the build's own configuration:**
+- `framework-arduinoespressif32-libs/esp32s3/qio_opi/include/sdkconfig.h` :876-887 (the board's memory type is
+  `qio_opi`):
+  - I-cache 16 KB (`CONFIG_ESP32S3_INSTRUCTION_CACHE_SIZE 0x4000`), 8-way, 32-byte lines;
+  - D-cache 32 KB, 32-byte lines.
+- `esp32s3/sdkconfig` :2101-2120 agrees.
+
+**Inputs:**
+- the flashed ELFs, at their T-10 shas: G5' `build-gains-p5b/firmware.elf` `16c8183dc4c3` (source `bench/gains-p5b`
+  `d5623de606bb`) and G6 `build-gains-p6/firmware.elf` `23c69d86bdda` (source `bench/gains-p6` `10d4517fc7c9`);
+- the toolchain `toolchain-xtensa-esp-elf` (`xtensa-esp32s3-elf-objdump`, `-nm`, `-addr2line`), its path and version
+  printed from the binary itself.
+
+**THE METHOD: inline-chain attribution.** It is exact under inlining, and it needs no call list closed from source.
+- Every instruction in `.flash.text` is listed, with its address and byte length (`objdump -d -j .flash.text`).
+- Each address goes through `addr2line -a -f -i -C`, which gives its whole chain of inlined frames.
+- An instruction COUNTS for an arm if any frame in its chain names one of that arm's distinct functions (the lists
+  below). Its bytes are summed per arm.
+- **Only `.flash.text` counts** (code fetched through the I-cache).
+- `.iram0.text` instructions matching the same lists are reported SEPARATELY and left out of every sum: IRAM does not
+  contend for the I-cache. ROM is outside both.
+
+**The arm-distinct lists, frozen from source.** Names match by substring of the demangled frame:
+- **1a NEW** (the mask; G5'): `AircraftManager::DrawOutlineMask`, `OutlineScratch`, `TheOutlineScratch`,
+  `outlinemask::DrawEdge`, `outlinemask::Fits`, `outlinemask::Same`, `outlinemask::Shift`, `outlinemask::Coords`.
+  (`Heading`, `Build` and `Draw` are NOT distinct. `DrawAircraftTriangle` calls them for the colour marker every contact,
+  in both arms. `OutlineMask.h` :67-144.)
+- **1a OLD** (the 8 copies; G5'): no distinct function. The 8 copies are 8 more calls to `DrawAircraftTriangle`, which
+  the colour marker runs every contact in both arms (`AircraftManager.cpp` :4557-4564 against :4577). OLD's distinct
+  code is 0 named bytes by construction, and the read prints it as 0.
+- **P6 OLD** (G6): `labelcache::LayoutToday` (`LabelCache.h` :90-128), `trimmed`, and the 15 formatters `fmtCallsign`
+  … `fmtPosSource` (`AircraftInfoFields.cpp` :19-91). Of those, NEW runs `LayoutToday` and the formatters only on a miss
+  or a refill.
+- **P6 NEW** (G6): `labelcache::Refresh` (:133-176), `labelcache::PlaceCached` (:180-205), `labelcache::KeyBuf` (:46-71),
+  `labelcache::Slot` (:210-254), `LabelKey` (`AircraftInfoFields.cpp` :137-155).
+
+**The per-contact sum, for fits / exceeds.** A frozen list of functions every contact runs in both arms of a cut:
+- `DrawAircraftInfo`, `AircraftLabelBox`, `LabelLayout`, `DrawAircraftTriangle`, `DrawAircraftTrail`;
+- `RadarBlipPosition`, `ProjectCoordinateToScreen`, `ProjectAt`, `radarproj::Project`, `ZoomCulled`;
+- `SpecialClassOf`, `MatchesWatchlist`, `RadarBlipBrightness`, `Tick`, `SampleTrail`, `WxOutlineNow`, `scaleColor`,
+  `altitudeColor`, `outlinemask::Heading`, `outlinemask::Build`, `outlinemask::Draw`, `overlapcount`;
+- LovyanGFX's `fillTriangle`, `drawLine`, `drawString`, `textWidth`, `drawChar`, `fillCircle`, `drawCircle`.
+
+The per-arm sum is that common list's attributed bytes plus the arm's own. It is a LOWER bound on the code one contact
+runs: anything not named is not counted. Each library name is reported as matched or unmatched.
+
+**The controls, red first, before any sum is believed:**
+1. A known flash function, `AircraftManager::DrawAircraftTriangle`, is found with bytes > 0 in `.flash.text`.
+2. A made-up name, `weatherscope_no_such_fn`, attributes 0 bytes.
+3. A known IRAM function, `call_start_cpu0`, classifies as IRAM, not flash.
+4. The inline-chain attribution sees inlining: across `.flash.text`, at least one instruction's chain has 2 or more frames.
+
+Any control off: BLIND (exit 2), and nothing is read past it.
+
+**THE PREDICTIONS, frozen now:**
+
+| quantity | predicted |
+|---|---|
+| 1a NEW-distinct, flash bytes | between 1,024 and 16,384 |
+| 1a OLD-distinct, flash bytes | 0 (by construction) |
+| P6 OLD-distinct, flash bytes | between 1,024 and 24,576, and greater than P6 NEW-distinct |
+| P6 NEW-distinct, flash bytes | between 256 and 8,192 |
+| each of the four per-arm per-contact sums | EXCEEDS 16,384 (the I-cache) |
+| each IRAM-matched list | reported, not summed |
+
+**THE OUTCOMES:**
+- **Direction:**
+  - 1a NEW-distinct > OLD-distinct, and P6 OLD-distinct > NEW-distinct: CONSISTENT with the cache account (no more than
+    that).
+  - Either reversed (or equal): the cache account is REFUTED for that cut.
+- **Magnitude:** an arm's distinct bytes against the 16 KB I-cache.
+  - 2,048 B or more (64 lines): MATERIAL.
+  - Under 512 B: IMMATERIAL, so the cache account is implausible for that cut (information).
+  - Between: NOT DECISIVE.
+- **Fits / exceeds:**
+  - A per-arm sum over 16,384: EXCEEDS (consistent).
+  - A sum under 16,384: FITS. Because the sum is a lower bound, that is not a refutation; it is reported as such.
+- **BLIND:** a control off, or an arm-distinct list attributing 0 bytes where its functions exist in source (for 1a NEW:
+  a list matching nothing).
+- **Outside the set:**
+  - a frame name matching two lists at once, so one byte would count for both arms;
+  - `objdump` or `addr2line` failing on the ELF.
+  - Either: STOP, decide, compute nothing past it.
+
+**The tool:** `p5p6-board/diag/foot16n.py`, written after this section is pushed, red first (the four controls on the real
+ELFs, and a planted list that must attribute 0), sha'd in a note before the read. Its outputs go to their own files,
+unread until each exits. Before the read: a fresh disk reading, and the ELFs re-hashed against the T-10 shas.
