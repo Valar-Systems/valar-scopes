@@ -5277,3 +5277,90 @@ Any control off: BLIND (exit 2), and nothing is read past it.
 **The tool:** `p5p6-board/diag/foot16n.py`, written after this section is pushed, red first (the four controls on the real
 ELFs, and a planted list that must attribute 0), sha'd in a note before the read. Its outputs go to their own files,
 unread until each exits. Before the read: a fresh disk reading, and the ELFs re-hashed against the T-10 shas.
+
+### 16o. 16n read (2026-11-20 04:04:54-04:05:21Z, no board): both CONSISTENT, NOT DECISIVE; all sums FIT; P6's CONSISTENT is NOT ROBUST
+
+**First, because it is the reading that matters most: P6's CONSISTENT is NOT ROBUST.**
+- `labelcache::Refresh` and `labelcache::PlaceCached` attributed 0 B by name. Their code was inlined into `LabelLayout`
+  without its own DWARF frames, so it was counted as COMMON. NEW runs both every contact.
+- So P6's NEW-distinct (487 B) is a LOWER bound. If those two functions together exceed 1,185 B, the true direction is
+  REVERSED and the cache account is REFUTED for P6.
+- This read cannot tell which. 1a's direction does not have this weakness: DrawEdge also read 0 B by name, but its bytes
+  fall inside `DrawOutlineMask`, which is in NEW's list.
+
+**Graded per 16n's tables** (the reviewer accepted these as graded):
+
+| cut | direction | delta | per-arm sums against the 16,384 B I-cache |
+|---|---|---|---|
+| 1a (G5') | NEW 1,949 B > OLD 0 B: CONSISTENT | 1,949 B: NOT DECISIVE | OLD 8,337, NEW 10,117: both FIT (lower bounds, not a refutation) |
+| P6 (G6) | OLD 1,672 B > NEW 487 B: CONSISTENT, **not robust** (above) | 1,185 B: NOT DECISIVE | OLD 10,121, NEW 9,305: both FIT |
+
+- **The predictions:**
+  - 1a NEW-distinct, P6 OLD-distinct and P6 NEW-distinct each fell inside their predicted ranges, and every IRAM list read
+    0 B.
+  - **A MISS, recorded:** "each per-arm per-contact sum EXCEEDS 16,384" read FITS in all four.
+- **The lists were frozen before the read**, at :5215-5234 of this file at `23b61af29870`. `foot16n.py` carries them name
+  for name. The reviewer's request to confirm that crossed with the run, and changed nothing.
+
+**The run:**
+- `diag/foot16n.py` `78350a0d1d8c`; the toolchain GNU objdump and addr2line (crosstool-NG esp-14.2.0_20260121) 2.43.1.
+- Both ELFs re-hashed equal to T-10, and the attribution caches as sha'd (`da6b85d5f489`, `5186a08f4606`).
+- Disk 28.0 GiB at 04:04:54Z. Both reads exited 0 with 0 B of stderr, and all four controls were ok on each ELF.
+- **The red runs before it:**
+  - r1: BLIND, caught by the controls (the instruction regex matched 3,574 of 419,166 lines). Fixed; the bad caches
+    deleted.
+  - r2: all controls ok; the planted list 0 B.
+
+**Three findings that weaken the numbers.** They are reported, not re-graded, and no number changes for them:
+1. **A substring overlap in the frozen lists.** G5''s NEW sum is 10,117, not 8,337 + 1,949 = 10,286. So 169 B of NEW-only
+   code also matched a COMMON name, most likely `outlinemask::Draw` matching the mask's own `Draw<OutlineScratch>`
+   instantiation. G5''s common and OLD sums therefore include up to 169 B of NEW-only code. The distinct deltas do not use
+   the common list and are unaffected.
+2. **P6 NEW is undercounted:** the first lines above.
+3. **The broad common names** (`Tick`, `drawString`, …) can only ADD unrelated bytes, so the sums over-count there. That
+   makes FITS robust: the NAMED per-contact code fits the 16 KB I-cache even inflated. Unnamed code (library internals,
+   the loop's own inline body) is not counted, so the TOTAL is still not known to fit.
+
+**In plain words (for the owner):** each cut changes the code run per aircraft by under 2 KB, about a tenth of the 16 KB
+instruction cache. The cache idea is neither ruled out nor made strong; the board runs decide.
+
+**The outputs, verbatim.** Written by Windows Python, so with CRLF line ends. The blocks are the files with CRLF normalized
+to LF, each file's own sha given.
+
+`foot16n.py --read G5P` (`foot-read-G5P.out` sha256 `bed98a514027`, 14 CRLF normalized):
+
+```
+tool C:/Users/DanielFrenkel/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump.exe: GNU objdump (crosstool-NG esp-14.2.0_20260121) 2.43.1
+tool C:/Users/DanielFrenkel/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-addr2line.exe: GNU addr2line (crosstool-NG esp-14.2.0_20260121) 2.43.1
+ELF G5P C:/Github/_handoffs/p4/gains/build-gains-p5b/firmware.elf: sha256 16c8183dc4c3 (T-10 16c8183dc4c3) -> equal
+  ok   C1 a known flash function: DrawAircraftTriangle attributes 58 B in .flash.text (> 0)
+  ok   C2 a made-up name attributes 0 B (0)
+  ok   C3 a known IRAM function: call_start_cpu0 IRAM 183 B, flash 0 B (IRAM > 0, flash 0)
+  ok   C4 the attribution sees inlining: 91523 flash instructions with 2+ frames (> 0)
+  (.flash.text: 419166 instructions, 1314567 B attributed)
+G5P OLD-distinct: 0 B flash (0 B IRAM, not summed); per name: (no distinct function, by construction)
+G5P NEW-distinct: 1949 B flash (0 B IRAM, not summed); per name: AircraftManager::DrawOutlineMask 996, OutlineScratch 1551, TheOutlineScratch 74, outlinemask::DrawEdge 0, outlinemask::Fits 95, outlinemask::Same 128, outlinemask::Shift 75, outlinemask::Coords 36
+G5P common per-contact (lower bound): 8337 B; unmatched names: []
+G5P OLD per-contact sum: 8337 B against the I-cache 16384 -> FITS (a lower bound: not a refutation)
+G5P NEW per-contact sum: 10117 B against the I-cache 16384 -> FITS (a lower bound: not a refutation)
+VERDICT G5P: direction NEW > OLD: CONSISTENT; delta 1949 B -> NOT DECISIVE
+```
+
+`foot16n.py --read G6` (`foot-read-G6.out` sha256 `aadb3c439db3`, 14 CRLF normalized):
+
+```
+tool C:/Users/DanielFrenkel/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump.exe: GNU objdump (crosstool-NG esp-14.2.0_20260121) 2.43.1
+tool C:/Users/DanielFrenkel/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-addr2line.exe: GNU addr2line (crosstool-NG esp-14.2.0_20260121) 2.43.1
+ELF G6 C:/Github/_handoffs/p4/gains/build-gains-p6/firmware.elf: sha256 23c69d86bdda (T-10 23c69d86bdda) -> equal
+  ok   C1 a known flash function: DrawAircraftTriangle attributes 470 B in .flash.text (> 0)
+  ok   C2 a made-up name attributes 0 B (0)
+  ok   C3 a known IRAM function: call_start_cpu0 IRAM 183 B, flash 0 B (IRAM > 0, flash 0)
+  ok   C4 the attribution sees inlining: 90861 flash instructions with 2+ frames (> 0)
+  (.flash.text: 418037 instructions, 1312421 B attributed)
+G6 OLD-distinct: 1672 B flash (0 B IRAM, not summed); per name: labelcache::LayoutToday 462, trimmed 37, fmtCallsign 46, fmtIcao 15, fmtCountry 16, fmtSquawk 16, fmtSpeed 170, fmtBaroAlt 170, fmtGeoAlt 170, fmtHeading 158, fmtVerticalRate 187, fmtCategory 142, fmtPosSource 48, fmtType 18, fmtOperator 18, fmtReg 18, fmtRoute 18
+G6 NEW-distinct: 487 B flash (0 B IRAM, not summed); per name: labelcache::Refresh 0, labelcache::PlaceCached 0, labelcache::KeyBuf 421, labelcache::Slot 66, LabelKey 260
+G6 common per-contact (lower bound): 8911 B; unmatched names: ['outlinemask::Heading', 'outlinemask::Build', 'outlinemask::Draw']
+G6 OLD per-contact sum: 10121 B against the I-cache 16384 -> FITS (a lower bound: not a refutation)
+G6 NEW per-contact sum: 9305 B against the I-cache 16384 -> FITS (a lower bound: not a refutation)
+VERDICT G6: direction OLD > NEW: CONSISTENT; delta 1185 B -> NOT DECISIVE
+```
