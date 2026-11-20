@@ -1426,6 +1426,7 @@ wrangler; the token file's `observability-read`, never printed; error paths prin
 (16:25Z): a multi-page reader is not allowed during it.
 
 CORRECTION (append-only): keys on devl only per the reviewer's 2026-11-19 ruling; a dev line refuses (reader :121-123).
+CORRECTION (append-only, 2026-11-20T04:57:42Z from date -u): **When** moved to SATURDAY 2026-11-21, by ruling (the logs deploy moved there). F1 starts at the later of 14:00Z and map-server's row-5 END line (rollback end 14:30Z at worst), on the orchestrator's start word. It runs: scan, read A, read B at least 60 s later, grade. The hour is the last closed hour at the start (13:00-14:00Z when the scan reads clean); the fallback is the 14:00Z hour from 15:05Z; the hard end is 16:30Z. V19S's two E2:08 boots in that window need no avoidance: F1 counts distinct boards per colo, E2:08 is one board with one `devl` either way, and a boot's extra lines sit far under the 5% escape.
 
 ## Step 4e: lever (c), what the refresh-data job writes (registered 2026-11-19T00:14:57Z, before its reader exists; read-only, GitHub only)
 
