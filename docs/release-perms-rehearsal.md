@@ -253,3 +253,89 @@ cancelled by p4, so neither needs the owner.
   "waiting", and prints the cancel with its date -u stamp. The orchestrator tells the owner beforehand (in the digest,
   and at T-30 on Thursday) not to approve it. If `promote` ever runs anyway, the recovery is section 6's step:
   `gh release edit <tag> --prerelease` first, then the reads.
+
+## 9. REH-A, RAN (Thursday 2026-11-19, 15:00:04Z-15:19:26Z). Records of what ran; the text above stands as written
+
+- **The runner:** `_handoffs/p4/reh/reh.sh` `bcc38fbab0d8`, frozen before it ran. Its P0 dry run was ALL TRUE at
+  13:23-13:24Z, and its read stage was shown able to see token lines on v19's runs.
+- **P0 on main `c53597508355`:** ALL TRUE at 14:56:18Z and again immediately before the publish at 15:00:03Z. Each
+  read: `OTA_RELEASE_BASE` at `src/OtaUpdater.cpp:106` = `.../releases/latest/download`; the default token `read`; the
+  `release` environment's required reviewer is the owner's account (printed as a boolean only); the commit's CI
+  finished with 0 failures; latest = v19, `prerelease=false`, `latest/download/version.txt` = 19, twice 60 s apart.
+- **Published 15:00:04Z:** `rehearsal-perms-a`, "Test, not a release", created EMPTY (`prerelease=true`, 0 assets).
+  Runs: firmware `44549849503`, web-renderer `44549849267`.
+- **AS PREDICTED:**
+  - **THE CONTROL, each job's `GITHUB_TOKEN` line read from its log:** the 12 build legs, `version` and
+    web-renderer's `publish` show `Contents: write`. Every other job shows `Contents: read` (21 jobs). `promote` has no
+    block, because it never ran.
+  - The 12 build legs succeeded. `ship-alert` was skipped. `version` succeeded: its receipt gate passed, the demote
+    was skipped, and `version.txt` was published ("19").
+  - **THE CANCEL:** `promote` showed waiting at 15:15:23Z; `gh run cancel` was submitted at 15:15:28Z (exit 0), at
+    most 28 s after it began waiting. `promote` ended cancelled with 0 steps run, so "Promote this release to latest"
+    never executed.
+  - **Assets:** exactly 14 (the 7 `s3-128` files, `version.txt`, 6 `blipscope-web-*`), uploaded by CI only.
+  - **Cleanup, 15:18:19-15:19:26Z:** delete exit 0; the release by tag 404; the tag 0 refs; latest v19 and 19, read
+    twice 61 s apart.
+- **OFF, a prediction miss:** "every unconditional job: success" failed for `host-tests`. Its ubuntu-26.04 leg was
+  still running when the run was cancelled, so the cancel stopped it ("Host tests" cancelled, 15:15:43Z), and the
+  aggregate failed at "Both legs must pass". A real test failure is excluded: the leg's only non-success step reads
+  cancelled, the 24.04 leg passed, and both passed on main's own push CI. The prediction forgot that cancelling a run
+  cancels every job still running.
+- **A SIDE EFFECT the plan never foresaw:** the tag sat on main's HEAD, so the release run's check-runs attached to
+  main's head commit `c53597508355` (`host-tests` failure; `host-tests (ubuntu-26.04)` and `promote` cancelled),
+  beside its green push CI. Any check reading that commit's check-runs would read a failure that is not main's. The
+  run was kept as REH-A's evidence (the reviewer refused deleting it).
+- **The reviewer's ruling:** REH-B did not run that day. Its P0 runs on B's parent, main's head, so P0's CI read would
+  have seen that failure.
+
+## 10. The P0.ci fix (2026-11-19), registered, proven, then wired
+
+- **The fix** (`_handoffs/p4/reh/REG-p0ci-fix.txt` `58b79363e13e`, with AMENDMENT 1 registered before any code): P0
+  reads the commit's own CI from its WORKFLOW RUNS with `event == push` AND `head_branch == main`, both re-checked
+  per run. The reviewer's read found the amendment's gap: **a tag push is also a push event on the same commit**
+  (REH-A's tag push started `print-cards` there), so `event == push` alone was not enough.
+- **The helper** `p0ci.py` `b9acecc31b0f`: its selftest passed 9 of 9 (S1-S7, plus two reversals: today's case under the
+  old logic BLOCKs; a failing tag-push run under the event-only logic BLOCKs).
+- **Live, read-only on `c53597508355`:** the old check-runs logic BLOCKs (71 check-runs, 3 failed or cancelled); the
+  fix PASSes (5 of 6 runs counted; the tag push's `print-cards` is not).
+- **Wired:** `reh.sh` `3683aa224dc8` (only P0.ci's two lines changed; the old script kept). Its P0 dry run on that
+  commit was ALL TRUE.
+
+## 11. REH-B, RAN (Friday 2026-11-20, 05:30:11Z-05:45:47Z)
+
+- **T-15 (04:55Z):** main `bc4edd0f31ed`, its own push CI PASS by `p0ci.py new` (5 of 5). B was RE-CREATED from that
+  head by `rehb_break.py` `80d79368194f`: commit `9a911172f468`, platformio.ini +1 (the flag in the shipping env
+  only), `src/main.cpp` +3 (`#ifdef` / `#error` / `#endif`). `src/OtaUpdater.cpp`'s blob is identical at B and its
+  parent.
+- **P0 on B's parent:** ALL TRUE, 05:29:02-05:30:07Z. Branch `rehearsal/perms-b` pushed at 05:30:10Z. Published at
+  05:30:11Z: `rehearsal-perms-b` at `9a911172f468`, empty, `prerelease=true`. Runs: firmware `44681440741`,
+  web-renderer `44681440730`, complete at 05:42:15Z.
+- **AS PREDICTED (frozen, plus the additions accepted before the run):**
+  - **EXACTLY ONE build leg failed,** `build (blipscope-s3-128, s3-128)` at its compile. The other 11 succeeded
+    (`animtest-s3-128` takes the flag, but its source filter drops `main.cpp`).
+  - **`version` RAN and FAILED** at "Every publishing SKU must have published". "Gate failed -- demote" RAN and
+    printed `demoted: prerelease=true`. "Extract" and "Publish version.txt" were skipped. **So the PATCH
+    (`gh release edit --prerelease`) succeeded under `version`'s job-level `contents: write`, with the repository
+    default at read.** That is the same call and scope `promote` needs.
+  - `promote` was skipped by its own `if`; `ship-alert` was skipped. web-renderer succeeded.
+  - **Tokens:** `version`, `publish` and the s3-128 leg show `Contents: write`.
+  - **Assets:** only the 6 `blipscope-web-*` files; no firmware, no `version.txt`.
+  - **Cleanup, 05:44:16-05:45:24Z:** the release by tag 404; the tag 0 refs; the branch 0 refs; latest v19 and 19,
+    read twice 61 s apart.
+  - **Main untouched:** B's runs attach to the throwaway commit. Main's head `bc4edd0f31ed` carries 0 failed or
+    cancelled check-runs (05:45:47Z).
+- **OFF, unpredicted:** `host-tests` failed, on both legs and the aggregate. Both legs fail at "Build blipscope-s3-128
+  (installs the cross-compiler and the libraries)": the host-test jobs BUILD the shipping env, so the deliberate
+  `#error` reaches them too. The prediction counted only the build matrix. A consequence of the deliberate break,
+  not a defect.
+
+## 12. What REH settled, and what it did not
+
+- **Settled:** #746's job-level blocks are effective under a read default. The release jobs write; nothing else
+  can. The receipt gate's BLOCKING direction has now fired in the real wiring: a failed slug-ful leg left `version`
+  failing, the release demoted, and `version.txt` withheld. The cancel path holds `promote` safely.
+- **Not settled, as section 2 said:** `promote`'s own job has not run. Its first real run is v20's release, with the
+  owner present. A failure there promotes nothing.
+- **THE LESSON, for any future rehearsal:** never tag main's head. Tag a THROWAWAY commit, as REH-B did, or the
+  release's runs land on main's commit. A tag push is itself a push event on its commit, so a CI read must filter
+  by branch as well as by event.
