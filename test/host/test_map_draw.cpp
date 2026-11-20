@@ -110,14 +110,14 @@ static const uint16_t kM = 0x6B6B;   // byte-symmetric: CB1 reads order alone, C
 
 static bool BuildReal(const bmpk::Package& pk, const wxlayer::View& v, uint32_t asked, uint8_t layers,
                       const maplayer::Theme& t, const maplayer::Scratch& sc, uint16_t* out, maplayer::BuildInfo* info,
-                      maplayer::ClockUs clock)
+                      maplayer::ClockUs clock, int terrainMid)
 {
     ++g_builds;
-    return maplayer::Build(pk, v, asked, layers, t, sc, out, info, clock);
+    return maplayer::Build(pk, v, asked, layers, t, sc, out, info, clock, terrainMid);
 }
 
 static bool BuildM(const bmpk::Package&, const wxlayer::View&, uint32_t, uint8_t, const maplayer::Theme&,
-                   const maplayer::Scratch&, uint16_t* out, maplayer::BuildInfo*, maplayer::ClockUs)
+                   const maplayer::Scratch&, uint16_t* out, maplayer::BuildInfo*, maplayer::ClockUs, int)
 {
     ++g_builds;
     for (int y = 0; y < mapcompose::kSize; ++y)
@@ -127,7 +127,7 @@ static bool BuildM(const bmpk::Package&, const wxlayer::View&, uint32_t, uint8_t
 }
 
 static bool BuildFail(const bmpk::Package&, const wxlayer::View&, uint32_t, uint8_t, const maplayer::Theme&,
-                      const maplayer::Scratch&, uint16_t*, maplayer::BuildInfo*, maplayer::ClockUs)
+                      const maplayer::Scratch&, uint16_t*, maplayer::BuildInfo*, maplayer::ClockUs, int)
 {
     ++g_builds;
     return false;

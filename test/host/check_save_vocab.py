@@ -160,7 +160,19 @@ def scan(src):
     code = "".join(code)
     for m in re.finditer(r'\bSaveToggle\("([A-Za-z0-9_\-]+)"\)', code):
         calls.append((m.start(), m.group(1)))
-    return directives, literals, calls
+    # step D: the map's section is rendered by include/MapSettingsHtml.h, not by a literal in this file
+    htmls = [m.start() for m in re.finditer(r"\bmapsettingshtml::Html\(", code)]
+    return directives, literals, calls, htmls
+
+
+def header_boxes(header):
+    """The checkbox names include/MapSettingsHtml.h renders: read from the header's own string literals with the page's
+    own BOX rule (the other side of the contract), never typed here. None found is the rig."""
+    _, literals, _, _ = scan(header)
+    names = {m.group(1) or m.group(2) for _, text in literals for m in BOX.finditer(text)}
+    if not names:
+        raise Rig("include/MapSettingsHtml.h holds no checkbox literal: the map section's boxes cannot be read")
+    return names
 
 
 def _tokens(expr, where):
@@ -308,8 +320,8 @@ BOX = re.compile(r'<input\b[^>]*?\bname="([A-Za-z0-9_\-]+)"[^>]*?\btype="checkbo
                  r'|<input\b[^>]*?\btype="checkbox"[^>]*?\bname="([A-Za-z0-9_\-]+)"')
 
 
-def measure(src, defines):
-    directives, literals, calls = scan(src)
+def measure(src, defines, hboxes=frozenset()):
+    directives, literals, calls, htmls = scan(src)
     points = liveness(directives, defines)
     saved = {name for off, name in calls if live_at(points, off)}
     boxes, box_live = set(), {}
@@ -320,11 +332,18 @@ def measure(src, defines):
             box_live[name] = box_live.get(name, False) or lv
             if lv:
                 boxes.add(name)
+    for off in htmls:   # step D: a live mapsettingshtml::Html( call renders the header's boxes
+        lv = live_at(points, off)
+        for name in hboxes:
+            box_live[name] = box_live.get(name, False) or lv
+            if lv:
+                boxes.add(name)
     return saved, boxes, box_live
 
 
 # ------------------------------------------------------------------------------------------------- the check
-def run(src, ini, out=print):
+def run(src, ini, header, out=print):
+    hboxes = header_boxes(header)
     v1 = env_defines(ini)
     if "WX_LAYER_SHIPS" in v1:
         raise Rig(f"{ENV} already defines WX_LAYER_SHIPS: V1 would not be the build without weather")
@@ -333,7 +352,7 @@ def run(src, ini, out=print):
     out(f"  V2 = V1 + WX_LAYER_SHIPS")
     res, sets = {}, {}
     for tag, d in (("V1", v1), ("V2", v2)):
-        saved, boxes, box_live = measure(src, d)
+        saved, boxes, box_live = measure(src, d, hboxes)
         left, unsaved = sorted(saved - boxes), sorted(boxes - saved)
         sets[tag] = (saved, boxes, box_live)
         out(f"  {tag}: |SAVED| = {len(saved)}, |BOXES| = {len(boxes)}, LEFT_ALONE = {{{', '.join(left)}}}, "
@@ -345,10 +364,14 @@ def run(src, ini, out=print):
             raise Rig(f"UNSAVED({tag}) holds edition names {ed}: the page scan is not scoped to the radar page")
     l1 = sets["V1"][1].__contains__("wx-layer"); l2 = sets["V2"][1].__contains__("wx-layer")
     res["G"] = ((not l1) and l2, f"the wx-layer box: live in V1 {l1}, live in V2 {l2} (want False, True)")
+    # step D ((b), beside G): the map's two boxes, rendered by MapSettingsHtml.h under the map's gate
+    m1 = sorted(n for n in hboxes if n in sets["V1"][1]); m2 = sorted(n for n in hboxes if n in sets["V2"][1])
+    res["M"] = (not m1 and m2 == sorted(hboxes),
+                f"the map's boxes {sorted(hboxes)}: live in V1 {m1}, live in V2 {m2} (want none, both)")
     return res
 
 
-ORDER = ["A_V1", "A_V2", "G"]
+ORDER = ["A_V1", "A_V2", "G", "M"]
 # UNSAVED is printed, not asserted: on e1c725a0 it reads {ntfy-regen} in both builds, an ACTION box (/save reads it with
 # hasParam and regenerates the ntfy topic; it is never a stored toggle). The registration's pre-registered branch for a
 # non-empty UNSAVED (ruled 2026-11-18): information only, and its plant (C4) dropped.
@@ -360,15 +383,17 @@ def main():
     try:
         src = open(f"{root}/src/ConfigurationWebServer.cpp", encoding="utf-8", newline="").read()
         ini = open(f"{root}/platformio.ini", encoding="utf-8", newline="").read()
+        hdr = open(f"{root}/include/MapSettingsHtml.h", encoding="utf-8", newline="").read()
     except OSError as e:
         print(f"RIG: cannot read the sources ({e})"); return 2
-    crlf = [p for p, t in (("src/ConfigurationWebServer.cpp", src), ("platformio.ini", ini)) if "\r" in t]
+    crlf = [p for p, t in (("src/ConfigurationWebServer.cpp", src), ("platformio.ini", ini),
+                           ("include/MapSettingsHtml.h", hdr)) if "\r" in t]
     if crlf:
         print(f"RIG: CRLF in {crlf}: a checkout with core.autocrlf on; this check reads LF sources only"); return 2
     try:
         if "--selftest" in sys.argv:
-            return selftest(src, ini)
-        res = run(src, ini)
+            return selftest(src, ini, hdr)
+        res = run(src, ini, hdr)
     except Rig as e:
         print(f"RIG: {e}"); return 2
     fails = 0
@@ -384,9 +409,14 @@ def main():
 FIX_OPEN = GATE + "\n        SaveToggle(\"wx-layer\");"
 
 
-def selftest(src, ini):
+MAP_GATE = "#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)"
+MAP_SAVE = MAP_GATE + "\n        // Step D: only where the map's section renders"
+
+
+def selftest(src, ini, hdr):
     """C1-C3 (the registration's addendum 1; C4 dropped with UNSAVED's assertion): each plant runs on a COPY of the
-    FIXED source."""
+    FIXED source. Step D's plant (docs/blipscope-map-client-steps.md (b)), C4 again by number: SaveToggle("map-layer")
+    moved outside the map's gate makes V1's LEFT_ALONE exactly {map-layer}."""
     fix = re.search(r'#if defined\(FEATURE_CLOUD_FEED\) && defined\(WX_LAYER_SHIPS\)\n(\s*SaveToggle\("wx-layer"\);[^\n]*\n'
                     r'(?:\s*//[^\n]*\n)*)#endif\n', src)
     if not fix:
@@ -403,9 +433,15 @@ def selftest(src, ini):
         ("C3 a new unboxed toggle: SaveToggle(\"zz-plant\")", {"A_V1", "A_V2"},
          lambda s: s.replace('        SaveToggle("mqtt-disco");\n',
                              '        SaveToggle("mqtt-disco");\n        SaveToggle("zz-plant");\n', 1)),
+        ("C4 step D: SaveToggle(\"map-layer\") outside the map's gate", {"A_V1"},
+         lambda s: s.replace('        SaveToggle("map-layer");\n', "", 1)
+                    .replace(MAP_SAVE, '        SaveToggle("map-layer");\n' + MAP_SAVE, 1)),
     ]
     if box_gate < 0:
         print("SELFTEST: the box's gate (followed by its 'Only a build that can fetch weather' comment) is not found")
+        return 3
+    if src.count(MAP_SAVE) != 1 or src.count('        SaveToggle("map-layer");\n') != 1:
+        print("SELFTEST: the map's gated save (step D) is not found exactly once")
         return 3
     bad = 0
     for label, want, plant in plants:
@@ -413,11 +449,14 @@ def selftest(src, ini):
         if copy == src:
             print(f"  SELFTEST {label}: the plant did NOT apply"); bad += 1; continue
         try:
-            res = run(copy, ini, out=lambda *_: None)
+            res = run(copy, ini, hdr, out=lambda *_: None)
         except Rig as e:
             print(f"  SELFTEST {label}: RIG {e}"); bad += 1; continue
         red = {k for k in ORDER if not res[k][0]}
         ok = red == want
+        if label.startswith("C4") and res["A_V1"][1] != "LEFT_ALONE(V1) = {map-layer}":
+            ok = False   # the registered red is exactly {map-layer} in V1's LEFT_ALONE
+            print(f"  SELFTEST {label}: {res['A_V1'][1]}, want LEFT_ALONE(V1) = {{map-layer}}")
         print(f"  SELFTEST {label}: red = {sorted(red)}, want {sorted(want)} ({'exact' if ok else 'WRONG'})")
         bad += 0 if ok else 1
     print("SELFTEST PASSED" if bad == 0 else f"SELFTEST FAILED ({bad})")

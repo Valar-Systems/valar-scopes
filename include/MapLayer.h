@@ -63,17 +63,19 @@ inline uint16_t To565(Rgb8 c) { return wxs2::To565(((uint32_t)c.r << 16) | ((uin
 // One S2 channel, rounded floor(v + 0.5) as the format rounds everything. The bounds are a colour channel's own range:
 // with Dark's 0.075 the ramp spans about -4 to 20, so dark slopes do reach below 0 and are drawn black. Nothing out of
 // range is hidden by them -- every shade 0-255 is a legal input.
-inline uint8_t Channel(uint8_t land, uint8_t v, double gain)
+// Step D (D3): the midpoint is an input (Terrain shading, MapTerrain.h). 128 is today's map: the same integer
+// subtraction, then the same double multiply, so Subtle (0.075, 128) is today's arithmetic exactly.
+inline uint8_t Channel(uint8_t land, uint8_t v, double gain, int mid = 128)
 {
-    const int c = (int)floor(land + (v - 128) * gain + 0.5);
+    const int c = (int)floor(land + (v - mid) * gain + 0.5);
     return (uint8_t)(c < 0 ? 0 : (c > 255 ? 255 : c));
 }
 
 // S2: a shade value's colour on the theme's land.
-inline Rgb8 TerrainRgb(const Theme& t, uint8_t v)
+inline Rgb8 TerrainRgb(const Theme& t, uint8_t v, int mid = 128)
 {
-    return Rgb8{Channel(t.land.r, v, t.terrainGain), Channel(t.land.g, v, t.terrainGain),
-                Channel(t.land.b, v, t.terrainGain)};
+    return Rgb8{Channel(t.land.r, v, t.terrainGain, mid), Channel(t.land.g, v, t.terrainGain, mid),
+                Channel(t.land.b, v, t.terrainGain, mid)};
 }
 
 // ------------------------------------------------------------------------------------------------------- the gate
@@ -274,9 +276,12 @@ typedef uint32_t (*ClockUs)();
 
 // The layer for a view: the index image in S3's order (water, rivers, roads; the last write wins), then one colouring
 // pass that puts terrain (S2) under land and 0 off the disc. Writes logical RGB565 into out[kSize * kSize]. False, with
-// nothing written to `out`, for an empty package, a short scratch or a view of another size.
+// nothing written to `out`, for an empty package, a short scratch or a view of another size. `terrainMid` is S2's
+// midpoint (step D, D3): 128 is today's map; the Terrain shading setting passes its own (MapTerrain.h), with its gain
+// in a copy of the theme, so the theme table keeps its row.
 inline bool Build(const bmpk::Package& pk, const wxlayer::View& v, uint32_t askedMm, uint8_t layers, const Theme& t,
-                  const Scratch& sc, uint16_t* out, BuildInfo* info = nullptr, ClockUs clock = nullptr)
+                  const Scratch& sc, uint16_t* out, BuildInfo* info = nullptr, ClockUs clock = nullptr,
+                  int terrainMid = 128)
 {
     if (pk.data == nullptr || sc.idx == nullptr || sc.cap < pk.maxVertices || v.size != kSize) return false;
     BuildInfo bi;
@@ -358,7 +363,7 @@ inline bool Build(const bmpk::Package& pk, const wxlayer::View& v, uint32_t aske
 
     // Colour: off the disc 0; land is terrain where a level reaches it, else the theme's land.
     uint16_t ramp[256];
-    for (int k = 0; k < 256; ++k) ramp[k] = To565(TerrainRgb(t, (uint8_t)k));
+    for (int k = 0; k < 256; ++k) ramp[k] = To565(TerrainRgb(t, (uint8_t)k, terrainMid));
     const uint16_t land = To565(t.land), water = To565(t.water), river = To565(t.river), road = To565(t.road);
     bmpk::Level lv;
     bool covers = false;

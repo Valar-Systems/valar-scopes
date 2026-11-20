@@ -52,6 +52,21 @@ step C's CD8 (registered 2026-11-12, "Step C: the wedge's green added to the map
        right after the composite's memcpy and nowhere else in the .cpp is mapFrameDrawn set true; (d) DrawWeatherUnder
        clears both before its first return; (e) DrawSweepOverMap reads wxPixels once, as the code source behind
        withWx = mapFrameWx && ...: never a stale crop's codes under the map alone.
+Step D's (registered 2026-11-12 and 2026-11-18, "Step D" and "Step D's other half" (b), (d), (e)):
+  DW1  the three key literals ("map-layer", "map-names", "map-terrain", with their quotes) appear in src/ and include/
+       only in the files (d) names (DW1_NAMED): any other file holding one is red until it is named there, so a new
+       writer cannot land unseen. Raw text: a quoted mention in a comment flags its file, which fails safe and visibly.
+       The device's read (src/AircraftManager.cpp) must hold all three, or the scan is blind: the rig.
+  DH1  the page's map section is mapsettingshtml::Html(...), called once in src/ConfigurationWebServer.cpp, and no
+       name=\"map-layer\" / name=\"map-names\" / name=\"map-terrain\" literal (escaped or raw) appears there.
+  D5   "map-terrain" and the control's label "Terrain shading" appear in src/ and include/ only inside the map's gate
+       (the first branch of `#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) &&
+       !defined(BLIPSCOPE_WEB_RENDERER)` or `#ifdef BLIPSCOPE_MAP_FETCH`), except include/MapSettingsHtml.h, which
+       is the control itself and must be #included only inside that gate (the correction to D5: the gate in -D names).
+       Line-based directive tracking, only over the files holding one of them; none found in the page or the device is
+       the rig.
+  E3   MapEnabled() returns with the resolved mapLayerOn as a term, and mapLayerOn is assigned from
+       configmigration::ResolveToggle(configServer.GetStoredString("map-layer"), ...).
   Function bodies are cut out before the comment stripper reads them: only the map's own text ever goes through it.
 
 The region counts are pinned. A count off in either direction, or an unbalanced marker, is the rig (exit 2): a region the
@@ -544,12 +559,126 @@ def cd8(root):
     return why
 
 
+# ------------------------------------------------------------------------------------------------------- step D
+MAP_KEYS = ('"map-layer"', '"map-names"', '"map-terrain"')
+# (d)'s writers of the config namespace, plus the device's read and the page's header. Name a file here only after (d)
+# names it. (The mapkey bench line, a reader, lives on its bench branch, which names include/MapKeyLine.h here too:
+# ruled 2026-11-19 ~02:08Z, bench pieces stay off main.)
+DW1_NAMED = ["src/ConfigurationWebServer.cpp", "src/ConfigMigration.cpp", "src/FactoryReset.cpp",
+             "src/AircraftManager.cpp", "include/MapSettingsHtml.h"]
+SRC_EXTS = (".h", ".hpp", ".cpp", ".c", ".inc")
+MAP_GATE = "#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)"
+GATES = {norm(MAP_GATE), "#ifdef BLIPSCOPE_MAP_FETCH", "#if defined(BLIPSCOPE_MAP_FETCH)"}
+TERRAIN, LABEL = '"map-terrain"', '"Terrain shading"'
+# D5's header that IS the setting's text: exempt itself, #included only inside its own gate (S-D5-INC's subject). The
+# bench branch adds include/MapKeyLine.h under #ifdef MAP_KEY_BENCH.
+HEADERS = {"include/MapSettingsHtml.h": GATES}
+DIRECTIVE = re.compile(r"#\s*(if|ifdef|ifndef|elif|else|endif)\b")
+
+
+def src_files(root):
+    return files_under(root, "src", SRC_EXTS) + files_under(root, "include", SRC_EXTS)
+
+
+def gated(text, rel, gates=None):
+    """Per line: inside the FIRST branch of an open #if whose line (comment removed, whitespace normalised) is one of
+    `gates` (default GATES). Line-based; an unbalanced #if/#endif is the rig."""
+    gates = GATES if gates is None else gates
+    stack, out = [], []
+    for ln in text.split("\n"):
+        s = ln.strip()
+        m = DIRECTIVE.match(s)
+        if m:
+            d, line = m.group(1), norm(re.sub(r"//.*$", "", s))
+            if d in ("if", "ifdef", "ifndef"):
+                stack.append(line in gates)
+            elif d in ("elif", "else"):
+                if not stack:
+                    raise Rig(f"{rel}: an #{d} without its #if")
+                stack[-1] = False
+            elif not stack:
+                raise Rig(f"{rel}: an #endif without its #if")
+            else:
+                stack.pop()
+        out.append(any(stack))
+    if stack:
+        raise Rig(f"{rel}: an #if without its #endif")
+    return out
+
+
+def dw1(root):
+    holders = {}
+    for rel in src_files(root):
+        got = [k for k in MAP_KEYS if k in read(root, rel)]
+        if got:
+            holders[rel] = got
+    if sorted(holders.get("src/AircraftManager.cpp", [])) != sorted(MAP_KEYS):
+        raise Rig(f"src/AircraftManager.cpp, the device's read, holds {holders.get('src/AircraftManager.cpp', [])}: the "
+                  "scan cannot see the keys")
+    why = [f"{rel} holds {', '.join(got)}, and (d) does not name it (DW1_NAMED)"
+           for rel, got in sorted(holders.items()) if rel not in DW1_NAMED]
+    return why, len(holders)
+
+
+def dh1(root):
+    rel = "src/ConfigurationWebServer.cpp"
+    t = read(root, rel)
+    why = []
+    n = t.count("mapsettingshtml::Html(")
+    if n != 1:
+        why.append(f"{rel} calls mapsettingshtml::Html( {n} time(s), not once: the page's map section")
+    for k in ("map-layer", "map-names", "map-terrain"):
+        for form in (f'name=\\"{k}\\"', f'name="{k}"'):
+            if form in t:
+                why.append(f"{rel} holds the literal {form}: a hand-written control, not the header's")
+    return why
+
+
+def d5(root):
+    why, seen = [], {}
+    for rel in src_files(root):
+        t = read(root, rel)
+        has = (TERRAIN in t or LABEL in t) and rel not in HEADERS
+        incs = [h for h in HEADERS if f'#include "{os.path.basename(h)}"' in t]
+        if not (has or incs):
+            continue
+        g = gated(t, rel)
+        for i, ln in enumerate(t.split("\n")):
+            if has and (TERRAIN in ln or LABEL in ln):
+                seen[rel] = seen.get(rel, 0) + (1 if g[i] else 0)
+                if not g[i]:
+                    why.append(f"{rel}:{i + 1} names map-terrain or the control's label outside the map's gate")
+        for h in incs:
+            gh = gated(t, rel, HEADERS[h])
+            for i, ln in enumerate(t.split("\n")):
+                if f'#include "{os.path.basename(h)}"' in ln and not gh[i]:
+                    why.append(f"{rel}:{i + 1} includes {os.path.basename(h)} outside its gate")
+    for rel in ("src/ConfigurationWebServer.cpp", "src/AircraftManager.cpp"):
+        if not seen.get(rel):
+            raise Rig(f"{rel}: no gated map-terrain found: the scan cannot see the setting")
+    return why
+
+
+def e3(root):
+    rel = "src/AircraftManager.cpp"
+    t = read(root, rel)
+    why = []
+    body = flat(body_of(t, "bool AircraftManager::MapEnabled() const", rel))
+    if not re.search(r"\breturn\b[^;]*\bmapLayerOn\b[^;]*;", body):
+        why.append("MapEnabled() does not return with mapLayerOn as a term")
+    if not re.search(r'\bmapLayerOn = configmigration::ResolveToggle\( ?configServer\.GetStoredString\( ?"map-layer" ?\)',
+                     " ".join(t.split())):
+        why.append("mapLayerOn is not assigned from configmigration::ResolveToggle of the stored map-layer")
+    return why
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     try:
         rows = [("CD4",) + cd4(root), ("CB8", cb8(root), None), ("CB8b", cb8b(root), None), ("CD1",) + cd1(root),
                 ("CD2", cd2(root), None), ("CD3", cd3(root), None), ("CD5", cd5(root), None), ("CD6",) + cd6(root),
-                ("CD6b",) + cd6b(root), ("CD7",) + cd7(root), ("CB-B1",) + cbb1(root), ("CB-B2", cbb2(root), None), ("CD8", cd8(root), None)]
+                ("CD6b",) + cd6b(root), ("CD7",) + cd7(root), ("CB-B1",) + cbb1(root), ("CB-B2", cbb2(root), None), ("CD8", cd8(root), None),
+                ("DW1",) + dw1(root), ("DH1", dh1(root), None), ("D5", d5(root), None), ("E3", e3(root), None)]
     except Exception as e:   # ANY exception, the stripper's own Rig and a decode error included: the rig, never a red
         print(f"RIG: {type(e).__name__}: {e}")
         return 2
@@ -587,6 +716,15 @@ def main():
                   "each under #ifdef MAP_BENCH")
         elif name == "CB-B2":
             print(f"  ok   {name}: the bench regions hold no NVS and print no place, anchor or coordinate")
+        elif name == "DW1":
+            print(f"  ok   {name}: the map's three keys appear in {regions_seen} file(s), each one (d) names")
+        elif name == "DH1":
+            print(f"  ok   {name}: the page's map section is mapsettingshtml::Html(...), with no hand-written control")
+        elif name == "D5":
+            print(f"  ok   {name}: map-terrain and its label appear only inside the map's gate; the header is included "
+                  "only there")
+        elif name == "E3":
+            print(f"  ok   {name}: MapEnabled() reads the resolved map-layer")
         else:
             print(f"  ok   {name}: step C's gate: the blend only in DrawSweepOverMap, behind DrawMapBase's "
                   "flags, set after the copy and cleared at every frame; wxPixels only behind mapFrameWx")

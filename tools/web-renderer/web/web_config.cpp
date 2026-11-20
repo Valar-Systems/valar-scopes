@@ -31,6 +31,9 @@ std::map<std::string, std::string>& settings()
         {"ntfy-topic", ""},
         {"wx-layer", "false"},       // in writing: the firmware reads ABSENT as ON, and this renderer has no pixels
                                      // for the layer (docs/wx-device.md, (A)). check_wx_off.mjs refuses its removal.
+        {"map-layer", "false"},      // step D, the same in writing (DO1, ruled 2026-11-07): the map is never compiled
+        {"map-names", "false"},      // here (BLIPSCOPE_MAP_FETCH needs !BLIPSCOPE_WEB_RENDERER), so a later build that
+                                     // does compile it cannot inherit ON. check_wx_off.mjs (E2) refuses either removed.
     };
     return m;
 }

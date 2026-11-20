@@ -1088,6 +1088,15 @@ void AircraftManager::Initialise()
     // The map's request, from the STORED distance and the unit's exact factor (units::ToKm of 1 is the factor itself,
     // exactly), never from the view's float radii; the ladder just rebuilt above says which steps exist (step A, 1).
     MapConfigure(distance, units::ToKm(1.0, cfgUnit));
+    // Step D: the map's settings, as the page saved them (a save applies here, as today; nothing needs a reboot). The
+    // toggles through ResolveToggle and nothing else (DO1, DN1): unset or "" is ON. Terrain through mapterrain::Resolve
+    // (D1): unset or unknown is Strong. The map off asks for nothing (MapEnabled) and leaves a held package held, so
+    // turned back on it draws at the next shown frame with no new request (Q-D3: the query key is unchanged).
+    mapLayerOn = configmigration::ResolveToggle(configServer.GetStoredString("map-layer").c_str(),
+                                                configmigration::MAP_DEFAULT_ON);
+    mapNamesOn = configmigration::ResolveToggle(configServer.GetStoredString("map-names").c_str(),
+                                                configmigration::MAP_NAMES_DEFAULT_ON);
+    mapShade = mapterrain::Resolve(configServer.GetStoredString("map-terrain").c_str());
 #endif
     // THE MAP FETCH END
 #endif
@@ -3589,7 +3598,9 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
 
 bool AircraftManager::MapEnabled() const
 {
-    return useCloudSource && !cloudUrl.isEmpty() && hasLocation && !mapAllocFailed;
+    // Step D (E3): the resolved map-layer setting is a term here, so the map off asks for nothing (ShouldFetch is passed
+    // false) and draws nothing (DrawMapBase returns false: today's path, byte for byte).
+    return mapLayerOn && useCloudSource && !cloudUrl.isEmpty() && hasLocation && !mapAllocFailed;
 }
 
 // At every Initialise: the request for the stored config and its key. A key that differs from the last drops the held
@@ -3865,6 +3876,11 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
     k.nFixed = mapplaces::RingLabels(viewRadiusDisplay, rangeUnit.c_str(), k.fixed);
     k.nFixed += mapplaces::Cardinals(radarUpDeg, k.fixed + k.nFixed);
     k.fixed[k.nFixed++] = mapplaces::IndicatorRow();
+    // Step D: the two settings a rebuild reads; a change rebuilds exactly once (Same() compares them)
+    k.names = mapNamesOn;
+    k.terrainDrawn = mapShade.drawn;
+    k.terrainGain = mapShade.gain;
+    k.terrainMid = mapShade.mid;
     mapcompose::Inputs in;
     in.build = &maplayer::Build;
     in.airports = &AircraftManager::MapAirportBoxes;

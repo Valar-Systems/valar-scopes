@@ -138,6 +138,19 @@ int main()
     check(!NeedsInfoFieldReset(CONFIG_REV), "rev 5: the info-field reset is done");
     check(!NeedsLocalDetailsMigration(CONFIG_REV), "rev 5: the local-details migration is done");
 
+    // Step D (docs/blipscope-basemap-client.md section 6, DOC1; docs/blipscope-map-client-steps.md (a), DNC1): the
+    // map and its town names, through ResolveToggle with their named defaults. Unset (nullptr or "") and "true" are
+    // ON; "false" is OFF -- the control, an explicit untick wins. The plants (S-DOC1, S-DNC1 in
+    // test/host/sabotage_map_settings.py) set a default false: exactly the nullptr and "" rows of that block go red.
+    check(ResolveToggle(nullptr, MAP_DEFAULT_ON), "DOC1 map: unset (nullptr) -> ON");
+    check(ResolveToggle("", MAP_DEFAULT_ON), "DOC1 map: unset (empty) -> ON");
+    check(ResolveToggle("true", MAP_DEFAULT_ON), "DOC1 map: true -> ON");
+    check(!ResolveToggle("false", MAP_DEFAULT_ON), "DOC1 map: false -> OFF (the control)");
+    check(ResolveToggle(nullptr, MAP_NAMES_DEFAULT_ON), "DNC1 names: unset (nullptr) -> ON");
+    check(ResolveToggle("", MAP_NAMES_DEFAULT_ON), "DNC1 names: unset (empty) -> ON");
+    check(ResolveToggle("true", MAP_NAMES_DEFAULT_ON), "DNC1 names: true -> ON");
+    check(!ResolveToggle("false", MAP_NAMES_DEFAULT_ON), "DNC1 names: false -> OFF (the control)");
+
     if (failures == 0) std::printf("test_config_migration: all checks passed\n");
     else               std::printf("test_config_migration: %d FAILURE(S)\n", failures);
     // rev 6 (v15): coordinates rewritten at 4 dp, once.

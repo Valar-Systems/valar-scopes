@@ -52,6 +52,19 @@ constexpr int CONFIG_REV = 6;
 constexpr bool LOGBOOK_DEFAULT_ON = true;
 
 /**
+ * The firmware defaults for the radar's map layer and its town names (docs/blipscope-basemap-client.md section 6,
+ * DO1; docs/blipscope-map-client-steps.md, "Step D's other half", DN1).
+ *
+ * ON, Daniel's requirement: "the map layer is on by default when it ships, for every device that hasn't set it."
+ * Both keys (map-layer, map-names) are new: DO2's search (2026-11-19, outcome A) found no published image and no
+ * release tree that ever wrote either, so every device in the field reads them unset and these defaults reach it with
+ * no migration. The device and the config page read both through ResolveToggle below and nothing else. A later change
+ * of either default needs a ConfigMigration entry (CLAUDE.md: a default only reaches keys that were never saved).
+ */
+constexpr bool MAP_DEFAULT_ON = true;
+constexpr bool MAP_NAMES_DEFAULT_ON = true;
+
+/**
  * Resolve one stored toggle against the firmware default.
  *
  * `stored` is the raw NVS string: nullptr or "" means the key was never written,
