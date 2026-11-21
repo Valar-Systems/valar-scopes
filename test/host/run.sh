@@ -1682,6 +1682,8 @@ note_block $? "WX opuk crops (K12)"
 # bit-identical to ProjectAt's body at 788ad44 (test/host/ref_project_at.h, cut verbatim).
 echo
 echo "== RadarProjection =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/test/host" "$ROOT/test/host/test_radar_projection.cpp" -o "$OUT/test_radar_projection.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the radar projection test did not compile"
   cat "$OUT/build.log"
@@ -1694,11 +1696,16 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "RadarProjection"
 
 # The weather layer (include/WxLayer.h; WD2) against an independent inverse and the planes' projection,
 # over the server-made crops.
 echo
 echo "== WxLayer =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_layer.cpp" -o "$OUT/test_wx_layer.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the weather layer test did not compile"
   cat "$OUT/build.log"
@@ -1711,6 +1718,9 @@ if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxLayer"
 
 # Weatherscope's legend layout (src/weatherscope/WxLegend.h) against the round-screen rules (addendum 8: G1-G4).
 # Its sabotages: python -I test/host/sabotage_wx_legend.py. The board's pixels: test/fixtures/wx/legend_check.py.
@@ -1738,6 +1748,8 @@ note_block $? "WxLegend"
 # line per property. Its sabotages: python -I test/host/sabotage_wx_policy.py
 echo
 echo "== WxPolicy =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_policy.cpp" -o "$OUT/test_wx_policy.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the weather policy test did not compile"
   cat "$OUT/build.log"
@@ -1750,12 +1762,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxPolicy"
 
 # The sweep over the weather, looks 3 and 4 (include/WxSweep.h; docs/wx-device.md WD6): the two colour rules over every
 # colour, code and level, and the wedge rendered over a synthetic layer at 16 beam angles. Its sabotage (the opaque
 # wedge restored): python -I test/host/sabotage_wx_sweep.py
 echo
 echo "== WxSweep =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_sweep.cpp" -o "$OUT/test_wx_sweep.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the weather sweep test did not compile"
   cat "$OUT/build.log"
@@ -1768,12 +1785,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxSweep"
 
 # The config page's weather legend (include/WxLegendHtml.h; docs/wx-device.md WD8): the HTML the device serves, both
 # looks, each swatch against the layer's own colour. Its sabotage (a swatch typed in by hand, one level off):
 # python -I test/host/sabotage_wx_legend_html.py. The served page: scripts/check-wx-legend.py --url.
 echo
 echo "== WxLegendHtml =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_legend_html.cpp" -o "$OUT/test_wx_legend_html.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the weather legend test did not compile"
   cat "$OUT/build.log"
@@ -1786,12 +1808,17 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxLegendHtml"
 
 # The config page's weather-look select (include/WxLookSelectHtml.h, wxs2::LookFromStored; docs/wx-device.md K1, K2):
 # a shipping setting since 2026-10-29, look A by default, Daniel's labels. Its sabotages (a label one character off;
 # absence read as B): python -I test/host/sabotage_wx_look_select.py.
 echo
 echo "== WxLookSelectHtml =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_look_select.cpp" -o "$OUT/test_wx_look_select.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the weather look select test did not compile"
   cat "$OUT/build.log"
@@ -1804,11 +1831,16 @@ if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
   exit 2
 fi
 [ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "WxLookSelectHtml"
 
 # S2, the weather layer's colours (include/WxS2.h; WD4 and its addenda), for BOTH bench looks (A 40 %, B 25 %). The
 # planes' colours are read from src/AircraftManager.cpp. Its sabotages: test/host/sabotage_wx_s2.py, run below.
 echo
 echo "== WxS2 =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_s2.cpp" -o "$OUT/test_wx_s2.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the S2 colour test did not compile"
   cat "$OUT/build.log"
@@ -1828,12 +1860,17 @@ else
   "$PY" "$ROOT/test/host/sabotage_wx_s2.py" "$ROOT" "$CXX"
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "WxS2"
 
 # The avionics look (include/WxAvionics.h; docs/wx-device.md, the ruling of 2026-11-06 and its re-registration): the
 # Blipscope's own table, drizzle hidden, the planes' cyan/white, and Weatherscope's table held unchanged by its hash.
 # Its sabotages: test/host/sabotage_wx_avionics.py, run below.
 echo
 echo "== WX avionics =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_avionics.cpp" -o "$OUT/test_wx_avionics.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the avionics test did not compile"
   cat "$OUT/build.log"
@@ -1853,9 +1890,14 @@ else
   CXX="$CXX" "$PY" "$ROOT/test/host/sabotage_wx_avionics.py"
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "WX avionics"
 
 echo
 echo "== WX layer switch =="
+(
+  fail=0
 if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_wx_layer_switch.cpp" -o "$OUT/test_wx_layer_switch.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the weather switch test did not compile"
   cat "$OUT/build.log"
@@ -1893,12 +1935,17 @@ else
   CXX="$CXX" "$PY" "$ROOT/test/host/sabotage_wx_layer_switch.py"
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "WX layer switch"
 
 # The web build's kiosk and the venue's airfield (docs/web-kiosk-airfield.md): KI1-KI3 and KI5 on include/PollCadence.h,
 # built as a device and as the web build; AF1-AF2 on tools/web-renderer/web/web_route.h; KW1, the call sites; KI4's
 # scan selftest; and the plants, test/host/sabotage_web_kiosk.py. AF3 and KI4's wasm control run in the web workflow.
 echo
 echo "== Web kiosk and airfield =="
+(
+  fail=0
 for t in test_poll_cadence:include test_poll_cadence_web:include test_web_route:tools/web-renderer/web; do
   name="${t%%:*}"; inc="${t#*:}"
   if ! "$CXX" $FLAGS -I"$ROOT/$inc" "$ROOT/test/host/$name.cpp" -o "$OUT/$name.exe" 2>"$OUT/build.log"; then
@@ -1928,12 +1975,17 @@ else
   CXX="$CXX" "$PY" "$ROOT/test/host/sabotage_web_kiosk.py"
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "Web kiosk and airfield"
 
 # WD5o, the dot marker's black outline (docs/wx-device.md, WD5 addendum 3): the construction is read from
 # src/AircraftManager.cpp and rasterised with LovyanGFX's fillCircle, ported. The bench cannot grade it, since
 # markers are triangles by default. Its sabotages: test/host/sabotage_wx_outline.py, run below.
 echo
 echo "== WX outline =="
+(
+  fail=0
 if ! "$CXX" $FLAGS "$ROOT/test/host/test_wx_outline.cpp" -o "$OUT/test_wx_outline.exe" 2>"$OUT/build.log"; then
   echo "FAIL: the outline test did not compile"
   cat "$OUT/build.log"
@@ -1953,9 +2005,14 @@ else
   "$PY" "$ROOT/test/host/sabotage_wx_outline.py" "$ROOT" "$CXX"
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "WX outline"
 
 echo
 echo "== WX wiring: the switch's default, and GetBytes' body (docs/wx-device.md, WD5b and WD5t4) =="
+(
+  fail=0
 # Read from the source: "wx-layer" is ON by default in both of its readers, and GetBytes holds no String body.
 # The selftest plants one break per check in a copy and requires exactly that check to go red.
 if [ -z "$PY" ]; then
@@ -1967,9 +2024,14 @@ else
   "$PY" "$ROOT/test/host/check_wx_wiring.py" "$ROOT" --selftest
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "WX wiring: the switch's default, and GetBytes' body (docs/wx-device.md, WD5b and WD5t4)"
 
 echo
 echo "== Config save: no toggle counted that the page never renders (the v20 'left unchanged' fix) =="
+(
+  fail=0
 # Read from the source, for the shipping radar env (platformio.ini, -D only) and the same + WX_LAYER_SHIPS: every
 # SaveToggle compiled into a build has a checkbox in that build, so a full-form save counts nothing as "left
 # unchanged". The selftest first: each of its plants must turn exactly its own assertion red.
@@ -1982,11 +2044,16 @@ else
   "$PY" "$ROOT/test/host/check_save_vocab.py" "$ROOT"
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "Config save: no toggle counted that the page never renders (the v20 'left unchanged' fix)"
 
 # WD5e's bench analysis (scripts/wx-fb-check.py; docs/wx-device.md, WD5 addendum 4) is graded here on synthetic
 # frames, one verdict each, so it is known to fail, refuse and go blind before it ever reads a real capture.
 echo
 echo "== WX frame check (WD5e's analysis, selftest) =="
+(
+  fail=0
 if [ -z "$PY" ]; then
   echo "FAIL: no WORKING python found; the frame check's selftest cannot run."
   fail=1
@@ -1994,6 +2061,9 @@ else
   "$PY" "$ROOT/scripts/wx-fb-check.py" --selftest
   [ "$?" -ne 0 ] && fail=1
 fi
+  exit "$fail"
+)
+note_block $? "WX frame check (WD5e's analysis, selftest)"
 
 # Weatherscope's feed interfaces (src/weatherscope/WxFeeds.h) against fakes, with no Arduino core and no stored
 # implementation (docs/weatherscope-stage3.md A6.2, D1). Its sabotage: python -I tools/weatherscope/s32/s32.py d1host --sabotage
@@ -2709,6 +2779,30 @@ rc=$?
 exit 2
 )
 note_block $? "image-compare selftest (#656)"
+
+echo
+echo "== strings_elf: the image-level text check's selftest (Q-6b-6) =="
+# docs/blipscope-map-client-steps.md Q-6b-4 and Q-6b-6: scripts/strings_elf.py's selftest, on synthetic objects it
+# writes itself. It needs python and a readelf (binutils', or the xtensa toolchain's); a missing one is the RIG
+# (exit 2), never a red. Wrapped from the start, so its red is listed.
+(
+if [ -z "$PY" ]; then
+  echo "FAIL: no working python; the strings_elf selftest cannot run. This is the RIG, not the code."
+  exit 2
+fi
+RE="$(command -v readelf 2>/dev/null)"
+[ -z "$RE" ] && RE="$(ls "$HOME"/.platformio/packages/toolchain-xtensa*/bin/*-readelf* 2>/dev/null | head -1)"
+if [ -z "$RE" ]; then
+  echo "FAIL: no readelf on PATH or in the xtensa toolchain; the strings_elf selftest cannot run. This is the RIG, not the code."
+  exit 2
+fi
+"$PY" -B "$ROOT/scripts/strings_elf.py" --selftest --readelf "$RE"
+rc=$?
+[ "$rc" -eq 0 ] && exit 0
+[ "$rc" -eq 1 ] && exit 1
+exit 2
+)
+note_block $? "strings_elf: the image-level text check's selftest (Q-6b-6)"
 
 echo
 echo "== bench markers, from the other side: the hooks' tags == check-no-bench-hooks.sh's MARKERS =="
