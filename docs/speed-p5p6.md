@@ -5364,3 +5364,171 @@ G6 OLD per-contact sum: 10121 B against the I-cache 16384 -> FITS (a lower bound
 G6 NEW per-contact sum: 9305 B against the I-cache 16384 -> FITS (a lower bound: not a refutation)
 VERDICT G6: direction OLD > NEW: CONSISTENT; delta 1185 B -> NOT DECISIVE
 ```
+
+### 16p. The diag arms, run and read (E2:08, window 2026-11-21 04:25:00Z to 05:34:38Z; the reading 05:35:23-05:38:14Z, no board): P5-DIAG' STOP at R-2; P6-DIAG' READ AS REGISTERED, its B1 NOT ROBUST
+
+**First, because it is the reading that matters most: P6's B1 SUPPORTED is NOT ROBUST.**
+- The rule, frozen (`diag_read.py` :168-183): X2 counts as "at NEW" when |X2 − mean(NEW)| in contacts is at most
+  max(N, 0.30).
+- This run's OLD − NEW contacts gap was **0.25 ms**, smaller than that 0.30 floor. 16k's gap was 0.81 and 0.87.
+- **X2 moved 1.14 × the gap** (1.14 × 0.25 ≈ 0.285 ms, from rounded values), more than the whole gap. It counted "at
+  NEW" only because 0.285 ≤ 0.30. X1 moved 3.43 × the gap.
+- **The alternative is not excluded.** The table's next branch, "String CHURN alone reproduces it: B2' supported, B1 not
+  separated" (X1 and X2 both at least 0.5), also fits these numbers. It lost only because the reader tests the B1 branch
+  first.
+- So this run does not separate B1 from B2'. The verdict stands as graded and is not re-graded. B4 CLOSED and the heap
+  rows do not depend on the gap.
+
+**What the arms were.** 16o left both cuts' footprint accounts NOT DECISIVE. Two diagnostic images were then
+registered to separate 16m's open readings on a board:
+- P5-DIAG' (1a, the outline mask): O-CTRL, OLD, NEW, SUB, DISCARD, OLD, NEW.
+- P6-DIAG' (the label cache): CHECK-H, P-CTRL, OLD, NEW, X1, X2, OLD, NEW.
+
+Everything was frozen before any trace existed, in the bench handoff folder, outside this repo:
+- `diag/REG-diag-arms.md` `ae65a9b77943`: the arms, the reader, the predictions and the boards, plus three
+  amendments, each accepted by the reviewer:
+  - A: the plant scenes, the rebuild and the window;
+  - B: B-7 replaced;
+  - C: row R-V, the published version gate.
+- `diag/REG-diag-images.md` `ad03287b0a46` and `diag/REPORT-diag-images.md` `8e2d14624c67`: the images.
+  - Built from `bench/diag-p5` `b51933a5fe0d` and `bench/diag-p6` `5ee13758ef8d`, to E:.
+  - Archived as `diag-p5b/firmware.bin` `9c8c68d5c6ff` and `diag-p6b/firmware.bin` `e147ba354ae7`; both re-hashed equal
+    after the PC restarts of 11-21.
+- The reader, `diag/diag_read.py` `975b27684254`, wraps p4's `gains_read.py` `6df9e8f43b55`. The grader is
+  `run/grade_diag.sh` `1a5652037bf4`.
+
+**The window.** On E2:08 at the orchestrator's START. Times are from each step's own log (`date -u`):
+
+| step | from | to | record (sha256) |
+|---|---|---|---|
+| step 0: reserve, S19 twice, check-tool, selftest | 04:25:01Z | 04:26:24Z | `step0-diag-20261121.out` `54cc7a633365` |
+| D5' app-only write; N-BOOT 04:27:16Z on `blipscope-s3-128-diag-p5` | 04:26:36Z | 04:27:00Z | `w2-D5P-write.log` `c798f0225c9a` |
+| D5P trace, 30 min, rc 0 | 04:27:22Z | 04:57:52Z | `w6-D5P-trace.log` `fe9945b026bc` |
+| D6' app-only write; N-BOOT 04:59:02Z on `blipscope-s3-128-diag-p6` | 04:58:13Z | 04:58:36Z | `w2-D6P-write.log` `6e62945df09f` |
+| D6P trace, 33 min, rc 0 | 04:59:08Z | 05:32:08Z | `w6-D6P-trace.log` `a12ce8e86357` |
+| v19 restored; S19 at 05:33:20Z and 05:34:18Z | 05:32:23Z | 05:32:46Z | `w2-DV-v19-write.log` `4d9de7df4b87` |
+| released; bgcheck PASS 0 (END accepted 05:34:59Z) | | 05:34:38Z | |
+
+The raw traces are D5P `f56aee783c8b` (1,051,027 B) and D6P `cd86cef5cacf` (1,352,586 B). Each was sealed, and tied to
+its seal before and after its read.
+
+**The reading.**
+- `grade_diag.sh` ran at 05:35:23Z and exited 11. It stops at the first failure, which was D5P's R-2.
+- The reviewer accepted that STOP as registered (05:36:19Z) and ruled that D6P be read alone, with no rule changed:
+  "every reading is within one image on one board" (REG :235). The first-failure stop is flow routed to the reviewer;
+  it does not void the other image.
+- `run/d6p_read.sh` `9ecf02071e3e` ran `grade_diag.sh`'s step 2 for D6P only, 05:38:13-05:38:14Z, exit 0: the tools at
+  their shas, `tie()` and the reader line verbatim, nothing overwritten.
+
+**P5-DIAG': STOP at R-2. Its D rows are not read.**
+- Every gate before R-2 passed:
+  - I-1 to I-11;
+  - O-1, the plant read where it was planted: +2.06 ms (want +2.0 ± 0.5);
+  - R-1, the repeat.
+- R-2, the reproduction of 16k's NEW − OLD:
+  - outline +0.72, BELOW the registered +0.9..+1.9;
+  - contacts +1.37 and lbl_layout +0.57, inside their bands.
+- The registration's consequence (section 3): "this image's layout does not reproduce 16k: STOP; the diag rows are not
+  read against A1-A3". The reader returns before them, so no D5 row was computed or seen. None is read without the
+  reviewer's word.
+- **No cause is claimed.** Section 1 named code-address dependence as the risk this gate exists for. Three alternatives
+  stay open, and this run separates none of them; each moves the layout:
+  - the added SUB/DISCARD code;
+  - the O-CTRL plant;
+  - the E: build-path strings.
+
+**P6-DIAG': READ AS REGISTERED.**
+- The gates:
+  - I-1 to I-11 PASS;
+  - C-1, the plant: +5.02 ms (want +5.0 ± 0.75);
+  - R-1: −0.01;
+  - R-2: lbl_layout −2.51 (want at most −2.0) and contacts −0.25 (want below 0).
+- **D6-B4: CLOSED,** as predicted. S0 checked 243,152 contacts at the timed arms' positions, with 0 mismatches. 16m's
+  "B4 LIVE" (the check covered only its own frames) is answered for these positions.
+- **D6-B1: B1 SUPPORTED as graded; NOT ROBUST: this run does not separate B1 from B2' (String churn), because the gap
+  it shares out (0.25 ms contacts) is under the 0.30 floor that decided X2.** (The reviewer's wording, ~19:36Z.) The
+  first lines of this section give the numbers. X1's lbl_layout was 14.65 against mean(OLD) 9.12, so X1 did run both
+  layouts.
+- **D6-HEAP:** as predicted. The largest block drifted at most 0 B from start to end, and the timed arms' ends differ by
+  0 B, against a 4,096 B allowance.
+
+**In plain words (for the owner):**
+- The 1a diagnostic image did not reproduce the slowdown it was built to explain, so its answers are set aside unread.
+- The label-cache image ran clean:
+  - one suspected flaw in the earlier check is ruled out;
+  - the leading explanation, that the old label-formatting code slows the rest of the frame, came out on top;
+  - but by too small a margin to rule out its rival, string churn.
+
+**The outputs, verbatim.** Both files have LF line ends (0 CR).
+
+`grade_diag.sh` (`grade-diag-20261121.out` sha256 `bb7c383426d6`, 25 lines):
+
+```
+grade_diag start 2026-11-21T05:35:23Z
+rig ok: tools at their shas; both children finished rc 0; one raw trace each
+D5P seal: seal sha256 f56aee783c8b6f13edc7ec3145c8e226c4a4c309002936ab3d6bdd4d2f034176  bytes 1051027  lines 1849
+D5P (sealed) tie: the raw file is the sealed file (f56aee783c8b)
+D6P seal: seal sha256 cd86cef5cacf9483f1eb0e1afed3b53c01358495a53e3c2b436d0656bcf1f3ff  bytes 1352586  lines 2257
+D6P (sealed) tie: the raw file is the sealed file (cd86cef5cacf)
+----- D5P reader (exit 1; stderr 0 B; 23 lines, sha256 3ff3e86e5096)
+I-1          PASS       banner blipscope-s3-128-diag-p5 seen 1x; bench line (7, 'on') (want (7, 'on'))
+I-2          PASS       PC-1 cost 41224 ns/frame (<= 100,000)
+I-3          PASS       7 scenes, kinds as listed, both dumps whole, frame counts agree
+I-4          PASS       FIX-n (timed): frames with drawn != level S0 0, S1 0, S2 0, S3 0, S4 0, S5 0, S6 0
+I-5          PASS       answered: S0 21 of 21, S1 21 of 21, S2 21 of 21, S3 21 of 21, S4 21 of 21, S5 21 of 21, S6 21 of 21
+I-6          PASS       partial (timed; end line, records): S0 0/0, S1 0/0, S2 0/0, S3 0/0, S4 0/0, S5 0/0, S6 0/0
+I-7          PASS       neg-contacts/neg-rest (timed): S0 0/0, S1 0/0, S2 0/0, S3 0/0, S4 0/0, S5 0/0, S6 0/0
+I-8          PASS       sweep split p50(sum) vs p50(sweep): S0 3.98/4.00, S1 3.98/3.99, S2 3.97/3.99, S3 3.97/3.99, S4 3.98/4.00, S5 3.98/4.00, S6 3.97/3.99
+I-9          PASS       PG-1 on every timed weather arm (outline, blend, STATE, (b)(i)-(iii), PIX-WX not taken: --pix none)
+I-10         PASS       lbl_draw p50 > 0 (timed): S0 9.84, S1 9.76, S2 10.13, S3 10.55, S4 10.46, S5 9.78, S6 10.10
+I-11         PASS       wait (timed): profile mean vs [m3] windowed (ms): S0 0.011/0.005, S1 0.011/0.005, S2 0.011/0.005, S3 0.011/0.005, S4 0.011/0.005, S5 0.011/0.005, S6 0.011/0.005
+O-1          PASS       O-CTRL: outline p50 10.01 - 1a-OLD1 7.95 = +2.06 ms (+2.0 +/- 0.5); every other phase |delta| <= 0.5 ms: worst lbl_draw +0.08
+R-CTRL       REPORTED   O-CTRL - 1a-OLD1: fr +2.18; upd=-0.04 wait=+0.00 under=-0.01 sweep=+0.01 sw_raster=+0.00 sw_blend=-0.01 sw_beam=+0.00 static=+0.00 contacts=+0.07 outline=+2.06 lbl_layout=+0.01 lbl_draw=+0.08 rest=+0.00 handover=+0.01 flush=+0.00
+R-1          PASS       OLD2 - OLD1 contacts +0.08; NEW2 - NEW1 outline +0.03 (each within +/- 0.30)
+R-2          STOP       mean(NEW) - mean(OLD): outline +0.72 contacts +1.37 lbl_layout +0.57 lbl_draw +0.35 (want outline +0.9..+1.9, contacts +1.2..+2.6, lbl_layout +0.5..+1.5)
+VERDICT: STOP at R-2
+D5P (after the read) tie: the raw file is the sealed file (f56aee783c8b)
+STOP: D5P reader exit 1: a STOP, to the orchestrator
+```
+
+`d6p_read.sh` (`grade-diag-D6P-20261121.out` sha256 `29e7995cff56`, 37 lines):
+
+```
+d6p_read start 2026-11-21T05:38:13Z
+tools at their shas (diag_read 975b27684254, gains_read 6df9e8f43b55); raw trace-p5p6diag-D6P-trace-2026-11-20-2059.log; preserved files before:
+  before 3ff3e86e5096 diag-read/D5P.read
+  before bb7c383426d6 run/grade-diag-20261121.out
+  before 2bbfe971e804 traces/D5P.filtered
+  before 3dda049828af traces/D6P.filtered
+D6P (sealed, before the read) tie: the raw file is the sealed file (cd86cef5cacf)
+reader command (grade_diag.sh :83, i=D6P l=d6):
+  python -X utf8 -I "C:/Github/_handoffs/weatherscope/p5p6-board/diag/diag_read.py" "C:/Github/_handoffs/weatherscope/p5p6-board/traces/trace-p5p6diag-D6P-trace-2026-11-20-2059.log" --list "d6" > "/c/Github/_handoffs/weatherscope/p5p6-board/diag-read/D6P.read" 2> "/c/Github/_handoffs/weatherscope/p5p6-board/diag-read/D6P.read.err"
+----- D6P reader (exit 0; stderr 0 B; 27 lines, sha256 b29a1d873c96)
+I-1          PASS       banner blipscope-s3-128-diag-p6 seen 1x; bench line (8, 'on') (want (8, 'on'))
+I-2          PASS       PC-1 cost 41272 ns/frame (<= 100,000)
+I-3          PASS       8 scenes, kinds as listed, both dumps whole, frame counts agree
+I-4          PASS       FIX-n (timed): frames with drawn != level S1 0, S2 0, S3 0, S4 0, S5 0, S6 0, S7 0
+I-5          PASS       answered: S0 21 of 21, S1 21 of 21, S2 21 of 21, S3 21 of 21, S4 21 of 21, S5 21 of 21, S6 21 of 21, S7 21 of 21
+I-6          PASS       partial (timed; end line, records): S1 0/0, S2 0/0, S3 0/0, S4 0/0, S5 0/0, S6 0/0, S7 0/0
+I-7          PASS       neg-contacts/neg-rest (timed): S1 0/0, S2 0/0, S3 0/0, S4 0/0, S5 0/0, S6 0/0, S7 0/0
+I-8          PASS       sweep split p50(sum) vs p50(sweep): S1 6.05/6.07, S2 6.05/6.07, S3 6.05/6.07, S4 6.05/6.06, S5 6.05/6.06, S6 6.05/6.07, S7 6.05/6.07
+I-9          PASS       PG-1 on every timed weather arm (outline, blend, STATE, (b)(i)-(iii), PIX-WX not taken: --pix none)
+I-10         PASS       lbl_draw p50 > 0 (timed): S1 13.92, S2 8.90, S3 7.73, S4 8.29, S5 7.99, S6 8.90, S7 7.73
+I-11         PASS       wait (timed): profile mean vs [m3] windowed (ms): S1 0.011/0.007, S2 0.011/0.007, S3 0.011/0.007, S4 0.011/0.007, S5 0.011/0.007, S6 0.011/0.007, S7 0.011/0.007
+C-1          PASS       P-CTRL: lbl_draw p50 13.92 - 6-OLD1 8.90 = +5.02 ms (+5.0 +/- 0.75)
+U-6-CHECK-H  UNTIMED    kind labels-check-held; frames 1652, dumps whole; not graded
+R-CTRL       REPORTED   P-CTRL - 6-OLD1: fr +5.05; upd=+0.01 wait=+0.00 under=+0.00 sweep=+0.00 sw_raster=+0.00 sw_blend=+0.00 sw_beam=+0.00 static=+0.00 contacts=+0.01 outline=+0.00 lbl_layout=-0.01 lbl_draw=+5.02 rest=+0.01 handover=+0.00 flush=+0.00
+R-1          PASS       OLD2 - OLD1 contacts -0.01 (each within +/- 0.30)
+R-2          PASS       mean(NEW) - mean(OLD): outline -0.28 contacts -0.25 lbl_layout -2.51 lbl_draw -1.17 (want lbl_layout <= -2.0, contacts < 0)
+D6-B4        READ       S0 checked 243152, mismatches 0: B4 CLOSED at the timed arms' positions (AS PREDICTED)
+D6-B1        READ       OLD-NEW contacts gap 0.25; X1 share 3.43, X2 share 1.14; X1 lbl_layout 14.65 vs mean(OLD) 9.12; B1 SUPPORTED: OLD's format() code path slows the remainder; predicted: AS PREDICTED
+D6-HEAP      READ       largest block, start-to-end drift max 0 B; end spread across the timed arms 0 B (predicted both within 4,096 B: AS PREDICTED)
+VERDICT: READ AS REGISTERED
+D6P (after the read) tie: the raw file is the sealed file (cd86cef5cacf)
+preserved files after:
+  after 3ff3e86e5096 diag-read/D5P.read
+  after bb7c383426d6 run/grade-diag-20261121.out
+  after 2bbfe971e804 traces/D5P.filtered
+  after 3dda049828af traces/D6P.filtered
+d6p_read done 2026-11-21T05:38:14Z: D6P READ AS REGISTERED
+```
