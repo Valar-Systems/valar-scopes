@@ -5532,3 +5532,87 @@ preserved files after:
   after 3dda049828af traces/D6P.filtered
 d6p_read done 2026-11-21T05:38:14Z: D6P READ AS REGISTERED
 ```
+
+**Correction to 16p (appended 2026-11-21; no line above changes):** the two gaps in 16p's first block, D6P's 0.25 ms
+and 16k's 0.81 / 0.87, are different workloads and are not compared. The D6 image holds every arm's positions; G6's
+arms move. REG-diag-images :105-106: "P6-DIAG's numbers compare within the image only, never with G6's".
+
+### 16q. Where the two diagnoses stand under 16k's ruling 4, for the reviewer's ruling (proposed 2026-11-21; text only; nothing is decided here)
+
+16k's ruling 4: "Nothing from P5 or P6 merges toward firmware until the diagnoses are accepted." This section says what
+each diagnosis has and has not established, ON EACH IMAGE'S OWN WORKLOAD, and offers the reviewer three options. **It
+grades nothing. Every number is quoted from 16k, 16m or 16p; none is new.**
+
+*A first draft of this section compared D6's gap with G6's, which REG-diag-images :105-106 forbids. It was withdrawn
+before any push (2026-11-21 ~19:46Z). The draft stays as `diag/16q-draft.md` `aaa81aa53a03`, and its commit is kept
+unpushed under the local ref `withdrawn/16q-1c5879fa`.*
+
+**1a (G5', the outline mask): no diagnosis was reached.**
+- 16m: D-1a T1 BLIND; A3 SUPPORTED; `outline` UNIFORM, a frame-constant cost.
+- 16o: the footprint read CONSISTENT and NOT DECISIVE.
+- 16p: P5-DIAG' stopped at its registered R-2, so its D rows are unread.
+- So 1a stays where 16k's ruling 1 left it: NOT ACCEPTED, shipping nowhere. No further 1a arm is proposed here.
+
+**P6 (the label cache): what is established, and on which workload.**
+
+| question | G6 (16k; arms MOVE) | D6 (16p; positions HELD) |
+|---|---|---|
+| does `contacts` move with the cut? | yes: it falls in NEW, −0.81 / −0.87, over P6-OTHER's 0.50 bound: **16k's STOP** | it falls in NEW, −0.25; R-2 asked only its sign |
+| B3, PSRAM reads | REFUTED (16m T1) | not a registered D6 row |
+| B2, allocator state | its signature, a tail moving at least 2× the median, is absent (16m T2). Restated as B2', String churn with no heap (REG-diag-arms section 3) | tested as B2' through X2: see the last row |
+| B4, a span leak | LIVE (16m T3, 5c's listing; 6-CHECK covered only its own frames) | CLOSED at the held positions: 243,152 checked, 0 mismatches |
+| B1 against B2' | not testable: G6 has no X arms | NOT SEPARATED: "B1 SUPPORTED as graded; NOT ROBUST" |
+
+**What is open, for G6's workload, the one 16k stopped on:**
+1. **B4.** D6 closed it at the HELD positions only. Whether that carries over to G6's moving table is the comparison
+   REG-diag-images rules out, so on G6's own workload B4 is still LIVE.
+2. **B1 against B2'.** Both put the move in OLD's per-contact label work, which the cut removes. They differ only in which
+   part of it: the `format()` code path, or the String objects.
+   - G6 cannot separate them.
+   - D6 could not either: its held gap, 0.25 ms, is under the 0.30 floor that decided X2.
+3. **Why D6's held gap is what it is.** This is NOT a shortfall against G6: the two numbers are not compared. What
+   could set it is named only so that a later arm can be designed around it:
+   - the held workload itself;
+   - the code the diag image adds (code-address dependence, REG-diag-arms section 1);
+   - the board on the day.
+
+   Neither run can tell these apart.
+
+**Requirement for any further arm, restated.** "Reproduce 16k's gap within its own run" can only be judged on an image
+with G6's MOVING workload. A held image's gap is not judged against 16k's.
+
+**What each pairing in one window would separate, if an arm is wanted:**
+- **G6 beside D6, both as built:** board and day, from the image. Layout and workload stay together, because the two
+  images differ in both.
+- **G6 beside a new MOVING diag image** (D6's X1/X2 code on G6's moving kinds; a build):
+  - workload held equal, so code layout from board and day;
+  - requirement 1 judged against G6's gap in the same window;
+  - B1 from B2' on G6's own workload, if the gap there is above the floor;
+  - B4 at G6's moving positions, if the new image's check covers every position its timed arms draw.
+- **That new moving image beside D6:** held workload from moving, with the X code in both.
+  - Not a clean single difference: the kinds' code differs too.
+  - It separates layout from workload only as far as that code is small.
+
+**P6's other open row, which this section does not touch:** the OFF on P6-BAND, f = 0.498 against [0.50, 0.90] (16k).
+It is P6's first OFF and is ruled on its own.
+
+**The options, for the reviewer:**
+- **(a) Accept P6's diagnosis as it stands.**
+  - Grounds: on G6's workload, B3 is out and B2's tail signature is absent. Every content alternative still standing
+    (B1, B2') puts the move in work the cut removes.
+  - What it leaves open: B4 on G6's moving table, and B1 against B2'.
+- **(b) One more board arm first**, registered before any code: a moving diag image beside G6, as above.
+  - It needs a build (D6's X code on G6's kinds) and one board window, which is not booked inside Sunday's KBOS
+    PC-quiet window.
+  - What it can close: requirement 1, B4 on the moving table, and B1 against B2' if the gap is above the floor.
+- **(c) Leave P6 not accepted,** and spend nothing more on it.
+
+No recommendation is made. The first draft's recommendation rested on the withdrawn comparison.
+
+**In plain words (for the owner):**
+- The label cache makes labels faster, but in the original test it also sped up an unrelated part of the frame by more
+  than the test allows.
+- The follow-up test ran a different, simplified workload, so its numbers can't be set against the original's.
+- On the original workload, one possible measurement flaw is still open. So is which part of the old label code
+  causes the speed-up.
+- Three choices: accept it now, run one more test on the original workload, or drop it.
