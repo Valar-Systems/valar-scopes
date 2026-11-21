@@ -2608,6 +2608,33 @@ exit "$rc"
 )
 note_block $? "P6: the label cache against today's layout"
 
+# P6-MOVE (REG-p6m.md on the weatherscope handoffs; bench branch bench/diag-p6m): include/DiagP6m.h's box-call
+# recorder, LabelKey's inverse and the replay, with the REAL formatters and key staged as P6's above, and the REAL
+# bench table. Its red run (-DP6M_RED_BREAK=1) is shown by hand before the build; this block runs the clean one.
+echo
+echo "== P6-MOVE: the box-call recorder and its replay =="
+(
+P6M="$OUT/p6msrc"
+rm -rf "$P6M" && mkdir -p "$P6M/models" &&
+  cp "$ROOT/src/AircraftInfoFields.cpp" "$ROOT/src/AircraftInfoFields.h" "$P6M/" &&
+  cp "$ROOT/test/host/p6_fake/TrackedAircraft.h" "$P6M/models/TrackedAircraft.h" ||
+  { echo "FAIL: could not stage P6-MOVE's sources. This is the RIG, not the code."; exit 2; }
+if ! "$CXX" $FLAGS -I"$ROOT/test/host/p6_shim" -I"$ROOT/include" -I"$P6M" "$ROOT/test/host/test_p6m_replay.cpp" \
+       "$P6M/AircraftInfoFields.cpp" -o "$OUT/test_p6m_replay.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the P6-MOVE test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_p6m_replay.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the P6-MOVE test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "P6-MOVE: the box-call recorder and its replay"
+
 echo
 if [ -n "$RIG_BLOCKS$FAILED_BLOCKS" ]; then
   echo "FAILED BLOCKS:"

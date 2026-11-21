@@ -43,8 +43,22 @@ static const char* const kArmName[] = {"6-CHECK", "P-CTRL", "6-OLD1", "6-NEW1", 
                                        "6-STILL-NEW"};
 constexpr bool kLabelsPlant[] = {false, true, false, false, false, false, false, false};
 constexpr bool kOutlinePlant[] = {false, false, false, false, false, false, false, false};
+#elif defined(FRAME_PROFILE_GAINS) && FRAME_PROFILE_GAINS == 9
+// P6-MOVE (weatherscope, REG-p6m.md 21acf1e7a2ca, accepted): G6's scene shape on G6's MOVING table (no position
+// hold), with X1 and X2 between the pairs as P6-DIAG had them. Every scene level 40, weather on. S0 the check
+// (untimed, as G6's); P-CTRL (G6's labels plant beside 6-OLD1); then OLD, NEW, X1, X2, OLD, NEW, timed. The box-call
+// recorder (include/DiagP6m.h) runs in every scene's measure window and is replayed after it.
+static const Scene kScenes[] = {
+    {LABELS_CHECK, 40, true},
+    {LABELS_TODAY, 40, true},
+    {LABELS_TODAY, 40, true}, {LABELS_CACHE, 40, true}, {LABELS_X1, 40, true}, {LABELS_X2, 40, true},
+    {LABELS_TODAY, 40, true}, {LABELS_CACHE, 40, true},
+};
+static const char* const kArmName[] = {"6-CHECK", "P-CTRL", "6-OLD1", "6-NEW1", "6-X1", "6-X2", "6-OLD2", "6-NEW2"};
+constexpr bool kLabelsPlant[] = {false, true, false, false, false, false, false, false};
+constexpr bool kOutlinePlant[] = {false, false, false, false, false, false, false, false};
 #elif defined(FRAME_PROFILE_GAINS)
-#error "FRAME_PROFILE_GAINS is 5 (G5, bench/speed-p5) or 6 (G6, bench/speed-p6)"
+#error "FRAME_PROFILE_GAINS is 5 (G5, bench/speed-p5), 6 (G6, bench/speed-p6) or 9 (P6-MOVE, bench/diag-p6m)"
 #else
 static const Scene kScenes[] = {
     {C1, 20, false}, {C1, 40, false}, {C1, 60, false},

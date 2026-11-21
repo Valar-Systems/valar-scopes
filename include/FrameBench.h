@@ -40,7 +40,12 @@ namespace framebench {
 // (the OLD path, only in AircraftManager's FRAME_BENCH region), LABELS_CACHE through the cache, and LABELS_CHECK
 // through the cache with today's layout alongside, counting mismatches (untimed: the check costs a second layout).
 enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, LABELS_TODAY = 4, LABELS_CACHE = 5,
-                      LABELS_CHECK = 6, LABELS_TODAY_STILL = 7, LABELS_CACHE_STILL = 8, kKinds };
+                      LABELS_CHECK = 6, LABELS_TODAY_STILL = 7, LABELS_CACHE_STILL = 8,
+                      // P6-MOVE (include/DiagP6.h, REG-p6m.md): G6's LABELS_CACHE, MOVING (no position hold), plus
+                      // P6-DIAG's two extra-work hooks inside LabelLayout (X1: OLD's layout run and discarded; X2: String
+                      // churn only).
+                      LABELS_X1 = 9, LABELS_X2 = 10,
+                      kKinds };
 // docs/speed-p5p6.md 15c (2): G6's still label arms (p4's gains list S6/S7, untimed): today's layout (STILL_TODAY) and
 // the cache (STILL_CACHE), the rows held at kTblT with gs 0, the sweep and the trails off BY KIND after Initialise()
 // (ProfileOverride answers "scanline" and "trail" true), so S6 and S7 can be compared by pixels (15b-1's row).
@@ -88,8 +93,9 @@ static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
 static const char* const kKindName[] = {"C1", "C1+push10", "C1+push60", "C1+loop10", "labels-today", "labels-cache",
-                                        "labels-check", "labels-today-still", "labels-cache-still"};
-constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0};
+                                        "labels-check", "labels-today-still", "labels-cache-still", "labels-x1",
+                                        "labels-x2"};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0, 0, 0};
 // A kind without an entry in both tables fails the build (docs/speed-p5p6.md section 0, "the kind tables").
 static_assert(sizeof(kKindName) / sizeof(kKindName[0]) == kKinds, "kKindName needs one entry per Kind");
 static_assert(sizeof(kPushDelayMs) / sizeof(kPushDelayMs[0]) == kKinds, "kPushDelayMs needs one entry per Kind");
@@ -202,6 +208,9 @@ inline bool LabelsStill()
     return InScene() && (kScenes[S().scene].kind == LABELS_TODAY_STILL || kScenes[S().scene].kind == LABELS_CACHE_STILL);
 }
 inline bool LabelsCheck() { return InScene() && kScenes[S().scene].kind == LABELS_CHECK; }
+// P6-MOVE: the two extra-work arms, on G6's moving table (the cache path; neither is LabelsOld).
+inline bool LabelsX1() { return InScene() && kScenes[S().scene].kind == LABELS_X1; }
+inline bool LabelsX2() { return InScene() && kScenes[S().scene].kind == LABELS_X2; }
 inline void NoteLabel(bool same)
 {
     State& s = S();

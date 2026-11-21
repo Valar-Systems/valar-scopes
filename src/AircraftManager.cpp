@@ -7,6 +7,17 @@
 // THE FRAME PROFILE BEGIN
 #ifdef FRAME_PROFILE
 #include "FrameProfile.h"   // the frame profile, P1 (docs/frame-profile.md)
+#include "DiagP6.h"    // P6-MOVE (REG-p6m.md): X1/X2 and the heap line; DIAG_P6_ON only when FRAME_PROFILE_GAINS == 9
+#include "DiagP6m.h"   // P6-MOVE: the box-call recorder and replay; DIAG_P6M_ON only when FRAME_PROFILE_GAINS == 9
+#ifdef DIAG_P6M_ON
+#include <esp_heap_caps.h>
+#include <esp_task_wdt.h>
+namespace {
+diagp6m::Recorder g_p6mRec;                 // REG-p6m section 2 and A-1: one record per BOX call, measured frames only
+bool g_p6mOk = false;                       // the one boot buffer (G2) was granted
+TrackedAircraft* g_p6mScratch = nullptr;    // the replay decodes each key into this aircraft
+}  // namespace
+#endif
 #endif
 // THE FRAME PROFILE END
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
@@ -2173,6 +2184,53 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
 #endif
         // THE FRAME PROFILE END
         const uint32_t nowMs = millis();
+#ifdef DIAG_P6M_ON
+        // P6-MOVE (REG-p6m section 2): the replay, UNTIMED, at a scene's measure end. P6mFields is LabelLayout's own
+        // adapter, on the decoded aircraft, so OLD's LayoutToday reads exactly what the box call read.
+        struct P6mFields {
+            const AircraftManager& m;
+            const TrackedAircraft& t;
+            int Count() const { return (int)AIRCRAFT_INFO_FIELD_COUNT; }
+            const char* FieldKey(int i) const { return AIRCRAFT_INFO_FIELDS[i].key; }
+            bool On(int i) const { return (size_t)i < m.infoFieldEnabled.size() && m.infoFieldEnabled[(size_t)i]; }
+            String Format(int i) const { return AIRCRAFT_INFO_FIELDS[i].format(t); }
+            int Width(const String& s) const { return (int)m.tft.textWidth(s); }
+            int LineHeight() const { return m.tft.fontHeight() + 1; }
+            int Chord(int rowY, int lineH) const { return ChordWidthPx(rowY, lineH); }
+            int Half() const { return SCREEN_SIZE_DIV_2; }
+            void MakeKey(labelcache::KeyBuf& k) const { LabelKey(t, k); }
+        };
+        auto p6mReplay = [&](int scene) {
+            const char* arm = (scene >= 0 && scene < framebench::kNumScenes) ? framebench::kArmName[scene] : "?";
+            if (!g_p6mOk) {   // no buffer: every arm VOID (REG-p6m G2); the line still comes, so the reader sees it
+                Serial.printf("[diag-p6m] replay S%d arm=%s frames=0 records=0 recmin=0 recmax=0 keys=0 overflow=1 "
+                              "undecodable=0 mismatches=0 first=-1\n", scene, arm);
+                return;
+            }
+            tft.setTextSize(1);   // LabelLayout's first line, so Width and LineHeight read as at the box call
+            auto layout = [&](const TrackedAircraft& t, int lx0, int ly0, diagp6m::Geometry& g) {
+                const P6mFields f{*this, t};
+                g.n = labelcache::LayoutToday(f, lx0, ly0, g.idx, g.x, g.y, g.w);
+            };
+            auto yield = [] {   // every 25 frames: the 10 s Task-WDT, and the other tasks
+                esp_task_wdt_reset();
+                vTaskDelay(1);
+            };
+            const diagp6m::ReplayResult r = diagp6m::Replay(g_p6mRec, *g_p6mScratch, layout, yield);
+            Serial.printf("[diag-p6m] replay S%d arm=%s frames=%lu records=%lu recmin=%lu recmax=%lu keys=%lu overflow=%d "
+                          "undecodable=%lu mismatches=%lu first=%ld\n",
+                          scene, arm, (unsigned long)r.frames, (unsigned long)r.records, (unsigned long)r.recMin,
+                          (unsigned long)r.recMax, (unsigned long)g_p6mRec.keys, g_p6mRec.overflow ? 1 : 0,
+                          (unsigned long)r.undecodable, (unsigned long)r.mismatches, (long)r.first);
+            if (strcmp(arm, "6-NEW1") == 0) {   // G3 / A-4: the plant, a SECOND replay of 6-NEW1's record, on a copy
+                const int32_t F = (int32_t)(r.frames / 2);
+                const diagp6m::ReplayResult q = diagp6m::Replay(g_p6mRec, *g_p6mScratch, layout, yield, F);
+                Serial.printf("[diag-p6m] plant S%d frame=%ld record=%ld lx_before=%d lx_after=%d mismatches=%lu first=%ld\n",
+                              scene, (long)F, (long)q.plantRecord, q.lxBefore, q.lxAfter, (unsigned long)q.mismatches,
+                              (long)q.first);
+            }
+        };
+#endif
         auto applyScene = [&](int k) {
             fb.noting = true;
             Initialise();
@@ -2192,6 +2250,18 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     // THE FRAME PROFILE BEGIN
 #ifdef FRAME_PROFILE
                     if (frameprofile::Allocate()) frameprofile::SelfTime();   // PC-1
+#ifdef DIAG_P6M_ON
+                    {   // P6-MOVE (REG-p6m G2): the recorder's ONE buffer, from PSRAM, once, before scene 0; reused per scene
+                        uint8_t* buf = (uint8_t*)heap_caps_malloc(diagp6m::kBufferBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                        if (buf) {
+                            g_p6mRec.Init(buf);
+                            g_p6mScratch = new TrackedAircraft(Aircraft(), 0);
+                        }
+                        g_p6mOk = buf != nullptr && g_p6mScratch != nullptr;
+                        Serial.printf("[diag-p6m] rec buffer bytes=%lu ok=%d\n", (unsigned long)diagp6m::kBufferBytes,
+                                      g_p6mOk ? 1 : 0);
+                    }
+#endif
 #endif
                     // THE FRAME PROFILE END
                     fb.scene = 0;
@@ -2217,6 +2287,10 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     fb.overflowFrames = 0;
                     fb.marginProbe = 0;   // A2: a margin scene's first probe is due as its measure starts
                     fb.marginNextMs = nowMs;
+#ifdef DIAG_P6M_ON
+                    diagp6::MeasureStart();   // P6-MOVE: the heap at this measure window's start (P6-DIAG's line)
+                    g_p6mRec.Reset();         // P6-MOVE: this scene's record starts empty
+#endif
                     Serial.printf("[frame-bench] scene S%d measure\n", fb.scene);
                 }
             } else if (nowMs - fb.phaseStartMs >= framebench::MeasureMs(fb.scene)) {
@@ -2224,6 +2298,10 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                 // THE FRAME PROFILE BEGIN
 #ifdef FRAME_PROFILE
                 frameprofile::EndMeasure(fb.scene);
+#ifdef DIAG_P6M_ON
+                diagp6::Print(fb.scene);   // P6-MOVE: one [diag-p6] heap line per scene (P6-DIAG's)
+                p6mReplay(fb.scene);       // P6-MOVE: the replay, untimed (and the plant after 6-NEW1)
+#endif
 #endif
                 // THE FRAME PROFILE END
                 const int next = fb.scene + 1;
@@ -2231,6 +2309,9 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
                     fb.scene = next;
                     framebench::PrepareScene(next);
                     fb.phaseStartMs = nowMs;
+#ifdef DIAG_P6M_ON
+                    fb.phaseStartMs = millis();   // P6-MOVE: the next scene's full settle counts from after the replay
+#endif
                     Serial.printf("[frame-bench] scene S%d %s home=Bend level=%d wx=%s rung=%dmi settle\n", next,
                                   framebench::kKindName[framebench::kScenes[next].kind],
                                   (int)framebench::kScenes[next].level, framebench::kScenes[next].wx ? "on" : "off",
@@ -5857,6 +5938,16 @@ int AircraftManager::LabelLayout(const TrackedAircraft& tracked, int x, int y,
                        f.Format(ti[k]) == e->text[s[k]];
             framebench::NoteLabel(same);
         }
+#ifdef DIAG_P6_ON
+        if (framebench::LabelsX1()) {   // P6-DIAG X1: OLD's layout format() work, run and discarded (inside A_LAYOUT)
+            int ti[labelcache::kLines], tx[labelcache::kLines], ty[labelcache::kLines], tw[labelcache::kLines];
+            const int tn = labelcache::LayoutToday(f, x, y, ti, tx, ty, tw);
+            uint32_t acc = (uint32_t)tn;
+            for (int k = 0; k < tn; ++k) acc += (uint32_t)(ti[k] + tx[k] + ty[k] + tw[k]);
+            diagp6::Sink(acc);
+        }
+        if (framebench::LabelsX2()) diagp6::AllocLikeToday();   // P6-DIAG X2: String churn only, no format() code
+#endif
 #endif
         // THE FRAME BENCH END
         if (entryOut) *entryOut = e;
@@ -5913,6 +6004,14 @@ bool AircraftManager::AircraftLabelBox(const TrackedAircraft& tracked, int x, in
     const int n = LabelLayout(tracked, x, y, idx, lx, ly, lw);
     // THE FRAME PROFILE BEGIN
 #ifdef FRAME_PROFILE
+#ifdef DIAG_P6M_ON
+    // P6-MOVE (REG-p6m A-1): the BOX call's geometry exactly as LabelLayout returned it -- n and idx/lx/ly/lw, what
+    // the n == 0 return and the min/max below read next. Every LabelLayout return path reaches here (OLD's early
+    // return, the cache hit, the cache's LayoutToday fallback). Inside A_LAYOUT; measured frames only.
+    if (g_p6mOk && framebench::S().measuring)
+        g_p6mRec.Add((uint32_t)framebench::S().n, tracked.state.icao24.c_str(),
+                     [&](labelcache::KeyBuf& k) { LabelKey(tracked, k); }, x, y, n, idx, lx, ly, lw);
+#endif
     frameprofile::AddCyc(frameprofile::A_LAYOUT, fpBox0);
 #endif
     // THE FRAME PROFILE END
