@@ -14,6 +14,9 @@ firmware built with ARDUINO_USB_MODE=1, e.g. the Blipscope soak build) gives it 
 colons; the TinyUSB stack (ARDUINO_USB_MODE=0, the Missileer builds) gives it without.
 Both are matched after removing the colons.
 
+THE SET IS CLOSED (2026-11-22). BOARDS below is every board a command here may name; a board outside
+it is never touched, and the selftest compares the table whole against bench-flash.ps1 and CLAUDE.md.
+
 FOUR BOARDS, TWO OF EACH PRODUCT (Daniel, 2026-10-12). Two Blipscope units and two
 Missileer units sit on the bench, so a product name is not an identity either: COM16
 was taken for the bench Missileer that day and was E7:94, the photo unit. The
@@ -66,20 +69,32 @@ from datetime import datetime, timezone
 ESPRESSIF_VID = 0x303A
 
 # THE BENCH BOARDS. Keep in step with CLAUDE.md "Bench boards" and with
-# scripts/bench-flash.ps1 (its -Board list and the rules it enforces).
+# scripts/bench-flash.ps1 (its -Board list); the selftest compares the three name sets.
+#
+# The three boards on the YKUSH hub take any firmware, flashing and power cycles, with a
+# reservation first and every flash and switch logged (the owner, 2026-11-22). That rule
+# replaced every earlier limit on them: "ask first", "Missileer envs only" for the photo unit.
 BOARDS = {
     # name: (label, the MAC's last two bytes; product; role; rule). The serial is the registry's.
     'missileer':       ('E9:D8', 'Missileer', 'bench',
                         'flash freely (Missileer work)'),
     'missileer-photo': ('E7:94', 'Missileer', 'photo unit',
-                        'Missileer envs only; flash on Daniel\'s go (product photos)'),
+                        'YKUSH port 1: any firmware, flash, power cycle; reserve first, log each (the owner, 2026-11-22)'),
     'weatherscope':    ('6E:64', 'Weatherscope', 'bench',
-                        'the Weatherscope session\'s board (Daniel, 2026-10-20): never for Blipscope or Missileer work; ask Daniel first'),
+                        'YKUSH port 2: any firmware, flash, power cycle; reserve first, log each (the owner, 2026-11-22)'),
     'blipscope-bench': ('E2:08', 'Blipscope', 'bench',
-                        'the Blipscope session\'s board: never for Missileer work; ask Daniel first'),
+                        'YKUSH port 3: any firmware, flash, power cycle; reserve first, log each (the owner, 2026-11-22)'),
 }
 # Two names on one label would let a rule written for one board reach the other.
 assert len({b[0] for b in BOARDS.values()}) == len(BOARDS), 'a label is registered twice'
+# THE SET IS CLOSED. A board outside this table is never touched: every command looks its name
+# up here and refuses one that is not a row (exit 2), and bench-flash.ps1's -Board set refuses it
+# at parameter binding. So the table is compared WHOLE, never searched for a name it must not
+# hold: a row added here, or there, without the other is a failure, whatever it is called.
+KNOWN_BOARDS = frozenset({'missileer', 'missileer-photo', 'weatherscope', 'blipscope-bench'})
+KNOWN_LABELS = frozenset({'E9:D8', 'E7:94', '6E:64', 'E2:08'})
+assert set(BOARDS) == KNOWN_BOARDS, 'BOARDS is not exactly the known bench boards'
+assert {b[0] for b in BOARDS.values()} == KNOWN_LABELS, 'BOARDS does not carry exactly the known labels'
 
 
 class NoRegistry(Exception):
@@ -263,6 +278,37 @@ def opt(argv, flag):
     return None
 
 
+def ps1_board_set(path):
+    """The names in bench-flash.ps1's -Board ValidateSet, as a list (duplicates kept), or None if unreadable."""
+    try:
+        text = open(path, encoding='utf-8').read()
+    except OSError:
+        return None
+    m = re.findall(r"\[ValidateSet\(([^)]*)\)\]\[string\]\$Board\b", text)
+    if len(m) != 1:
+        return None
+    return re.findall(r"'([^']*)'", m[0])
+
+
+def claude_md_board_set(path):
+    """The first-column names of CLAUDE.md's "Bench boards" table, as a list, or None if unreadable."""
+    try:
+        lines = open(path, encoding='utf-8').read().splitlines()
+    except OSError:
+        return None
+    start = [i for i, l in enumerate(lines) if l.startswith('### Bench boards')]
+    if len(start) != 1:
+        return None
+    names = []
+    for l in lines[start[0] + 1:]:
+        if l.startswith('#'):
+            break
+        m = re.match(r'^\| `([a-z][a-z-]*)` \| \*\*', l)
+        if m:
+            names.append(m.group(1))
+    return names
+
+
 def selftest():
     """Reservation rules against a scratch directory. Touches no USB and no real claim."""
     bad = 0
@@ -271,6 +317,21 @@ def selftest():
         nonlocal bad
         print('  %s  %s' % ('ok  ' if cond else 'FAIL', what))
         bad += not cond
+
+    # THE CLOSED SET, compared whole across the three places that carry it (CLAUDE.md: "change all
+    # three together"). An extra row in any one of them fails here, whatever its name.
+    here = os.path.dirname(os.path.abspath(__file__))
+    ps1 = ps1_board_set(os.path.join(here, 'bench-flash.ps1'))
+    ok(ps1 is not None and len(ps1) == len(set(ps1)) and set(ps1) == set(BOARDS),
+       "bench-flash.ps1's -Board set equals BOARDS exactly")
+    md = claude_md_board_set(os.path.join(here, '..', 'CLAUDE.md'))
+    ok(md is not None and len(md) == len(set(md)) and set(md) == set(BOARDS),
+       "CLAUDE.md's board table names equal BOARDS exactly")
+    for name, port in (('missileer-photo', 1), ('weatherscope', 2), ('blipscope-bench', 3)):
+        rule = BOARDS[name][3]
+        ok(rule.startswith('YKUSH port %d: any firmware' % port) and '(the owner, 2026-11-22)' in rule,
+           "%s carries the owner's 2026-11-22 rule for YKUSH port %d" % (name, port))
+    ok(BOARDS['missileer'][3] == 'flash freely (Missileer work)', 'CONTROL: missileer (off the hub) keeps its rule')
 
     saved = os.environ.get('VALAR_BENCH_RESERVATIONS')
     with tempfile.TemporaryDirectory() as d:
@@ -290,6 +351,13 @@ def selftest():
             f.write('{not json')
         ok(check(b, 'alice') == 3, 'CONTROL: an unreadable claim is still a claim, not free')
         os.remove(res_path(b))
+        # A name outside the closed set (synthetic) is refused before any registry, USB or claim.
+        x = 'extra-board'
+        ok(main([x]) == 2 and main([x, '--upload']) == 2 and main([x, '--label']) == 2,
+           'a board outside the table: lookup, --upload and --label refuse it (exit 2)')
+        ok(main(['--reserve', x, '--by', 'alice', '--for', 'captures']) == 2 and not os.listdir(d),
+           'a board outside the table cannot be reserved (exit 2), and no claim is written')
+        ok(main(['--check', x, '--by', 'alice']) == 2, 'a board outside the table cannot be checked (exit 2)')
     if saved is None:
         os.environ.pop('VALAR_BENCH_RESERVATIONS', None)
     else:
