@@ -720,11 +720,12 @@ J_THETA = -3.03   # a beam angle where the selftest's raster has the outer ring 
 def selftest(src):
     on = lambda kw, look: grade([synth(src, look=look, **kw)], look, src)
     off = lambda kw, excl=True: grade_off([synth_off(src, **kw)], src, ring_exclusion=excl)
-    # M2's band, frozen as 18.4-18.9 % for the 1.0 rad wedge (2026-10-28), moves with the source's kTail: the mask is
-    # the MASK_CORE disc plus a sector of tail + 2 x MASK_MARGIN, so its share of the disc moves by
-    # (1 - core) x (tail - 1.0) / (2 pi). At 1.0 it is the frozen band exactly.
-    core = (MASK_CORE / DISC_R) ** 2
-    m2_lo, m2_hi = (b + (1 - core) * (src["tail"] - 1.0) / (2 * math.pi) for b in (0.184, 0.189))
+    # M2's band, one row per afterglow (include/SweepWedge.h's kTail), each around a share MEASURED at that kTail:
+    # 18.4-18.9 % at 1.0 rad (frozen 2026-10-28; read 18.62 % on 2026-11-22) and 10.4-11.0 % at L3a's 0.5 (read
+    # 10.74 %, +/- 0.25 rounded outward). Any other kTail has no measured row, so M2 fails until one is read and added.
+    m2_lo, m2_hi = {1.0: (0.184, 0.189), 0.5: (0.104, 0.110)}.get(src["tail"], (None, None))
+    m2_band = (f"its share {m2_lo * 100:.1f}-{m2_hi * 100:.1f} %" if m2_lo is not None
+               else f"no measured band for kTail {src['tail']}: read one and add its row")
 
     def share_case(look):
         out = []
@@ -732,7 +733,7 @@ def selftest(src):
         wm = wedge_mask(f, src, 0, out)
         if wm is None: return "UNTRUSTWORTHY", out
         verdict, lines = grade([f], look, src)
-        ok = m2_lo <= wm[1] <= m2_hi and verdict == "PASS"
+        ok = m2_lo is not None and m2_lo <= wm[1] <= m2_hi and verdict == "PASS"
         return ("PASS" if ok else "FAIL"), out + lines
 
     def split_case(gap):
@@ -788,7 +789,7 @@ def selftest(src):
         ("off: CONTROL, the same frame with ring pixels allowed into markers",
                                                       lambda: off(dict(outer_colour_far_black=True), excl=False), "FAIL"),
         # The wedge mask (ruled 2026-10-28). M2: located, and its share inside the predicted band.
-        (f"M2 look 4's wedge drawn: the mask is found, its share {m2_lo * 100:.1f}-{m2_hi * 100:.1f} %",
+        (f"M2 look 4's wedge drawn: the mask is found, {m2_band}",
                                                       lambda: share_case("A"),                           "PASS"),
         ("M3 S-m1: a wedge-only colour on a ring pixel outside the mask", lambda: on(dict(plant="outside"), "A"), "FAIL"),
         ("M4 S-m2: the head erased",                  lambda: on(dict(head="none"), "A"),                "UNTRUSTWORTHY"),
