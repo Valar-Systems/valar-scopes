@@ -15,6 +15,7 @@
 //   CF_API_TOKEN when non-empty, else the analytics-read line of BLIPSCOPE_TOKEN_FILE
 //   (proxy/scripts/token-file.ts, the reader every by-hand script shares).
 // The device id is never printed either; the caller passes it and gets times and reasons back.
+// That includes a query error: any 16-hex run in its text is masked as <hex16> before it is printed.
 //
 // Exit 0: rows printed (possibly none). 2: bad arguments. 3: no token / the query failed --
 // UNTRUSTWORTHY, nothing was measured, and the caller must not read "no rows" as "no boots".
@@ -61,7 +62,10 @@ let rows;
 try {
   rows = await deviceBoots(env, dev);
 } catch (e) {
-  console.error(`UNTRUSTWORTHY: the boot query failed -- ${String(e instanceof Error ? e.message : e).slice(0, 200)}`);
+  // A query error can quote the id: runSql (dashboard/src/analytics.ts) puts the server's body into the message, and
+  // the SQL holds the id verbatim. Mask EVERY 16-hex run, in any case, BEFORE the slice (fb-rowsredact, 2026-11-21).
+  const why = String(e instanceof Error ? e.message : e).replace(/[0-9A-Fa-f]{16}/g, "<hex16>");
+  console.error(`UNTRUSTWORTHY: the boot query failed -- ${why.slice(0, 200)}`);
   process.exit(3);
 }
 // AE returns "YYYY-MM-DD HH:MM:SS" in UTC with no zone marker.

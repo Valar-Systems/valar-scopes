@@ -417,6 +417,25 @@ function parseSource(tarPath: string, tmp: string, label = ""): ParsedSource {
   return { root, commit: (rootDirs[0] as string).slice("standing-data-".length), shards, totalRows };
 }
 
+/**
+ * wrangler's not-found wording, matched loosely because it has changed between releases. THE ONE HOME of this rule
+ * (fix (e), 2026-11-20, SR5): the meta read, readPending and the sample read-back all ask it. Anything it does not
+ * match -- auth, network, config -- is not a clean not-found.
+ */
+export function isCleanNotFound(text: string): boolean {
+  return /not found|does not exist|key .* not/i.test(text);
+}
+/**
+ * The class of a failed `kv key get` that is not a clean not-found, from a fixed set (fix (e), SR1). Read from the
+ * failure's own output, which is never printed: it can carry a path.
+ */
+export function readErrorClass(text: string): "auth" | "rate" | "network" | "other" {
+  if (/\b40[13]\b|authenticat/i.test(text)) return "auth";
+  if (/\b429\b|rate.?limit/i.test(text)) return "rate";
+  if (/ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|fetch failed|socket/i.test(text)) return "network";
+  return "other";
+}
+
 type Meta = Record<string, unknown> & { shards: Record<string, string> };
 /**
  * Read meta:routes through the helper. "Absent" and "cannot read" never collapse into one branch: a clean not-found is
@@ -432,9 +451,8 @@ function readMeta(env: string): { kind: "absent" } | { kind: "ok"; meta: Meta; r
   } catch (e) {
     const err = e as { status?: number; stdout?: string; stderr?: string };
     const blob = `${err.stdout ?? ""}\n${err.stderr ?? ""}`;
-    // wrangler's not-found wording, matched loosely because it has changed
-    // between releases. Everything else -- auth, network, config -- is fatal.
-    const notFound = /not found|does not exist|key .* not/i.test(blob);
+    // A clean not-found (isCleanNotFound, the rule's one home). Everything else -- auth, network, config -- is fatal.
+    const notFound = isCleanNotFound(blob);
     if (!notFound) {
       console.error(`REFUSING: could not read ${META_KEY} from ${env}, and this is NOT a`);
       console.error("clean not-found. Treating it as a first run would blind-write every key.");
@@ -538,7 +556,7 @@ function readPending(env: string, metaRaw: string): Pending {
     raw = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   } catch (e) {
     const err = e as { status?: number; stdout?: string; stderr?: string };
-    if (/not found|does not exist|key .* not/i.test(`${err.stdout ?? ""}\n${err.stderr ?? ""}`)) return { kind: "absent" };
+    if (isCleanNotFound(`${err.stdout ?? ""}\n${err.stderr ?? ""}`)) return { kind: "absent" };
     refuse(1, `REFUSING (JN2): could not read ${META_PENDING_KEY} (exit ${err.status ?? "?"}), and this is not a clean not-found. Nothing written.`);
   }
   let j: { v?: number; since?: string; keys?: unknown };
@@ -984,18 +1002,46 @@ async function keyLevelMain(args: Args) {
   }
 
   // The KV-level sample: written keys read straight from the namespace, byte for byte (the verify reads them all).
+  // Fix (e), 2026-11-20: each read is ONE of four outcomes, counted apart -- MATCH, MISMATCH (a value came back and
+  // differs), ABSENT (a clean not-found) or READ-ERROR (any other failure, with its class). On 2026-11-20 a single miss
+  // read "11/12" with nothing saying which of these it was. A key is never PRINTED: this output is cat into the
+  // routes-refresh CI log, which keeps callsigns out (routes-refresh-run.sh's masked()). Its sample POSITION is printed,
+  // and the keys go to a file beside --out-written that outlives this process (A1: the run's tmp is removed on exit).
   const SAMPLE = 12, stride = Math.max(1, Math.floor(writes.length / SAMPLE));
-  let sampleOk = 0, sampleChecked = 0;
+  let sampleOk = 0, sampleChecked = 0, mismatched = 0, absentN = 0;
+  const readErrors: string[] = [];
+  const failing: { pos: number; key: string; outcome: string }[] = [];
   for (let i = 0; i < writes.length && sampleChecked < SAMPLE; i += stride) {
     const [k, v] = writes[i] as [string, string];
-    sampleChecked++;
+    const pos = sampleChecked++;
     try {
       const got = execSync(["node", KV_CLI, "kv", "key", "get", q(k), "--binding=ENRICH_KV", `--env=${env}`, "--remote"].join(" "),
         { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
       if (got === v) sampleOk++;
-    } catch { /* counted as a miss below */ }
+      else { mismatched++; failing.push({ pos, key: k, outcome: "MISMATCH" }); }
+    } catch (e) {
+      const err = e as { status?: number; stdout?: string; stderr?: string };
+      const blob = `${err.stdout ?? ""}\n${err.stderr ?? ""}`;
+      if (isCleanNotFound(blob)) { absentN++; failing.push({ pos, key: k, outcome: "ABSENT" }); }
+      else {
+        const cls = `${readErrorClass(blob)} exit ${err.status ?? "?"}`;
+        readErrors.push(cls);
+        failing.push({ pos, key: k, outcome: `READ-ERROR ${cls}` });
+      }
+    }
   }
-  if (sampleOk !== sampleChecked) refuse(1, `REFUSING: ${sampleOk}/${sampleChecked} sampled written keys read back byte-identical.`);
+  if (sampleOk !== sampleChecked) {
+    let where = "their keys are not saved (no --out-written given)";
+    if (args.outWritten) {
+      const p = `${args.outWritten}.sample-failing.json`;
+      writeFileSync(p, JSON.stringify(failing));
+      where = `their keys are in a local file, not printed: ${p}`;
+    }
+    const errs = readErrors.length > 0 ? `: ${readErrors.join(", ")}` : "";
+    refuse(1, `REFUSING: ${sampleOk}/${sampleChecked} sampled written keys read back byte-identical (MISMATCH ${mismatched}, `
+      + `ABSENT ${absentN}, READ-ERROR ${readErrors.length}${errs}); failing sample position(s) ${failing.map((f) => f.pos).join(",")}; `
+      + where);
+  }
   console.log(`sample: ${sampleOk}/${sampleChecked} written keys read back byte-identical`);
 
   // The verifier's inputs: local files, never printed (W3 reads them, and writes the receipt --seal-only needs).

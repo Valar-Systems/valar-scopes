@@ -862,6 +862,14 @@ NOT during an OTA observation window -- it makes workflow runs and release noise
 a run is the thing being measured. Scheduled for after Run 1 closes
 (2026-09-02T20:21:42Z).
 
+**Fired, 2026-11-20 (REH-B; `docs/release-perms-rehearsal.md`, section 11).** A prerelease on a throwaway
+commit, with the shipping leg deliberately broken: the slug-ful leg failed; `version` FAILED at "Every publishing
+SKU must have published"; its demote ran (`demoted: prerelease=true`); `version.txt` was never published. The
+planned observation above ("is `version` skipped?") never matched the wiring this paragraph describes: under
+`if: always()`, `version` runs on every release event, and a missing receipt FAILS its step instead of skipping
+the job. Since 2026-09-20 that failure also demotes the release. So the blocking direction reads as `version`
+FAILED plus the demote. `promote`'s own job is still unrun; its first real run is expected to be v20's.
+
 **Still open, deliberately.** The gate cannot yet distinguish SKIP ("nothing to
 verify here") from UNTRUSTWORTHY ("cannot verify"), so `animtest` stays red
 forever. That is the correct fix and it is NOT free: a SKIP that is easy to earn

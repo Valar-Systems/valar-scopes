@@ -5426,6 +5426,500 @@ gates.
 | Q-T3 | D4's margin | max(1.0 ms, the baseline's measured repeat noise) |
 | Q-T4 | the control's labels on the config page | the owner's own words: "Off", "Subtle", "Strong", "Extra strong", in that order |
 
+### Step D's other half: the map and its town names on by default, registered before any code (2026-11-18)
+
+**What this adds.** Row 4 of [v20-plan.md](v20-plan.md) is all of step D:
+- the map on by default;
+- town names on by default, with their own switch;
+- the terrain setting above (D1-D5, accepted);
+- DO1-DO4 and DOC1-DOC2, the config page, and the off checks;
+- a row asserting that a board saved on v19 comes up with both on.
+
+DO1-DO4 and DOC1-DOC3 are registered as requirements in [blipscope-basemap-client.md](blipscope-basemap-client.md) §6.
+This section registers what §6 leaves to step D, before any code:
+- **(a)** the town-name setting's own rows and plants;
+- **(b)** how DOC2 runs;
+- **(c)** the v19-saved row;
+- **(d)** DO1's writers, and DO2's search with the migration's two outcomes;
+- **(e)** the off checks.
+
+Both migration outcomes are registered here, before the search runs (the orchestrator, 2026-11-18 ~23:05Z). Main at
+`237d5d16` holds none of step D's code: there is no `map-layer` key and no `MAP_DEFAULT_ON`.
+
+**The keys (Q-D1).**
+
+| setting | key | written values | unset or `""` | any other value | its constant |
+|---|---|---|---|---|---|
+| the map | `map-layer` | `"true"`, `"false"` | on | off (`ResolveToggle`) | `MAP_DEFAULT_ON = true` |
+| town names | `map-names` | `"true"`, `"false"` | on | off (`ResolveToggle`) | `MAP_NAMES_DEFAULT_ON = true` |
+| terrain | `map-terrain` | D1's four | Strong | Strong (D1) | D1's resolver |
+
+- **Where the constants live:** both sit beside `LOGBOOK_DEFAULT_ON` in `include/ConfigMigration.h`.
+- **How the toggles are read:** the device and the page read both through `configmigration::ResolveToggle` and nothing
+  else (DO1).
+- **Q-MB7 can still change one default.** Row 4's merge waits on row 2, the owner's look, because Q-MB7 can change
+  towns-on-by-default. If it does, `MAP_NAMES_DEFAULT_ON` changes before the merge, and DO4 still holds.
+
+**What each switch does on the device.**
+- **Map off:** `MapEnabled()` gains the resolved `map-layer`.
+  - No `/basemap` request is made: `mappolicy::ShouldFetch` is passed false.
+  - `DrawMapBase` returns false, so the frame takes today's path, byte for byte.
+  - A package already held stays held in PSRAM. Turned back on, it draws at the next shown frame with no new request,
+    because the query key is unchanged (Q-D3).
+- **Town names off:** the map draws without its names.
+  - `mapcompose::Key` gains `names`, and `Rebuild` skips `DrawNames` when it is false.
+  - `Same()` compares `names`, so a change rebuilds exactly once.
+- **Terrain:** as D1-D4. `Key` gains the resolved {drawn, gain, mid} the same way.
+- **When a change takes effect:** a save applies at `Initialise`, as today. Nothing new needs a reboot.
+
+#### (a) Town names: their own rows, beside DO1-DO4 (Daniel, Q-MC7 (c))
+
+| row | requirement | checked by |
+|---|---|---|
+| **DN1** (DO1) | `MAP_NAMES_DEFAULT_ON = true`. The device and the page read it through `ResolveToggle`. Its writers are (d)'s | DNC1, DW1 |
+| **DN2** (DO2) | `map-names` is new | (d)'s search |
+| **DN3** (DO3) | unset renders ticked | DNC2 |
+| **DN4** (DO4) | hidden wherever the map's box is hidden: the same gate, (b) | (b)'s `check_save_vocab` rows |
+
+| row | check | predicted | control or plant |
+|---|---|---|---|
+| **DNC1** | host: `ResolveToggle` with `MAP_NAMES_DEFAULT_ON`, stored `nullptr`, `""`, `"true"`, `"false"` | on, on, on, **off** | `"false"` is the control. Plant `MAP_NAMES_DEFAULT_ON = false`: exactly the `nullptr` and `""` rows red |
+| **DNC2** | (b)'s page render with no `map-names` key | the box is `checked` | (b)'s plant |
+| **DNP1** | host: the pinned Bend package over D3's sweep (10, 50 and 150 mi; rotations 0 and 90), names off against names on | names off is byte-equal to `maplayer::Build`'s output swapped to the canvas's order, called directly with no names step. Names on differs from it at every view where `nPlaced > 0`. Both counts are printed | plant: `Rebuild` ignores `names` and draws them anyway: red |
+| **DNP2** | host: the composer, names on → off → on, with frames between the changes | exactly one rebuild at each change, and 0 rebuilds on every other frame | plant: `names` left out of `Same()`: 0 rebuilds at the changes, red |
+| **DNC3** | bench, with DOC3 (row 5) | as DOC3, for `map-names` | DOC3's |
+
+#### (b) How DOC2 and DNC2 run: the page's map controls are one pure header
+
+- **The header:** `include/MapSettingsHtml.h`, C++11 with no Arduino types, as `WxLookSelectHtml.h` is for the
+  weather's look.
+  - `mapsettingshtml::Html(storedMap, storedNames, storedTerrain)` returns the section's markup: the two boxes, and the
+    terrain select with Q-T4's labels in order.
+  - The page serves exactly what it returns, so the host test renders exactly what is served.
+- **DOC2:** `Html(nullptr, nullptr, nullptr)` gives `name="map-layer"` with `checked`. A stored `"false"` drops it (the
+  control).
+- **DNC2:** the same, for `map-names`.
+- **D1's page row:** with no stored terrain, `strong` is selected. Each of the four values selects its own option.
+- **Plants:**
+  - the header reads a literal `"false"` in place of `ResolveToggle` for the map: exactly DOC2 red;
+  - the same plant for the names: exactly DNC2 red.
+- **No `%` in its HTML.** The page's placeholder processing would eat one. The config-form check already enforces this
+  for every header the page includes.
+- **A source row in `check_map_draw.py` (DH1):**
+  - the page's map section is `mapsettingshtml::Html(...)`;
+  - no `name=\"map-layer\"`, `name=\"map-names\"` or `name=\"map-terrain\"` literal appears in
+    `ConfigurationWebServer.cpp`.
+  - Plant: a hand-written box in the page: red.
+
+**The page's gate, and a correction to D5.**
+- **The gate:** the section renders, and its saves run, under `#if defined(FEATURE_CLOUD_FEED) &&
+  defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)`. That is `BLIPSCOPE_MAP_FETCH`'s own definition
+  (`src/AircraftManager.h:38`), spelled in `-D` names.
+- **Why not `BLIPSCOPE_MAP_FETCH` itself:** `ConfigurationWebServer.cpp` does not include `AircraftManager.h`, so that
+  macro is never defined there. `check_save_vocab.py` also evaluates `-D` names only, and a gating macro from a header
+  is invisible to it.
+- **The correction:** D5's row reads this gate, not `BLIPSCOPE_MAP_FETCH`.
+- **The saves:** `SaveToggle("map-layer")` and `SaveToggle("map-names")` sit under the same gate. `map-terrain` is saved
+  only if it is sent, as `wx-look` is.
+- **`check_save_vocab.py` gains rows beside its `wx-layer` row G:**
+  - V1 (the shipping env): neither box is live, and LEFT_ALONE is empty;
+  - V2 (`+ WX_LAYER_SHIPS`): both boxes are live, and LEFT_ALONE is empty;
+  - plant: `SaveToggle("map-layer")` outside the gate makes V1's LEFT_ALONE exactly {`map-layer`}: red.
+
+#### (c) The v19-saved row, V19S: a real v19 save, read by the board
+
+- **Why not on the host.** A real v19 save exists only in a board's NVS, and a hand-built NVS is not a v19 save.
+  Daniel's rule keeps NVS bytes off the PC ([crash-dump-bench.md](crash-dump-bench.md), "Why NVS is not read from the
+  PC"): names and counts only, and the board does the comparing. So the board reads it.
+- **The instrument:** a bench key image, `blipscope-s3-128-mapkey`, built from step D's commit the way `wxkey` was.
+  - It prints one boot line, before `ConfigMigration::Apply` and before `Initialise` touches NVS:
+    `[map-key] config keys=<n> cfg-rev=<absent|6|other> map-layer=<absent|true|false|other>
+    map-names=<absent|true|false|other> map-terrain=<absent|off|subtle|strong|xstrong|other>
+    -> map=<on|off> names=<on|off> terrain=<off|subtle|strong|xstrong>`
+  - Every field is a class, never a value. The resolved half comes from the same resolvers the device uses.
+  - The line's formatter is a pure function with its own host rows: each class from a planted value, and `other` for
+    `"TRUE"`, `"1"` and `"strong "`.
+  - Its marker joins `check-no-bench-hooks.sh`'s list.
+- **The board:** E2:08 (`blipscope-bench`), on v19 now.
+  1. Its form is saved on v19, in the window: GET the page, then POST every field back unchanged (WD8e's round trip;
+     want a 200).
+  2. `mapkey` is flashed app-only, so NVS is kept, and its boot line is read once.
+  3. v19 is restored.
+- **Predicted:** `cfg-rev=6`, `map-layer=absent`, `map-names=absent`, `map-terrain=absent`, giving
+  `map=on names=on terrain=strong`.
+- **The control:** `cfg-rev=6` is the read seeing a key that a v19 save holds. If it reads `absent`, the read is blind
+  and nothing is graded.
+- **Why E2:08 stands for a customer's v19 board on these three keys, and only on these.**
+  - Its NVS also holds keys that bench images wrote (`wx-layer`, from #445's windows), so it is not a customer's NVS.
+  - But no image of any kind has code that writes these three keys. (d)'s search covers every published image, and
+    `git grep` over every ref in the repo finds no writer before step D's commit.
+- **The window (Q-D2):** about 25 minutes of no-hands E2:08, outside the owner's look (row 2), before row 4's merge.
+  The key image is built, scanned, and its `[build] env=` named before the window opens.
+
+#### (d) DO1's writers, and DO2's search with the migration's two outcomes
+
+**DO1's writers, named from main at `237d5d16`.** These are the writers of the `config` namespace:
+
+| writer | file | what it does to these keys |
+|---|---|---|
+| the config page's save | `src/ConfigurationWebServer.cpp` | renders through `ResolveToggle`; writes `"true"`/`"false"` only for a box the form declared (`cfg-toggles`) |
+| the migrations | `src/ConfigMigration.cpp` | nothing, unless outcome B below |
+| the factory reset | `src/FactoryReset.cpp` | clears the namespace, keeping only `cloud-key-fac`, so both keys end unset (on) |
+| the website's renderer | `tools/web-renderer/web/web_config.cpp` | `"false"` for both, in writing: (e) |
+
+- **Writers that touch none of them:** provisioning (`include/WiFiManagerHelpers.h`, `lastfail` only) and the OTA
+  updater (its own `ota-mem` and `ota-boot` namespaces).
+- **Not on main:** the Remote edition (its own branch). There is no settings import.
+- **DW1, the check that runs:** `check_map_draw.py` finds the three key literals, in `src/` and `include/`, only in the
+  files above plus `src/AircraftManager.cpp` (the read) and `include/MapSettingsHtml.h` (the page).
+  - Any other file holding one is red until it is named here. So a new writer, the Remote edition included, cannot
+    land unseen.
+  - Plant: `p.putString("map-layer", "false")` in a copy of `src/Logbook.cpp`: red.
+
+**DO2's search, registered before it runs.**
+- **Strings:** `map-layer`, `map-names` and `map-terrain`.
+- **Trees:** `src/` and `include/` at every release tag: 22 tags, read 2026-11-18. Predicted: 0 hits.
+- **Images:** every application image published as a release asset in this repo, prereleases and the factory-manifest
+  scratch included.
+  - That is 116 `firmware*.bin` files in 21 releases, 6 of them factory images. `v13` has none.
+  - The other 18 `.bin` assets (bootloader, `boot_app0`, partition table) hold no application code and are not
+    searched.
+  - Each image is downloaded into a new, empty directory, read as bytes, and deleted after.
+  - Output: counts and tags only.
+- **Each image's own control (its anchor).** Let S be the key literals passed to `SaveToggle`, `putString` or `putBool`
+  anywhere in that release's own tag (`src/` and `include/`).
+  - At least one member of S must be found in the image. This takes the input from the other side: the image's own
+    source.
+  - An image holding none is **BLIND**: it was not read, and the search is not graded.
+- **The planted writer (the orchestrator's control), run first.**
+  - Two copies of v19's `firmware-s3-128.bin`: one with `map-layer`, one with `map-names`, each written over an
+    equal-length run of the image's own bytes.
+  - The search must report each **FOUND**, in its own copy only, before any real image is read.
+- **The outcomes, registered now, before the search runs:**
+
+| outcome | what was read | what follows |
+|---|---|---|
+| **A: clean** | 0 hits in every tree and every image; every image anchored; both plants found | no `CONFIG_REV` bump. DOC1's and DNC1's unset rows, and V19S, prove that an absent key resolves on |
+| **B: a writer** | key K found, in a tree or in an anchored image | stop and report first. Then `CONFIG_REV` 7: `NeedsMapReset(storedRev)` **clears** K for `storedRev < 7`, the logbook's shape (cleared, never forced true), with host rows (rev 6 clears, rev 7 keeps) and a plant. V19S's prediction for K becomes `absent` after `Apply` |
+| **none of the above** | a BLIND image, a plant not found, or a tag whose tree cannot be read | the instrument cannot answer at this scale. Stop and decide; nothing is concluded |
+
+#### (e) The off checks
+
+- **E1, `scripts/check-no-weather.sh`:** its list gains `name="map-layer"`, `name="map-names"` and `name="map-terrain"`,
+  written as `name="wx-layer"` is there.
+  - Predicted: 0 of each in the shipping image.
+  - The control: the `wxlook` image, built with `WX_LAYER_SHIPS`, holds all three.
+  - Its `--selftest` stays as predicted.
+- **E2, `tools/web-renderer/check_wx_off.mjs`, extended to the two toggles:** the website's config map must hold
+  `{"map-layer", "false"}` and `{"map-names", "false"}`. Absent reads on, so absence is red, as for `wx-layer`.
+  - Predicted on the new `web_config.cpp`: exit 0.
+  - Four new plants, each in a copy: either entry removed, either entry set `"true"`. Each gives exit 1, beside today's
+    three cases.
+  - The website's renderer compiles no map (`BLIPSCOPE_MAP_FETCH` needs `!BLIPSCOPE_WEB_RENDERER`). The entries are the
+    ruling's "false" in writing, so a later build that does compile the map cannot inherit on.
+- **E3, the switch is read:** a `check_map_draw.py` row that `MapEnabled()` reads the resolved `map-layer`. Plant: the
+  term removed: red.
+
+#### S8, for the new default look
+
+Strong as the default changes how roads read against the land. So S8 applies ([blipscope-basemap-client.md](blipscope-basemap-client.md)
+§3), and its corridor prediction there is already "band width and crossings unchanged".
+
+- **The pictures:** at 5, 10, 50 and 100 mi, drawn by the device's renderer: the host build of `MapLayer.h` and
+  `MapCompose.h` on the pinned Bend package.
+  - Subtle (today) against Strong, with Off and Extra strong beside them.
+  - They go to the owner before row 2 asks him to decide.
+- **The corridor:** US 97 through Bend, at 10 mi.
+  - Line positions per value are measured as each value's build compared with its own terrain-only build, so blending
+    cannot pass as a move.
+  - On a pixel row or column, the runs of line pixels are the crossings, and their widths are the band width.
+  - The measure runs on **every** row and column of every picture, so the corridor's rows are among them, and a choice
+    of row made after seeing the pictures cannot carry the result.
+  - **Predicted: identical across the four values, on every row and column**, because terrain colours only land pixels.
+  - If the package draws US 97 as one line, the run says so. The prediction does not depend on it.
+
+#### What row 4 does not include
+
+- DOC3 and DNC3 (row 5's bench);
+- D4's frame-time bench row;
+- the owner's look at Strong and Extra strong.
+
+Each runs in an E2:08 window, and nothing here presumes one.
+
+#### The order, after the ruling
+
+1. DO2's search: its plants red first, then outcome A, B or none of the above.
+2. The code: the header, the constants, the device's switches, the page, the saves, the web config, and the checks.
+3. The host rows, under WSL g++ 13, and every sabotage driver.
+4. S8's pictures, to the owner.
+5. V19S, in its window.
+6. The PR. Its merge waits on row 2.
+
+**The outcomes:** every prediction as stated, or stop and report. A second off reading on a row goes to the owner.
+
+| Q | the question | the default I take unless ruled |
+|---|---|---|
+| Q-D1 | the keys and the boxes' labels | `map-layer` "Map" and `map-names` "Town names", in a "Map" section beside "Weather", with Q-T4's terrain select |
+| Q-D2 | V19S's window | about 25 minutes of no-hands E2:08, before row 4's merge, not inside the owner's look |
+| Q-D3 | the map turned off with a package held | kept in PSRAM, which costs no internal heap (CLAUDE.md). Turned on again, it draws with no fetch |
+| Q-D4 | S8's corridor measure on a client render | the line mask above (each value against its own terrain-only build) |
+
+**CI for this PR (docs-only), predicted: 35 check runs: 33 success, 2 skipped, 0 failed.**
+- The baseline is #762's finished docs-only PR run: head `dd57f828d829`, 35 = 33/2/0.
+- That run started at 20:11:34Z, before `e3ccf6b4` (#761, 20:15:23Z), the last change to `.github/workflows/`.
+- #761 changed steps in one workflow file and no job line, so the set of jobs is the same.
+
+#### The rulings on Q-D1 to Q-D4 (the orchestrator, 2026-11-18 ~23:24Z; Q-D2 the owner's, 23:25Z)
+
+- **Q-D1: the default.** The keys are `map-layer` "Map" and `map-names` "Town names", in a "Map" fieldset beside
+  "Weather", with Q-T4's terrain select.
+  - The labels are customer-visible. The owner sees them as an FYI, and on glass in row 2's look.
+  - A later label change touches only `MapSettingsHtml.h` and DOC2/DNC2's expected markup.
+- **Q-D3: the default.** Off keeps the package and the buffers in PSRAM, as CLAUDE.md says: don't free PSRAM to make
+  room. Turned on again, the map draws at the next frame with no fetch.
+  - **One host row is added, DM1:** the policy driven off then on (`MapEnabled()` false, then true again, with a
+    package held) makes **zero** requests.
+  - DM1's plant: `held` cleared when the map turns off. One request: red.
+- **Q-D4: the default.** A line mask per value, each value against its own terrain-only build. Runs and widths on every
+  row and column, predicted identical across the four values.
+- **Q-D2: V19S is a bench window, so the owner's.** His answer (23:25Z), verbatim:
+  > "V19S: Sat Nov 21, as early as the board is free, finished by 16:30Z. If it can't start by 16:00Z, it runs after
+  > the restart once the sessions are back. The board ends on v19 with every one of my settings back as it was."
+  - So V19S runs after S2b. It starts once E2:08 is free, ends by 16:30Z, and restores v19.
+  - The proof that his settings are back is the WD8e form: the served page's controls compared by name, type, value
+    and checked state, before against after, by `compare-form-fields.py`, with zero differences.
+  - The restart is at 17:00Z Saturday, so nothing of V19S runs from 16:45Z to 17:15Z.
+
+**CI for this push (docs-only), predicted: 35 check runs: 33 success, 2 skipped, 0 failed.** The baseline is this PR's
+own first head, `dbb896c48e2c`: 35 = 33/2/0, read twice 71 s apart, on the tested merge `726813f` (Merge `dbb896c4`
+into `237d5d16`). No workflow file has changed since.
+
+## 6b: the pre-ship image-level text check, a third instrument, registered before its code (2026-11-19)
+
+**What it is for.** Row 6b of [v20-plan.md](v20-plan.md): "the pre-ship image-level text check (a third instrument,
+shown on controls first)"; "nothing to start; its final read waits on the candidate".
+- It carries step C's I2/I3, "no printable string is added", which the owner ruled is "proven at the source level, not
+  a pass" (15:07Z, 2026-11-12): "The image-level text check moves to the pre-ship gate, beside the per-function
+  accounting. Its tool must pass its own controls there first."
+- At the gate it answers one question of the v20 candidate against v19's release: **which strings does the candidate
+  add, and is each one accounted for by a registered change?**
+
+**Why the first two failed** (both recorded above, under step C's I2/I3):
+- **Printable runs** (`strings_added.py`, at least 6 printable bytes) counted machine code and address bytes as text.
+- **NUL-bounded runs** (`strings_nul.py`) found all six positive-control literals, but its reading also carried
+  pointer-table runs: `0x3C21xxxx` data pointers and `0x420Dxxxx` IROM addresses.
+- **The common cause:** both read the image as a flat byte stream. A linked image has no boundary between text,
+  code and data. The tool had to guess one, and the guess was the defect.
+
+**The third instrument: read the boundaries the compiler already wrote, in the objects, not the image.**
+- **T1, string sections.** In each object file of the build, every section flagged mergeable-strings (`SHF_MERGE |
+  SHF_STRINGS`, the `.rodata.str1.N` family) holds NUL-terminated string literals by the ELF's own definition, so no
+  code and no pointer table can be in one. Its contents are split on NUL. That is the set of literals the compiler
+  emitted.
+- **T2, named char arrays.** A string-initialised array (`static const char k[] = "…";`) lands in a plain
+  `.rodata.<symbol>` section, not a strings section, so T1 alone would miss it. T2 reads every data symbol
+  (`STT_OBJECT`) in a `.rodata*` section by its own extent (`st_size`). It counts as text only if those bytes are
+  printable ASCII followed by NUL padding. A pointer table is a symbol whose bytes are not printable, so the symbol's
+  own extent excludes it, never a scan.
+- **T3, linked, not dead.** An object's literal may be removed at link (`--gc-sections`). Each string the comparison
+  finds added is looked for in the final `firmware.bin`. "Compiled, not linked" is reported separately and never
+  counted as added.
+- **The tools:** the xtensa toolchain's own `readelf` and `objcopy`, on the build's objects. The aplus wrappers already
+  copy those per image. No new dependency (WSL's `pyelftools` gap stays out of it).
+- **Output:** each added string, with its object and section. A string shaped like an IPv4 address, or a run of 16 or
+  more hex digits, is MASKED, so a bench image's host or an id never reaches a log. Counts are printed beside it.
+
+**Its controls, shown on images built for them before it reads anything real** (each a bench build from one base
+commit, by the aplus recipe, with objects copied):
+
+| control | the image | predicted |
+|---|---|---|
+| **C-NULL** | the base, built twice (R0) | 0 added, 0 removed |
+| **C-POS** | the base + one new `Serial.printf` with a 20-character literal | exactly 1 added, equal to the planted literal (T1) |
+| **C-ARR** | the base + `static const char k[] = "<a 20-character text>";`, used so it links | exactly 1 added, from T2, not T1 |
+| **C-PTR** | the base + a new table of 6 `const char*` pointing at EXISTING literals, read by new code | **0 added**. This is the case both earlier instruments failed |
+| **C-ADDR** | the base + a dummy function that moves every later address | 0 added, 0 removed |
+| **C-DEAD** | the base + an unused `static` function with a literal (gc'd at link) | 0 added; 1 "compiled, not linked" (T3) |
+
+Any control off: the instrument is not trusted, and that is the row's first off reading (stop and report).
+
+**The read at the gate, once the candidate exists:**
+- The reference is v19's release, rebuilt from its tag by the aplus recipe, with its `firmware.bin` R0 to the release
+  asset `f6d73e391631`. That proves the objects belong to the shipped image.
+- The candidate is rebuilt the same way, R0 to its CI artifact.
+- **Predicted, as a rule rather than a number:** every added string maps to a line in a registered change's diff (the
+  map, weather, step D's labels, the card fix and so on). The mapping table is written before the read, from the
+  diff's quote-bearing lines, and each added string must be in it.
+- **An added string in no table is a finding:** to the orchestrator, and to the owner if it is customer-visible.
+
+**Its size and its waits:**
+- About 1 to 1.5 days: the tool and its selftest on synthetic objects, 6 control builds, then the read.
+- No board. The builds are CPU-heavy, so they run outside any quiet or board window, at 30 GiB free or more.
+- The final read waits on the candidate.
+
+| Q | the question | the default I take unless ruled |
+|---|---|---|
+| Q-6b-1 | T2's printable rule | ASCII 0x20-0x7E plus tab, CR and LF, then at least one NUL; nothing after the NUL but NULs |
+| Q-6b-2 | the minimum length counted | 1 character: T1 and T2 are bounded by the ELF, so a length floor is no longer needed to reject code |
+| Q-6b-3 | masking | IPv4-shaped strings and hex runs of 16 or more characters are masked in every output |
+| Q-6b-4 | where the tool lives | `scripts/strings_elf.py`, with `--selftest` on synthetic objects, run before any control build |
+
+**CI for this PR (docs-only), predicted: 35 check runs: 33 success, 2 skipped, 0 failed.**
+- The baseline is #764's two finished docs-only PR runs, at `dbb896c48e2c` and `1038e4115b13`, each 35 = 33/2/0.
+- Both started after `e3ccf6b4` (#761), the last change to `.github/workflows/`.
+
+#### The rulings on Q-6b-1 to Q-6b-4 (the orchestrator, 2026-11-19 ~00:18Z)
+
+- **Q-6b-1: the WIDER set.** Text means valid UTF-8 with no control byte except tab, CR and LF, then at least one NUL,
+  and only NULs after it.
+  - Why: customer-visible strings on these screens can carry non-ASCII, the degree sign being the obvious one. A check
+    of customer text that cannot see them leaves a hole in exactly the gate's job.
+  - Invalid UTF-8 does not count, so code bytes stay out.
+  - **C-ARR gains a second case:** a planted array holding a non-ASCII text (a degree sign), which must be found as
+    exactly 1 added.
+- **Q-6b-2: the default.** One character; no length floor.
+- **Q-6b-3: the default, plus two more masks.** Every output masks four shapes:
+  - IPv4-shaped strings;
+  - hex runs of 16 or more characters;
+  - **MAC-shaped strings** (six colon-separated hex pairs);
+  - **any decimal number with 3 or more places** (coordinate-shaped).
+  - Each mask gets a planted case that must come out masked.
+  - Version-string controls (for example "v20" and "1.2.3") must come out NOT masked.
+- **Q-6b-4: the default.** `scripts/strings_elf.py`, in the repo, with `--selftest` on synthetic objects, run in CI.
+  Its text follows the public-repo rules: no names, no workflow file names, roles only.
+
+**CI for this push (docs-only), predicted: 35 check runs: 33 success, 2 skipped, 0 failed.** The baseline is this
+PR's own first head, `d6f469287c8a`. No workflow file has changed since.
+
+#### 6b's tool, as run (2026-11-20)
+
+**What landed:** `scripts/strings_elf.py`, standard-library Python. readelf (`-S`, `-s`, `-r`) supplies every
+structure, and bytes are read at the offsets it reports; a short read is a RIG error, never a reading. T1, T2 and T3 are
+as registered above, with the ruled text rule (Q-6b-1) and the four ruled masks (Q-6b-3), plus Q-6b-5 below. A strings
+section with an entsize other than 1 is a refusal (exit 2), not a guess.
+
+**A fact read before the predictions (read-only, the xtensa toolchain's readelf on an existing build's objects):** a
+pointer table in a RELOCATABLE xtensa object is not zero. Each slot holds its target's offset in place, under an
+`R_XTENSA_32` relocation. One 16-slot table's first bytes were `0f 00 03 07 07 10 19 1c 22 2f 3b 45 4f 58 13 5f`, each
+followed by three NULs.
+- A table of two or more slots is still rejected by the registered T2 rule: only NULs may follow the first NUL. C-PTR's
+  "0 added" stands.
+- A ONE-slot table at a printable offset reads as one character of text. Q-6b-5 closes that.
+
+| Q | the question | the ruling (the orchestrator, 2026-11-20) |
+|---|---|---|
+| Q-6b-5 | Does T2 refuse a symbol whose bytes lie under a relocation? | **YES.** Refused, COUNTED and printed (`T2 skipped for relocations`), never hidden |
+| Q-6b-6 | How does "run in CI" (Q-6b-4) reach CI? | **A `test/host/run.sh` block, which is the harness owner's.** It MUST be wrapped with `note_block`, so that its red is listed. This PR is the script plus this record |
+
+**The selftest** writes its own synthetic objects (ELF32 little-endian, relocatable, Xtensa) and reads them through the
+tool's own code path. Strings shaped like an address, an id, a MAC or a coordinate are built at run time from parts, so
+none is a literal in the file. Each row is the base plus one change, and asserts the added AND the not-linked lists
+exactly:
+- S-RE, an anchor: readelf reads back exactly what was written.
+- S-NULL, S-POS (T1), S-ARR (T2), S-ARR-DEG (a degree sign, T2), S-PTR (6 in-place slots under relocations: 0 added),
+  S-PTR1 (1 slot: 0 added, by Q-6b-5), S-ADDR, S-DEAD (1 not-linked), S-REM (1 removed).
+- S-MASK: 6 added, 4 masked, and "fw v20" and "ver 1.2.3" printed verbatim. Asserted on the whole printed lines.
+- R-BADUTF8, R-CTRL, R-C1, R-AFTER, R-NONUL and R-EMPTY: 0 added each. R-TABS: 1, the rule's positive control.
+
+**As run** (predictions `2e2dc8b4616f`, frozen first; the tool `4bfe7c15d6df`):
+
+| run | result |
+|---|---|
+| P1: selftest, WSL readelf 2.42 | 18 rows hold, `SELFTEST PASSED`, exit 0 |
+| P2: selftest, the xtensa toolchain's readelf 2.35.1 | the same 18; output byte-identical to P1's but for CR |
+| PL-1: T2 replaced by the earlier instruments' NUL-split scan, run on objects | off, exactly {S-PTR, S-PTR1, R-AFTER, R-NONUL}: `SELFTEST FAILED (4)`, exit 1 |
+| PL-2: T2's NUL rule dropped | off, exactly {R-AFTER, R-NONUL}: `SELFTEST FAILED (2)`, exit 1 |
+| PL-3: Q-6b-5's relocation test dropped | off, exactly {S-PTR1}: `SELFTEST FAILED (1)`, exit 1 |
+| the clean tool after the plants | `SELFTEST PASSED`, exit 0 |
+| P6: real objects, read-only: one existing build's 259 objects as both reference and candidate, with its own `firmware.bin` and its own toolchain's readelf (2.43.1), read twice 65 s apart | both reads: 51,010 strings a side, added 0, removed 0, not-linked 0, `T2 skipped for relocations 432`, exit 0; the two outputs byte-identical; the directory's file fingerprint unchanged before and after each read |
+
+Plants: PL-1 `e1d2a08395ea`, PL-2 `62b75f766cf3`, PL-3 `4550e45b41f7`, one asserted replacement each.
+
+**The tool's first off reading, in DETAIL only (recorded by the orchestrator).** The off rows, counts and exits all held.
+But the predictions wrote each planted string as "added", while T3 classed them "compiled, not linked": each row's
+synthetic bin holds only the base strings and that row's own extras. The one exception is ".", which T3 finds as ".\0"
+because a base literal ends in "...". Correction 1 is recorded below the frozen predictions; nothing was tuned.
+
+**A limit, recorded for the gate:** T3 cannot tell whether a one-character string is real text, because X+NUL is almost
+always somewhere in an image. Q-6b-5 is what keeps the in-place pointer bytes out of T2 in the first place.
+
+**Noted for the control-build registration (not ruled here):** C-DEAD is registered as an unused STATIC function. The
+compiler drops an unused static function at compile time, so its literal may never reach an object, and C-DEAD would
+read 0 not-linked. The registration will propose a non-static function alone in its own translation unit, collected at
+link.
+
+**Next:** the harness owner's `run.sh` block (Q-6b-6), then the six control builds, registered before any build.
+
+**CI for this PR, predicted: 35 check runs: 33 success, 2 skipped (`promote`, `version`), 0 failed.**
+- The baseline is #773's finished PR run at `5039e85eb73e`: 35 = 33/2/0. It started at 05:59:40Z, after `e3ccf6b4`
+  (#761), which is still the last change to `.github/workflows/`.
+- That PR changed only files that no path-filtered workflow matches, and so does this one (`scripts/strings_elf.py`
+  and this file). So the same four workflows run, the ones that run on every pull request.
+- The script is not yet wired into any job (Q-6b-6), so no job count changes.
+
+#### Correction 1 to 6b's tool: the C-ARR control's catch (2026-11-20)
+
+**What the control caught.** The c-arr build read
+`NOT-LINKED T1 src/main.cpp.o .debug_str "k6bArr"`: not-linked 1, against 0 predicted. That is the new array's NAME,
+in the debug strings. The added clause held (the planted text, T2). Recorded as the C-ARR row's first off reading.
+
+**The defect.** T1 took every PROGBITS section flagged M and S, without requiring A. `.debug_str` and `.comment` carry
+M and S but are not allocated, so they never reach the image. On the base build, 3,491 T1 strings came from allocated
+sections and 47,798 from non-allocated ones, 47,414 of them only there.
+- So the string counts in the table above are debug-inflated: P6's "51,010 strings a side" was mostly debug and
+  compiler-ident text. P6's added, removed and not-linked counts of 0 still held: it read one build against itself.
+- **Why nothing earlier saw it:** the selftest's synthetic objects carried no debug sections; P6 compared a build with
+  itself; C-POS adds a literal but no new name. C-ARR was the first control to add a name.
+
+**The fix (ruled F1-F5, predictions frozen first):**
+- T1 requires A, M and S (`SHF_ALLOC|SHF_MERGE|SHF_STRINGS`).
+- The selftest gains S-DEBUG: a non-allocated `.debug_str` holding a new string reads 0 added, 0 not-linked. That
+  makes 19 rows, and they hold with both readelfs.
+- PL-4 (A dropped) turns exactly S-DEBUG off; PL-1 to PL-3 keep their off rows.
+- The fixed tool re-graded C-NULL, C-POS and C-ARR with the SAME predictions: all hold, and C-ARR's not-linked reads 0.
+  It then graded C-ARR-DEG for the first time.
+- P6, re-run twice 65 s apart, reads 0/0/0 with 3,886 strings a side, the allocated sets.
+
+The table above is left as it was run.
+
+#### 6b's controls, as read (2026-11-20)
+
+**Registered before any build** (predictions `d05ec9633cc3`; Q-6bc-1 ruled YES: C-DEAD's function is non-static, alone
+in its own translation unit). The base is `cf0dce7333b0` and the env `blipscope-s3-128`, one clean build per image.
+- Each control is ONE commit off the base, on a local bench branch that is never pushed.
+- Every build ran in one worktree path, with `SOURCE_DATE_EPOCH` and the macro prefix map pinned, and its output and
+  libdeps on a second drive.
+- The C: drive was gated by a DIRECT count of the bytes written per build (PlatformIO's home and the temp folder, the
+  sessions' own scratch excluded), not by a free-space delta. The largest single build wrote 16.3 MiB.
+- Every read is the fixed tool's (Correction 1 above), with the toolchain's own readelf 2.43.1, and base-a as the
+  reference.
+
+| control | the image | read | verdict |
+|---|---|---|---|
+| C-NULL | the base, built twice | 0 added, 0 removed, 0 not-linked; objects equal; K equal (432); the two `firmware.bin` byte-identical | holds |
+| C-POS | + `Serial.println("6b-ctl C-POS planted")` | exactly 1 added, that text, T1 (`.rodata._Z5setupv.str1.1`) | holds |
+| C-ARR | + `static const char k6bArr[] = "6b-ctl C-ARR planted"` | exactly 1 added, that text, T2 (`.rodata._ZZ5setupvE6k6bArr`); 0 not-linked | holds (its first off, recorded in Correction 1, fixed) |
+| C-ARR-DEG | + an array holding "6b-ctl 21°C planted" (a degree sign) | exactly 1 added, that text, T2 | holds |
+| C-PTR | + a 6-slot `const char*` table over six literals already compiled in `setup()` | 0 added, 0 removed; all six literals present in the base; `T2 skipped for relocations` 432 -> 433, exactly the table | holds |
+| C-ADDR | + a noinline function of 256 nops, called from `setup()` | 0 added, 0 removed; the bin differs from the base's at 1,050,635 bytes (the addresses moved) | holds |
+| C-DEAD | + a non-static function alone in `src/k6b_dead.cpp`, called by nothing | 0 added; exactly 1 compiled, not linked: that text, T1 (`src/k6b_dead.cpp.o`, `.rodata._Z7k6bDeadv.str1.1`); objects + 1; the bin is 48 bytes larger than the base's (the size was not predicted) | holds |
+
+The function sections give each function its own strings section (`.rodata.<function>.str1.1`). T1 finds those by
+their flags, not their names.
+
+**What the six show, together with the selftest:**
+- the tool sees an added literal (C-POS) and an added named array (C-ARR, C-ARR-DEG);
+- it does not count a pointer table as text (C-PTR, the case both earlier instruments failed);
+- moved addresses change nothing it reads (C-ADDR);
+- and it tells a literal that was compiled but not linked from one that was linked (C-DEAD).
+
+**Next:** the gate read (v19's release against the v20 candidate, each rebuilt and proven against its published
+binary) waits on the candidate. The `run.sh` block is the harness owner's.
+
+**CI for this push (two commits: Correction 1's fix and this record), predicted: 35 check runs: 33 success, 2 skipped
+(`promote`, `version`), 0 failed.** The baseline is this PR's own first head, `1435d13c772d` (35 = 33/2/0). The same
+two files change, and no workflow file has changed since.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |
