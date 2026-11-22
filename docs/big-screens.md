@@ -225,3 +225,23 @@ screen session's real-screen report will confirm the resolution."
   2. the screen session's real-screen report of the resolution.
 - **Nothing is graded on the listing alone.** Any row that depends on this screen's size or resolution (its px/mm, the
   design rules' sizes on it) waits for both confirmations, and is never graded from the listing.
+
+## The owner's decision, 2026-11-22: the production port on the 2.1" and the 2.8" is native USB
+
+**The owner, verbatim** (stamped 04:29Z, relayed by the orchestrator at 04:32:45Z): "Decision for the 2.1-inch and the
+2.8-inch: the production port is the native USB port, as on the 1.28. My enclosure covers the UART port, which stays a
+bench-only port. Record it, and put it in the big-screens plan: the production builds send logs and take flashing over
+native USB, and the factory sheet names that port. No work on this before v20's freeze. If anything on either board
+makes native USB unusable for flashing or power, tell me now, before I print a batch."
+
+**His follow-up, verbatim:** "Both boards use the same ESP32-S3 as the 1.28 and boot from the native USB port; I checked
+that myself."
+
+- **What it fixes:** on the 2.1" and the 2.8", the production builds send their logs and take flashing over the S3's
+  native USB port. The factory sheet names that port. The UART port is bench-only, and the enclosure covers it.
+- **When:** no work on it before v20's freeze.
+- **What our records said when asked (p4, 2026-11-22 ~04:37Z, read-only):**
+  - The 2.1"'s pin map (`include/variants/s3_21.h`) leaves GPIO19/20, the native USB pins, free.
+  - Its env today sends serial to UART0 (`platformio.ini`: "Serial goes to UART0 (no ARDUINO_USB_CDC_ON_BOOT)"), so the
+    decision implies that build change after the freeze.
+  - The board's VBUS and power path, and everything about the 2.8", are not known from our records.
