@@ -164,6 +164,9 @@ struct State {
     bool mapSwept = false, mapSweptWx = false;
     uint32_t mapFrames = 0, mapWxFrames = 0;
     uint32_t endMapFrames = 0, endMapWx = 0;
+    // W-CHECK (list 11's S0): the scratch pair noised this frame; the scene's frames, contacts and mismatched pixels
+    bool wcNoised = false;
+    uint32_t wcFrames = 0, wcContacts = 0, wcMismatch = 0;
     bool noting = false;
     int nNoted = 0;
     Noted noted[kMaxKeys];
@@ -367,6 +370,7 @@ inline void Record(uint32_t frameUs, size_t tracked, uint8_t stateFlags)
     }
     s.drawn = 0;
     s.mapSwept = s.mapSweptWx = false;
+    s.wcNoised = false;
     s.rebuilt = false;
     s.delayed = false;
 }
@@ -550,6 +554,11 @@ inline void EndMeasure()
     s.dumpPos = 0;
     s.dumpScene = s.scene;
     Serial.printf("[frame-bench] scene S%d end frames=%d over-cap=%d\n", s.scene, s.n, s.overflowFrames);
+    if (kScenes[s.scene].kind == OUTLINE_WCHECK) {   // W-CHECK's one line, at its scene's end (REG-W amendment 1 item 3)
+        Serial.printf("[speed-p5] outline W-CHECK frames %lu contacts %lu mismatched-px %lu\n", (unsigned long)s.wcFrames,
+                      (unsigned long)s.wcContacts, (unsigned long)s.wcMismatch);
+        s.wcFrames = s.wcContacts = s.wcMismatch = 0;
+    }
     s.endMapFrames = s.mapFrames;
     s.endMapWx = s.mapWxFrames;
     s.mapFrames = s.mapWxFrames = 0;

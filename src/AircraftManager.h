@@ -767,6 +767,7 @@ private:
 #error "the port's bench draws the map: it needs BLIPSCOPE_MAP_FETCH (PORT-SPEC amendment 2d)"
 #endif
     void FpLoadMap();            // the port's map: the embedded package, through the gate, set directly (amendment 2d)
+    void WCheckContact(int x, int y, const TrackedAircraft& tracked);   // W-CHECK: one contact on the scratch pair
     bool fpMapRefused = false;   // a refusal is printed once and never retried
 #endif
     // THE FRAME BENCH END

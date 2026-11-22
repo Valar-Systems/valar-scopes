@@ -40,6 +40,8 @@
 #include "WxLayer.h"        // which crop cell each screen pixel shows, inverting ProjectAt (WD2)
 #include "WxLayerSwitch.h"  // "wx-layer": on when unset, the owner's saved choice after that
 #include "WxSweepLut.h"     // P5 1b: the lit wedge's colour as one table, for both sweep blends
+#include "MarkerDraw.h"     // P5 W: the marker's geometry, shared by the marker and the outline's mask
+#include "OutlineW.h"       // P5 W: the rain outline drawn once, as the 8 copies' union
 // THE MAP FETCH BEGIN
 #ifdef BLIPSCOPE_MAP_FETCH
 #include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task
@@ -4992,23 +4994,60 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 #ifdef WX_LOOK_AB
             const uint32_t outlineT0 = outline ? micros() : 0;   // F7 (docs/wx-device.md): the outline's own cost
 #endif
-            if (outline)
+            // P5 W (REG-W): the 8 copies are rasterised into one stack mask, with the marker's own geometry
+            // (include/MarkerDraw.h) at each offset, and their union is painted once as runs of black through the
+            // canvas's clipped hline. The same pixels as 8 full draws, byte for byte (test/host/test_p5_outline.cpp).
+            auto drawMarker = [&]() {
+                if (displayTriangles) DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
+                else backbuffer.fillCircle(x, y, 3, markerColor);
+            };
+            // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+            frameprofile::PlantOutline();   // O-CTRL: +2.0 ms inside the outline span, on its scene only
+#endif
+            // THE FRAME PROFILE END
+            bool outlineW = outline;
+            // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+            if (outline && framebench::OutlineWCheck()) WCheckContact(x, y, tracked);   // W-CHECK's scratch pair (untimed)
+            if (outline && framebench::OutlineOld()) {   // the port's OUTLINE_8COPY: today's 8 black copies, verbatim
+                outlineW = false;
                 for (int oy = -1; oy <= 1; ++oy)
                     for (int ox = -1; ox <= 1; ++ox) {
                         if (ox == 0 && oy == 0) continue;
                         if (displayTriangles) DrawAircraftTriangle(backbuffer, x + ox, y + oy, tracked, 0u);
                         else backbuffer.fillCircle(x + ox, y + oy, 3, 0u);
                     }
+            }
+#endif
+            // THE FRAME BENCH END
+            if (outlineW) {
+                (void)outlinew::Draw(
+                    backbuffer, x, y, 0u,
+                    [&](outlinew::Mask& m, int cx, int cy) {
+                        if (displayTriangles)
+                            markerdraw::Aircraft(m, cx, cy, tracked.state.category, tracked.state.trueTrack, radarUpDeg, 0u);
+                        else m.fillCircle(cx, cy, 3, 0u);
+                    },
+                    [&]() {
 #ifdef WX_LOOK_AB
-            if (outline) outlineFrameUs += micros() - outlineT0;
+                        outlineFrameUs += micros() - outlineT0;   // F7: the outline's own cost, before the marker
 #endif
-            // THE FRAME PROFILE BEGIN
+                        // THE FRAME PROFILE BEGIN
 #ifdef FRAME_PROFILE
-            frameprofile::AddCyc(frameprofile::A_OUTLINE, fpOutline0);
+                        frameprofile::AddCyc(frameprofile::A_OUTLINE, fpOutline0);   // the outline span ends here (W)
 #endif
-            // THE FRAME PROFILE END
-            if (displayTriangles) DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
-            else backbuffer.fillCircle(x, y, 3, markerColor);
+                        // THE FRAME PROFILE END
+                        drawMarker();
+                    });
+            } else {
+                // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+                frameprofile::AddCyc(frameprofile::A_OUTLINE, fpOutline0);   // ... and here (8COPY, or no outline)
+#endif
+                // THE FRAME PROFILE END
+                drawMarker();
+            }
         }
 
         // special contact (military / special callsign / helicopter): a coloured
@@ -6445,64 +6484,74 @@ bool AircraftManager::AircraftLabelBox(const TrackedAircraft& tracked, int x, in
     return true;
 }
 
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+// W-CHECK (REG-W amendment 1 item 3; the port's list 11, S0, untimed): W against LovyanGFX's REAL raster, on the device.
+// Two full-size scratch sprites in PSRAM, made once, cleared to the same noise once a frame. Per contact, the 8 copies go
+// through the real BandCanvas and LovyanGFX into one, and W's runs into the other, at the real screen coordinates (a
+// translation would change the float arithmetic); then the contact's 32 x 32 window is compared pixel by pixel. No
+// marker is drawn into either. The scene's one line is printed at its end (FrameBench.h, EndMeasure).
+void AircraftManager::WCheckContact(int x, int y, const TrackedAircraft& tracked)
+{
+    framebench::State& fb = framebench::S();
+    static LGFX_Sprite sa, sb;
+    static bool made = false, failed = false;
+    if (failed) return;
+    if (!made) {
+        made = true;
+        sa.setPsram(true);
+        sb.setPsram(true);
+        sa.setColorDepth(16);
+        sb.setColorDepth(16);
+        if (sa.createSprite(SCREEN_SIZE, SCREEN_SIZE) == nullptr || sb.createSprite(SCREEN_SIZE, SCREEN_SIZE) == nullptr) {
+            failed = true;
+            Serial.println("[speed-p5] outline W-CHECK REFUSED: the scratch sprites did not allocate");
+            return;
+        }
+    }
+    uint16_t* const pa = (uint16_t*)sa.getBuffer();
+    uint16_t* const pb = (uint16_t*)sb.getBuffer();
+    if (!fb.wcNoised) {   // once a frame: the same noise in both
+        fb.wcNoised = true;
+        fb.wcFrames++;
+        uint32_t r = 0x9E3779B9u ^ fb.wcFrames;
+        for (int i = 0; i < SCREEN_SIZE * SCREEN_SIZE; ++i) {
+            r = r * 1664525u + 1013904223u;
+            pa[i] = pb[i] = (uint16_t)(r >> 16);
+        }
+    }
+    BandCanvas ca(sa, 0), cb(sb, 0);
+    for (int oy = -1; oy <= 1; ++oy)   // today's 8 copies, the same calls as the radar's, into the first
+        for (int ox = -1; ox <= 1; ++ox) {
+            if (ox == 0 && oy == 0) continue;
+            if (displayTriangles) DrawAircraftTriangle(ca, x + ox, y + oy, tracked, 0u);
+            else ca.fillCircle(x + ox, y + oy, 3, 0u);
+        }
+    (void)outlinew::Draw(   // W, the radar's copy calls, into the second; no marker
+        cb, x, y, 0u,
+        [&](outlinew::Mask& m, int cx, int cy) {
+            if (!displayTriangles) {   // the dot (written apart from the radar's line, which the drivers anchor on)
+                m.fillCircle(cx, cy, 3, 0u);
+                return;
+            }
+            markerdraw::Aircraft(m, cx, cy, tracked.state.category, tracked.state.trueTrack, radarUpDeg, 0u);
+        },
+        [&]() {});
+    uint32_t bad = 0;
+    for (int yy = std::max(0, y - 16); yy < std::min((int)SCREEN_SIZE, y + 16); ++yy)
+        for (int xx = std::max(0, x - 16); xx < std::min((int)SCREEN_SIZE, x + 16); ++xx)
+            if (pa[(size_t)yy * SCREEN_SIZE + xx] != pb[(size_t)yy * SCREEN_SIZE + xx]) ++bad;
+    fb.wcContacts++;
+    fb.wcMismatch += bad;
+}
+#endif
+// THE FRAME BENCH END
+
 void AircraftManager::DrawAircraftTriangle(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, uint32_t color) const
 {
-    // Type-aware marker, keyed off the ADS-B emitter category (normalised to
-    // OpenSky's numbering for both the cloud and local feeds). Heading-less types
-    // (rotorcraft, balloons) get a fixed glyph; everything else is a heading dart
-    // whose size grows with the aircraft's weight class so a heavy reads
-    // differently from a light single at a glance.
-    const int cat = tracked.state.category;
-
-    // rotorcraft: a hub with two crossed rotor blades. Non-directional, since
-    // helicopters routinely hover and yaw independently of their ground track.
-    if (cat == 8) {
-        backbuffer.drawLine(x - 5, y - 5, x + 5, y + 5, color);
-        backbuffer.drawLine(x - 5, y + 5, x + 5, y - 5, color);
-        backbuffer.fillCircle(x, y, 2, color);
-        return;
-    }
-
-    // lighter-than-air (balloon / airship): a simple ring, also non-directional.
-    if (cat == 10) {
-        backbuffer.drawCircle(x, y, 4, color);
-        return;
-    }
-
-    // heading unit vector (forward) and its perpendicular (right "wing").
-    // Window-up subtracts the screen-top bearing so darts stay aligned with the
-    // rotated picture (positions rotate inside ProjectCoordinateToScreen).
-    const float headingScreen = radians(tracked.state.trueTrack - (float)radarUpDeg);
-    const float dx = std::sin(headingScreen);
-    const float dy = -std::cos(headingScreen);
-    const float px = -dy;
-    const float py = dx;
-
-    // a dart pointing along the heading: tip ahead of the point, base behind it
-    auto dart = [&](float tip, float base, float halfWidth) {
-        const float tipX  = x + dx * tip,                 tipY  = y + dy * tip;
-        const float leftX = x - dx * base + px * halfWidth, leftY = y - dy * base + py * halfWidth;
-        const float rightX= x - dx * base - px * halfWidth, rightY= y - dy * base - py * halfWidth;
-        backbuffer.fillTriangle(tipX, tipY, leftX, leftY, rightX, rightY, color);
-    };
-
-    // glider: a long, slender dart.
-    if (cat == 9) {
-        dart(9.0f, 2.0f, 1.0f);
-        return;
-    }
-
-    // heavy / large jets (Large, High-vortex large, Heavy): a bigger dart with a
-    // stub cross-wing so the airliners stand out from light traffic.
-    const bool heavy = (cat == 4 || cat == 5 || cat == 6);
-    if (heavy) {
-        dart(8.0f, 4.0f, 2.5f);
-        backbuffer.drawLine(x + px * 4.0f, y + py * 4.0f, x - px * 4.0f, y - py * 4.0f, color);
-        return;
-    }
-
-    // everything else (light, small, high-performance, unknown): the standard dart
-    dart(6.0f, 3.0f, 1.5f);
+    // P5 W (REG-W amendment 1): the body is markerdraw::Aircraft (include/MarkerDraw.h), its text unchanged
+    // there. The rain outline's mask rasterises its 8 copies through the same template (include/OutlineW.h).
+    markerdraw::Aircraft(backbuffer, x, y, tracked.state.category, tracked.state.trueTrack, radarUpDeg, color);
 }
 
 void AircraftManager::DrawEmergencyAlert(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked) const

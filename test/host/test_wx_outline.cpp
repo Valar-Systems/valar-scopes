@@ -1,5 +1,7 @@
 // WD5o: the dot marker's black outline covers every 8-neighbour of the dot (docs/wx-device.md, WD5 addendum 3).
 // The construction is READ FROM src/AircraftManager.cpp's marker block, and rasterised with LovyanGFX's own
+// (P5 W, REG-W amendment 3: when the block hands the copies to outlinew::Draw, the 8 offsets and the order are
+// read from Draw's body in include/OutlineW.h, the place they now live)
 // fillCircle, ported line for line from LGFXBase.cpp:302-339 (the copy in .pio/libdeps). The bench cannot grade
 // this: markers are triangles by default, so a bench at defaults never draws a dot.
 //
@@ -70,7 +72,37 @@ int main(int argc, char** argv)
         std::printf("FAIL: could not find the marker block in src/AircraftManager.cpp (rig)\n");
         return 2;
     }
-    const std::string block = s.substr(a, e - a);
+    std::string block = s.substr(a, e - a);
+    // bench/fp-port-w: the port's FRAME_BENCH regions (OUTLINE_8COPY, W-CHECK's call) are not the shipping construction,
+    // and a shipping image compiles none of them, so the reader cuts them out before it reads the block.
+    const std::string benchBegin = "// THE FRAME BENCH BEGIN", benchEnd = "// THE FRAME BENCH END";
+    for (size_t b0 = block.find(benchBegin); b0 != std::string::npos; b0 = block.find(benchBegin)) {
+        const size_t b1 = block.find(benchEnd, b0);
+        if (b1 == std::string::npos) {
+            std::printf("FAIL: a FRAME BENCH region in the marker block does not close (rig)\n");
+            return 2;
+        }
+        block.erase(b0, b1 + benchEnd.size() - b0);
+    }
+
+    // W: the block calls outlinew::Draw, whose loop makes the 8 offsets and paints the black before it calls the
+    // marker. Its body is read from include/OutlineW.h; a call with no readable body is the rig.
+    const bool viaW = block.find("outlinew::Draw(") != std::string::npos;
+    std::string draw;
+    if (viaW) {
+        FILE* g = std::fopen((std::string(argv[1]) + "/include/OutlineW.h").c_str(), "rb");
+        if (!g) { std::printf("FAIL: the block calls outlinew::Draw but include/OutlineW.h is unreadable (rig)\n"); return 2; }
+        std::string h;
+        while ((n = std::fread(buf, 1, sizeof buf, g)) > 0) h.append(buf, n);
+        std::fclose(g);
+        const size_t da = h.find("inline uint32_t Draw(");
+        const size_t de = da == std::string::npos ? da : h.find("\n}\n", da);
+        if (da == std::string::npos || de == std::string::npos) {
+            std::printf("FAIL: could not find outlinew::Draw's body in include/OutlineW.h (rig)\n");
+            return 2;
+        }
+        draw = h.substr(da, de - da);
+    }
 
     // The dot itself.
     std::smatch m;
@@ -89,7 +121,20 @@ int main(int argc, char** argv)
     size_t outlineAt = std::string::npos;
     const bool loops = block.find("for (int oy = -1; oy <= 1; ++oy)") != std::string::npos &&
                        block.find("for (int ox = -1; ox <= 1; ++ox)") != std::string::npos;
-    if (loops && std::regex_search(block, m, std::regex(R"(fillCircle\(x \+ ox, y \+ oy, (\d+), 0u\))"))) {
+    const bool drawLoops = draw.find("for (int oy = -1; oy <= 1; ++oy)") != std::string::npos &&
+                           draw.find("for (int ox = -1; ox <= 1; ++ox)") != std::string::npos &&
+                           draw.find("if (ox == 0 && oy == 0) continue;") != std::string::npos;
+    bool wOrder = false;   // W: Draw paints the black before it calls the marker
+    if (viaW && drawLoops && std::regex_search(block, m, std::regex(R"(fillCircle\(cx, cy, (\d+), 0u\))"))) {
+        const int r = std::stoi(m[1]);
+        outlineAt = (size_t)m.position(0);
+        for (int oy = -1; oy <= 1; ++oy)
+            for (int ox = -1; ox <= 1; ++ox)
+                if (ox != 0 || oy != 0) FillCircle(outline, ox, oy, r);
+        how = "8 offset copies at radius " + std::to_string(r) + ", through outlinew::Draw";
+        const size_t paintAt = draw.find("Paint(m, c, black);"), markerAt = draw.find("marker();");
+        wOrder = paintAt != std::string::npos && markerAt != std::string::npos && paintAt < markerAt;
+    } else if (loops && std::regex_search(block, m, std::regex(R"(fillCircle\(x \+ ox, y \+ oy, (\d+), 0u\))"))) {
         const int r = std::stoi(m[1]);
         outlineAt = (size_t)m.position(0);
         for (int oy = -1; oy <= 1; ++oy)
@@ -114,7 +159,10 @@ int main(int argc, char** argv)
     const int gaps = outline.empty() ? -1 : Gaps(dot, outline);
     check(gaps == 0, "WD5o", "the dot's outline leaves " + (gaps < 0 ? std::string("everything") : std::to_string(gaps)) +
                                  " of its 8-neighbours uncovered (want 0)");
-    check(outlineAt != std::string::npos && outlineAt < dotAt, "WD5o order", "the black outline is drawn before the dot");
+    const bool before = how.find("through outlinew::Draw") != std::string::npos
+                            ? wOrder
+                            : (outlineAt != std::string::npos && outlineAt < dotAt);
+    check(before, "WD5o order", "the black outline is drawn before the dot");
 
     std::printf("%s\n", failures ? "WX OUTLINE TESTS FAILED" : "all WX outline checks passed");
     return failures ? 1 : 0;
