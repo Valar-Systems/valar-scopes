@@ -191,21 +191,25 @@ if [ "$MODE" = "selftest" ]; then
   # Placeholder-shaped values (<...>): scripts/check_wifi.py refuses a bare network name after ssid[=] in any tracked
   # file, and a placeholder passes it (docs/wifi-scrub.md). They still carry the SENTINEL the check looks for.
   mkdir -p "$T/cfg"; printf 'ssid=<SENTINEL-NET>\npassword=<SENTINEL-PW>\n' > "$T/cfg/bench-wifi"
-  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_SELFTEST_CADENCE=allowed FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"
   ok "P1 the dry run prints no part of the password file" "$(printf '%s' "$out" | grep -q SENTINEL && echo 1 || echo 0)"
   ok "P1-control: it does print the presence line" "$(printf '%s' "$out" | grep -q 'bench-wifi: present' && echo 0 || echo 1)"
   printf 'ssid=<SENTINEL-NET>\n' > "$T/cfg/bench-wifi"
-  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_SELFTEST_CADENCE=allowed FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
   ok "P2 a missing password line refuses (exit 2), saying 'absent'" "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -q 'bench-wifi: absent' && echo 0 || echo 1)"
   # P3: his file has CRLF line ends. An EMPTY password line is then "password=\r", which a bare `^password=.` reads as
   # non-empty: the check would be blind in exactly the case it exists for (the reviewer, 2026-11-13 ~06:20Z).
   printf 'ssid=<SENTINEL-NET>\r\npassword=\r\n' > "$T/cfg/bench-wifi"
-  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_SELFTEST_CADENCE=allowed FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
   ok "P3 CRLF with an EMPTY password line refuses (exit 2), saying 'absent'" "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -q 'bench-wifi: absent' && echo 0 || echo 1)"
   # P4, its control: CRLF with both values present (his file's shape) still reads present.
   printf 'ssid=<SENTINEL-NET>\r\npassword=<SENTINEL-PW>\r\n' > "$T/cfg/bench-wifi"
-  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_SELFTEST_CADENCE=allowed FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
   ok "P4 CRLF with both values present reads present (exit 0), and prints no part of the file" "$([ $rc -eq 0 ] && printf '%s' "$out" | grep -q 'bench-wifi: present' && ! printf '%s' "$out" | grep -q SENTINEL && echo 0 || echo 1)"
+  # C2 (ci-driver-selftest AMENDMENT 1): P4 is an "allowed" dry run; it must SAY the seam answered, never pass for the
+  # real check (which these rows do not run).
+  n="$(printf '%s\n' "$out" | grep -c -F 'cadence: ALLOWED (answered by the selftest seam' || true)"
+  ok "C2 a seamed dry run says the seam answered the cadence (got $n line(s), want 1)" "$([ "$n" = 1 ] && echo 0 || echo 1)"
   # P5: wifi_file_ok itself, on any grep: an empty value behind a CR is empty, for either key; full values pass.
   p5=0
   printf 'ssid=<F>\r\npassword=\r\n' > "$T/w1"; wifi_file_ok "$T/w1" && p5=1
@@ -215,15 +219,29 @@ if [ "$MODE" = "selftest" ]; then
   ok "P5 wifi_file_ok: CRLF-empty password and CRLF-empty ssid refused; CRLF and LF with values pass" "$p5"
   # HB1-HB4: the hand-back flags' preflight refusals and --drop-handback, on a synthetic config dir.
   hb="$T/cfg/e208-handback.hash"; rm -f "$hb"
-  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD --handback check 2>&1)"; rc=$?
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_SELFTEST_CADENCE=allowed FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD --handback check 2>&1)"; rc=$?
   ok "HB1 --handback check with no kept hash refuses (exit 2)" "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -q 'no kept hash' && echo 0 || echo 1)"
-  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD --handback keep 2>&1)"; rc=$?
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_SELFTEST_CADENCE=allowed FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD --handback keep 2>&1)"; rc=$?
   ok "HB2 --handback keep with none kept passes the preflight (the control for HB3)" "$([ $rc -eq 0 ] && printf '%s' "$out" | grep -q 'kept hash is absent' && echo 0 || echo 1)"
   printf 'salt 00\nx\t00\n' > "$hb"; before="$(cat "$hb")"
-  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD --handback keep 2>&1)"; rc=$?
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_SELFTEST_CADENCE=allowed FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD --handback keep 2>&1)"; rc=$?
   ok "HB3 --handback keep over a kept hash refuses (exit 2) and leaves it as it was" "$([ $rc -eq 2 ] && [ "$(cat "$hb")" = "$before" ] && printf '%s' "$out" | grep -q 'already exists' && echo 0 || echo 1)"
   FBA_CFGDIR="$T/cfg" bash "$0" --drop-handback >/dev/null 2>&1; rc=$?
   ok "HB4 --drop-handback removes it (exit 0, file gone)" "$([ $rc -eq 0 ] && [ ! -e "$hb" ] && echo 0 || echo 1)"
+  # C1, S1, S2 (ci-driver-selftest AMENDMENT 1): the cadence seam's "due" refuses at the gate; and BOTH selftest seams
+  # are refused outside --dry-run, before the run log and the preflight. S1/S2 are REAL runs: an empty config dir (no
+  # bench-wifi) and a YKUSH path that does not exist, so a driver without the guard still stops inside the preflight
+  # ("bench-wifi: absent") long before the token check, the YKUSH check or any reservation.
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_SELFTEST_CADENCE=due FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
+  ok "C1 the seam's 'due' refuses at the gate (exit $rc, want 2), saying the seam answered, before the bench-wifi check" \
+    "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -qF 'cadence: DUE (answered by the selftest seam' && printf '%s' "$out" | grep -qF 'the cadence check did not allow' && ! printf '%s' "$out" | grep -qF 'bench-wifi:' && echo 0 || echo 1)"
+  mkdir -p "$T/cfg-none"
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg-none" FBA_YKUSH="$T/no-ykush" bash "$0" --by selftest --window "selftest" --candidate HEAD 2>&1)"; rc=$?
+  ok "S1 FBA_SELFTEST_NO_WLAN without --dry-run is refused (exit $rc, want 2) by name, before the preflight" \
+    "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -qF 'REFUSED: FBA_SELFTEST_NO_WLAN' && ! printf '%s' "$out" | grep -qF 'REFUSED: FBA_SELFTEST_CADENCE' && ! printf '%s' "$out" | grep -qF 'PREFLIGHT (' && echo 0 || echo 1)"
+  out="$(FBA_SELFTEST_NO_WLAN=1 FBA_SELFTEST_CADENCE=allowed FBA_CFGDIR="$T/cfg-none" FBA_YKUSH="$T/no-ykush" bash "$0" --by selftest --window "selftest" --candidate HEAD 2>&1)"; rc=$?
+  ok "S2 both seams without --dry-run are refused (exit $rc, want 2), each by name, before the preflight" \
+    "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -qF 'REFUSED: FBA_SELFTEST_NO_WLAN' && printf '%s' "$out" | grep -qF 'REFUSED: FBA_SELFTEST_CADENCE' && ! printf '%s' "$out" | grep -qF 'PREFLIGHT (' && echo 0 || echo 1)"
 
   # ---- FIXES 1-4 (docs/fresh-boot-automation.md, Addendum 3): rows registered at 0170a04110ef, before the code ----
   # E1-E3 (fix 1): wait_enter takes only a bare Enter. On 2026-11-16 a command typed into this window was taken as R1's.
@@ -252,10 +270,10 @@ if [ "$MODE" = "selftest" ]; then
   printf 'a\n%s\nprompt\n' "$SV" > "$T/k5"; v="$(kwifi_grade "$T/k5" 3 3 3)"
   ok "K5 a save line BEFORE the prompt does not open the window -> VOID (got $v)" "$([ "$v" = VOID ] && echo 0 || echo 1)"
   # T1-T3 (fix 2): the analytics token's presence, asked of the boot-row reader's own resolver; never its value.
-  out="$(env -u CF_API_TOKEN -u BLIPSCOPE_TOKEN_FILE FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
+  out="$(env -u CF_API_TOKEN -u BLIPSCOPE_TOKEN_FILE FBA_SELFTEST_NO_WLAN=1 FBA_SELFTEST_CADENCE=allowed FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
   ok "T1 no analytics token: the dry run refuses (exit $rc, want 2), saying 'analytics token: absent'" \
     "$([ $rc -eq 2 ] && printf '%s' "$out" | grep -q 'analytics token: absent' && echo 0 || echo 1)"
-  out="$(env -u BLIPSCOPE_TOKEN_FILE CF_API_TOKEN=TOKSENTINEL-not-a-token FBA_SELFTEST_NO_WLAN=1 FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
+  out="$(env -u BLIPSCOPE_TOKEN_FILE CF_API_TOKEN=TOKSENTINEL-not-a-token FBA_SELFTEST_NO_WLAN=1 FBA_SELFTEST_CADENCE=allowed FBA_CFGDIR="$T/cfg" bash "$0" --by selftest --window "selftest" --dry-run --candidate HEAD 2>&1)"; rc=$?
   ok "T2 a token: exit $rc (want 0), 'analytics token: present', and the sentinel nowhere in the output" \
     "$([ $rc -eq 0 ] && printf '%s' "$out" | grep -q 'analytics token: present' && ! printf '%s' "$out" | grep -q TOKSENTINEL && echo 0 || echo 1)"
   printf 'analytics-read=TOKSENTINEL-not-a-token\n' > "$T/tok1"; printf 'kv-read=not-a-token\n' > "$T/tok2"; chmod 600 "$T/tok1" "$T/tok2"
@@ -339,6 +357,16 @@ fi
 
 [ -n "$BY" ] && [ -n "$WINDOW" ] || { echo "usage: $0 --by <session> --window \"<the owner's window words>\" [--candidate <ref>] [--dry-run] | --selftest" >&2; exit 2; }
 
+# The selftest seams are honoured ONLY with --dry-run (ci-driver-selftest AMENDMENT 1, 2026-11-22): a variable left in
+# a shell must never skip a check in a run that touches the board. Refused before the run log and the preflight.
+if [ $DRY -eq 0 ]; then
+  refused=0
+  for v in FBA_SELFTEST_NO_WLAN FBA_SELFTEST_CADENCE; do
+    if [ -n "${!v:-}" ]; then echo "REFUSED: $v is a selftest seam, honoured only with --dry-run; unset it for a real run" >&2; refused=1; fi
+  done
+  [ $refused -eq 0 ] || exit 2
+fi
+
 if [ -z "${FBA_SELFTEST_NO_WLAN:-}" ]; then
   mkdir -p "$ROOT/bench-logs"
   RUNLOG="$ROOT/bench-logs/fresh-boot-auto-$(date -u +%Y%m%dT%H%M%SZ).log"
@@ -350,7 +378,19 @@ fi
 say "PREFLIGHT (nothing on the board is touched yet; window: \"$WINDOW\")"
 # The cadence check reads the repo from the current folder: run it from the tree, wherever the owner launched us
 # (2026-11-16: his terminal was outside the tree, and the check refused with INSTRUMENT: not a git repository).
-( cd "$ROOT" && "${PY[@]}" "$ROOT/scripts/fresh-boot-cadence.py" --candidate "$CAND" ) || die "the cadence check did not allow an automated run (above)" 2
+# FBA_SELFTEST_CADENCE (selftest seam, --dry-run only: see the guard above) answers this step for the driver's own
+# dry-run rows, so their verdict is about the driver and not about the release cadence; the real check is NOT run then,
+# and the line says so. Every real run takes the unset branch. The check's own --selftest runs in CI (device-ids.yml).
+if [ -n "${FBA_SELFTEST_CADENCE:-}" ]; then
+  case "$FBA_SELFTEST_CADENCE" in
+    allowed) say "cadence: ALLOWED (answered by the selftest seam FBA_SELFTEST_CADENCE; the real check was NOT run)" ;;
+    due) say "cadence: DUE (answered by the selftest seam FBA_SELFTEST_CADENCE; the real check was NOT run)"
+         die "the cadence check did not allow an automated run (above)" 2 ;;
+    *) die "FBA_SELFTEST_CADENCE takes allowed or due" 2 ;;
+  esac
+else
+  ( cd "$ROOT" && "${PY[@]}" "$ROOT/scripts/fresh-boot-cadence.py" --candidate "$CAND" ) || die "the cadence check did not allow an automated run (above)" 2
+fi
 bash "$ROOT/scripts/fresh-boot-acceptance.sh" --selftest >/dev/null 2>&1 || die "the acceptance's own --selftest failed" 2
 "${PY[@]}" "$ROOT/scripts/fresh-boot-form.py" --selftest >/dev/null 2>&1 || die "the form helper's --selftest failed" 2
 "${PY[@]}" "$ROOT/scripts/fresh-boot-wlan.py" --selftest >/dev/null 2>&1 || die "the adapter reader's --selftest failed" 2
