@@ -4,7 +4,9 @@
 // over a frame of varied pixels and codes). W5d: include/MapSweep.h's Table overload against mapsweep::Blend's pct
 // overload, over test_map_sweep.cpp's populations and W5c's scene.
 //
-//   test_p5_blend <fixtures dir: test/fixtures/wx>    exit 0 every row ok, 1 a row failed, 2 the rig (also: not 12 rows)
+//   test_p5_blend <CS6's package file>    exit 0 every row ok, 1 a row failed, 2 the rig (also: not 12 rows)
+// The package is the one test_map_sweep.cpp reads. Its name is written there and nowhere else: run.sh and
+// sabotage_p5_blend.py take it from that file's one "/basemap/<name>.bmpk" literal, and refuse unless there is exactly one.
 //
 // Rows (each prints "ok" or "FAIL" and its id; test/host/sabotage_p5_blend.py reads the ids):
 //   CMP control   the comparison sees one changed pixel
@@ -178,9 +180,9 @@ std::vector<uint8_t> Read(const std::string& path)
 }
 
 // CS6's layer, built exactly as test_map_sweep.cpp builds it. False: the rig.
-bool Cs6Layer(const std::string& fixtures, std::vector<uint16_t>& layer)
+bool Cs6Layer(const std::string& package, std::vector<uint16_t>& layer)
 {
-    const std::vector<uint8_t> bytes = Read(fixtures + "/basemap/bend.bmpk");
+    const std::vector<uint8_t> bytes = Read(package);
     bmpk::Package pk;
     if (bytes.empty() || bmpk::Validate(bytes.data(), bytes.size(), &pk) != bmpk::Status::kOk) return false;
     std::vector<int32_t> qx(pk.maxVertices + 1), qy(pk.maxVertices + 1);
@@ -202,7 +204,7 @@ bool Cs6Layer(const std::string& fixtures, std::vector<uint16_t>& layer)
 }
 
 // W5d-CS3 .. W5d-CS6, in test_map_sweep.cpp's order so Rand16 is consumed as it consumes it. False: the rig.
-bool MapPopulations(const std::string& fixtures)
+bool MapPopulations(const std::string& package)
 {
     const int pa = wxs2::kPercentA;
     {   // CS3: all-black frames, codes 0, 360 angles, look A
@@ -249,8 +251,8 @@ bool MapPopulations(const std::string& fixtures)
     }
     {   // CS6: the fixture's map layer, 36 angles, look A
         std::vector<uint16_t> layer;
-        if (!Cs6Layer(fixtures, layer)) {
-            std::printf("RIG: cannot build CS6's layer from %s/basemap\n", fixtures.c_str());
+        if (!Cs6Layer(package, layer)) {
+            std::printf("RIG: cannot build CS6's layer from %s\n", package.c_str());
             return false;
         }
         wxsweeplut::Table t;
@@ -296,7 +298,7 @@ void MapAlternating(const Scene& s)
 int main(int argc, char** argv)
 {
     if (argc != 2) {
-        std::printf("usage: test_p5_blend <fixtures dir>\n");
+        std::printf("usage: test_p5_blend <CS6's package file>\n");
         return 2;
     }
     {

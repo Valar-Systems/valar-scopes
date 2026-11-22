@@ -2860,7 +2860,14 @@ if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host
   cat "$OUT/build.log"
   exit 2
 fi
-"$OUT/test_p5_blend.exe" "$ROOT/test/fixtures/wx"
+# CS6's package is the file test_map_sweep.cpp reads. Its name is written there alone, so it is taken from that file's
+# one "/basemap/<name>.bmpk" literal: exactly one, or the RIG (sabotage_p5_blend.py takes it the same way).
+CS6_REL="$(grep -o '"/basemap/[A-Za-z0-9_.-]*\.bmpk"' "$ROOT/test/host/test_map_sweep.cpp" | tr -d '"')"
+if [ "$(printf '%s\n' "$CS6_REL" | grep -c .)" -ne 1 ]; then
+  echo "FAIL: test_map_sweep.cpp does not hold exactly one CS6 package literal. This is the RIG, not the code."
+  exit 2
+fi
+"$OUT/test_p5_blend.exe" "$ROOT/test/fixtures/wx$CS6_REL"
 rc=$?
 if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
   echo "FAIL: the P5 blend test did not run (exit $rc). This is the RIG, not the code."

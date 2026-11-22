@@ -31,6 +31,8 @@ MAP = "include/MapSweep.h"
 HEADERS = (LUT, MAP)
 TEST = "test/host/test_p5_blend.cpp"
 FIXTURES = os.path.join(ROOT, "test", "fixtures", "wx")
+MAP_SWEEP_TEST = os.path.join(ROOT, "test", "host", "test_map_sweep.cpp")
+CS6_LITERAL = re.compile(r'"(/basemap/[A-Za-z0-9_.-]+\.bmpk)"')
 W5C = {"W5c@A", "W5c@B", "W5c-PCT"}
 W5D = {"W5d-CS3", "W5d-CS4@A", "W5d-CS4@B", "W5d-CS5", "W5d-CS6", "W5d@A", "W5d@B", "W5d-PCT"}
 
@@ -60,6 +62,17 @@ PLANTS = [
 ROW = re.compile(r"^\s*FAIL\s+(W5c(?:@[AB]|-PCT)|W5d(?:@[AB]|-PCT|-CS3|-CS4@[AB]|-CS5|-CS6)|CMP control)\s", re.M)
 
 
+def cs6_package():
+    """CS6's package, by test_map_sweep.cpp's own path: its one "/basemap/<name>.bmpk" literal, under the fixtures
+    directory test_map_sweep is run with. The name lives in that file alone. None (the rig) unless there is exactly
+    one such literal."""
+    try:
+        found = CS6_LITERAL.findall(open(MAP_SWEEP_TEST, encoding="utf-8").read())
+    except OSError:
+        return None
+    return os.path.join(FIXTURES, *found[0].strip("/").split("/")) if len(found) == 1 else None
+
+
 def src_of(rel):
     return open(os.path.join(ROOT, *rel.split("/")), encoding="utf-8", newline="").read()
 
@@ -79,6 +92,9 @@ def build(inc, exe):
 
 
 def main():
+    pkg = cs6_package()
+    if pkg is None:
+        print(f"  RIG: test_map_sweep.cpp does not hold exactly one CS6 package literal ({MAP_SWEEP_TEST})"); return 2
     tmp = tempfile.mkdtemp(prefix="p5b-sab-")
     try:
         clean = os.path.join(tmp, "clean")
@@ -87,7 +103,7 @@ def main():
         c = build(clean, exe)
         if c.returncode != 0:
             print(f"  RIG: the test did not compile\n{c.stderr[-900:]}"); return 2
-        r0 = subprocess.run([exe, FIXTURES], capture_output=True, text=True)
+        r0 = subprocess.run([exe, pkg], capture_output=True, text=True)
         if r0.returncode != 0 or len(re.findall(r"^\s*ok\b", r0.stdout, re.M)) != OK_COUNT:
             print(f"  RIG: the unplanted test did not pass with {OK_COUNT} ok lines\n{r0.stdout[-900:]}"); return 2
         bad = 0
@@ -104,7 +120,7 @@ def main():
             c = build(inc, pexe)
             if c.returncode != 0:
                 print(f"  RIG {label}: the planted test did not compile\n{c.stderr[-900:]}"); return 2
-            r = subprocess.run([pexe, FIXTURES], capture_output=True, text=True)
+            r = subprocess.run([pexe, pkg], capture_output=True, text=True)
             got = set(ROW.findall(r.stdout))
             ok = r.returncode == 1 and got == want
             print(f"  {'ok  ' if ok else 'FAIL'} {label}: red {sorted(got)} (want {sorted(want)}), exit {r.returncode}")
@@ -132,7 +148,7 @@ def control():
         stage(inc)
         exe = os.path.join(td, "t.exe")
         build(inc, exe)
-        subprocess.run([exe, FIXTURES], capture_output=True, text=True)
+        subprocess.run([exe, cs6_package() or ""], capture_output=True, text=True)
 
 
 if __name__ == "__main__":
