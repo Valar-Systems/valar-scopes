@@ -263,6 +263,27 @@ if [ "$MODE" = "selftest" ]; then
   o2="$(env -u CF_API_TOKEN BLIPSCOPE_TOKEN_FILE="$(winpath "$T/tok2")" node --experimental-strip-types "$(winpath "$ROOT/scripts/fba-boot-rows.mjs")" --check-token 2>&1)"; r2=$?
   ok "T3 --check-token: an analytics-read line reads present (exit $r1, value not printed); none reads absent (exit $r2, want 3)" \
     "$([ $r1 -eq 0 ] && printf '%s' "$o1" | grep -q 'analytics token: present' && ! printf '%s' "$o1$o2" | grep -q TOKSENTINEL && [ $r2 -eq 3 ] && printf '%s' "$o2" | grep -q 'analytics token: absent' && echo 0 || echo 1)"
+  # R1-R2 (fb-rowsredact, accepted 2026-11-21): a query error never carries the device id. fetch is replaced (--import)
+  # by a stub that sends NOTHING and answers 400 echoing the id it finds in the request's SQL, as-is (R1) and
+  # upper-cased (R2). The id is an allowlisted fake (scripts/device-id-allowlist.txt). Counts only, never a line.
+  # These rows run here, not in CI: no CI step runs this selftest yet (a CI step is its own registration).
+  cat > "$T/stub-fetch.mjs" <<'JS'
+globalThis.fetch = async (_url, init) => {
+  const m = String((init && init.body) || "").match(/blob5 = '([0-9a-f]{16})'/);
+  const id = m ? m[1] : "none";
+  const text = process.env.STUB_ECHO_UPPER === "1" ? `BAD LITERAL '${id.toUpperCase()}'` : `bad literal '${id}'`;
+  return new Response(text, { status: 400 });
+};
+JS
+  if command -v cygpath >/dev/null 2>&1; then su="file:///$(cygpath -m "$T/stub-fetch.mjs")"; else su="file://$T/stub-fetch.mjs"; fi
+  RID=dead0000beef1111
+  for u in 0 1; do
+    o="$(env -u BLIPSCOPE_TOKEN_FILE CF_API_TOKEN=TOKSENTINEL-not-a-token STUB_ECHO_UPPER=$u node --experimental-strip-types --import "$su" "$(winpath "$ROOT/scripts/fba-boot-rows.mjs")" "$RID" 0 1 2>&1)"; rc=$?
+    f=$(printf '%s' "$o" | grep -o -i -F "$RID" | wc -l); m=$(printf '%s' "$o" | grep -o -F '<hex16>' | wc -l)
+    s=$(printf '%s' "$o" | grep -o -F TOKSENTINEL | wc -l); q=$(printf '%s' "$o" | grep -c -F 'analytics query failed (400)')
+    ok "R$((u + 1)) a query error echoing the id$([ "$u" = 1 ] && printf ' upper-cased'): id $f (want 0), mask $m (want 1), sentinel $s (want 0), the stub's 400 seen $q (want 1), exit $rc (want 3)" \
+      "$([ "$f" -eq 0 ] && [ "$m" -eq 1 ] && [ "$s" -eq 0 ] && [ "$q" -eq 1 ] && [ $rc -eq 3 ] && echo 0 || echo 1)"
+  done
   # B1-B3 (fix 3): skip-reset's address, from a fetch of the board's page by name over IPv4. Local listeners only.
   cat > "$T/srv.py" <<'PY'
 import http.server, sys
