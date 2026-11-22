@@ -2439,6 +2439,39 @@ fi
 )
 note_block $? "MapFetch"
 
+# The map package's exact-cap boundary (include/BodyCap.h): GetBytes' two size-cap decisions, moved into a header so
+# this runs them: exactly cap ACCEPTED and cap + 1 REFUSED, on the Content-Length and the chunked path
+# (test_body_cap.cpp), and GetBytes read to prove it holds no cap decision of its own (check_body_cap.py). A package at
+# its cap is live (map-server, 2026-11-22). Its sabotages: python -I test/host/sabotage_body_cap.py
+echo
+echo "== BodyCap =="
+(
+  fail=0
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_body_cap.cpp" -o "$OUT/test_body_cap.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the body cap test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_body_cap.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the body cap test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; BC-SRC cannot run."
+  fail=1
+else
+  "$PY" -I "$ROOT/test/host/check_body_cap.py" "$ROOT"
+  rc=$?
+  [ "$rc" -ge 2 ] && { echo "FAIL: BC-SRC's check did not run (exit $rc). This is the RIG."; exit 2; }
+  [ "$rc" -ne 0 ] && fail=1
+fi
+  exit "$fail"
+)
+note_block $? "BodyCap"
+
 # The Blipscope's map draw, step B (docs/blipscope-map-client-steps.md): check_map_draw.py holds CD4 (CB10's refusal is
 # present wherever a draw region is, and BLIPSCOPE_MAP_STEP_C is defined nowhere but step C's header); CD1-CD3 join it
 # with the draw files. Its sabotages: python -I test/host/sabotage_map_draw.py (run by the driver blocks below).
