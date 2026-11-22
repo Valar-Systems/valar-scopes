@@ -2848,6 +2848,28 @@ exit "$bad"
 )
 note_block $? "bench markers, from the other side"
 
+# P5 1b (REG-1b-main): both sweep blends from one table (include/WxSweepLut.h, include/MapSweep.h's Table overload)
+# against their per-pixel references: W5c the weather's at all 3,600 angles, W5d the map's over test_map_sweep's
+# populations (its W5d counts read against test_map_sweep's printed counts) and W5c's scene. Its plants
+# (test/host/sabotage_p5_blend.py) run in the drivers' passes above.
+echo
+echo "== P5 1b: the table blends against wxsweep::Blend and mapsweep::Blend =="
+(
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_p5_blend.cpp" -o "$OUT/test_p5_blend.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the P5 blend test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_p5_blend.exe" "$ROOT/test/fixtures/wx"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the P5 blend test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "P5 1b: the table blends against wxsweep::Blend and mapsweep::Blend"
+
 echo
 if [ -n "$RIG_BLOCKS$FAILED_BLOCKS" ]; then
   echo "FAILED BLOCKS:"
