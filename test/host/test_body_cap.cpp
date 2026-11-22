@@ -66,6 +66,6 @@ int main()
         std::snprintf(id, sizeof id, "BC-CH%s-O", tags[k]);
         Row(over, id, "chunked, cap + 1: over");
     }
-    std::printf("%d ok, %d FAIL\n", oks, fails);
+    std::printf("%d ok, %d failed\n", oks, fails);
     return fails ? 1 : 0;
 }
