@@ -150,8 +150,9 @@ def load_source():
     # Look 4's wedge (WD6, WD7; the wedge mask, ruled 2026-10-28), read from the source: what it can draw, and the
     # beam and head that locate it in a frame.
     sw = read("include/WxSweep.h")
-    peak = int(re.search(r"constexpr int kPeak = (\d+);", sw).group(1))
-    tail = float(re.search(r"constexpr float kTail = ([\d.]+)f;", sw).group(1))
+    wg = read("include/SweepWedge.h")   # the wedge's constants, one copy since 2026-11-22 (DrawRadarSweep reads them)
+    peak = int(re.search(r"constexpr int kPeak = (\d+);", wg).group(1))
+    tail = float(re.search(r"constexpr float kTail = ([\d.]+)f;", wg).group(1))
     assert "return pct + ((100 - pct) * lvl + kPeak / 2) / kPeak;" in sw, "wxsweep::LitPercent changed: re-derive"
     assert "return (uint16_t)((lvl & 0xFC) << 3);" in sw, "wxsweep::Green565 changed: re-derive"
     assert "LitPercent(wxs2::CodePercent(code, pct), lvl)" in sw, "wxsweep::Lit565 changed: re-derive"
