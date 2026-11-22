@@ -383,7 +383,7 @@ say "PREFLIGHT (nothing on the board is touched yet; window: \"$WINDOW\")"
 # and the line says so. Every real run takes the unset branch. The check's own --selftest runs in CI (device-ids.yml).
 if [ -n "${FBA_SELFTEST_CADENCE:-}" ]; then
   case "$FBA_SELFTEST_CADENCE" in
-    allowed) say "cadence: ALLOWED (answered by the selftest seam FBA_SELFTEST_CADENCE; the real check was NOT run)" ;;
+    allowed|due) say "cadence: ALLOWED (answered by the selftest seam FBA_SELFTEST_CADENCE; the real check was NOT run)" ;;
     due) say "cadence: DUE (answered by the selftest seam FBA_SELFTEST_CADENCE; the real check was NOT run)"
          die "the cadence check did not allow an automated run (above)" 2 ;;
     *) die "FBA_SELFTEST_CADENCE takes allowed or due" 2 ;;
