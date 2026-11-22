@@ -12,7 +12,7 @@
 
 namespace wxsweep {
 
-constexpr float kTail = 1.0f;   // the afterglow behind the beam, radians: the one constant
+constexpr float kTail = 0.5f;   // the afterglow behind the beam, radians: the one constant
 constexpr int kSegs = 18;       // wedge slices; more = smoother fade, more fills
 constexpr int kPeak = 120;      // peak trail green, kept under the blips' brightness
 
