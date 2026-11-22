@@ -372,20 +372,25 @@ def selftest():
         ok(main(['weatherscope', '--label']) == 0, 'CONTROL: --label needs no registry')
         ok(main(['weatherscope']) == 4, 'a missing registry: exit 4, and no USB touched')
         ok(main(['--list']) == 4, '--list with no registry: exit 4')
-        with open(p, 'w', encoding='ascii') as f:
-            f.write('# a comment\n\n' + ''.join('%s=%s\n' % kv for kv in zip(BOARDS, made)))
+
+        def put(text):
+            # chmod 600: on POSIX read_registry refuses a registry others can read, and a scratch file is created
+            # 0644. Without this, every exit-4 row below would pass on CI's Linux runner for that reason instead of
+            # its own, and the rows that read the registry back would never run (bench-tools.yml runs this).
+            with open(p, 'w', encoding='ascii') as f:
+                f.write(text)
+            os.chmod(p, 0o600)
+
+        put('# a comment\n\n' + ''.join('%s=%s\n' % kv for kv in zip(BOARDS, made)))
         ok(read_registry() == dict(zip(BOARDS, made)), 'the registry reads back, comments skipped')
         ok(serial_of('weatherscope') == made[list(BOARDS).index('weatherscope')], 'serial_of finds its own board')
         ok(host_of('weatherscope') == 'weatherscope-' + made[list(BOARDS).index('weatherscope')][6:].lower() + '.local',
            'host_of composes the name the firmware gives itself')
-        with open(p, 'w', encoding='ascii') as f:
-            f.write('weatherscope=%s\n' % made[0])
+        put('weatherscope=%s\n' % made[0])
         ok(main(['missileer', '--host']) == 4, 'a board absent from the registry: exit 4')
-        with open(p, 'w', encoding='ascii') as f:
-            f.write('a=%s\nb=%s\n' % (made[0], made[0]))
+        put('a=%s\nb=%s\n' % (made[0], made[0]))
         ok(main(['weatherscope', '--host']) == 4, 'a serial registered twice: exit 4')
-        with open(p, 'w', encoding='ascii') as f:
-            f.write('weatherscope=not-a-serial\n')
+        put('weatherscope=not-a-serial\n')
         try:
             read_registry()
             said = ''

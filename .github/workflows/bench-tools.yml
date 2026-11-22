@@ -30,3 +30,7 @@ jobs:
           grep -Pzq '\npermissions:\n  contents: read\n(?!  \S)' .github/workflows/bench-tools.yml
       - run: python3 scripts/app-only-write.py --selftest
       - run: python3 scripts/app-only-write.py --sabotage
+      # scripts/board-port.py's selftest: the reservation and registry rules, and the closed set of bench boards compared
+      # whole across BOARDS, bench-flash.ps1's -Board set and CLAUDE.md's board table. It touches no USB and no real
+      # claim: every scratch file it writes is in a temporary directory.
+      - run: python3 scripts/board-port.py --selftest
