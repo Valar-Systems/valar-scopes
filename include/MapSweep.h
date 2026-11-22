@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 #include "WxSweep.h"
+#include "WxSweepLut.h"   // P5 1b: the Table overload of Blend below
 
 // CB10 (src/AircraftManager.h) refuses every map build without this macro, and check_map_draw.py's CD4 allows it to be
 // defined here and nowhere else.
@@ -50,6 +51,33 @@ inline uint32_t Blend(int pct, uint8_t* slice, int w, int yLo, int yHi, const in
             if (row[x] == 0) continue;
             detail::BlendOne(pct, row[x], x, y, set, get, code);
             row[x] = 0;
+            ++n;
+        }
+    }
+    return n;
+}
+
+/** P5 1b (REG-1b-main): the same blend from wxsweeplut's table, which wxsweeplut::Blend reads too. The same visits,
+ *  the same writes, the same cleared marks and count as the pct overload above, which is its reference
+ *  (test/host/test_p5_blend.cpp's W5d rows). For a mark 1..kSegs and a code 0-15: a drawn code's colour is t.v, and the
+ *  green added to anything else is t.lvl's level. Any other mark or code takes the per-pixel blend at t.pct: exact,
+ *  never masked into range. An overload, not a new name, so check_map_draw.py's CD8(a) finds every call by name. */
+template <typename Set, typename Get, typename Code>
+inline uint32_t Blend(const wxsweeplut::Table& t, uint8_t* slice, int w, int yLo, int yHi, const int16_t* rowLo,
+                      const int16_t* rowHi, Set&& set, Get&& get, Code&& code)
+{
+    uint32_t n = 0;
+    for (int y = yLo; y <= yHi; ++y) {
+        uint8_t* row = slice + (size_t)y * w;
+        for (int x = rowLo[y]; x <= rowHi[y]; ++x) {
+            const uint8_t mark = row[x];
+            if (mark == 0) continue;
+            const uint8_t cm = code(x, y);   // the map's: a drawn code from the table, the added green from t.lvl
+            if (mark <= wxsweep::kSegs && cm < wxsweeplut::kCodes)
+                set(x, y, wxavionics::Drawn(cm) ? t.v[mark][cm] : Add565(get(x, y), t.lvl[mark]));
+            else
+                detail::BlendOne(t.pct, mark, x, y, set, get, code);
+            row[x] = 0;   // cleared, as the pct overload clears its marks
             ++n;
         }
     }
