@@ -18,8 +18,11 @@
 
 namespace markerdraw {
 
+// noinline: each instantiation stays one named function, as main's DrawAircraftTriangle was, so G-EXACT can read its
+// float instructions by symbol (the mask's would otherwise dissolve into the contact loop, where no reader can find it).
 template <typename Target>
-inline void Aircraft(Target& backbuffer, int x, int y, int cat, float trueTrack, int radarUpDeg, uint32_t color)
+__attribute__((noinline)) void Aircraft(Target& backbuffer, int x, int y, int cat, float trueTrack, int radarUpDeg,
+                                        uint32_t color)
 {
     // Type-aware marker, keyed off the ADS-B emitter category (normalised to
     // OpenSky's numbering for both the cloud and local feeds). Heading-less types
