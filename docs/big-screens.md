@@ -245,3 +245,7 @@ that myself."
   - Its env today sends serial to UART0 (`platformio.ini`: "Serial goes to UART0 (no ARDUINO_USB_CDC_ON_BOOT)"), so the
     decision implies that build change after the freeze.
   - The board's VBUS and power path, and everything about the 2.8", are not known from our records.
+- **The 2.1" question CLOSED, 2026-11-22.** The owner, stamped 05:10Z, relayed by the orchestrator at 05:11:11Z, an
+  excerpt of a longer message, verbatim: "2.1 native: it works. I know this board and don't need to test it. Close the
+  question and take the November 12 "unknown device" note off the list." The 2.8"'s facts stay not known from our
+  records.
