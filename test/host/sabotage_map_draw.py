@@ -101,15 +101,17 @@ SABOTAGES = {
     "S-CB-BENCHPRINT": (AMCPP, [(BENCH_TICK_AT, BENCH_TICK_AT + '    Serial.printf("[map-bench] %f\\n", lat);\n')],
                         {"CB-B2"}),
     # Step C's five (CD8 (a)-(e)), one guard each.
-    "S-CD8-BLENDOUT": (AMCPP, [("    const uint32_t blended = wxsweeplut::Blend(\n",
-                               "    const uint32_t blended = mapsweep::Blend(\n")], {"CD8"}),
+    # bench/fp-port: re-anchored on the port's text (its SWEEP_OLD region makes main's line `blended = ..`)
+    "S-CD8-BLENDOUT": (AMCPP, [("        blended = wxsweeplut::Blend(\n",
+                               "        blended = mapsweep::Blend(\n")], {"CD8"}),
     "S-CD8-NOGATE": (AMCPP, [("    if (mapFrameDrawn) return DrawSweepOverMap(canvas, cx, cy, radius, angle);   "
                              "// step C: the map's frame (S7)\n", "")], {"CD8"}),
     "S-CD8-EARLY": (AMCPP, [(MAPBASE_AT, MAPBASE_AT + "    mapFrameDrawn = true;\n")], {"CD8"}),
     "S-CD8-NOCLEAR": (AMCPP, [("    mapFrameDrawn = false;   // step C: nothing of the map is on this frame until "
                               "DrawMapBase copies it\n", "")], {"CD8"}),
-    "S-CD8-STALE": (AMCPP, [("{ return withWx ? wxPixels[(size_t)y * SCREEN_SIZE + x] : 0; });",
-                            "{ return wxPixels[(size_t)y * SCREEN_SIZE + x]; });")], {"CD8"}),
+    # bench/fp-port: re-anchored on the port's one named code lambda (mapCode), shared by both map blends
+    "S-CD8-STALE": (AMCPP, [("{ return withWx ? wxPixels[(size_t)y * SCREEN_SIZE + x] : 0; };",
+                            "{ return wxPixels[(size_t)y * SCREEN_SIZE + x]; };")], {"CD8"}),
     # Step C's scope addition (airportsGen moves only on a content change), one per CD6b clause.
     "S-CD-NOHASH": (AMCPP, [("        mapAirportsHeld.h = mapairports::kEmptyHash;   // CD6b: the list is empty again, so an "
                              "empty arrival is no change\n", "")], {"CD6b"}),

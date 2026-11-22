@@ -1,4 +1,14 @@
 #include "AircraftManager.h"
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#include "FrameBench.h"   // the frame-time bench, C1 (docs/frame-time-bench.md)
+#endif
+// THE FRAME BENCH END
+// THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+#include "FrameProfile.h"   // the frame profile, P1 (docs/frame-profile.md)
+#endif
+// THE FRAME PROFILE END
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
 #include "AirportBoxes.h"      // an airport's mark and code: the one rule the map's names avoid (CB8)
 #include "DrawHelpers.h"       // DrawRadarSweepBeam: today's beam over the weather sweep (WD6)
@@ -2286,6 +2296,105 @@ void AircraftManager::RecordSweepParts(uint32_t rasteriseUs, uint32_t blendUs, u
 
 void AircraftManager::RecordFrameUs(uint32_t frameUs)
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    {
+        // The frame bench's recorder and scene driver, on the loop task (docs/frame-time-bench.md, C1).
+        framebench::State& fb = framebench::S();
+        static bool announced = false;
+        if (!announced) {
+            announced = true;
+            Serial.printf("[frame-bench] the frame bench C1: %d scenes, settle %lu s, measure %lu s, push task %s\n",
+                          framebench::kNumScenes, (unsigned long)(framebench::SETTLE_MS / 1000),
+                          (unsigned long)(framebench::MEASURE_MS / 1000),
+#if defined(BLIPSCOPE_PUSH_TASK)
+                          "on");
+#else
+                          "off");
+#endif
+            framebench::PrintTable();
+        }
+        const uint8_t stateFlags = (uint8_t)((wxShowing == wxpolicy::Show::Crop ? 4 : 0) | (MapEnabled() ? 8 : 0) |
+                                             (nightNow ? 16 : 0));
+        framebench::Record(frameUs, trackedAircraft.size(), stateFlags);
+        // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+        frameprofile::Commit(frameUs);   // the phases, beside the bench's record
+#endif
+        // THE FRAME PROFILE END
+        const uint32_t nowMs = millis();
+        auto applyScene = [&](int k) {
+            fb.noting = true;
+            Initialise();
+            fb.noting = false;
+            framebench::PrintNoted(k);
+        };
+        if (!fb.done) {
+            if (fb.scene < 0) {
+                if (nowMs >= framebench::START_AFTER_MS && framebench::Allocate()) {
+                    framebench::SelfTime();
+                    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+                    if (frameprofile::Allocate()) frameprofile::SelfTime();   // PC-1
+#endif
+                    // THE FRAME PROFILE END
+                    fb.scene = 0;
+                    framebench::PrepareScene(0);
+                    fb.measuring = false;
+                    fb.phaseStartMs = nowMs;
+                    Serial.printf("[frame-bench] scene S0 %s home=%s level=%d wx=%s rung=%dmi settle\n",
+                                  framebench::kKindName[framebench::kScenes[0].kind], framebench::kHomeName,
+                                  (int)framebench::kScenes[0].level, framebench::kScenes[0].wx ? "on" : "off",
+                                  framebench::kRungMi);
+                    applyScene(0);
+                }
+            } else if (!fb.measuring) {
+                // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+                if (nowMs - fb.phaseStartMs >= framebench::SettleMs(fb.scene) && fb.dumpScene < 0 && frameprofile::DumpIdle()) {
+#else
+                if (nowMs - fb.phaseStartMs >= framebench::SettleMs(fb.scene) && fb.dumpScene < 0) {
+#endif
+                // THE FRAME PROFILE END
+                    fb.measuring = true;
+                    fb.phaseStartMs = nowMs;
+                    fb.n = 0;
+                    fb.overflowFrames = 0;
+                    Serial.printf("[frame-bench] scene S%d measure\n", fb.scene);
+                }
+            } else if (nowMs - fb.phaseStartMs >= framebench::MeasureMs(fb.scene)) {
+                framebench::EndMeasure();
+                // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+                frameprofile::EndMeasure(fb.scene);
+#endif
+                // THE FRAME PROFILE END
+                const int next = fb.scene + 1;
+                if (next < framebench::kNumScenes) {
+                    fb.scene = next;
+                    framebench::PrepareScene(next);
+                    fb.phaseStartMs = nowMs;
+                    Serial.printf("[frame-bench] scene S%d %s home=%s level=%d wx=%s rung=%dmi settle\n", next,
+                                  framebench::kKindName[framebench::kScenes[next].kind], framebench::kHomeName,
+                                  (int)framebench::kScenes[next].level, framebench::kScenes[next].wx ? "on" : "off",
+                                  framebench::kRungMi);
+                    applyScene(next);
+                } else {
+                    fb.done = true;
+                    Serial.println("[frame-bench] run done; the board's own settings again, but the home and radius stay in RAM");
+                    Initialise();
+                }
+            }
+        }
+        framebench::PumpDump();
+        // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+        frameprofile::PumpDump();
+#endif
+        // THE FRAME PROFILE END
+    }
+#endif
+    // THE FRAME BENCH END
     // Ring of the last N frames in 0.1 ms units (u16 caps at ~6.5 s -- ample).
     const uint32_t tenths = frameUs / 100;
     const uint16_t capped = (uint16_t)std::min(tenths, (uint32_t)UINT16_MAX);
@@ -3271,6 +3380,14 @@ void AircraftManager::RunFetchTask()
                 res->ok = true;
             else // schema-version mismatch or malformed body: never wipe the picture over it
                 Serial.println("[WARN] Blipscope Cloud: blips schema mismatch; keeping current picture");
+            // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+            // THE (a) HOOK: after the REAL GET's parse, the table's content at the device's UTC second
+            if (res->ok)
+                framebench::OnCloudPoll(doc, res->aircraft, res->dataEpoch,
+                                        [](JsonDocument& d, auto& r, long& e) { return CloudFeed::ParseBlips(d, r, e); });
+#endif
+            // THE FRAME BENCH END
         }
 #endif
         else if (req->local) {
@@ -3550,6 +3667,16 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
 {
     // Only a WHOLE body is a candidate: len == claimed. An over-cap reply arrives with len 0 and claimed > cap,
     // and is passed to the policy at its claimed size, so (b) refuses it for size rather than as an error.
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    // THE WEATHER FIELD: a whole 200's body replaced by the fixed one-cell field; its header (the real frame
+    // time and geometry) kept, so the shipping Validate, OnResponse and rebuild run unchanged
+    if (status == 200 && len > 0 && len == claimed) {
+        len = framebench::WxField(wxLanding, len);
+        claimed = len;
+    }
+#endif
+    // THE FRAME BENCH END
     wxcrop::Header h;
     const bool whole = status == 200 && len > 0 && len == claimed;
     const bool valid = whole && wxcrop::Validate(wxLanding, len, &h) == wxcrop::Status::Ok;
@@ -3590,6 +3717,11 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
 
 bool AircraftManager::MapEnabled() const
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::MapOff()) return false;   // the port: never true, the map is not forced (PORT-SPEC 2c item 5)
+#endif
+    // THE FRAME BENCH END
     return useCloudSource && !cloudUrl.isEmpty() && hasLocation && !mapAllocFailed;
 }
 
@@ -3641,6 +3773,12 @@ static std::vector<std::pair<String, String>> MapParamPairs(const char* params)
 
 bool AircraftManager::RequestBasemap(unsigned long now)
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    (void)now;
+    return false;   // the port: the package is built in (FpLoadMap); nothing is ever sent (PORT-SPEC 2d item 1, 2e)
+#endif
+    // THE FRAME BENCH END
     // THE MAP BENCH BEGIN
 #ifdef MAP_BENCH
     (void)now;
@@ -3685,6 +3823,44 @@ bool AircraftManager::RequestBasemap(unsigned long now)
     mappolicy::OnResponse(mapState, seq, -1, nullptr, mappolicy::Gate::NotRun, (uint32_t)millis());
     return false;
 }
+
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+// The port's map (PORT-SPEC amendment 2d item 2): the embedded public fixture ksfo.bmpk, copied into the PSRAM landing
+// buffer as MapBenchAccept does, through the gate (maplayer::Load), and on acceptance MapBenchAccept's three
+// assignments: a direct set, with no OnSend and no ConsumeBasemap, so the policy keeps asking and RequestBasemap's
+// top return absorbs every ask. Lazily from DrawMapBase while no package is held, so a dropped package is reloaded and
+// says so: one "loaded" line per load (the trace check wants exactly one). A refusal prints once and is not retried.
+void AircraftManager::FpLoadMap()
+{
+    if (fpMapRefused) return;
+    const uint8_t* s = framebench::kFpKsfo;
+    const size_t len = (size_t)(framebench::kFpKsfoEnd - s);
+    if (mapLanding == nullptr || mapLandingCap < len) {
+        if (mapLanding != nullptr) heap_caps_free(mapLanding);
+        mapLanding = (uint8_t*)heap_caps_malloc(len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        mapLandingCap = mapLanding != nullptr ? len : 0;
+    }
+    if (mapLanding == nullptr) {
+        fpMapRefused = true;
+        Serial.println("[frame-bench] map package refused: no PSRAM for it");
+        return;
+    }
+    memcpy(mapLanding, s, len);
+    bmpk::Package pk;
+    const maplayer::Verdict v = maplayer::Load(mapLanding, len, &pk);
+    if (!v.accepted) {
+        fpMapRefused = true;
+        Serial.println("[frame-bench] map package refused by the gate");
+        return;
+    }
+    mapPkg = pk;
+    mapHeldLen = len;
+    ++mapPkgSeq;
+    Serial.printf("[frame-bench] map package loaded len=%u\n", (unsigned)len);
+}
+#endif
+// THE FRAME BENCH END
 
 void AircraftManager::ConsumeBasemap(int status, size_t len, size_t claimed, const String& retryAfter,
                                      mappolicy::Gate gate, uint8_t why, const bmpk::Package& pk, uint32_t seq)
@@ -3761,6 +3937,11 @@ bool AircraftManager::RebuildWeatherLayer()
     // THE MAP DRAW END
     // B1 reads this: a rebuild is a one-frame spike, barred at 40 ms on the s3-128.
     Serial.printf("[wx] layer rebuilt in %lu ms (look %c)\n", millis() - t0, wxLook == wxs2::Look::A ? 'A' : 'B');
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    framebench::S().rebuilt = true;   // a rebuild frame, counted per arm
+#endif
+    // THE FRAME BENCH END
     return true;
 }
 
@@ -3843,6 +4024,11 @@ static wxsweeplut::Table sweepLut;
 // next shown radar frame, as the weather layer's do, and never per frame (CB4).
 bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (mapHeldLen == 0) FpLoadMap();   // the port: built in, never fetched (PORT-SPEC amendment 2d item 2)
+#endif
+    // THE FRAME BENCH END
     // THE MAP BENCH BEGIN
 #ifdef MAP_BENCH
     if (mapBench.mapOff) return false;   // P1 and P2: an "off" tick
@@ -3982,6 +4168,11 @@ bool AircraftManager::DrawSweepOverMap(BandCanvas& canvas, int cx, int cy, int r
 #ifdef WX_LOOK_AB
     const uint32_t tRaster = micros();   // the bench's three parts, as the weather's sweep times them
 #endif
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWR);   // the port: the sweep split on the map's path too (PORT-SPEC 2)
+#endif
+    // THE FRAME PROFILE END
     int16_t* const rowLo = mapDraw.spans;
     int16_t* const rowHi = rowLo + SCREEN_SIZE;
     wxsweep::Rasterise(cx, cy, radius, angle, mapDraw.slice, SCREEN_SIZE, SCREEN_SIZE, &y0, &y1, rowLo, rowHi);
@@ -3989,17 +4180,48 @@ bool AircraftManager::DrawSweepOverMap(BandCanvas& canvas, int cx, int cy, int r
     const uint32_t tBlend = micros();
 #endif
     const bool withWx = mapFrameWx && wxBuffersOk && wxPixels != nullptr;
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWB);
+    frameprofile::PlantSweep();   // S-CTRL: +1.0 ms inside the sw_blend span, on its scene only
+#endif
+    // THE FRAME PROFILE END
     // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped, so swap in and out. P5 1b: the colours
-    // from the shared table (include/MapSweep.h, the Table overload).
-    const uint32_t blended = mapsweep::Blend(
-        wxsweeplut::For(sweepLut, wxs2::Percent(wxLook)), mapDraw.slice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
-        [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
-        [&](int x, int y) -> uint16_t { return __builtin_bswap16(px[(size_t)y * SCREEN_SIZE + x]); },
-        [&](int x, int y) -> uint8_t { return withWx ? wxPixels[(size_t)y * SCREEN_SIZE + x] : 0; });
+    // from the shared table (include/MapSweep.h, the Table overload). The code source is ONE lambda behind withWx, so
+    // wxPixels is read in one place whichever blend runs (CD8 (e)).
+    const auto mapCode = [&](int x, int y) -> uint8_t { return withWx ? wxPixels[(size_t)y * SCREEN_SIZE + x] : 0; };
+    uint32_t blended = 0;
+    bool sweepOld = false;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::SweepOld()) {   // the port's SWEEP_OLD: the per-pixel reference, mapsweep::Blend(pct, ..)
+        sweepOld = true;
+        blended = mapsweep::Blend(
+            wxs2::Percent(wxLook), mapDraw.slice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+            [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
+            [&](int x, int y) -> uint16_t { return __builtin_bswap16(px[(size_t)y * SCREEN_SIZE + x]); }, mapCode);
+    }
+#endif
+    // THE FRAME BENCH END
+    if (!sweepOld)
+        blended = mapsweep::Blend(
+            wxsweeplut::For(sweepLut, wxs2::Percent(wxLook)), mapDraw.slice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+            [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
+            [&](int x, int y) -> uint16_t { return __builtin_bswap16(px[(size_t)y * SCREEN_SIZE + x]); }, mapCode);
 #ifdef WX_LOOK_AB
     const uint32_t tBeam = micros();
 #endif
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWM);
+#endif
+    // THE FRAME PROFILE END
     DrawRadarSweepBeam(canvas, cx, cy, radius, angle);   // the beam and its head, as today
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWE);
+#endif
+    // THE FRAME PROFILE END
 #ifdef WX_LOOK_AB
     RecordSweepParts(tBlend - tRaster, tBeam - tBlend, micros() - tBeam);
     for (int y = y0; y <= y1; ++y)
@@ -4009,6 +4231,11 @@ bool AircraftManager::DrawSweepOverMap(BandCanvas& canvas, int cx, int cy, int r
 #else
     (void)blended;
 #endif
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    framebench::NoteMapSweep(withWx);   // G-MAP: this frame's sweep took the map path and drew
+#endif
+    // THE FRAME BENCH END
     return true;
 }
 #endif
@@ -4034,6 +4261,11 @@ bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, i
 #ifdef WX_LOOK_AB
     const uint32_t tRaster = micros();   // step C (docs/wx-device.md): the three parts, timed, bench image only
 #endif
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWR);
+#endif
+    // THE FRAME PROFILE END
     // The B1 fix: Rasterise records each row's span, and Blend visits only that (docs/wx-device.md).
     int16_t* const rowLo = (int16_t*)wxSweepSpans;
     int16_t* const rowHi = rowLo + SCREEN_SIZE;
@@ -4041,16 +4273,50 @@ bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, i
 #ifdef WX_LOOK_AB
     const uint32_t tBlend = micros();
 #endif
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWB);
+#endif
+    // THE FRAME PROFILE END
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::PlantSweep();   // S-CTRL: +1.0 ms inside the sw_blend span, on its scene only
+#endif
+    // THE FRAME PROFILE END
     // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped (colortype.hpp), so swap in and out.
     // P5 1b: each wedge pixel's colour from the shared table (include/WxSweepLut.h).
-    const uint32_t blended = wxsweeplut::Blend(
-        wxsweeplut::For(sweepLut, wxs2::Percent(wxLook)), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
-        [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
-        [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
+    uint32_t blended = 0;
+    bool sweepOld = false;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::SweepOld()) {   // the port's SWEEP_OLD: the per-pixel reference, wxsweep::Blend
+        sweepOld = true;
+        blended = wxsweep::Blend(
+            wxs2::Percent(wxLook), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+            [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
+            [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
+    }
+#endif
+    // THE FRAME BENCH END
+    if (!sweepOld)
+        blended = wxsweeplut::Blend(
+            wxsweeplut::For(sweepLut, wxs2::Percent(wxLook)), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+            [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
+            [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
 #ifdef WX_LOOK_AB
     const uint32_t tBeam = micros();
 #endif
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWM);
+#endif
+    // THE FRAME PROFILE END
     DrawRadarSweepBeam(canvas, cx, cy, radius, angle);   // the beam and its head, as today
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWE);
+#endif
+    // THE FRAME PROFILE END
 #ifdef WX_LOOK_AB
     RecordSweepParts(tBlend - tRaster, tBeam - tBlend, micros() - tBeam);
     // F4: the bytes the blend visited and the pixels it blended, counted after the timed parts.
@@ -4540,6 +4806,11 @@ float AircraftManager::RadarBlipBrightness(const TrackedAircraft& tracked) const
 
 void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 {
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_RADAR);   // static: from here to the contact loop
+#endif
+    // THE FRAME PROFILE END
     // THE COLLISION FRAME CANNOT SATURATE, and this is the only place both
     // numbers are visible. Per airborne contact the radar draws at most three
     // rectangles with text on them -- the label box, the NEW flag, the
@@ -4627,6 +4898,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
                                                  (int16_t)(bx + bw), (int16_t)(by + bh) });
     };
 
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::LoopBegin();   // the contact loop: contacts, outline, labels
+#endif
+    // THE FRAME PROFILE END
     for (auto& [icao, tracked] : trackedAircraft) {
         if (tracked.state.onGround) continue;
 
@@ -4646,6 +4922,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         // view culls nothing, as before zoom). The tap hit-test uses the same
         // predicate, so nothing undrawn can be tapped.
         if (ZoomCulled(x, y)) continue;
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        if (firstPass) framebench::S().drawn++;   // DRAWN (A2): this frame's drawn aircraft
+#endif
+        // THE FRAME BENCH END
 
         // The whole contact -- marker, trail, label -- fades together as its
         // radar return ages, so a dim blip doesn't sit under a bright trail/label.
@@ -4703,6 +4984,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
             // The outline is 8 black copies of the marker, one per 1 px offset, for BOTH kinds: a disc 1 px larger
             // misses 8 of the dot's 32 neighbours under LovyanGFX's raster (WD5 addendum 3; test_wx_outline.cpp).
             const bool outline = WxOutlineNow();
+            // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+            const uint32_t fpOutline0 = frameprofile::Cyc();
+#endif
+            // THE FRAME PROFILE END
 #ifdef WX_LOOK_AB
             const uint32_t outlineT0 = outline ? micros() : 0;   // F7 (docs/wx-device.md): the outline's own cost
 #endif
@@ -4716,6 +5002,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
 #ifdef WX_LOOK_AB
             if (outline) outlineFrameUs += micros() - outlineT0;
 #endif
+            // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+            frameprofile::AddCyc(frameprofile::A_OUTLINE, fpOutline0);
+#endif
+            // THE FRAME PROFILE END
             if (displayTriangles) DrawAircraftTriangle(backbuffer, x, y, tracked, markerColor);
             else backbuffer.fillCircle(x, y, 3, markerColor);
         }
@@ -4822,6 +5113,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         }
     }
 
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::LoopEnd();
+#endif
+    // THE FRAME PROFILE END
     // THE FRAME IS FINISHED BEING WRITTEN ON -- harvest it. Per frame rather
     // than incrementally, because a MAX needs a frame to be a unit: summing as
     // we go yields a window total and no way to ask which single frame was
@@ -6089,9 +6385,26 @@ void AircraftManager::DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, con
 
     int idx[labellines::MAX_LINES], lx[labellines::MAX_LINES];
     int ly[labellines::MAX_LINES], lw[labellines::MAX_LINES];
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    const uint32_t fpLayout0 = frameprofile::Cyc();
+#endif
+    // THE FRAME PROFILE END
     const int n = LabelLayout(tracked, x, y, idx, lx, ly, lw);
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::AddCyc(frameprofile::A_LAYOUT, fpLayout0);
+    const uint32_t fpDraw0 = frameprofile::Cyc();
+    frameprofile::PlantLabels();   // P-CTRL: +5.0 ms inside lbl_draw, on its scene only
+#endif
+    // THE FRAME PROFILE END
     for (int k = 0; k < n; ++k)
         backbuffer.drawString(AIRCRAFT_INFO_FIELDS[idx[k]].format(tracked), lx[k], ly[k]);
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::AddCyc(frameprofile::A_DRAW, fpDraw0);
+#endif
+    // THE FRAME PROFILE END
 }
 
 bool AircraftManager::AircraftLabelBox(const TrackedAircraft& tracked, int x, int y,
@@ -6101,7 +6414,17 @@ bool AircraftManager::AircraftLabelBox(const TrackedAircraft& tracked, int x, in
 
     int idx[labellines::MAX_LINES], lx[labellines::MAX_LINES];
     int ly[labellines::MAX_LINES], lw[labellines::MAX_LINES];
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    const uint32_t fpBox0 = frameprofile::Cyc();
+#endif
+    // THE FRAME PROFILE END
     const int n = LabelLayout(tracked, x, y, idx, lx, ly, lw);
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::AddCyc(frameprofile::A_LAYOUT, fpBox0);
+#endif
+    // THE FRAME PROFILE END
     if (n == 0) return false;
 
     // Built from the SAME placements the draw loop will use, including the clamp
@@ -11132,6 +11455,11 @@ void AircraftManager::RequestCloudEnrich(const String& icao24, const String& cal
     req->hasTrack = hasTrack;
     if (enqueueEnrich(enrichRequestQueue, req))
         enrichInFlight = true;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::IsSceneHex(icao24)) framebench::S().fbSubmits++;   // must stay 0
+#endif
+    // THE FRAME BENCH END
 }
 
 void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e,
@@ -12574,6 +12902,11 @@ void AircraftManager::ProcessMetadataLookups()
     for (auto& [icao, tracked] : trackedAircraft) {
         if (tracked.metadataState != TrackedAircraft::MetadataState::NotFetched)
             continue;
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        if (framebench::IsSceneHex(icao)) continue;   // the table's hexes never leave the board
+#endif
+        // THE FRAME BENCH END
         if (now < tracked.metadataRetryAfter)
             continue; // still in post-failure cooldown; skip so others get a turn
 

@@ -2,6 +2,16 @@
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
 #include <esp_task_wdt.h>
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#include "FrameBench.h"   // the frame-time bench, C1 (docs/frame-time-bench.md)
+#endif
+// THE FRAME BENCH END
+// THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+#include "FrameProfile.h"   // the frame profile, P1 (docs/frame-profile.md)
+#endif
+// THE FRAME PROFILE END
 
 #include "LGFX.h"
 #include "Layout.h"
@@ -166,11 +176,23 @@ void Task(void*)
         // Bus_SPI::wait() busy-polls, so wait for the last segment by yielding instead of spinning.
         while (tft.dmaBusy()) vTaskDelay(1);
         tft.endWrite();
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        // M3-3: the planted push delay, by vTaskDelay (the push task outranks the loop on its core)
+        if (const uint32_t d = framebench::PushDelayMs()) vTaskDelay(pdMS_TO_TICKS(d));
+#endif
+        // THE FRAME BENCH END
         const uint32_t t2 = micros();
         // FrameDone moves HERE (doc, section 5): map-client's p2p is timed from it, and it must stay
         // "present to present". Left in the loop it would time the loop, not the glass.
         framebuf::SetPhase(framebuf::kPhasePushed);
         framebuf::FrameDone();
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        framebench::Present(micros());   // M3-1: p2p at the push's completion, the glass
+        framebench::PushTimes(t1 - t0, t2 - t0);   // M3-3 (b): the push's own times
+#endif
+        // THE FRAME BENCH END
         xSemaphoreGive(g_free[i]);
 
         g_pushes++;
@@ -846,7 +868,11 @@ void setup()
   // The flag is consumed BEFORE the check, so a crash inside it cannot re-arm.
   if (ConsumeDeferredCheckFlag())
     Serial.println("[ota] this boot was armed by a deferred update check");
-#if defined(PHOTO_MODE)
+#if defined(FRAME_BENCH)
+  // B-OTA (bench_ota_draft.txt 01c64ac7b125): A BENCH IMAGE HAS NO OTA. It says fw=19 and its check would fetch the
+  // SHIPPING image over itself once a newer release is latest. Back to shipping is the window's own restore.
+  Serial.println("[bench] OTA off: update check skipped");
+#elif defined(PHOTO_MODE)
   // PHOTO MODE HAS NO OTA (env:missileer-photo). The photo firmware must not be
   // replaced mid-shoot by whatever release is current, and it is never published, so
   // there is nothing for it to update into. Back to shipping is a USB flash.
@@ -917,6 +943,11 @@ void loop()
   // flush -- is one sample; AircraftManager logs avg/p95 + heap every 30 s and
   // shouts when a budget breaks. u32 micros() wrap-around subtracts correctly.
   const uint32_t frameStartUs = micros();
+  // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+  frameprofile::Start(frameStartUs);
+#endif
+  // THE FRAME PROFILE END
 #endif
 
   // Perform a requested reset and reboot into the setup portal -- from the
@@ -1017,7 +1048,7 @@ void loop()
   // NOT IN PHOTO MODE: it reboots the board to run an update check that the photo
   // build skips (above), and on an EAM build the quiet hour is 03:00 UTC -- an
   // evening in the Americas, which is when a shoot happens.
-#if !defined(PHOTO_MODE)
+#if !defined(PHOTO_MODE) && !defined(FRAME_BENCH)   // B-OTA: a bench image never arms the quiet-hour check
   {
     static quiet::State qs;
     // The offset is read from config rather than from the app manager, because
@@ -1097,7 +1128,17 @@ void loop()
 
 #if defined(BLIPSCOPE_PUSH_TASK)
   // M3: the buffer this frame draws into. It waits only while that buffer's previous push is still going.
+  // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+  frameprofile::Mark(frameprofile::B_UPD);
+#endif
+  // THE FRAME PROFILE END
   LGFX_Sprite& drawBuf = pushtask::TakeForDrawing();
+  // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+  frameprofile::Mark(frameprofile::B_WAIT);
+#endif
+  // THE FRAME PROFILE END
 #endif
   for (int bandY = 0; bandY < SCREEN_SIZE; bandY += BAND_H) {
 #if defined(BLIPSCOPE_PUSH_TASK)
@@ -1128,6 +1169,11 @@ void loop()
     canvas.fillScreen(lgfx::color888(0, 0, 0));
 #endif
     framebuf::SetPhase(framebuf::kPhaseCleared);   // diag only (A9.22)
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_UNDER);
+#endif
+    // THE FRAME PROFILE END
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
     if (drawScan) {
@@ -1153,7 +1199,17 @@ void loop()
     }
 #endif
 
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_SWEEP);
+#endif
+    // THE FRAME PROFILE END
     appManager.Draw(canvas, firstPass);
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_DRAW);
+#endif
+    // THE FRAME PROFILE END
     framebuf::SetPhase(framebuf::kPhaseDrawn);     // diag only (A9.22)
 #ifdef FEATURE_WEATHERSCOPE
     // Diag only (A9.22): what was pushed, the phase it was pushed at, and how long the push held the loop task.
@@ -1164,6 +1220,11 @@ void loop()
     // M3: frame N goes to the push task, and the loop moves on to frame N+1. The Pushed phase and
     // FrameDone are set by the push task when the send completes (docs/m3-push-task.md, section 5).
     pushtask::HandOver();
+    // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+    frameprofile::Mark(frameprofile::B_HAND);
+#endif
+    // THE FRAME PROFILE END
 #else
     backbuffer.pushSprite(0, bandY);
     framebuf::SetPhase(framebuf::kPhasePushed);    // diag only (A9.22)
@@ -1175,18 +1236,33 @@ void loop()
   // RGB SKUs draw into a cached PSRAM framebuffer; write it back so the panel DMA sees the
   // new frame. No-op on SPI SKUs (the pushSprite above already hit the panel directly).
   board::DisplayFlush(tft);
+  // THE FRAME PROFILE BEGIN
+#ifdef FRAME_PROFILE
+  frameprofile::Mark(frameprofile::B_FLUSH);
+#endif
+  // THE FRAME PROFILE END
 
   // AFTER the flush, so a reader that samples the counter either side of its
   // copy is comparing against completed frames rather than against a frame
   // still being assembled.
 #if !defined(BLIPSCOPE_PUSH_TASK)
   framebuf::FrameDone();
+  // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+  framebench::Present(micros());   // M3-1, image A: the push runs in the loop, so the present is here
+#endif
+  // THE FRAME BENCH END
 #endif
   // M3: FrameDone runs in the push task, at the send's completion. RecordFrameUs below therefore no
   // longer contains the push: `fr` drops by up to the push's 25.8 ms whether or not the glass is faster.
   // The gate reads map-client's p2p, which is anchored on FrameDone (docs/m3-push-task.md, section 5).
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+  // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+  if (framebench::DelayOn()) delayMicroseconds(framebench::PLANTED_DELAY_US);   // I-6, the loop's +10 ms
+#endif
+  // THE FRAME BENCH END
   appManager.RecordFrameUs(micros() - frameStartUs);
 
 #ifdef FEATURE_CLOUD_FEED
@@ -1196,8 +1272,10 @@ void loop()
   // Same reboot-then-fetch route as the daily timer, and for the same reason: this
   // fires from a cloud-config poll on a device that has been up for days, which is
   // exactly the heap the direct call cannot survive.
+#if !defined(FRAME_BENCH)   // B-OTA: the Worker never pushes a bench image into a check
   if (appManager.ConsumeOtaCheckRequest())
     DeferUpdateCheckToReboot(ESP.getMaxAllocHeap(), /*scheduled=*/false); // the floor keeps the full cap
+#endif
 #endif
 #endif
 }

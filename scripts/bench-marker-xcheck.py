@@ -26,7 +26,7 @@ import sys
 
 LIT = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 TAG = re.compile(r"\[([a-z0-9]+(?:-[a-z0-9]+)*)\]")
-SPECIAL = {"photo-mode"}
+SPECIAL = {"photo-mode", "frame-profile"}   # the port (bench/fp-port): the profile's marker is not bench-shaped
 EXT = (".c", ".cc", ".cpp", ".h", ".hpp", ".inc", ".ino")
 SCRIPT = "scripts/check-no-bench-hooks.sh"
 

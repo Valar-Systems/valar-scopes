@@ -761,6 +761,15 @@ private:
     void MapBenchTick();              // the phases, from RecordFrameUs's 30 s tick
 #endif
     // THE MAP BENCH END
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#ifndef BLIPSCOPE_MAP_FETCH
+#error "the port's bench draws the map: it needs BLIPSCOPE_MAP_FETCH (PORT-SPEC amendment 2d)"
+#endif
+    void FpLoadMap();            // the port's map: the embedded package, through the gate, set directly (amendment 2d)
+    bool fpMapRefused = false;   // a refusal is printed once and never retried
+#endif
+    // THE FRAME BENCH END
 
     // Public spotting leaderboard (opt-in, off by default). Submits the logbook
     // tallies hourly through the proxy; the parsed standing feeds a Stats block.
