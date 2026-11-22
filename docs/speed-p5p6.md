@@ -5616,3 +5616,76 @@ No recommendation is made. The first draft's recommendation rested on the withdr
 - On the original workload, one possible measurement flaw is still open. So is which part of the old label code
   causes the speed-up.
 - Three choices: accept it now, run one more test on the original workload, or drop it.
+
+### 16r. P6-MOVE, registered and built (2026-11-21; committed here before any trace exists; the window is Sun 2026-11-22 18:30Z on E2:08)
+
+16q's option (b), as the reviewer ruled it (2026-11-21 19:49:40Z): **G6 beside a NEW MOVING diag image, D6M, in one
+window on the same board.** This section freezes the registration and its tools in this file before the window, as
+16l and 16n were frozen. **Nothing below is a reading.**
+
+**The registration.** `p6m/REG-p6m.md` `21acf1e7a2ca`, in the bench handoff folder:
+- sections 0-7, accepted 20:02:12Z;
+- A-1: the hook at the caller, accepted 20:04:37Z;
+- A-2: Row 3's noise rule, accepted 20:04:37Z;
+- A-3: one light state for the whole window, accepted 20:04:37Z;
+- A-4: the plant's record, accepted after the host test.
+
+**What the window answers, on G6's own MOVING workload** (16q: B4 LIVE there; B1 against B2' not testable):
+- **R1:** D6M's contacts gap judged against G6's IN THE SAME WINDOW. This gates every row after it.
+- **R2, B4 at every box call the timed arms draw:** RECORD AND REPLAY in every timed arm, with the same code and
+  bytes in each.
+- **R3:** B1 against B2', graded only if the gap is above the 0.30 floor and N ≤ 0.25 × d.
+
+**The image, D6M.**
+- **The source:** `bench/diag-p6m` `30f301196a3c`, ONE commit on G6's own source `10d4517fc7c9`; 9 files, +840/−5,
+  bench regions only.
+- **The hook (A-1):** `AircraftLabelBox`, `src/AircraftManager.cpp` :6007-6014 (the code at :6011-6013).
+  - It sits after `LabelLayout` returns (:6004) and before `AddCyc(A_LAYOUT)` (:6015).
+  - It records `n` and idx/lx/ly/lw exactly as returned, which is what the `n == 0` return (:6018) and the label box
+    read next. It covers every `LabelLayout` return path.
+- **The recorder** (`include/DiagP6m.h`): a 28 B record, a 6 B frame head and a 194 B key.
+  - One PSRAM buffer of 4,542,080 B, allocated once before scene 0.
+  - Overflow STOPS and flags; it never truncates.
+- **The replay:** after each scene's measure window, untimed. Each key is decoded (`LabelKey`'s inverse) into a
+  scratch aircraft, OLD's `LayoutToday` is run again, and the geometry is compared.
+  - Coverage is COUNTED: replayed frames must equal the arm's own frames, at 40 records a frame, with 0 undecodable.
+  - The OLD arms are the built-in control: they must read 0.
+  - The plant (A-4) goes on frame F's first record with n ≥ 1.
+- **The build:** on E:, `firmware.bin` `2df98983ab01`, 1,975,776 B (elf `899cb2cd9664`). Section 6 read all AS
+  PREDICTED:
+  - B-SIZE, B-STR (present and absent) and B-ANCHOR: `verify_p6m.py` `db66ae5506af`, red first on G6 and on D6;
+  - B-REGION: 494 changed lines, 0 outside, with its plant read and restored by bytes;
+  - B-HOST: red exit 1, clean 9/9.
+
+**The readers and runners** (all red first; the T-10 dry run of 2026-11-21 20:47Z read ALL OK):
+- `p6m/tools/p6m_read.py` `df6882de1a88`: it loads `diag_read.py` and p4's `gains_read.py` by sha, and grades REG
+  section 5. Selftest 21/21; a sabotaged copy read 1 OFF.
+- `p6m/tools/grade_p6m.sh` `e0ac6f832994`: the tie selftest refuses one changed byte; end to end, CLEAN exit 0 and
+  STOP-IMAGE exit 11.
+- `run/t10_p6m.sh` `fa9d3d474405`, `run/step0_p6m.sh` `bc3bffb5fa94` and `run/tracerun_p6m.sh` `896125208078` are made
+  from the diag window's by exact replacements. `run/window-p6m.md` `8380a868757e`.
+- A-3: `p6m/tools/lightstate_p6m.py` `24cf2871a1e2`, the device's own `isNightNow` copied by bytes. Its controls are
+  ok, and the scan's red read NO. A START of 18:30Z or 21:00Z on Sunday lies in ONE light state.
+
+**The window.** E2:08, Sun 2026-11-22: T-10 at 18:20Z; START 18:30Z; HARD END 21:00Z.
+- **Order A-B-A:** G6 (33 min), D6M (36 min), G6 (33 min), then the v19 restore.
+- If A2 cannot START by 20:24Z, the reading is OUTSIDE THE SET.
+- **Terms:** no other process on its port, no YKUSH switch, nothing elevated, no touch, no proxy deploy, no
+  cfg:fleet change.
+
+**The frozen readings, in brief** (REG section 5 and A-2; `p6m_read.py grade` implements them):
+- **Row 1, R-2SIZE, the gate:**
+  - PASS: |A1 − A2| ≤ 0.30, gA > 0.30 and |d − gA| ≤ max(N, 0.30).
+  - Else STOP-G6, STOP-IMAGE or OUTSIDE.
+  - Predicted PASS, with gA within 0.84 ± 0.30.
+- **Row 2, B4:** a coverage VOID per arm; the OLD-arm control and the plant (each INSTRUMENT on failure); then CLOSED,
+  CONFIRMED or NOT CLOSED. Predicted CLOSED.
+- **Row 3, B1 against B2':** B1 needs s1 ≥ 0.5 AND s2 < 0.25 relative to d, so the B1 and B2' rows cannot both fit.
+  Predicted B1, with low confidence.
+- **Rows 4 and 5,** the heap and the recorder's cost: REPORTED.
+
+**In plain words (for the owner):**
+- One more test of the label cache is ready for Sunday evening: the original test image, then a new one, then the
+  original again.
+- The new image records every label the timed runs draw, so a possible measuring fault can be checked for every frame.
+- It is believed only if it reproduces the original's speed-up in the same session.
