@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "LabelCache.h"
 #include "models/TrackedAircraft.h"
 
 // One user-selectable on-screen info field. A single table (see the .cpp) drives
@@ -19,3 +20,8 @@ struct AircraftInfoFieldDef {
 
 extern const AircraftInfoFieldDef AIRCRAFT_INFO_FIELDS[];
 extern const size_t AIRCRAFT_INFO_FIELD_COUNT;
+
+// P6's key (include/LabelCache.h): every input any format() above reads, exactly. A formatter that starts reading a
+// new input must add it here, or the label cache would keep its old text. test/host/test_p6_labels.cpp's P6-COVER
+// moves every input the formatters read and requires this key to move whenever any field's text does.
+void LabelKey(const TrackedAircraft& aircraft, labelcache::KeyBuf& key);
