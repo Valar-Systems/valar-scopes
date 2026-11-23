@@ -5,7 +5,7 @@ Synthetic data only, no network, no token: each reader is loaded from a temp cop
 `post` is replaced by the fake's, which RECORDS every event it returns. So the fetched counts below are the fake's
 record, one instrument for the old reader and the new.
 
-  python -X utf8 -I tools/bill/colo_occupancy_plant.py <old reader .py> <new reader .py> <pre-recording reader .py> <pre-classify reader .py>
+  python -X utf8 -I tools/bill/colo_occupancy_plant.py <old reader .py> <new reader .py> <pre-recording reader .py> <pre-classify reader .py> <pre-population reader .py>
 
 The old reader is the one F1-R replaces (blob af55507b9ad7); the pre-recording reader is F1-R's first commit of the
 change (blob 74556db07510), which kept lc's and scan's attempts in memory only (the reviewer's ruling (4)). Rows, in
@@ -15,7 +15,9 @@ F1 NL-FIX's grade rows G-LABEL, G-UNION, G-EDGE and G-COLO (registration 2dd0576
 blob 50db3cb8cb2a, at G-LABEL and G-UNION only), then F1 CLASSIFY's rows C-RED, C-TABLE, C-NOID, C-BLIND, C-PRE and
 C-SRC (registration 627dd8c67b72; C-RED runs the pre-classify reader, blob 88052942e847). The proxy sources the reader
 parses (proxy/src/index.ts and missileer.ts) are copied from this tree into the plant's temp tree; C-SRC gets a second
-tree whose index.ts has API_PREFIX's name changed by a byte-asserted plant.
+tree whose index.ts has API_PREFIX's name changed by a byte-asserted plant. Then F1 POPULATION's rows P-RED, P-NOSTEP,
+P-STEP, P-ANCHOR, P-BLIND-2 and P-BLIND-5 (registration 5cf7d7288c34, corrected 75213feac918; P-RED runs the
+pre-population reader, blob 9b1a1610626f), on real synthetic events so the reader's no-key filter is exercised.
 Exit 0 when every row reads as predicted; 1 when any is OFF; 2 the rig (a plant that did not apply, a fake control off).
 """
 import contextlib
@@ -108,14 +110,42 @@ def classify_set(noid=False, notime=False):
     return evs
 
 
+POP_L = datetime(2026, 11, 19, 12, tzinfo=timezone.utc)      # the reader's ANCHOR-PRE hour (L); events here are synthetic
+POP_H0 = datetime(2026, 11, 23, 14, tzinfo=timezone.utc)     # the reader's ANCHOR-POST hour (H0); synthetic
+POP_W0 = datetime(2026, 11, 21, 22, tzinfo=timezone.utc)     # the reader's first window hour; synthetic
+
+
+def pop_set(post_nokey=249, step=0):
+    """F1 POPULATION's hours, as real events so the reader's filters are exercised: L with 3695 req lines (36 no-key,
+    3659 carrying the example id); H0 with 5553 (post_nokey no-key, the rest labelled); 24 window hours of 1000 req lines
+    each, hour i holding 10 + i no-key (+step from the 13th hour, the site-merge hour) and the rest the example id."""
+    evs, k = [], [200000]
+
+    def add(t, n, **src):
+        for j in range(n):
+            k[0] += 1
+            evs.append(ev(k[0], t + timedelta(seconds=j % 3500), evt="req", colo="ZZ1", **src))
+
+    add(POP_L, 36)
+    add(POP_L, 3659, dev=EXAMPLE_ID)
+    add(POP_H0, post_nokey)
+    add(POP_H0, 5553 - post_nokey, devl="lbl-a")
+    for i in range(24):
+        nk = 10 + i + (step if i >= 12 else 0)
+        add(POP_W0 + timedelta(hours=i), nk)
+        add(POP_W0 + timedelta(hours=i), 1000 - nk, dev=EXAMPLE_ID)
+    return evs
+
+
 class Fake:
     """The API's documented shapes: timeframe; eq/exists/DOES_NOT_EXIST leaves; filterCombination and groups; events
     paging (limit, offset); calculations count. preflight: per-attempt {"abr": n or None (omitted), "count": n or None
     (the true count)} for a count query carrying `dev exists`."""
 
-    def __init__(self, events, ignore_filters=False, counts_zero=False, preflight=None):
+    def __init__(self, events, ignore_filters=False, counts_zero=False, preflight=None, blind_hours=()):
         self.events = sorted(events, key=lambda e: e["$metadata"]["id"])
         self.ignore, self.counts_zero, self.preflight = ignore_filters, counts_zero, list(preflight or [])
+        self.blind_hours = set(blind_hours)      # F1 POPULATION: hour starts (ms) whose count queries answer at ABR 100
         self.returned, self.events_requests, self.count_requests, self.preflight_attempts = [], 0, 0, 0
 
     def leaf(self, e, f):
@@ -162,6 +192,8 @@ class Fake:
                 n = n if spec["count"] is None else spec["count"]
             elif self.is_preflight(prm):
                 self.preflight_attempts += 1
+            if tf["from"] in self.blind_hours:
+                abr = 100
             if abr is not None:
                 stats["abr_level"] = abr
             agg = [{"value": n, "count": n, "sampleInterval": 1 if n else 0}]
@@ -198,7 +230,7 @@ def run(mod, fake, argv):
 
 
 def main(argv):
-    if len(argv) != 4:
+    if len(argv) != 5:
         print(__doc__)
         return 2
     tmp = tempfile.mkdtemp(prefix="f1r-plant-")
@@ -226,7 +258,7 @@ def main(argv):
         print("plant C-SRC applied: API_PREFIX renamed once in the second tree's index.ts")
         paths = {}
         for name, src in (("old_reader", argv[0]), ("new_reader", argv[1]), ("prerec_reader", argv[2]),
-                          ("precl_reader", argv[3])):
+                          ("precl_reader", argv[3]), ("prepop_reader", argv[4])):
             paths[name] = os.path.join(tmp, "tools", "bill", name + ".py")
             shutil.copyfile(src, paths[name])
         paths["src_reader"] = os.path.join(tmp, "srcplant", "tools", "bill", "src_reader.py")
@@ -243,8 +275,8 @@ def main(argv):
         with open(paths["sab_reader"], "w", encoding="utf-8", newline="\n") as fh:
             fh.write(sab)
         print("sabotage R-ABR-RED planted: the gate line replaced once; reader changed (%d -> %d bytes)" % (len(new_src), len(sab)))
-        old, new, sbr, prerec, precl, srcr = (load(paths[n], n) for n in ("old_reader", "new_reader", "sab_reader", "prerec_reader",
-                                                                        "precl_reader", "src_reader"))
+        old, new, sbr, prerec, precl, srcr, prepop = (load(paths[n], n) for n in (
+            "old_reader", "new_reader", "sab_reader", "prerec_reader", "precl_reader", "src_reader", "prepop_reader"))
 
         # The fake's own controls, in the new reader's own query form.
         f = Fake(hour_h(True))
@@ -460,6 +492,53 @@ def main(argv):
         row("C-SRC", dict(exit=rc, labelled=lab, rig=any(l.startswith("RIG:") for l in body), table=len(tab(body)),
                           count_requests=f.count_requests, events_requests=f.events_requests),
             dict(exit=2, labelled=True, rig=True, table=0, count_requests=0, events_requests=0))
+
+        # P rows (F1 POPULATION, registration 5cf7d7288c34, corrected 75213feac918): count queries only, every line labelled.
+        hstr = lambda t: t.strftime("%Y-%m-%dT%H:00Z")
+        w_ms = lambda i: ms(POP_W0 + timedelta(hours=i))
+        pa = ["ANCHOR-PRE %s: req 3695, no-key 36 (must read 3695 / 36) -> HOLDS" % hstr(POP_L),
+              "ANCHOR-POST %s: req 5553, no-key 249 (must read 5553 / 249) -> HOLDS" % hstr(POP_H0)]
+        anchors = lambda body: [l for l in body if l.startswith("ANCHOR-")]
+        verdict = lambda body: [l for l in body if l.startswith(("verdict:", "no population:"))]
+
+        rc, o = run(prepop, Fake(pop_set()), ["population", out("pred")])
+        row("P-RED", dict(exit=rc, verdict=len(verdict(cl_body(o)[1])), written=os.path.exists(out("pred"))),
+            dict(exit=2, verdict=0, written=False))
+
+        f = Fake(pop_set()); rc, o = run(new, f, ["population", out("pnostep")])
+        lab, body = cl_body(o)
+        row("P-NOSTEP", dict(exit=rc, labelled=lab, anchors=anchors(body), medians=[l for l in body if l.startswith("median ")],
+                             verdict=verdict(body), count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=0, labelled=True, anchors=pa, medians=["median no-key before 10:00Z 15.5, from 10:00Z 27.5, step +12.0"],
+                 verdict=["verdict: no step; C 0.0330"], count_requests=52, events_requests=0))
+
+        rc, o = run(new, Fake(pop_set(step=400)), ["population", out("pstep")])
+        lab, body = cl_body(o)
+        row("P-STEP", dict(exit=rc, anchors=anchors(body), verdict=verdict(body)),
+            dict(exit=0, anchors=pa, verdict=["verdict: step +412.0 lines/h; no C -- (c) at full volume OR another source "
+                                              "that began that hour; the population cannot tell which"]))
+
+        # Where it stopped, not what it read there: P-SAB stops here too, with another count, and must read the same.
+        f = Fake(pop_set(post_nokey=248)); rc, o = run(new, f, ["population", out("panchor")])
+        lab, body = cl_body(o)
+        row("P-ANCHOR", dict(exit=rc, stopped_at=[l.split(" ", 1)[0] for l in anchors(body) if " -> OFF" in l],
+                             hours=len([l for l in body if l.startswith("hour ")]), count_requests=f.count_requests),
+            dict(exit=3, stopped_at=["ANCHOR-POST"], hours=0, count_requests=4))
+
+        f = Fake(pop_set(), blind_hours=(w_ms(3), w_ms(15))); rc, o = run(new, f, ["population", out("pblind2")])
+        lab, body = cl_body(o)
+        row("P-BLIND-2", dict(exit=rc, window=[l for l in body if l.startswith("window:")],
+                              blind=[l for l in body if l.startswith("hour ") and l.endswith("BLIND (dropped)")], verdict=verdict(body)),
+            dict(exit=0, window=["window: 22 hour(s) read, 2 BLIND"],
+                 blind=["hour %s BLIND (dropped)" % hstr(POP_W0 + timedelta(hours=i)) for i in (3, 15)],
+                 verdict=["verdict: no step; C 0.0330"]))
+
+        # It must be able to fail: the 24 attempted hours and the "no population" line, not the exit code alone.
+        f = Fake(pop_set(), blind_hours=tuple(w_ms(i) for i in (1, 5, 9, 13, 17)))
+        rc, o = run(new, f, ["population", out("pblind5")])
+        lab, body = cl_body(o)
+        row("P-BLIND-5", dict(exit=rc, attempted=len([l for l in body if l.startswith("hour ")]), verdict=verdict(body)),
+            dict(exit=3, attempted=24, verdict=["no population: 5 hour(s) BLIND (more than 4)"]))
 
         print("rows %d, as predicted %d, OFF %d" % (len(rows), len(rows) - off, off))
         return 0 if off == 0 else 1
