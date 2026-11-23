@@ -1,5 +1,6 @@
 """WD5o's sabotages (docs/wx-device.md, WD5 addendum 3): each plants ONE break into a copy of src/AircraftManager.cpp
-and requires test_wx_outline to turn red in exactly the checks named, no fewer and no more.
+or, since P5 W (REG-W amendment 3), of include/OutlineW.h, where the 8 offsets and the order now live, and
+requires test_wx_outline to turn red in exactly the checks named, no fewer and no more.
 
     python -I sabotage_wx_outline.py [<repo-root> <c++ compiler>]   exit 0 every sabotage as predicted, 1 otherwise, 2 rig
 
@@ -24,14 +25,19 @@ else:
     CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]
 
-DOT_OUTLINE = "else backbuffer.fillCircle(x + ox, y + oy, 3, 0u);"
+AMCPP = "src/AircraftManager.cpp"
+OUTW = "include/OutlineW.h"
+FILES = (AMCPP, OUTW)
+DOT_OUTLINE = "else m.fillCircle(cx, cy, 3, 0u);"   # the copy, in the lambda W rasterises (REG-W)
 DOT = "else backbuffer.fillCircle(x, y, 3, markerColor);"
 PLANTS = [
     # The construction addendum 3 replaced: one black disc 1 px larger, centred under the dot.
-    ("the old disc 1 px larger", [(DOT_OUTLINE, "else {}"), (DOT, "else { backbuffer.fillCircle(x, y, 4, 0u); backbuffer.fillCircle(x, y, 3, markerColor); }")],
+    ("the old disc 1 px larger", [(AMCPP, DOT_OUTLINE, "else {}"),
+                                  (AMCPP, DOT, "else { backbuffer.fillCircle(x, y, 4, 0u); backbuffer.fillCircle(x, y, 3, markerColor); }")],
      {"WD5o"}),
-    # The right construction, drawn after the dot, so the black covers it.
-    ("the outline drawn after the dot", [(DOT, "else {}"), (DOT_OUTLINE, "else { if (ox == -1 && oy == -1) backbuffer.fillCircle(x, y, 3, markerColor); backbuffer.fillCircle(x + ox, y + oy, 3, 0u); }")],
+    # The right construction, drawn after the dot, so the black covers it: since W, the order is Draw's.
+    ("the outline drawn after the dot", [(OUTW, "    Paint(m, c, black);\n    marker();\n",
+                                         "    marker();\n    Paint(m, c, black);\n")],
      {"WD5o order"}),
 ]
 
@@ -41,8 +47,7 @@ def red(output):
 
 
 def main():
-    path = os.path.join(ROOT, "src", "AircraftManager.cpp")
-    src = open(path, encoding="utf-8", newline="").read()
+    srcs = {rel: open(os.path.join(ROOT, *rel.split("/")), encoding="utf-8", newline="").read() for rel in FILES}
     test = os.path.join(ROOT, "test", "host", "test_wx_outline.cpp")
     tmp = tempfile.mkdtemp(prefix="wxo-sab-")
     try:
@@ -54,15 +59,17 @@ def main():
         if r0.returncode != 0 or len(re.findall(r"^\s*ok\b", r0.stdout, re.M)) != OK_COUNT:
             print(f"  RIG: the unplanted test did not pass with {OK_COUNT} ok lines\n{r0.stdout[-600:]}"); return 2
         os.makedirs(os.path.join(tmp, "src"))
+        os.makedirs(os.path.join(tmp, "include"))
         bad = 0
         for label, edits, want in PLANTS:
-            planted = src
-            for old, new in edits:
-                if planted.count(old) != 1:
-                    print(f"  RIG {label}: the anchor occurs {planted.count(old)} times: {old}"); return 2
-                planted = planted.replace(old, new)
-            open(os.path.join(tmp, "src", "AircraftManager.cpp"), "w", encoding="utf-8", newline="").write(planted)
-            assert open(os.path.join(tmp, "src", "AircraftManager.cpp"), encoding="utf-8", newline="").read() != src, "the plant did not apply"
+            planted = dict(srcs)
+            for rel, old, new in edits:
+                if planted[rel].count(old) != 1:
+                    print(f"  RIG {label}: the anchor occurs {planted[rel].count(old)} times in {rel}: {old}"); return 2
+                planted[rel] = planted[rel].replace(old, new)
+            for rel in FILES:
+                open(os.path.join(tmp, *rel.split("/")), "w", encoding="utf-8", newline="").write(planted[rel])
+            assert planted != srcs, "the plant did not apply"
             r = subprocess.run([exe, tmp], capture_output=True, text=True)
             got = red(r.stdout)
             ok = r.returncode == 1 and got == want
@@ -76,8 +83,8 @@ def main():
 
 def anchor_entries():
     """Every plant's anchor in the file it plants, for run.sh's --anchors pass (no plant runs)."""
-    path = os.path.join(ROOT, "src", "AircraftManager.cpp")
-    return [(label, "src/AircraftManager.cpp", sc.read(path), old) for label, edits, _ in PLANTS for old, _ in edits]
+    return [(label, rel, sc.read(os.path.join(ROOT, *rel.split("/"))), old)
+            for label, edits, _ in PLANTS for rel, old, _ in edits]
 
 
 # --control (#510; docs/wx-device.md, "#510's --control"): this driver's unplanted run alone, its suite against
