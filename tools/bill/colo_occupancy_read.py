@@ -20,6 +20,11 @@ REASK_S apart (chosen on resolution only, never on the count); still not a value
   python -X utf8 -I tools/bill/colo_occupancy_read.py scan <out.json> [<last hour ISO>]   when `devl` first appears; clean?
   python -X utf8 -I tools/bill/colo_occupancy_read.py read <hour start ISO> <out.json>
   python -X utf8 -I tools/bill/colo_occupancy_read.py grade <read1> <read2>      the reads agree, then F1-K/H55/H115
+  python -X utf8 -I tools/bill/colo_occupancy_read.py classify <hour start ISO> <out.json>   F1 CLASSIFY: a DIAGNOSTIC
+      (registration 627dd8c67b72): the hour's no_label lines by family / status / model / authPath / five-minute bucket,
+      counts only. It walks the hour by `read`'s own path (walk_hour), and every line it prints is labelled
+      "[diagnostic after F1's no-reading; changes no reading]". The family rules' constants are PARSED from
+      proxy/src/index.ts and missileer.ts in this tree; a stale one is a RIG error before any query. Exit 3 = a BLIND row.
 Every command prints one `attempts <query>:` line per query on every graded exit (0, 3, 5, 6); lc and scan also write
 every attempt to <out.json> on those exits, and read writes them into its own result file (F1-R-1's recording clause;
 ruling (4)). A rig error (exit 2) prints its exception type only, and nothing else.
@@ -30,10 +35,13 @@ colo size. T = 55 s and 115 s, off the poll boundary on purpose.
 Exit: 0 done/graded; 3 ESCAPE (or: no reading possible now); 4 REFUSED (reads under 60 s apart); 5 REFUSED (a `dev`
 line: pre-flight or backstop); 6 BLIND (a query never reached ABR 1); 2 the rig.
 """
+import contextlib
 import importlib.util as _ilu
+import io
 import json
 import os
 import random
+import re
 import sys
 import time
 import urllib.error
@@ -263,23 +271,23 @@ def done(rc, log, path=None, kind=None, extra=None):
     return rc
 
 
-def read(hour, path):
-    h1 = parse_hour(hour)
-    if h1 + timedelta(hours=1) > datetime.now(timezone.utc):
-        raise Rig("the hour has not closed")
-    tok = TOKEN_FILE.token("observability-read")
-    log = []
+def walk_hour(h1, tok, log, on_req):
+    """`read`'s and `classify`'s ONE path over an hour (F1-R), so a guard here cannot be skipped by either: the count-only
+    PRE-FLIGHT, then the `dev DOES_NOT_EXIST` events query, paged, every fetched event counted before any local test, and
+    the BACKSTOP on any fetched req line holding `dev`. on_req(o, e) is called once per req line of this service.
+    Returns (0, info) after a full walk; otherwise (rc, None) for a refusal (5) or a BLIND (6), having printed exactly the
+    lines `read` has always printed for it. On a nonzero rc the caller discards everything on_req gathered."""
     try:
         pre = count_query(h1, params(DEV_EXISTS), tok, log, "preflight")
     except Blind:
         print("fetched 0 event(s), 0 with dev; no events request was made")
-        return done(blind("preflight", log), log)
+        return blind("preflight", log), None
     print("preflight dev count %d" % pre)
     if pre:
         print("fetched 0 event(s), 0 with dev; no events request was made")
         print("REFUSED (pre-flight): %d req line(s) in the hour carry the device id. Nothing fetched, nothing kept." % pre)
-        return done(5, log)
-    colos, lines, no_colo, no_label, abr, offset, pages, fetched, fetched_dev = {}, 0, 0, 0, set(), None, 0, 0, 0
+        return 5, None
+    abr, offset, pages, fetched, fetched_dev = set(), None, 0, 0, 0
     while True:
         body = {"queryId": "proxy-bill-colo-occupancy", "timeframe": hour_bounds(h1), "view": "events", "limit": 2000,
                 "parameters": params(DEV_ABSENT)}
@@ -288,9 +296,8 @@ def read(hour, path):
         label = "events page %d" % (pages + 1)
         res = ask(body, tok, False, log, label)
         if res is None:
-            colos.clear()        # the partial histogram is discarded, never written
             print("fetched %d event(s), %d with dev" % (fetched, fetched_dev))
-            return done(blind(label, log), log)
+            return blind(label, log), None
         abr.add(res["statistics"]["abr_level"])
         page = res["events"]["events"]
         pages += 1
@@ -303,37 +310,219 @@ def read(hour, path):
             if o is None:
                 continue
             if "dev" in o:
-                colos.clear()
                 print("fetched %d event(s), %d with dev" % (fetched, fetched_dev))
                 print("REFUSED (backstop): a fetched req line carries the device id. Nothing kept.")
-                return done(5, log)
-            lines += 1
-            c, d = o.get("colo"), o.get("devl")
-            if not isinstance(c, str) or not c:
-                no_colo += 1
-                continue
-            if not isinstance(d, str) or not d:
-                no_label += 1      # an unattributed request (a page, a refusal): not a board
-                continue
-            colos.setdefault(c, set()).add(d)
+                return 5, None
+            on_req(o, e)
         if len(page) < 2000:
             break
         offset = page[-1]["$metadata"]["id"]
+    return 0, {"pre": pre, "pages": pages, "abr": sorted(abr), "fetched": fetched, "fetched_dev": fetched_dev}
+
+
+def read(hour, path):
+    h1 = parse_hour(hour)
+    if h1 + timedelta(hours=1) > datetime.now(timezone.utc):
+        raise Rig("the hour has not closed")
+    tok = TOKEN_FILE.token("observability-read")
+    log = []
+    colos, n = {}, {"lines": 0, "no_colo": 0, "no_label": 0}
+
+    def on_req(o, e):
+        n["lines"] += 1
+        c, d = o.get("colo"), o.get("devl")
+        if not isinstance(c, str) or not c:
+            n["no_colo"] += 1
+            return
+        if not isinstance(d, str) or not d:
+            n["no_label"] += 1      # an unattributed request (a page, a refusal): not a board
+            return
+        colos.setdefault(c, set()).add(d)
+
+    rc, w = walk_hour(h1, tok, log, on_req)
+    if rc:
+        colos.clear()        # a partial histogram is discarded, never written
+        return done(rc, log)
     hist = {}
     for s in colos.values():
         hist[len(s)] = hist.get(len(s), 0) + 1
     colos.clear()          # nothing but the histogram survives
     out = {"hour": h1.strftime("%Y-%m-%dT%H:00:00Z"), "read_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-           "pages": pages, "abr": sorted(abr), "req_lines": lines, "no_colo": no_colo, "no_label": no_label,
-           "preflight_dev": pre, "fetched": fetched, "fetched_dev": fetched_dev,
+           "pages": w["pages"], "abr": w["abr"], "req_lines": n["lines"], "no_colo": n["no_colo"], "no_label": n["no_label"],
+           "preflight_dev": w["pre"], "fetched": w["fetched"], "fetched_dev": w["fetched_dev"],
            "histogram": {str(k): v for k, v in sorted(hist.items())}, "attempts": log}
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(out, fh, indent=1, sort_keys=True)
         fh.write("\n")
-    print("fetched %d event(s), %d with dev" % (fetched, fetched_dev))
+    print("fetched %d event(s), %d with dev" % (w["fetched"], w["fetched_dev"]))
     print("read %s: %d page(s), ABR %s, req lines %d, no colo %d, no label %d, histogram %s" % (
-        out["hour"], pages, out["abr"], lines, no_colo, no_label, out["histogram"]))
+        out["hour"], w["pages"], out["abr"], n["lines"], n["no_colo"], n["no_label"], out["histogram"]))
     return done(0, log)
+
+
+# F1 CLASSIFY (registration 627dd8c67b72): a DIAGNOSTIC after F1's no-reading. Counts only; never an `ep`, a colo, a
+# `devl`, a `model` value or a line leaves the process.
+DIAG = "[diagnostic after F1's no-reading; changes no reading]"
+FAMILIES = ("missileer", "healthz", "enroll", "api", "notfound", "page")
+STATUS_CLASSES = ("2xx/3xx", "401", "403", "404", "429", "other4xx", "5xx")
+RULE_SHAPES = (("index.ts", 'url.pathname === "/healthz"'), ("index.ts", 'url.pathname === "/enroll"'),
+               ("index.ts", "url.pathname === `${PAGE_PREFIX}/enroll`"), ("index.ts", "pathname.startsWith(API_PREFIX)"),
+               ("index.ts", "pathname.startsWith(WEATHERSCOPE_API_PREFIX)"),
+               ("index.ts", "pathname.startsWith(API_LEGACY_PREFIX)"), ("index.ts", "if (isMissileerPath(url.pathname))"),
+               ("missileer.ts", "pathname === PAGE_PREFIX ||"), ("missileer.ts", "pathname.startsWith(`${PAGE_PREFIX}/`) ||"),
+               ("missileer.ts", "pathname.startsWith(API_PREFIX)"))
+
+
+def _const(src, name, env, where):
+    """`const NAME = "..."` or a template using only already-parsed names; found exactly once, or a RIG error."""
+    m = re.findall(r'^const %s = ("[^"\n]*"|`[^`\n]*`);$' % re.escape(name), src, re.M)
+    if len(m) != 1:
+        raise Rig("%s: const %s found %d time(s), not exactly once; the family rule cannot be derived" % (where, name, len(m)))
+    v = m[0][1:-1]
+    if m[0][0] == "`":
+        def sub(mm):
+            if mm.group(1) not in env:
+                raise Rig("%s: ${%s} in %s is not a parsed constant" % (where, mm.group(1), name))
+            return env[mm.group(1)]
+        v = re.sub(r"\$\{([A-Za-z_]+)\}", sub, v)
+    return v
+
+
+def route_rules():
+    """The families' constants, PARSED from proxy/src in this tree (index.ts and missileer.ts), never transcribed; and
+    the rule shapes classify depends on, each required to still be in the source. Anything else is a RIG error."""
+    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "proxy", "src")
+    src = {}
+    for f in ("index.ts", "missileer.ts"):
+        try:
+            src[f] = open(os.path.join(base, f), encoding="utf-8").read()
+        except OSError:
+            raise Rig("proxy/src/%s is not beside this reader; the family rule cannot be derived" % f)
+    env = {}
+    env["EDITION"] = _const(src["index.ts"], "EDITION", env, "index.ts")
+    r = {"api": tuple(_const(src["index.ts"], n, env, "index.ts")
+                      for n in ("API_PREFIX", "WEATHERSCOPE_API_PREFIX", "API_LEGACY_PREFIX")),
+         "page_prefix": _const(src["index.ts"], "PAGE_PREFIX", env, "index.ts"),
+         "m_page": _const(src["missileer.ts"], "PAGE_PREFIX", {}, "missileer.ts"),
+         "m_api": _const(src["missileer.ts"], "API_PREFIX", {}, "missileer.ts")}
+    for f, shape in RULE_SHAPES:
+        if shape not in src[f]:
+            raise Rig("%s no longer contains %s; the family rule is stale" % (f, shape))
+    return r
+
+
+def family(ep, status, r):
+    """index.ts's own order: Missileer first (:190), then /healthz, the enrolment page (above the auth gate), the API
+    (behind it), and anything else is the 404 page or a page."""
+    if ep == r["m_page"] or ep.startswith(r["m_page"] + "/") or ep.startswith(r["m_api"]): return "missileer"
+    if ep == "/healthz":
+        return "healthz"
+    if ep in (r["page_prefix"] + "/enroll", "/enroll"):
+        return "enroll"
+    if ep.startswith(r["api"]):
+        return "api"
+    return "notfound" if status == 404 else "page"
+
+
+def status_class(s):
+    """A known status class, or None (BLIND): never a default."""
+    if isinstance(s, bool) or not isinstance(s, int):
+        return None
+    if s in (401, 403, 404, 429):
+        return str(s)
+    if 200 <= s < 400:
+        return "2xx/3xx"
+    if 400 <= s < 500:
+        return "other4xx"
+    if 500 <= s < 600:
+        return "5xx"
+    return None
+
+
+def classify(hour, path):
+    h1 = parse_hour(hour)
+    r = route_rules()                    # before any query: a stale rule is a RIG error with nothing asked
+    if h1 + timedelta(hours=1) > datetime.now(timezone.utc):
+        raise Rig("the hour has not closed")
+    tok = TOKEN_FILE.token("observability-read")
+    log, h1ms, blind_rows = [], int(h1.timestamp() * 1000), set()
+    n = {"lines": 0, "no_colo": 0, "no_label": 0, "authpath": 0}
+    t = {f: {"status": {s: 0 for s in STATUS_CLASSES}, "model": 0, "total": 0, "buckets": [0] * 12} for f in FAMILIES}
+
+    def on_req(o, e):
+        n["lines"] += 1
+        c, d = o.get("colo"), o.get("devl")
+        if not isinstance(c, str) or not c:
+            n["no_colo"] += 1
+            return
+        if isinstance(d, str) and d:
+            return                        # a labelled line: a board, not classified here
+        n["no_label"] += 1
+        if "authPath" in o:
+            n["authpath"] += 1
+        ep, s = o.get("ep"), o.get("status")
+        if not isinstance(ep, str):
+            blind_rows.add("family")      # cannot be placed: the family and time tables go BLIND, never a guess
+            return
+        row = t[family(ep, s, r)]
+        row["total"] += 1
+        sc = status_class(s)
+        if sc is None:
+            blind_rows.add("status")
+        else:
+            row["status"][sc] += 1
+        m = o.get("model")
+        if isinstance(m, str) and m:
+            row["model"] += 1
+        ts = e.get("timestamp")
+        b = None
+        if isinstance(ts, (int, float)) and not isinstance(ts, bool):
+            b = int((ts - h1ms) // 300000)
+        if b is None or not 0 <= b <= 11:
+            blind_rows.add("time")        # an event outside its own hour is impossible: BLIND, never clamped
+        else:
+            row["buckets"][b] += 1
+
+    rc, w = walk_hour(h1, tok, log, on_req)
+    if rc:
+        t.clear()
+        return done(rc, log)
+    fam_blind = bool(blind_rows & {"family", "status"})
+    time_blind = bool(blind_rows & {"family", "time"})
+    print("fetched %d event(s), %d with dev" % (w["fetched"], w["fetched_dev"]))
+    print("anchor: req lines %d, no colo %d, no label %d" % (n["lines"], n["no_colo"], n["no_label"]))
+    for f in FAMILIES:
+        x = t[f]
+        print("family %s BLIND" % f if fam_blind else "family %s 2xx/3xx %d 401 %d 403 %d 404 %d 429 %d other4xx %d 5xx %d | model %d | total %d" % (
+            (f,) + tuple(x["status"][s] for s in STATUS_CLASSES) + (x["model"], x["total"])))
+    print("authPath present %d" % n["authpath"])
+    for f in FAMILIES:
+        print("buckets %s BLIND" % f if time_blind else "buckets %s %s" % (f, " ".join(str(c) for c in t[f]["buckets"])))
+    rc = 3 if blind_rows else 0
+    if blind_rows:
+        print("BLIND: %s -- no diagnostic" % ", ".join(sorted(blind_rows)))
+    out = {"label": DIAG, "kind": "classify", "exit": rc, "hour": h1.strftime("%Y-%m-%dT%H:00:00Z"),
+           "read_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "pages": w["pages"], "abr": w["abr"],
+           "req_lines": n["lines"], "no_colo": n["no_colo"], "no_label": n["no_label"], "authpath_present": n["authpath"],
+           "blind": sorted(blind_rows),
+           "families": {f: "BLIND" if fam_blind else {"status": t[f]["status"], "model": t[f]["model"], "total": t[f]["total"]}
+                        for f in FAMILIES},
+           "buckets": {f: "BLIND" if time_blind else t[f]["buckets"] for f in FAMILIES}, "attempts": log}
+    t.clear()
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(out, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+    return done(rc, log)
+
+
+def labelled(fn):
+    """F1 CLASSIFY: every line the diagnostic prints carries DIAG, including RIG errors and the attempts lines."""
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = fn()
+    for l in buf.getvalue().splitlines():
+        print(DIAG + " " + l)
+    return rc
 
 
 def scan(path, last=None):
@@ -463,7 +652,15 @@ def grade(p1, p2):
 
 
 def main(argv):
+    if argv[:1] == ["classify"]:
+        return labelled(lambda: dispatch(argv))
+    return dispatch(argv)
+
+
+def dispatch(argv):
     try:
+        if len(argv) == 3 and argv[0] == "classify":
+            return classify(argv[1], argv[2])
         if argv == ["ctl"]:
             return ctl()
         if len(argv) == 2 and argv[0] == "lc":
