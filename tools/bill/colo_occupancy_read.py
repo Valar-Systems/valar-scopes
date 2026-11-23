@@ -435,8 +435,8 @@ def grade(p1, p2):
         esc.append("the two reads differ")
     if d["abr"] != [1] or d2["abr"] != [1]:       # F1-R-1: an absent level is no longer accepted
         esc.append("a sampled hour")
-    if d["req_lines"] and (d["no_colo"]) > 0.05 * d["req_lines"]:
-        esc.append("over 5% of req lines without a colo")
+    if d["req_lines"] and (d["no_colo"] + d["no_label"]) > 0.05 * d["req_lines"]:   # F1 NL-FIX: both halves of :1413
+        esc.append("over 5% of req lines without a colo or a board key")
     hist = {int(k): v for k, v in d["histogram"].items()}
     boards = sum(k * v for k, v in hist.items())
     if not boards:
