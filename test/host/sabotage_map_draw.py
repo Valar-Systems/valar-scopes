@@ -17,7 +17,8 @@ The map bench's (registered 2026-11-12, "The mapbench env"):
   S-CB-BENCHLEAK  a `#ifdef MAP_BENCH` block planted outside every bench region in AircraftManager.cpp: {CB-B1}
   S-CB-BENCHPRINT a print of `lat` planted in RecordFrameUs's bench region (not inside a draw region): {CB-B2}
 Step C's (registered 2026-11-12, "Step C: the wedge's green added to the map"), one per CD8 guard:
-  S-CD8-BLENDOUT  the weather's wxsweep::Blend( call in DrawSweepOverWeather becomes mapsweep::Blend(: {CD8} (a)
+  S-CD8-BLENDOUT  the weather's wxsweeplut::Blend( call in DrawSweepOverWeather becomes mapsweep::Blend( (P5 1b:
+                  a call of the Table overload outside DrawSweepOverMap): {CD8} (a)
   S-CD8-NOGATE    step C's gate deleted from DrawSweepOverWeather: {CD8} (b)
   S-CD8-EARLY     mapFrameDrawn set true in DrawMapBase's draw region before the copy, a second set: {CD8} (c)
   S-CD8-NOCLEAR   DrawWeatherUnder's clear of mapFrameDrawn deleted: {CD8} (d)
@@ -100,7 +101,7 @@ SABOTAGES = {
     "S-CB-BENCHPRINT": (AMCPP, [(BENCH_TICK_AT, BENCH_TICK_AT + '    Serial.printf("[map-bench] %f\\n", lat);\n')],
                         {"CB-B2"}),
     # Step C's five (CD8 (a)-(e)), one guard each.
-    "S-CD8-BLENDOUT": (AMCPP, [("    const uint32_t blended = wxsweep::Blend(\n",
+    "S-CD8-BLENDOUT": (AMCPP, [("    const uint32_t blended = wxsweeplut::Blend(\n",
                                "    const uint32_t blended = mapsweep::Blend(\n")], {"CD8"}),
     "S-CD8-NOGATE": (AMCPP, [("    if (mapFrameDrawn) return DrawSweepOverMap(canvas, cx, cy, radius, angle);   "
                              "// step C: the map's frame (S7)\n", "")], {"CD8"}),

@@ -1,5 +1,6 @@
 #include "HttpRequestManager.h"
 #include "NetWatchdog.h"
+#include "BodyCap.h"
 
 namespace {
 // Hard ceiling on any JSON body parsed off the socket. Every legitimate feed here is
@@ -677,7 +678,7 @@ HttpResult HttpRequestManager::GetBytes(const String& url, const std::vector<std
             result.success = true;
         } else if (bodyLen >= 0) {
             result.bodyBytes = (size_t)bodyLen;
-            if ((size_t)bodyLen > cap) {
+            if (!bodycap::Fits((size_t)bodyLen, cap)) {
                 result.errorMessage = "body over cap";   // refused BEFORE reading a byte
                 closeSocket = true;
             } else {
@@ -693,11 +694,7 @@ HttpResult HttpRequestManager::GetBytes(const String& url, const std::vector<std
             // De-chunked with the yielding reader that ended the EAM boot loop; stops at the terminator chunk.
             ChunkedSocketStream body(http.getStream(), 15000);
             size_t n = 0;
-            bool over = false;
-            for (int c; (c = body.read()) >= 0;) {
-                if (n == cap) { over = true; break; }   // byte cap + 1: refused
-                buf[n++] = (uint8_t)c;
-            }
+            const bool over = bodycap::ReadChunked([&body]() { return body.read(); }, buf, cap, &n);   // byte cap + 1: refused
             result.bodyBytes = over ? cap + 1 : n;
             if (over) { result.errorMessage = "body over cap"; closeSocket = true; }
             else if (body.timedOut()) { result.errorMessage = "stalled"; closeSocket = true; }
