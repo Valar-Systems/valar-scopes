@@ -5,14 +5,17 @@ Synthetic data only, no network, no token: each reader is loaded from a temp cop
 `post` is replaced by the fake's, which RECORDS every event it returns. So the fetched counts below are the fake's
 record, one instrument for the old reader and the new.
 
-  python -X utf8 -I tools/bill/colo_occupancy_plant.py <old reader .py> <new reader .py> <pre-recording reader .py>
+  python -X utf8 -I tools/bill/colo_occupancy_plant.py <old reader .py> <new reader .py> <pre-recording reader .py> <pre-classify reader .py>
 
 The old reader is the one F1-R replaces (blob af55507b9ad7); the pre-recording reader is F1-R's first commit of the
 change (blob 74556db07510), which kept lc's and scan's attempts in memory only (the reviewer's ruling (4)). Rows, in
 the registered order: the fake's own controls, R-RED, R-PRE, R-CLEAN, R-BACKSTOP, R-SCAN, R-ABR-RED (a byte-asserted
 sabotage), R-ABR, R-ABR-ABSENT, R-ABR-RECOVER, then R-REC-RED, R-REC, R-REC-SCAN-RED and R-REC-SCAN (red first), then
 F1 NL-FIX's grade rows G-LABEL, G-UNION, G-EDGE and G-COLO (registration 2dd057605a8c; red on the reader before the fix,
-blob 50db3cb8cb2a, at G-LABEL and G-UNION only).
+blob 50db3cb8cb2a, at G-LABEL and G-UNION only), then F1 CLASSIFY's rows C-RED, C-TABLE, C-NOID, C-BLIND, C-PRE and
+C-SRC (registration 627dd8c67b72; C-RED runs the pre-classify reader, blob 88052942e847). The proxy sources the reader
+parses (proxy/src/index.ts and missileer.ts) are copied from this tree into the plant's temp tree; C-SRC gets a second
+tree whose index.ts has API_PREFIX's name changed by a byte-asserted plant.
 Exit 0 when every row reads as predicted; 1 when any is OFF; 2 the rig (a plant that did not apply, a fake control off).
 """
 import contextlib
@@ -78,6 +81,33 @@ def scan_set():
         ev(13, h2, evt="req", colo="ZZ1", dev=EXAMPLE_ID)]
 
 
+def classify_set(noid=False, notime=False):
+    """F1 CLASSIFY's hour (synthetic): 10 no_label lines covering every family, status and flag; 3 labelled lines; 1 line
+    with no colo; one non-req event and one other service. noid: two raw paths that must never be printed. notime: one
+    no_label line with no `timestamp` (kept only as the fake's private `_ts`, so the fake still windows it)."""
+    m = lambda k: H + timedelta(minutes=k)
+    evs = [ev(101, m(1), evt="req", colo="ZZ1", ep="/api/v1/missileer/plant-seg-zq9" if noid else "/api/v1/missileer/status",
+              status=200, model=""),
+           ev(102, m(6), evt="req", colo="ZZ1", ep="/missileer", status=200, model=""),
+           ev(103, m(11), evt="req", colo="ZZ2", ep="/healthz", status=200, model=""),
+           ev(104, m(16), evt="req", colo="ZZ1", ep="/blipscope/enroll", status=200, model="plant-model"),
+           ev(105, m(21), evt="req", colo="ZZ1", ep="/api/v1/blipscope/blips", status=401, model="plant-model"),
+           ev(106, m(26), evt="req", colo="ZZ2", ep="/v1/enrich/0a0b0c" if noid else "/v1/blips", status=401, model="plant-model"),
+           ev(107, m(31), evt="req", colo="ZZ1", ep="/api/v1/weatherscope/forecast", status=403, model="plant-model"),
+           ev(108, m(36), evt="req", colo="ZZ2", ep="/wp-login.php", status=404, model=""),
+           ev(109, m(41), evt="req", colo="ZZ1", ep="/credits", status=200, model=""),
+           ev(110, m(46), evt="req", colo="ZZ1", ep="/api/v1/blipscope/config", status=200, model="plant-model", authPath="device"),
+           ev(111, m(50), evt="req", colo="ZZ1", ep="/api/v1/blipscope/blips", status=200, model="plant-model", devl="lbl-a"),
+           ev(112, m(50), evt="req", colo="ZZ1", ep="/api/v1/blipscope/blips", status=200, model="plant-model", devl="lbl-b"),
+           ev(113, m(50), evt="req", colo="ZZ2", ep="/api/v1/blipscope/blips", status=200, model="plant-model", devl="lbl-c"),
+           ev(114, m(51), evt="req", colo="", ep="/", status=200, model=""),
+           ev(115, m(52), evt="other", colo="ZZ1"),
+           ev(116, m(52), svc="some-other-worker", evt="req", colo="ZZ2", ep="/healthz", status=200)]
+    if notime:
+        evs[2]["_ts"] = evs[2].pop("timestamp")
+    return evs
+
+
 class Fake:
     """The API's documented shapes: timeframe; eq/exists/DOES_NOT_EXIST leaves; filterCombination and groups; events
     paging (limit, offset); calculations count. preflight: per-attempt {"abr": n or None (omitted), "count": n or None
@@ -118,7 +148,7 @@ class Fake:
         if tok != "plant-token":
             raise RuntimeError("fake: not the plant's token")
         tf = body["timeframe"]
-        inwin = [e for e in self.events if tf["from"] <= e["timestamp"] < tf["to"]]
+        inwin = [e for e in self.events if tf["from"] <= e.get("timestamp", e.get("_ts")) < tf["to"]]
         prm = body.get("parameters") or {}
         sel = inwin if self.ignore else [e for e in inwin if self.match(e, prm)]
         stats = {"elapsed": 1, "rows_read": len(inwin), "bytes_read": 0}
@@ -168,18 +198,39 @@ def run(mod, fake, argv):
 
 
 def main(argv):
-    if len(argv) != 3:
+    if len(argv) != 4:
         print(__doc__)
         return 2
     tmp = tempfile.mkdtemp(prefix="f1r-plant-")
     try:
-        os.makedirs(os.path.join(tmp, "tools", "bill"))
-        with open(os.path.join(tmp, "tools", "token_file.py"), "w", encoding="utf-8") as fh:
-            fh.write('def token(purpose):\n    return "plant-token"\n')
+        proxy_src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "proxy", "src")
+        for tree in (tmp, os.path.join(tmp, "srcplant")):
+            os.makedirs(os.path.join(tree, "tools", "bill"))
+            os.makedirs(os.path.join(tree, "proxy", "src"))
+            with open(os.path.join(tree, "tools", "token_file.py"), "w", encoding="utf-8") as fh:
+                fh.write('def token(purpose):\n    return "plant-token"\n')
+            for f in ("index.ts", "missileer.ts"):
+                shutil.copyfile(os.path.join(proxy_src, f), os.path.join(tree, "proxy", "src", f))
+        # C-SRC's tree: API_PREFIX's name changed in its index.ts, asserted to apply exactly once and to change the file.
+        idx_p = os.path.join(tmp, "srcplant", "proxy", "src", "index.ts")
+        idx = open(idx_p, "rb").read()
+        anchor = b"const API_PREFIX = "
+        if idx.count(anchor) != 1:
+            print("RIG: C-SRC's anchor is not in index.ts exactly once; the plant cannot apply")
+            return 2
+        idx2 = idx.replace(anchor, b"const API_PREFIX_PLANT = ")
+        if idx2 == idx:
+            print("RIG: C-SRC's plant did not change index.ts")
+            return 2
+        open(idx_p, "wb").write(idx2)
+        print("plant C-SRC applied: API_PREFIX renamed once in the second tree's index.ts")
         paths = {}
-        for name, src in (("old_reader", argv[0]), ("new_reader", argv[1]), ("prerec_reader", argv[2])):
+        for name, src in (("old_reader", argv[0]), ("new_reader", argv[1]), ("prerec_reader", argv[2]),
+                          ("precl_reader", argv[3])):
             paths[name] = os.path.join(tmp, "tools", "bill", name + ".py")
             shutil.copyfile(src, paths[name])
+        paths["src_reader"] = os.path.join(tmp, "srcplant", "tools", "bill", "src_reader.py")
+        shutil.copyfile(argv[1], paths["src_reader"])
         new_src = open(paths["new_reader"], encoding="utf-8").read()
         if new_src.count(GATE) != 1:
             print("RIG: the ABR gate line is not in the new reader exactly once; the sabotage cannot plant")
@@ -192,7 +243,8 @@ def main(argv):
         with open(paths["sab_reader"], "w", encoding="utf-8", newline="\n") as fh:
             fh.write(sab)
         print("sabotage R-ABR-RED planted: the gate line replaced once; reader changed (%d -> %d bytes)" % (len(new_src), len(sab)))
-        old, new, sbr, prerec = (load(paths[n], n) for n in ("old_reader", "new_reader", "sab_reader", "prerec_reader"))
+        old, new, sbr, prerec, precl, srcr = (load(paths[n], n) for n in ("old_reader", "new_reader", "sab_reader", "prerec_reader",
+                                                                        "precl_reader", "src_reader"))
 
         # The fake's own controls, in the new reader's own query form.
         f = Fake(hour_h(True))
@@ -340,6 +392,74 @@ def main(argv):
         rc, esc = graded("colo", 1000, 51, 0)
         row("G-COLO", dict(exit=rc, escape_is_a_colo_line=len(esc) == 1 and esc[0] in (esc_union, esc_colo_old)),
             dict(exit=3, escape_is_a_colo_line=True))
+
+        # C rows (F1 CLASSIFY, registration 627dd8c67b72): `classify`, counts only, every printed line labelled. Whole
+        # table lines are compared, never a fragment of one.
+        label = "[diagnostic after F1's no-reading; changes no reading]"
+        table_heads = ("anchor:", "family ", "authPath present", "buckets ")
+
+        def cl_body(o):
+            lines = o.splitlines()
+            labelled = bool(lines) and all(l.startswith(label + " ") for l in lines)
+            return labelled, [l[len(label) + 1:] if l.startswith(label + " ") else l for l in lines]
+
+        tab = lambda body: [l for l in body if l.startswith(table_heads)]
+        z = "2xx/3xx %d 401 %d 403 %d 404 %d 429 %d other4xx %d 5xx %d | model %d | total %d"
+        c_table = ["anchor: req lines 14, no colo 1, no label 10",
+                   "family missileer " + z % (2, 0, 0, 0, 0, 0, 0, 0, 2),
+                   "family healthz " + z % (1, 0, 0, 0, 0, 0, 0, 0, 1),
+                   "family enroll " + z % (1, 0, 0, 0, 0, 0, 0, 1, 1),
+                   "family api " + z % (1, 2, 1, 0, 0, 0, 0, 4, 4),
+                   "family notfound " + z % (0, 0, 0, 1, 0, 0, 0, 0, 1),
+                   "family page " + z % (1, 0, 0, 0, 0, 0, 0, 0, 1),
+                   "authPath present 1",
+                   "buckets missileer 1 1 0 0 0 0 0 0 0 0 0 0",
+                   "buckets healthz 0 0 1 0 0 0 0 0 0 0 0 0",
+                   "buckets enroll 0 0 0 1 0 0 0 0 0 0 0 0",
+                   "buckets api 0 0 0 0 1 1 1 0 0 1 0 0",
+                   "buckets notfound 0 0 0 0 0 0 0 1 0 0 0 0",
+                   "buckets page 0 0 0 0 0 0 0 0 1 0 0 0"]
+
+        rc, o = run(precl, Fake(classify_set()), ["classify", HIS, out("cred")])
+        row("C-RED", dict(exit=rc, table=len(tab(cl_body(o)[1])), written=os.path.exists(out("cred"))),
+            dict(exit=2, table=0, written=False))
+
+        f = Fake(classify_set()); rc, o = run(new, f, ["classify", HIS, out("ctab")])
+        lab, body = cl_body(o)
+        f2 = Fake(classify_set()); run(new, f2, ["read", HIS, out("ctabread")])
+        ra = hist(out("ctabread"))
+        row("C-TABLE", dict(exit=rc, labelled=lab, table=tab(body),
+                            read_anchor=None if ra is None else {k: ra[k] for k in ("req_lines", "no_colo", "no_label")}),
+            dict(exit=0, labelled=True, table=c_table, read_anchor={"req_lines": 14, "no_colo": 1, "no_label": 10}))
+
+        raws = ("/v1/enrich/0a0b0c", "0a0b0c", "plant-seg-zq9")
+        rc, o = run(new, Fake(classify_set(noid=True)), ["classify", HIS, out("cnoid")])
+        lab, body = cl_body(o)
+        jb = open(out("cnoid"), "rb").read().decode("utf-8") if os.path.exists(out("cnoid")) else None
+        fam = [l for l in tab(body) if l.startswith("family ")]
+        total = lambda l: int(l.rsplit("total ", 1)[1])
+        row("C-NOID", dict(exit=rc, raw_in_stdout=any(r in o for r in raws), raw_in_json=None if jb is None else any(r in jb for r in raws),
+                           family_sum=sum(total(l) for l in fam), api_total=[total(l) for l in fam if l.startswith("family api ")]),
+            dict(exit=0, raw_in_stdout=False, raw_in_json=False, family_sum=10, api_total=[4]))
+
+        rc, o = run(new, Fake(classify_set(notime=True)), ["classify", HIS, out("cblind")])
+        lab, body = cl_body(o)
+        row("C-BLIND", dict(exit=rc, labelled=lab, families=len([l for l in body if l.startswith("family ")]),
+                            buckets=[l for l in body if l.startswith("buckets ")]),
+            dict(exit=3, labelled=True, families=6,
+                 buckets=["buckets %s BLIND" % n for n in ("missileer", "healthz", "enroll", "api", "notfound", "page")]))
+
+        f = Fake(hour_h(True)); rc, o = run(new, f, ["classify", HIS, out("cpre")])
+        lab, body = cl_body(o)
+        row("C-PRE", dict(exit=rc, labelled=lab, events_requests=f.events_requests,
+                          refused=any(l.startswith("REFUSED (pre-flight)") for l in body), written=os.path.exists(out("cpre"))),
+            dict(exit=5, labelled=True, events_requests=0, refused=True, written=False))
+
+        f = Fake(classify_set()); rc, o = run(srcr, f, ["classify", HIS, out("csrc")])
+        lab, body = cl_body(o)
+        row("C-SRC", dict(exit=rc, labelled=lab, rig=any(l.startswith("RIG:") for l in body), table=len(tab(body)),
+                          count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=2, labelled=True, rig=True, table=0, count_requests=0, events_requests=0))
 
         print("rows %d, as predicted %d, OFF %d" % (len(rows), len(rows) - off, off))
         return 0 if off == 0 else 1
