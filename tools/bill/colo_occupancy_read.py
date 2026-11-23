@@ -25,6 +25,10 @@ REASK_S apart (chosen on resolution only, never on the count); still not a value
       counts only. It walks the hour by `read`'s own path (walk_hour), and every line it prints is labelled
       "[diagnostic after F1's no-reading; changes no reading]". The family rules' constants are PARSED from
       proxy/src/index.ts and missileer.ts in this tree; a stale one is a RIG error before any query. Exit 3 = a BLIND row.
+  python -X utf8 -I tools/bill/colo_occupancy_read.py population <out.json>   F1 POPULATION (registration 5cf7d7288c34,
+      corrected 75213feac918): the ceiling C for D-SITE's FUTURE hold column. Count queries only, two per hour, on a
+      window fixed in this file (POP_FIRST, 24 hours across the site merge) after two anchors on known hours; every line
+      labelled as classify's. Exit 3 = stopped (an anchor off, more than 4 hours BLIND, or outside the set).
 Every command prints one `attempts <query>:` line per query on every graded exit (0, 3, 5, 6); lc and scan also write
 every attempt to <out.json> on those exits, and read writes them into its own result file (F1-R-1's recording clause;
 ruling (4)). A rig error (exit 2) prints its exception type only, and nothing else.
@@ -515,6 +519,96 @@ def classify(hour, path):
     return done(rc, log)
 
 
+# F1 POPULATION (registration 5cf7d7288c34, corrected 75213feac918): the ceiling C for D-SITE's FUTURE hold column.
+# Count queries only, two per hour; no events, so no line and no `dev` value is ever seen. The window is fixed HERE.
+DEVL_ABSENT = {"key": "devl", "operation": "DOES_NOT_EXIST", "type": "string"}
+POP_NOKEY = (DEV_ABSENT, DEVL_ABSENT)
+POP_ANCHORS = (("ANCHOR-PRE", "2026-11-19T12:00:00Z", 3695, 36),     # L: LC-1 and LC-3
+               ("ANCHOR-POST", "2026-11-23T14:00:00Z", 5553, 249))   # H0: reads A and B
+POP_FIRST = "2026-11-21T22:00:00Z"     # 24 closed hours: 12 before the site merge (2026-11-22T10:00:04Z), 12 from it
+POP_MERGE_HOUR = "2026-11-22T10:00:00Z"
+
+
+def population(path):
+    tok = TOKEN_FILE.token("observability-read")
+    log, calls, rows, blinds, zero = [], [0], [], [], []
+    first, merge = parse_hour(POP_FIRST), parse_hour(POP_MERGE_HOUR)
+    rec = {"label": DIAG, "window_first": POP_FIRST, "merge_hour": POP_MERGE_HOUR}
+    fin = lambda rc: done(rc, log, path, "population", dict(rec, exit=rc, calls=calls[0]))
+
+    def cq(h, prm, label):
+        if calls[0]:
+            time.sleep(CALL_GAP_S)
+        calls[0] += 1
+        return count_query(h, prm, tok, log, label)
+
+    for name, hs, want_req, want_nk in POP_ANCHORS:
+        h = parse_hour(hs)
+        try:
+            req = cq(h, params(), name + " req")
+            nk = cq(h, params(*POP_NOKEY), name + " no-key")
+        except Blind as b:
+            return fin(blind(str(b), log))
+        ok = (req, nk) == (want_req, want_nk)
+        print("%s %s: req %d, no-key %d (must read %d / %d) -> %s" % (
+            name, h.strftime("%Y-%m-%dT%H:00Z"), req, nk, want_req, want_nk, "HOLDS" if ok else "OFF: stop; no window hour is queried"))
+        rec.setdefault("anchors", []).append([name, req, nk, ok])
+        if not ok:
+            rec["stopped_at"] = name
+            return fin(3)
+    for i in range(24):
+        h = first + timedelta(hours=i)
+        hs = h.strftime("%Y-%m-%dT%H:00Z")
+        try:
+            req = cq(h, params(), "hour %s req" % hs)
+            nk = cq(h, params(*POP_NOKEY), "hour %s no-key" % hs)
+        except Blind:
+            blinds.append(hs)
+            print("hour %s BLIND (dropped)" % hs)
+            continue
+        if req <= 0:
+            zero.append(hs)
+            print("hour %s req %d no-key %d: no req lines" % (hs, req, nk))
+            continue
+        rows.append((h, req, nk))
+        print("hour %s req %d no-key %d share %.4f" % (hs, req, nk, nk / req))
+    rec.update(hours=[[h.strftime("%Y-%m-%dT%H:00Z"), req, nk] for h, req, nk in rows], blind=blinds, zero=zero)
+    print("window: %d hour(s) read, %d BLIND" % (len(rows), len(blinds)))
+    if len(blinds) > 4:
+        print("no population: %d hour(s) BLIND (more than 4)" % len(blinds))
+        return fin(3)
+    before = sorted(nk for h, req, nk in rows if h < merge)
+    after = sorted(nk for h, req, nk in rows if h >= merge)
+    med = lambda v: (v[(len(v) - 1) // 2] + v[len(v) // 2]) / 2.0
+    if zero or not before or not after:
+        print("verdict: OUTSIDE THE SET (%s) -- the instrument is unreliable at this scale: stop and decide" % (
+            "an hour with no req lines" if zero else "a side of the merge has no hour"))
+        return fin(3)
+    mb, ma = med(before), med(after)
+    step = ma - mb
+    shares = [nk / req for h, req, nk in rows]
+    mx, high = max(shares), sum(1 for s in shares if s >= 0.10)
+    print("median no-key before 10:00Z %.1f, from 10:00Z %.1f, step %+.1f" % (mb, ma, step))
+    print("max share %.4f" % mx)
+    rec.update(median_before=mb, median_after=ma, step=step, max_share=round(mx, 6), hours_at_10pct=high, C=None)
+    rc = 0
+    if step >= 300:
+        v = ("verdict: step %+.1f lines/h; no C -- (c) at full volume OR another source that began that hour; "
+             "the population cannot tell which" % step)
+    elif -150 < step < 150:
+        if high:
+            v = "verdict: no step, but %d hour(s) at 10%% or more; no C" % high
+        else:
+            rec["C"] = round(mx, 6)
+            v = "verdict: no step; C %.4f" % mx
+    else:
+        v = "verdict: OUTSIDE THE SET (step %+.1f) -- the instrument is unreliable at this scale: stop and decide" % step
+        rc = 3
+    print(v)
+    rec["verdict"] = v
+    return fin(rc)
+
+
 def labelled(fn):
     """F1 CLASSIFY: every line the diagnostic prints carries DIAG, including RIG errors and the attempts lines."""
     buf = io.StringIO()
@@ -652,7 +746,7 @@ def grade(p1, p2):
 
 
 def main(argv):
-    if argv[:1] == ["classify"]:
+    if argv[:1] in (["classify"], ["population"]):
         return labelled(lambda: dispatch(argv))
     return dispatch(argv)
 
@@ -661,6 +755,8 @@ def dispatch(argv):
     try:
         if len(argv) == 3 and argv[0] == "classify":
             return classify(argv[1], argv[2])
+        if len(argv) == 2 and argv[0] == "population":
+            return population(argv[1])
         if argv == ["ctl"]:
             return ctl()
         if len(argv) == 2 and argv[0] == "lc":
