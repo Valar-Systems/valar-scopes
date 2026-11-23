@@ -14,12 +14,15 @@
 //   W-EQ          every case byte-identical, the whole canvas compared
 //   W-FIT         0 pixels written outside a 32 x 32 mask
 //   W-CALLS       the canvas's draw calls (hline + fill), the marker included in both: the prototype's exact counts
+//   W-STAMP       REG-W-P1 L2: each fixed-circle table equals this header's own algorithm, bit for bit, at 9 centres
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <string>
 #include <vector>
 
+// REG-W-P1 L3: the mask counts the pixels a copy wrote outside it only where this is defined (W-FIT reads it).
+#define OUTLINEW_COUNT_OUTSIDE 1
 #include "MarkerDraw.h"
 #include "OutlineW.h"
 
@@ -181,10 +184,39 @@ int main()
     Row(origCalls == 239740224L && wCalls == 65787219L, "W-CALLS",
         "canvas calls (hline + fill): original " + std::to_string(origCalls) + ", W " + std::to_string(wCalls) +
             " (want the prototype's 239740224 and 65787219)");
+    {
+        // W-STAMP (REG-W-P1 L2): the Mask's stamp path against the algorithm's general path, into two masks, per circle
+        // and centre; the rows compared whole. The general path is called by name, so the stamps cannot be compared
+        // with themselves.
+        int eqs = 0, tried = 0;
+        const int cs[] = {14, 16, 18};
+        for (int kind = 0; kind < 3; ++kind)
+            for (int cx : cs)
+                for (int cy : cs) {
+                    outlinew::Mask g, t;
+                    g.Begin(16, 16);
+                    t.Begin(16, 16);
+                    const int r = kind == 0 ? 2 : (kind == 1 ? 3 : 4);
+                    if (kind < 2) {
+                        g.writeFastHLine(cx - r, cy, (r << 1) + 1);
+                        g.CircleHelper(cx, cy, r, 3, 0);
+                        t.fillCircle(cx, cy, r, 0u);
+                    } else {
+                        g.Circle(cx, cy, r);
+                        t.drawCircle(cx, cy, r, 0u);
+                    }
+                    bool same = true;
+                    for (int k = 0; k < outlinew::kRows; ++k) same = same && g.row[k] == t.row[k];
+                    eqs += same ? 1 : 0;
+                    ++tried;
+                }
+        Row(eqs == tried && tried == 27, "W-STAMP",
+            std::to_string(eqs) + " of " + std::to_string(tried) + " stamps equal the algorithm bit for bit (want 27)");
+    }
     std::printf("%s\n", failures ? "P5 OUTLINE TESTS FAILED" : "all P5 outline checks passed");
     // The row count is pinned in the binary: a row dropped or compiled out is the RIG.
-    if (rows != 4) {
-        std::printf("the RIG: %d rows, not 4\n", rows);
+    if (rows != 5) {
+        std::printf("the RIG: %d rows, not 5\n", rows);
         return 2;
     }
     return failures ? 1 : 0;
