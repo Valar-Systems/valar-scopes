@@ -2813,6 +2813,34 @@ exit 2
 )
 note_block $? "image-compare selftest (#656)"
 
+# P6 (docs/speed-p5p6.md on weatherscope/speed-p5p6; bench branch bench/speed-p6): the label cache
+# (include/LabelCache.h) against today's layout, with the REAL formatters and key: src/AircraftInfoFields.{h,cpp} are
+# staged beside test/host/p6_fake/TrackedAircraft.h (as models/TrackedAircraft.h) and built with P6's String shim.
+# Its plants (test/host/sabotage_p6_labels.py) run in the drivers' passes above.
+echo
+echo "== P6: the label cache against today's layout =="
+(
+P6="$OUT/p6src"
+rm -rf "$P6" && mkdir -p "$P6/models" &&
+  cp "$ROOT/src/AircraftInfoFields.cpp" "$ROOT/src/AircraftInfoFields.h" "$P6/" &&
+  cp "$ROOT/test/host/p6_fake/TrackedAircraft.h" "$P6/models/TrackedAircraft.h" ||
+  { echo "FAIL: could not stage P6's sources. This is the RIG, not the code."; exit 2; }
+if ! "$CXX" $FLAGS -I"$ROOT/test/host/p6_shim" -I"$ROOT/include" -I"$P6" "$ROOT/test/host/test_p6_labels.cpp" \
+       "$P6/AircraftInfoFields.cpp" -o "$OUT/test_p6_labels.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the P6 label test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_p6_labels.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the P6 label test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "P6: the label cache against today's layout"
+
 echo
 echo "== strings_elf: the image-level text check's selftest (Q-6b-6) =="
 # docs/blipscope-map-client-steps.md Q-6b-4 and Q-6b-6: scripts/strings_elf.py's selftest, on synthetic objects it

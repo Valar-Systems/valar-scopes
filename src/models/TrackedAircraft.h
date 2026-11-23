@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CardCopy.h"
+#include "LabelCache.h"   // P6: the contact's label cache (one pointer here; the entry is in PSRAM)
 
 #include "Aircraft.h"
 
@@ -175,6 +176,10 @@ struct TrackedAircraft {
     float paintLon = 0.0f;
     unsigned long lastPaintMs = 0;
     bool everPainted = false;
+
+    // P6 (docs/speed-p5p6.md section 2): this contact's label cache, freed with the contact. mutable, because the
+    // layout reads a const contact; a copy starts empty (labelcache::Slot).
+    mutable labelcache::Slot labelCache;
 
     // first appearance, no blend needed
     TrackedAircraft(const Aircraft& ac, unsigned long now)
