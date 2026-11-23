@@ -1719,6 +1719,125 @@ ACCEPTED by the orchestrator before any code. RESULT (append-only, 2026-11-23T15
 - **Commits:** `f005d1278997` (the red rows; plant blob `b3b24e1ab1fa`) and `6f2032cb2997` (the fix).
 - **Outputs:** in the handoff folder `f1r/nlfix/` (red `3974ab07fede`, green `474aae2405c7`, sabotage `862ba300759e`).
 
+CORRECTION to F1 MONDAY's record, above (append-only, 2026-11-23T16:39:01Z): the list of sources for the 193.5 extra `no_label` lines had five. There is a **sixth**, found while classify's families were being derived from source:
+
+- **(f) Missileer requests,** which this Worker proxies to the game origin.
+  - `isMissileerPath` (`missileer.ts:56-61`) is dispatched at `index.ts:190`, before the auth gate, on purpose.
+  - Every default `fetch` is recorded (`:464`), so each such request is a `req` line with no `devl`.
+- (f) is not board-shaped for F1, and it is not excluded either. F1's NO READING for 2026-11-23 is unchanged.
+
+The text of blipscope-5c's `f1r/f1-classify-1.md` (sha256 `627dd8c67b72`) follows VERBATIM; only its `##` headings are demoted to `####` here.
+
+F1 CLASSIFY (registration, append-only, written 2026-11-23T16:16:46Z from date -u, before any code; text only, on the orchestrator's word). It **runs only on the orchestrator's later word**. Running it on the 14:00Z hour is a DIAGNOSTIC after the escape: **every output line, and the result file, is labelled "diagnostic after F1's no-reading; changes no reading"**. F1 has NO READING for 2026-11-23, and nothing here can change that. The design is SITE-1's section 2 (78fb904958c9, accepted as text). Source cited at `<D>` = `4a02123ca992`.
+
+#### 0. A correction to SITE-1's list (append-only): a sixth source, (f)
+
+- **(f) Missileer requests,** which this Worker proxies to the game origin.
+  - `isMissileerPath` (`missileer.ts:56-61`: `/missileer`, `/missileer/...`, `/api/v1/missileer/...`) is dispatched at `index.ts:190`, **before** the auth gate. That is on purpose: Missileer "must never inherit Blipscope's device-key check".
+  - Every default `fetch` is recorded (`:464`), so every Missileer request is a `req` line with **no `devl`**.
+- **Is (f) board-shaped?** Not for F1. A Missileer client is not a radar board polling `/wx`, so it belongs outside F1's histogram, which is where it already is. In SITE-1's MIDDLE column it counts as non-board-shaped.
+- **Where else it is missing:** it was absent from my END, from SITE-1 and from the Monday record pushed in `ec0f0d62a040`. The record gets a correction below it in a later docs commit, never an edit.
+
+#### 1. What it adds: `classify <hour start ISO> <out.json>`, a new reader mode
+
+**What it reuses, unchanged:**
+- the same pre-flight (a `dev exists` count that refuses the hour if nonzero, exit 5);
+- the same events query (`scope + dev DOES_NOT_EXIST`) and paging;
+- the same backstop, the same ABR-1 value rule (exit 6 on BLIND), and the same observability-read token.
+
+No new token, no new query shape, no new field fetched. It reads exactly the events `read` reads.
+
+**For each req line,** it counts what `read` counts (`req_lines`, `no_colo`, `no_label`). Then it classifies each `no_label` line, in memory only:
+
+| field | classes, in this order of test |
+|---|---|
+| **family** (from `ep`) | `missileer` (the `isMissileerPath` rule); `healthz` (`/healthz`, `:245`); `enroll` (`/blipscope/enroll`, `/enroll`, `:276`, `:296`, above the auth gate); `api` (`apiEndpoint` non-null: `/api/v1/blipscope/`, `/api/v1/weatherscope/`, `/v1/`, `:126-147`; the auth gate applies, `:356-363`); then, for any other path, `notfound` if the status is 404 (`:356`), else `page` |
+| **status** | `2xx/3xx`, `401`, `403`, `404`, `429`, `other4xx`, `5xx`; missing or non-numeric makes the status table **BLIND** |
+| **model present** | `model` non-empty (`X-Blip-Model`, set before auth at `:452`, so a refused board still carries it). A boolean only; the value is never kept |
+| **authPath present** | a boolean: (e)'s marker |
+| **time** | the five-minute bucket, 0 to 11, from the event's top-level `timestamp` (ms), the shape the plant's fake models. A line without one makes the time rows **BLIND**, never 0 |
+
+**The family rules' constants are parsed at run time from `proxy/src/index.ts` and `proxy/src/missileer.ts` in the same tree,** not transcribed: `API_PREFIX`, `API_LEGACY_PREFIX`, `WEATHERSCOPE_API_PREFIX`, `PAGE_PREFIX`, and Missileer's two prefixes. A constant not found exactly once is a RIG error, exit 2.
+
+**What it prints and writes: counts only.**
+- The anchor: req lines, no colo, no label.
+- A family by status table.
+- model-present counts per family, and the authPath-present count.
+- Twelve bucket counts per family.
+- **Never** an `ep` (raw paths carry hex ids), a colo, a `devl`, a `model` value or a line.
+- Every printed line starts with `[diagnostic after F1's no-reading; changes no reading]`, and the out.json carries the same `label`.
+
+**Exits:** 0 for a full table; 3 if any row is BLIND (no diagnostic); 5, 6 and 2 as `read`.
+
+#### 2. Red first: rows added to `colo_occupancy_plant.py`
+
+All rows are synthetic and offline. The plant writes copies of the two proxy source files beside the temp readers.
+
+| row | run | predicted |
+|---|---|---|
+| **C-RED** | the reader before this change (blob `88052942e847`) given `classify` | prints usage, exit 2: **the red** |
+| **C-TABLE** | the new reader on a synthetic hour holding one or more lines of every family, status and boolean: 2 `missileer` 2xx; 1 `healthz` 2xx; 1 `enroll` 2xx with model; 2 `api` 401 with model; 1 `api` 403 with model; 1 `notfound` 404; 1 `page` 2xx; 1 `api` 2xx with authPath and no `devl`; 3 labelled lines; 1 line with no colo | the printed table equals the expected table **whole** (every line compared), and the anchor equals `read`'s on the same fake: req 14, no colo 1, no label 10; exit 0 |
+| **C-NOID** | the same hour, where one `api` line's `ep` is `/v1/enrich/` followed by a synthetic 6-hex aircraft address, and one Missileer `ep` carries a synthetic path segment | neither raw `ep` string appears, as bytes, in stdout or in out.json; their families are counted |
+| **C-BLIND** | one `no_label` event with no `timestamp` | the time rows print `BLIND` (not 0); exit 3 |
+| **C-PRE** | a `dev` line in the hour | pre-flight refuses, exit 5, 0 events requests (as R-PRE) |
+| **C-SRC** | the copy of `index.ts` with `API_PREFIX`'s name changed by bytes (asserted exactly once) | RIG, exit 2; nothing printed past the error |
+| **C-SAB** | a COPY of the new reader with the Missileer family test removed by bytes (asserted exactly once) | C-TABLE reads **OFF** (the 2 Missileer lines fall to `api`, `notfound` or `page`); the harness exits 1 with exactly C-TABLE OFF |
+
+C-TABLE's anchor arithmetic: 10 `no_label` lines (2 + 1 + 1 + 2 + 1 + 1 + 1 + 1), 3 labelled lines and 1 with no colo make 14 req lines.
+
+**PREDICTED:**
+- With the new reader, all 17 existing rows plus these rows read AS PREDICTED, exit 0.
+- C-RED reads exit 2 against `88052942e847`.
+- C-SAB makes exactly C-TABLE OFF, exit 1.
+- **CI does not run the plant;** no workflow references `tools/bill/`. Each push gets its own CI prediction first.
+
+**Outside the set:** anything else means stop and report, with nothing re-run.
+
+#### 3. The diagnostic run on the 14:00Z hour (only on the word)
+
+**The run.** One background start, registered, with bgcheck before it. The calls are the same as one `read`: 1 pre-flight count and 3 events pages, all at ABR 1.
+
+**The anchor, required before any row is read:** req lines 5553, no colo 0, no label 249, as reads A and B. Any other value means the instrument is unreliable on this hour: stop, and read no row.
+
+**The signature table** is SITE-1's, with (f) added. A signature is MET at 150 or more of the 249 lines; uniform timing would put about 21 in any one bucket.
+
+| source | signature | if it is the source |
+|---|---|---|
+| (a) the hold lift | time | 150 or more lines in bucket 0, [14:00, 14:05) |
+| (b) a board refused before its key is accepted | `api` with 401/403/429 and model present, plus `enroll` with model present | 150 or more, in 10 or more of the 12 buckets |
+| (c) the site's calls via `fetch` | one family-and-status cell outside `missileer`, model absent, steady at ~30 per bucket | 150 or more in that cell, in 10 or more buckets, AND the site's own count (asked by the orchestrator) at or above it. If the cell is `notfound` 404, classify alone cannot separate it from (d) |
+| (d) public traffic | `page`, `healthz`, `notfound`, model absent | 150 or more, with no other signature met |
+| (e) label digest failed | authPath present | 150 or more |
+| (f) Missileer | `missileer` | 150 or more |
+| mixed | no signature reaches 150 | the table is reported, with no attribution |
+| (a) with one class signature | both met | reported as both |
+| **none of the above** | for example, the anchor fails, a BLIND row, two class signatures both met, or an unknown status | the instrument is unreliable at this scale: stop and decide |
+
+**Whatever it reads, F1 stays at no reading.** The result says which source produced the excess, for D-SITE's future columns and nothing else.
+
+#### 4. Order
+
+1. This registration's acceptance.
+2. The code with C-RED first (two commits, red then green), and the plant output with the new reader's sha sent.
+3. The push, with its own CI prediction first.
+4. The diagnostic run, only on the orchestrator's word.
+
+The population's registration follows the same way, text first.
+
+ACCEPTED by the orchestrator, before any code; then ACCEPTED AS REGISTERED. RESULT (append-only, 2026-11-23T16:39:01Z): as registered.
+
+- **Red:** against the reader without classify (blob `88052942e847`), 23 rows, 18 as predicted. The 5 OFF were C-TABLE, C-NOID, C-BLIND, C-PRE and C-SRC; C-RED read as predicted; exit 1. That tally was written down before the run.
+- **Green:** against the new reader (blob `9b1a1610626f`), 23 rows, all 23 as predicted, exit 0.
+- **C-SAB:** the Missileer family line removed by bytes from a COPY. The plant exits 1 with exactly C-TABLE OFF (Missileer total 2 -> 0), and the working reader was never touched.
+- **Commits:** `d2872d06a3cb` (the red rows; plant blob `c76832061a33`) and `75d378cfbf63` (the mode).
+- **Outputs:** in blipscope-5c's handoff folder `f1r/classify/`.
+
+**A CHANGE TO `read`'S CODE, recorded as one (the orchestrator's ruling):**
+- To give `read` and `classify` ONE path, `read`'s pre-flight, `dev`-absent events query, paging and backstop moved into `walk_hour`, which both walk. That way `classify` cannot skip a guard `read` establishes.
+- **`read`'s reader is now blob `9b1a1610626f`, no longer `88052942e847`, for every future read run.**
+- **The proof** is an identical-behaviour check: `read` with the reader before and after, on 7 fakes (clean, pre-flight refusal, backstop, BLIND pre-flight, recover, the classify hour, and a 4,100-line hour that pages 3 times). Exit, full stdout and result file were identical in 7 of 7 (`readdiff-check.out`, `7fff07532853`).
+- **Its control,** against the F1-R-era reader `af55507b9ad7`, differed in 7 of 7 (`readdiff-control.out`, `a1d43fd8df65`).
+
 ## Step 4e: lever (c), what the refresh-data job writes (registered 2026-11-19T00:14:57Z, before its reader exists; read-only, GitHub only)
 
 **Why.** Step 4c showed that production's KV writes are the Worker's request path, plus the refresh-data job at about
