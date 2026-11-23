@@ -1838,6 +1838,94 @@ ACCEPTED by the orchestrator, before any code; then ACCEPTED AS REGISTERED. RESU
 - **The proof** is an identical-behaviour check: `read` with the reader before and after, on 7 fakes (clean, pre-flight refusal, backstop, BLIND pre-flight, recover, the classify hour, and a 4,100-line hour that pages 3 times). Exit, full stdout and result file were identical in 7 of 7 (`readdiff-check.out`, `7fff07532853`).
 - **Its control,** against the F1-R-era reader `af55507b9ad7`, differed in 7 of 7 (`readdiff-control.out`, `a1d43fd8df65`).
 
+The text of blipscope-5c's `f1r/f1-population-1.md` (sha256 `75213feac918`: the registration `5cf7d7288c34` plus its appended correction) follows VERBATIM; only its `##` headings are demoted to `####` here.
+
+F1 POPULATION (registration, append-only, written 2026-11-23T16:18:56Z from date -u, before any code; text only). It **runs only on the orchestrator's later word**. It measures the ceiling C for D-SITE's FUTURE HOLD column (SITE-1, 78fb904958c9, section 1, accepted as text), from hours registered here before any of them is read. It never touches 2026-11-23's grade: F1 has NO READING that day. Its output is labelled "diagnostic after F1's no-reading; changes no reading", as classify's is.
+
+#### 1. What it adds: `population <out.json>`, a new reader mode, count queries only
+
+**What it counts.** For each hour it makes two count queries, in the shape the scan already sends:
+- `scope`, giving req lines;
+- `scope AND dev DOES_NOT_EXIST AND devl DOES_NOT_EXIST`, giving no-key lines.
+
+No events are fetched, so no line and no `dev` value is ever seen. The `devl DOES_NOT_EXIST` leaf is new, written the same way as the existing `DEV_ABSENT`.
+
+**What the share is.** The share is no-key lines over req lines. It counts no-colo lines too, so it is the same union NL-FIX grades: (`no_colo` + `no_label`) / `req_lines`. It is therefore the quantity a future D-SITE compares against C.
+
+**One count shape for both eras.** The window straddles no logs deploy (that was 2026-11-23, 11:xxZ), so every window hour wrote `dev` on authenticated lines and none wrote `devl`. "No `dev` and no `devl`" is the no-key count in both eras.
+
+**The window is fixed now and passed by the code, not by argv:** the 24 closed hours starting 2026-11-21T22:00Z through 2026-11-22T21:00Z.
+- The site's #19 merged at 2026-11-22T10:00:04Z, and its feed was due on at about 10:02Z.
+- So there are 12 hours before (22:00Z to 09:00Z) and 12 from the merge hour (10:00Z to 21:00Z).
+- The hours are readable until about 11-28.
+
+**Two anchor controls run first,** on hours whose counts are already known from `read` and `lc`:
+
+| anchor | hour | must read |
+|---|---|---|
+| ANCHOR-PRE (the `dev` era) | L, 2026-11-19T12:00Z | req 3695, no-key 36 (LC-1 and LC-3) |
+| ANCHOR-POST (the `devl` era) | H0, 2026-11-23T14:00Z | req 5553, no-key 249 (reads A and B; no colo 0) |
+
+Any other value means the count shape does not read what `read` reads: stop, and no window hour is queried.
+
+**Calls and pacing.** 4 anchor calls plus 48 window calls, 60 s apart (`CALL_GAP_S`), about 52 minutes, in the background and registered, with bgcheck before. Each call is a value only at ABR 1, re-asked as in F1-R-1. A window hour with a BLIND call is dropped and named.
+
+**What it prints and writes: counts and hour stamps only.** Per hour: req, no-key and share. Then the median no-key per hour for the 12 hours before and the 12 from 10:00Z, their difference, the maximum share, and the verdict. Every line starts with `[diagnostic after F1's no-reading; changes no reading]`.
+
+#### 2. PREDICTED, for the window
+
+| outcome | then |
+|---|---|
+| **predicted:** no step. The median of the 12 hours from 10:00Z minus the median of the 12 before is within +/-150 lines/h | C = the window's maximum share; printed as `C <share>` |
+| a step of +300 lines/h or more | (c) at full volume (the "no `req` line" reading of BendFeed is wrong) **OR** another source that began in that hour. The population cannot tell which, so no C; report both |
+| any hour at 10% or more | no C; report that hour |
+| 4 or fewer hours BLIND | those hours are dropped and named, and the medians use the hours left. More than 4: no population, stop |
+| **none of the above** (for example, a step between +150 and +300, or a negative step of 150 or more) | the instrument is unreliable at this scale: stop and decide |
+
+A "no step" result does not separate "the feed's calls wrote no line" from "the feed made no calls". MONDAY's named alternative stands, and only the site's own count closes it.
+
+#### 3. Red first: rows added to `colo_occupancy_plant.py`
+
+All rows are synthetic and offline; the fake answers count queries per hour.
+
+| row | run | predicted |
+|---|---|---|
+| **P-RED** | the reader before this change given `population` | usage, exit 2: **the red** |
+| **P-NOSTEP** | anchors as above; 24 hours of 1000 req, no-key 10 to 40 | exit 0; verdict "no step"; C = the maximum share; 52 count requests, 0 events requests |
+| **P-STEP** | anchors as above; the 12 hours from 10:00Z carry +400 no-key | exit 0; verdict "step"; no C |
+| **P-ANCHOR** | ANCHOR-POST answers 248 | exit 3, "stop"; **0 window hours queried** |
+| **P-BLIND-2** | 2 window hours answer at ABR 100 on all three attempts | those 2 are dropped and named; the verdict is computed on the other 22; exit 0 |
+| **P-BLIND-5** | 5 window hours answer at ABR 100 on all three attempts | "no population", exit 3 |
+| **P-SAB** | a COPY of the new reader with the `devl DOES_NOT_EXIST` leaf removed by bytes (asserted exactly once). The fake's ANCHOR-POST hour holds labelled lines, so the copy counts them as no-key | P-NOSTEP, P-STEP and P-BLIND-2 each stop at ANCHOR-POST (exit 3) and read **OFF**. P-ANCHOR and P-BLIND-5 still read as predicted, and so do P-RED and every other row. The harness exits 1 with exactly those 3 rows OFF |
+
+**PREDICTED:** with the new reader, every existing row, the C rows (classify's, if merged first) and these P rows read AS PREDICTED, exit 0. P-SAB makes the harness exit 1. CI does not run the plant, and each push gets its own CI prediction first. **Outside the set:** stop and report.
+
+#### 4. Order
+
+This waits on classify's acceptance and code. It is coded after classify, in its own red and green commits, with the plant output and sha sent, then pushed with its CI prediction first. It runs only on the orchestrator's word, and never in the same hour as another production-logs read of mine.
+
+CORRECTION (append-only, 2026-11-23T16:40:55Z from date -u, before any code or run; found while designing the rows): P-SAB's predicted tally above is WRONG, and the reason is in its own mechanism. P-SAB stops every run at ANCHOR-POST (with the devl leaf gone, the post-deploy hour counts all its 5553 lines as no-key), so EVERY row that reaches the window reads OFF under it: P-NOSTEP, P-STEP, P-BLIND-2 **and P-BLIND-5**. A P-BLIND-5 that "still reads as predicted" would have to check only its exit code (3), which cannot tell "no population" from "stopped at the anchor" -- a row that could not fail. So P-BLIND-5 checks its exit, the window hours it attempted (24) and its "no population" line, and P-SAB's corrected prediction is: **exactly 4 rows OFF (P-NOSTEP, P-STEP, P-BLIND-2, P-BLIND-5); P-ANCHOR (exit 3, stopped at ANCHOR-POST, 4 count requests) and P-RED, and every other row, still as predicted; the harness exits 1.** Nothing else in the registration changes.
+
+ACCEPTED as text by the orchestrator; the correction above was ACCEPTED as a pure append (lines 1-63 still hash to `5cf7d7288c34`); then ACCEPTED AS REGISTERED. RESULT (append-only, 2026-11-23T17:44:00Z): as the corrected text says.
+
+- **Red:** against the reader without population (blob `9b1a1610626f`), 29 rows, 24 as predicted. The 5 OFF were P-NOSTEP, P-STEP, P-ANCHOR, P-BLIND-2 and P-BLIND-5; P-RED read as predicted; exit 1. That tally was written down before the run.
+- **Green:** against the new reader (blob `ac94f99a83d0`), 29 rows, all 29 as predicted, exit 0.
+  - P-NOSTEP: both anchors hold; step +12.0; "verdict: no step; C 0.0330"; 52 count requests and 0 events requests.
+  - P-STEP: step +412.0, no C.
+  - P-ANCHOR: stopped at ANCHOR-POST after 4 count requests.
+  - P-BLIND-2: 2 hours dropped and named.
+  - P-BLIND-5: 24 hours attempted, then "no population".
+- **P-SAB:** the `devl` leaf removed by bytes from a COPY. The plant exits 1 with exactly P-NOSTEP, P-STEP, P-BLIND-2 and P-BLIND-5 OFF, as corrected; P-ANCHOR reads as predicted. The working reader was never touched.
+- **Commits:** `2489e7b5022a` (the red rows; plant blob `2039b96cbcb1`) and `974a92fe3952` (the mode).
+- **Outputs:** in blipscope-5c's handoff folder `f1r/population/`.
+
+**`read`'S READER, recorded again (the orchestrator's ruling):**
+- **`read`'s reader for every future read run is now blob `ac94f99a83d0`.** Its `read` code is the same as `9b1a1610626f`'s, which the CLASSIFY entry above made the reader.
+- **The identity run.** The identical-behaviour check for THIS commit compared `9b1a1610626f` (before) against `ac94f99a83d0` (after): 7 of 7 identical.
+- **Its first output did not name its pair.** That output (`f1r/population/readdiff-check.out`, `7fff07532853`) is byte-identical to classify's, so its bytes alone cannot say which pair it proved. This entry records the pair.
+- **The re-run names it.** The check was re-run with the pair printed on its first line: "readdiff: read with reader 9b1a1610626f (before) against reader ac94f99a83d0 (after); plant 2039b96cbcb1", 7 of 7 identical (`readdiff-check-2.out`, `35c793efca6e`).
+- **Standing from now on:** every identity run prints the two blob shas it compared on its first line.
+
 ## Step 4e: lever (c), what the refresh-data job writes (registered 2026-11-19T00:14:57Z, before its reader exists; read-only, GitHub only)
 
 **Why.** Step 4c showed that production's KV writes are the Worker's request path, plus the refresh-data job at about
