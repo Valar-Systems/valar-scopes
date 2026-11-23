@@ -6,7 +6,7 @@ of include/OutlineW.h and requires test_p5_outline to turn red in exactly its gr
 With no arguments the root is this file's own repo and the compiler is $CXX, as run.sh's passes call every driver. The
 planted copy goes ahead of include/ on the path; the real header is never edited. W-CALLS is printed for each plant as
 information and is not graded (amendment 2: whether a correctness break changes the total call count cannot be
-predicted from the break). The clean run grades all four rows.
+predicted from the break). The clean run grades all five rows (REG-W-P1 L2 adds W-STAMP).
 """
 import os
 import re
@@ -27,7 +27,7 @@ FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "
 
 HEADER = "include/OutlineW.h"
 TEST = "test/host/test_p5_outline.cpp"
-GRADED = {"W-EQ", "W-FIT", "CMP control"}
+GRADED = {"W-EQ", "W-FIT", "CMP control", "W-STAMP"}
 
 PAINT = "            c.drawFastHLine(m.x0 + s, m.y0 + r, len, color);\n"
 PLANTS = [
@@ -43,9 +43,13 @@ PLANTS = [
      "    marker();   // W-ORDER\n    Paint(m, c, black);\n", {"W-EQ"}),
     ("W-SMALLMASK: a 16-row mask", "constexpr int kRows = 32;", "constexpr int kRows = 16;   /* W-SMALLMASK */",
      {"W-FIT", "W-EQ"}),
+    # REG-W-P1 L2: the r = 3 table's top row widened by a pixel each side: the table no longer equals the algorithm, and
+    # the dots' union gains black pixels the 8 copies never drew.
+    ("W-STAMPBIT: the r = 3 stamp's top row widened", "constexpr StampRow kDisc3[7] = {\n    {2, 3, 0, 0},\n",
+     "constexpr StampRow kDisc3[7] = {\n    {1, 5, 0, 0},   // W-STAMPBIT\n", {"W-STAMP", "W-EQ"}),
 ]
 
-ROW = re.compile(r"^\s*FAIL\s+(W-EQ|W-FIT|W-CALLS|CMP control)\s", re.M)
+ROW = re.compile(r"^\s*FAIL\s+(W-EQ|W-FIT|W-CALLS|W-STAMP|CMP control)\s", re.M)
 
 
 def src():
@@ -110,7 +114,7 @@ def anchor_entries():
 
 # --control: this driver's unplanted run alone, its suite against its own count. OK_COUNT is the one place the count
 # lives (lint_driver_counts.py): main()'s unplanted run reads it too.
-OK_COUNT = 4
+OK_COUNT = 5
 CONTROL_TABLE = {"test_p5_outline": ("ok", OK_COUNT)}
 
 

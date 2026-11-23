@@ -27,7 +27,9 @@ struct MaskSink {
     uint32_t row[kRows];
     int32_t x0, y0;
     uint32_t outside;   // pixels a copy wrote outside the window: W-FIT reads 0
-    int32_t cl = -1000000, ct = -1000000, cr = 1000000, cb = 1000000;   // the clip, off
+    // the clip, off, and known at COMPILE time (REG-W-P1 L1): Raster::Line reads this->cl .. this->cb, so for the
+    // Mask its clip tests fold; the same values as before, and the host canvas keeps its run-time clip members
+    enum : int32_t { cl = -1000000, ct = -1000000, cr = 1000000, cb = 1000000 };
 
     void Begin(int x, int y)
     {
@@ -45,7 +47,12 @@ struct MaskSink {
             const int32_t ly = y + j - y0;
             for (int32_t i = 0; i < w; ++i) {
                 const int32_t lx = x + i - x0;
-                if (lx < 0 || lx >= 32 || ly < 0 || ly >= kRows) { ++outside; continue; }
+                if (lx < 0 || lx >= 32 || ly < 0 || ly >= kRows) {
+#ifdef OUTLINEW_COUNT_OUTSIDE
+                    ++outside;   // W-FIT's count, on the host only (REG-W-P1 L3); the bit is skipped either way
+#endif
+                    continue;
+                }
                 row[ly] |= 1u << lx;
             }
         }
@@ -53,6 +60,51 @@ struct MaskSink {
     void writeFastHLine(int32_t x, int32_t y, int32_t w) { if (w < 1) return; fillPre(x, y, w, 1); }
     void writeFastVLine(int32_t x, int32_t y, int32_t h) { if (h < 1) return; fillPre(x, y, 1, h); }
     void writeFillRect(int32_t x, int32_t y, int32_t w, int32_t h) { if (w < 1 || h < 1) return; fillPre(x, y, w, h); }
+};
+
+// REG-W-P1 L2: the three FIXED circles the Mask draws (MarkerDraw.h's fillCircle r = 2 and drawCircle r = 4, and the
+// dots copy's fillCircle r = 3), as LovyanGFX's own output. Each table is this file's port of the algorithm (the
+// general path below: writeFastHLine + CircleHelper, and Circle) run once on the host and printed by row as at most
+// two runs relative to (x - r, y - r). test_p5_outline's W-STAMP row asserts each equals that algorithm, bit for
+// bit, at 9 centres. The tables are .rodata, not instructions.
+struct StampRow {
+    int8_t o1, n1, o2, n2;
+};
+constexpr StampRow kDisc2[5] = {
+    {1, 3, 0, 0},
+    {0, 5, 0, 0},
+    {0, 5, 0, 0},
+    {0, 5, 0, 0},
+    {1, 3, 0, 0},
+};
+constexpr StampRow kDisc3[7] = {
+    {2, 3, 0, 0},
+    {1, 5, 0, 0},
+    {0, 7, 0, 0},
+    {0, 7, 0, 0},
+    {0, 7, 0, 0},
+    {1, 5, 0, 0},
+    {2, 3, 0, 0},
+};
+constexpr StampRow kRing4[9] = {
+    {3, 3, 0, 0},
+    {1, 2, 6, 2},
+    {1, 1, 7, 1},
+    {0, 1, 8, 1},
+    {0, 1, 8, 1},
+    {0, 1, 8, 1},
+    {1, 1, 7, 1},
+    {1, 2, 6, 2},
+    {3, 3, 0, 0},
+};
+/** Which sinks stamp the fixed circles: the Mask only. Every other sink (the host canvas) runs the algorithm. */
+template <typename S>
+struct Stamps {
+    enum { on = 0 };
+};
+template <>
+struct Stamps<MaskSink> {
+    enum { on = 1 };
 };
 
 /** LovyanGFX 1.2.21's algorithms, line for line, over any sink with fillPre / writeFastHLine / writeFastVLine /
@@ -78,11 +130,31 @@ struct Raster : Sink {
     void fillCircle(int32_t x, int32_t y, int32_t r, const T& color)
     {
         this->SetColor(color);
+        if (Stamps<Sink>::on != 0 && (r == 2 || r == 3)) {   // REG-W-P1 L2: the table, the algorithm's own output
+            Stamp(x, y, r, r == 2 ? kDisc2 : kDisc3);
+            return;
+        }
         writeFastHLine(x - r, y, (r << 1) + 1);
         CircleHelper(x, y, r, 3, 0);
     }
     template <typename T>
-    void drawCircle(int32_t x, int32_t y, int32_t r, const T& color) { this->SetColor(color); Circle(x, y, r); }
+    void drawCircle(int32_t x, int32_t y, int32_t r, const T& color)
+    {
+        this->SetColor(color);
+        if (Stamps<Sink>::on != 0 && r == 4) {   // REG-W-P1 L2
+            Stamp(x, y, 4, kRing4);
+            return;
+        }
+        Circle(x, y, r);
+    }
+    // One fixed circle from its table: each row's runs, through the sink's own fillPre (its window check included).
+    void Stamp(int32_t x, int32_t y, int32_t r, const StampRow* t)
+    {
+        for (int32_t k = 0; k <= (r << 1); ++k) {
+            if (t[k].n1) fillPre(x - r + t[k].o1, y - r + k, t[k].n1, 1);
+            if (t[k].n2) fillPre(x - r + t[k].o2, y - r + k, t[k].n2, 1);
+        }
+    }
     template <typename T>
     void drawFastHLine(int32_t x, int32_t y, int32_t w, const T& color) { this->SetColor(color); HLine(x, y, w); }
     void HLine(int32_t x, int32_t y, int32_t w) { if (w < 0) { x += w + 1; w = -w; } writeFastHLine(x, y, w); }   // :178
