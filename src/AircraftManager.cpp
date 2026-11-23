@@ -29,6 +29,7 @@
 #include "WxCrop.h"         // the WXC1 decoder: the weather crop is validated before WxPolicy sees it (WD5)
 #include "WxLayer.h"        // which crop cell each screen pixel shows, inverting ProjectAt (WD2)
 #include "WxLayerSwitch.h"  // "wx-layer": on when unset, the owner's saved choice after that
+#include "WxSweepLut.h"     // P5 1b: the lit wedge's colour as one table, for both sweep blends
 #include "MarkerDraw.h"     // P5 W: the marker's geometry, shared by the marker and the outline's mask
 #include "OutlineW.h"       // P5 W: the rain outline drawn once, as the 8 copies' union
 // THE MAP FETCH BEGIN
@@ -3831,6 +3832,11 @@ bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
     return true;
 }
 
+// P5 1b (REG-1b-main): ONE table of the wedge's colours for both sweep blends, DrawSweepOverWeather's and
+// DrawSweepOverMap's. wxsweeplut::For rebuilds it only when the look's percent changes; each blend is byte-identical to
+// its per-pixel reference (test/host/test_p5_blend.cpp: W5c for the weather's, W5d for the map's). Loop task only.
+static wxsweeplut::Table sweepLut;
+
 // THE MAP DRAW BEGIN
 #ifdef BLIPSCOPE_MAP_FETCH
 // The base draw with the map (docs/blipscope-map-client-steps.md, step B, the wiring). On the radar scope with a held
@@ -3985,9 +3991,10 @@ bool AircraftManager::DrawSweepOverMap(BandCanvas& canvas, int cx, int cy, int r
     const uint32_t tBlend = micros();
 #endif
     const bool withWx = mapFrameWx && wxBuffersOk && wxPixels != nullptr;
-    // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped, so swap in and out.
+    // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped, so swap in and out. P5 1b: the colours
+    // from the shared table (include/MapSweep.h, the Table overload).
     const uint32_t blended = mapsweep::Blend(
-        wxs2::Percent(wxLook), mapDraw.slice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+        wxsweeplut::For(sweepLut, wxs2::Percent(wxLook)), mapDraw.slice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
         [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
         [&](int x, int y) -> uint16_t { return __builtin_bswap16(px[(size_t)y * SCREEN_SIZE + x]); },
         [&](int x, int y) -> uint8_t { return withWx ? wxPixels[(size_t)y * SCREEN_SIZE + x] : 0; });
@@ -4037,8 +4044,9 @@ bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, i
     const uint32_t tBlend = micros();
 #endif
     // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped (colortype.hpp), so swap in and out.
-    const uint32_t blended = wxsweep::Blend(
-        wxs2::Percent(wxLook), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+    // P5 1b: each wedge pixel's colour from the shared table (include/WxSweepLut.h).
+    const uint32_t blended = wxsweeplut::Blend(
+        wxsweeplut::For(sweepLut, wxs2::Percent(wxLook)), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
         [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
         [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
 #ifdef WX_LOOK_AB
