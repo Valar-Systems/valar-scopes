@@ -1479,6 +1479,246 @@ F1-D, ADDED (append-only, 2026-11-22T05:18:54Z from date -u, before anything run
 | **D-FIELDS-2** | with D-FIELDS, read-only git | at `<D>`, `proxy/src/sitefeed/bend.ts` and `index.ts`'s `record(env, meta)` call site are as at main `cbd999db594f`: one `record()` call, inside the default `fetch`; `BendFeed.snapshot()` returns `readSnapshot` | a second `record()` caller, or a console line in `bend.ts`: STOP before any query, report |
 | **D-SITE** | any graded hour that starts at or after 10:00Z | D-LABEL holds, with `no_label` near L's ~1% of `req_lines`, not ~10% | D-LABEL breached with `no_label` some 300-420 above ~1% of `req_lines`: the site's calls do reach the `req` line, and this reading of the code is wrong. The escape is taken, with no reading, and it is reported. A breach of any other size: the escape, reported as D-LABEL's |
 
+The text of blipscope-5c's `f1r/f1-d-monday-1.md` (sha256 `37430c6e8ec2`) follows VERBATIM; only its `##` headings are demoted to `####` here.
+
+F1-D, MONDAY (append-only, registered 2026-11-22T15:25:09Z from date -u, before any of it runs; the orchestrator's 15:18:54Z relay: the owner chose R1). Nothing above is edited. F1-D and F1-D ADDED stand, except for the rows re-based here. Why: the logs deploy did not run on Sunday, so F1 did not run. No `f1-20261122\` folder was made; `ls` at 15:19Z shows only `f1-20261121\`. The deploy now runs **Monday 2026-11-23**: T0 10:00Z, prep ~09:20Z, production by 12:25Z at the latest, END ~12:55Z, hard end 13:45Z. Reader blob `50db3cb8cb2a`, unchanged (#688's local head `b60c6c2b8c5b`, unpushed).
+
+#### Re-based clock rows
+
+- **The key is unchanged:** the END line as relayed, with its stamp and `<D>`. No END line on Monday, or one that says no production deploy happened: F1 does not run, and a new slot is asked.
+- **H0 = the first whole hour that starts at or after the END stamp,** passed explicitly to `scan` and `read`:
+
+| END stamp (Mon 11-23) | H0 | scan starts (H0 + 1 h 5 min) | fallback hour (H0 + 1) | fallback reads start (H0 + 2 h 5 min) |
+|---|---|---|---|---|
+| (10:00Z, 11:00Z] | 11:00Z | 12:05Z | 12:00Z | 13:05Z |
+| (11:00Z, 12:00Z] | 12:00Z | 13:05Z | 13:00Z | 14:05Z |
+| (12:00Z, 13:00Z]: **the expected case** (~12:55Z) | 13:00Z | 14:05Z | 14:00Z | 15:05Z |
+| (13:00Z, 13:45Z] | 14:00Z | 15:05Z | 15:00Z | 16:05Z |
+| after 13:45Z (the logs step's own hard end), at or before 10:00Z (T0), or not on 11-23 | stop, and ask | | | |
+
+  One change from Sunday's wording. Sunday's stop line was "an END after 10:00Z", set against a logs hard end of 09:45Z, so an END in (09:45Z, 10:00Z] still mapped to an hour although it was past the step's own hard end. Monday's stop line is the hard end itself, 13:45Z.
+- **HARD END 16:20Z.** Monday has no KBOS, so the hard end comes from F1's own worst case:
+  - H0 = 14:00Z puts the fallback's reads at 16:05Z.
+  - They get Sunday's 12-minute budget (start by 12:08Z for a 12:20Z end), so they must start by 16:08Z.
+  - Nothing of F1 runs after 16:20Z, and a step that cannot finish by then does not start.
+  - The only Monday window I hold is map-client's LOOK on E2:08 at 17:45Z. F1 touches no board, and 16:20Z is 80 minutes before a 17:40Z T-5.
+  - **If the orchestrator holds a PC-quiet window that opens between the END and 16:20Z,** the hard end becomes 5 minutes before it (Sunday's 12:20Z against 12:25Z). The fallback's latest start becomes that hard end minus 12 minutes.
+- **D-SCAN's T0 is Monday's.** X must be at or after 10:00Z and at or before the END's hour. X before 10:00Z: STOP, report.
+- **D-LC:** L (2026-11-19T12:00Z) is still a closed hour on Monday, readable until 11-26. The four values must still equal 3695, 3659, 36 and 0.
+- **D-SITE applies to every Monday graded hour.** Site #19 MERGED at 2026-11-22T10:00:04Z, head `85845783c8af` (gh, read 15:19Z), so every graded hour on Monday starts after it: H0, and the fallback hour if it runs.
+  - **The named alternative, which the data does not exclude:** if the site's feed made no calls in the hour, D-SITE holds exactly as it does when the calls produce no `req` line.
+  - F1 cannot see the calls: they write no `req` line, invocation logs are off, and the AE point is on the writer path.
+  - So a D-SITE HOLD reads "not refuted", never "confirmed". Only a breach of the stated size discriminates.
+- **The folder** is `C:\Github\_handoffs\blipscope-5c\f1-20261123\`, made by a plain `mkdir` that refuses if it exists. File names as F1-D.
+- **bgcheck's known set is Sunday's, and pids do not survive a restart** (map-client's second restart is pending).
+  - Monday's first bgcheck runs, read-only, before the END line (by 12:00Z).
+  - Its exit and its VOID set go to the orchestrator, and F1's first start waits until that set is ruled known.
+  - The cmdline search excludes this command's own ancestor chain, as Sunday's did.
+  - Five matching names with new pids are still sent, not assumed.
+- **D-FIELDS:** main has moved since F1-D, from `cbd999db594f` to `910d8975bdf7` (#786, #785, #788).
+  - The five files D-FIELDS and D-FIELDS-2 read (`metrics.ts`, `index.ts`, `devlabel.ts`, `sitefeed/bend.ts`, `wrangler.toml`) are unchanged between the two: `git diff --stat` is empty, exit 0.
+  - So F1-D's line references hold on main, and D-FIELDS still grades at `<D>`, as registered.
+
+#### Board-counting couplings, named
+
+**The soak's E7:94 enrols with production this week.** The reader keys a board by its `devl` per colo, across all endpoints (`colos.setdefault(c, set()).add(d)`, `colo_occupancy_read.py:318`). So while E7:94 sends to production, it is one more board in the histogram. F1 cannot separate it out: that would need its label, and so its id, which F1 neither holds nor computes.
+
+| row | coupling | effect |
+|---|---|---|
+| D-BOARDS | one board more than the fleet's | the 42 line stands: it is a one-entry-per-board sanity check, not a fleet count |
+| D-LABEL, D-SITE | every request that reaches the default `fetch` is a `req` line (`index.ts:464`, unconditional), and `devl` is set only after the key verifies (`:361-372`). So E7:94's enrol-page requests are `no_label`, and so is any poll whose key production has not accepted yet (a 401) | at L's volume, about 157 more `no_label` lines in the hour cross 5%. If L's hour had at most step 4d's 21 boards, its 3659 labelled lines are at least ~174 per board-hour. So one board polling unauthenticated for about 54 minutes takes D-LABEL's escape by itself, and a breach in such an hour cannot be attributed to the site |
+| F1-K | one of n boards, alone or sharing a colo with any other board | it moves the alone count by -1 (it was alone), 0 (a colo of 3 or more) or +1 (it made a pair) |
+| F1-H55, F1-H115 | the same board, inside the weighted rate | not separable by hand: `grade` prints only the fleet rates, not `hit_rate(k)` per k |
+| all three | if E7:94 is not a radar build polling the same resource about every 60 s, it is in the histogram without being in the cache-sharing model the simulation assumes | a property of the reader for any such board: named, not solved here |
+
+**D-SOAK, a new row.** The question, for the orchestrator's relay: did E7:94 send anything to production between H0 and the end of the last graded hour (H0 + 1 h, or H0 + 2 h with the fallback)? If so, when did it enrol? The relay is needed before the record is written. If none has arrived by then, the row below for "yes, enrolled before" applies, as the conservative case.
+
+| outcome | then |
+|---|---|
+| no | no coupling; graded as registered |
+| yes, enrolled before the graded hour started | D-BOARDS as registered. **F1-K's verdict stands only if a/n and each variant the histogram allows give the same result under F1-K's own test (alone >= boards / 2):** (a-1)/(n-1) if it has a k=1 colo, a/(n-1) if it has a k>=3 colo, and (a+1)/(n-1) if it has a k=2 colo. Otherwise F1-K reads "within one bench board's reach", with no verdict. This is done by hand, from the printed histogram. F1-H55 and F1-H115 are reported with "includes one bench board", with no verdict |
+| yes, enrolled inside a graded hour | that hour has a known source of `no_label` lines that cannot be separated out. A D-LABEL breach is the escape, unattributed, and D-SITE gets no verdict. Otherwise as the row above |
+
+**Recommended: keep E7:94 off production from H0 to the end of F1's last graded hour.** That is expected to be 13:00Z-15:00Z, and at worst 14:00Z-16:00Z. Then D-SOAK is "no", and nothing above applies. If the soak cannot wait, I can write a small sensitivity check before Monday 10:00Z, as its own registration, red first. It would rerun the frozen `hit_rate` over the "one board fewer" histograms, so that F1-H55 and F1-H115 get the same test as F1-K. That is the orchestrator's call, and nothing is built unless asked.
+
+The same mechanism applies to any bench board that changes its production state inside a graded hour, including E2:08 on its LOOK day. D-SOAK's relay should cover each such board.
+
+F1, MONDAY 2026-11-23: THE RECORD (append-only, written 2026-11-23T15:55:04Z from date -u). The run's files are in blipscope-5c's handoff folder `f1-20261123/`. **F1 has NO READING for 2026-11-23**, by the orchestrator's 15:19Z ruling: D-SITE fell outside both of its columns, so the frozen escape (`:1413`, "anything no row names") applies. The numbers below are information only, never F1's verdict.
+
+- **The key:** END stamp 2026-11-23T13:44:00Z (relayed). H0 = 14:00Z. `<D>` = `4a02123ca992`, with production's version 80c524ea. D-SOAK = No.
+- **D-FIELDS and D-FIELDS-2:** HOLD at `<D>`.
+- **D-CTL:** HOLDS, byte-identical to 11-21's line.
+- **D-LC:** HOLDS. 3695, 3659, 36 and 0; LC-SUM exact; every query at ABR 1.
+- **D-SCAN:** as predicted.
+  - H0: `dev 0`, `devl 5304`.
+  - `devl` first appears in the hour starting 11:00Z (11:00Z: dev 2045, devl 455; 10:00Z: dev 2209, devl 0).
+  - The first clean hour is 12:00Z, and the last closed hour, 14:00Z, is clean.
+  - 10 count calls, each at ABR 1 on its first attempt; exit 0.
+- **D-READ:** as predicted. Reads A and B were 74 s apart, and their output is byte-identical.
+  - preflight dev 0; 5553 events fetched, 0 with dev; 3 pages, ABR `[1]`.
+  - req lines 5553, no colo 0, no label 249. As a cross-check, 5553 - 249 = 5304, the scan's `devl`.
+- **D-GRADE:** exit 0, with its own escapes not taken. F1-CTL HOLDS. 20 boards in 12 colos, 8 of them alone (40%); histogram k:colos `{1: 8, 2: 2, 4: 2}`.
+  - **Information only:** F1-K FAILS; F1-H55 FAILS at 40.0% (limit: at most 25%); F1-H115 HOLDS at 70.0% (range: 50% to 75%).
+- **D-BOARDS:** 20, at most 42. Information only.
+- **D-LABEL:** `no_label` is 249 of 5553 = 4.48%, at most 5%. It held, near its edge, at about 4.5x the expected ~1% (L: 36 of 3695). That is 193.5 lines over 1%.
+- **D-SITE: OUTSIDE ITS SET.** Its hold column needs ~1%, and its breach column needs D-LABEL breached by 300-420 lines over 1%. 4.48% is neither, so the escape applies and there is no reading.
+- **Five sources fit the 193.5 extra lines, and none is excluded,** because the record is counts only, with no path or time per line:
+  - (a) the 13:44-14:05Z lift of the production hold for the site, the app and the screen. Their statements say nothing was sent; there is no artifact.
+  - (b) a board refused before its key is accepted: the per-IP limit, 401 or 403 (`index.ts:359`, `:362`, `:363`).
+  - (c) the site's BendFeed calls reaching `req` lines for part of the hour.
+  - (d) unauthenticated public traffic.
+  - (e) a board whose key verified but whose label digest failed (`index.ts:371`, with `authPath` set at `:383`). This one was added by correction after the END line.
+- **No fallback trigger fired, and nothing was run twice.** There was no second look at the 15:00Z hour; the ruling was that a look chosen after the reading would be a rescue.
+- **One process note:** the cmdline search before read A went out in the same tool batch as read A's start. It returned 0, and bgcheck ran first.
+
+CORRECTION to D-LABEL (F1-D, above; append-only, 2026-11-23T15:55:04Z): the row's "**The grade does not check it**" was true until commit `6f2032cb2997` (F1 NL-FIX, below). From that commit, `grade()` runs the board-key half of `:1413` itself: it escapes on more than 5% of `req` lines without a colo or a board key.
+
+The text of blipscope-5c's `f1r/f1-d-site-1.md` (sha256 `78fb904958c9`) follows VERBATIM; only its `##` headings are demoted to `####` here.
+
+F1-D SITE-1 (append-only; a PROPOSAL, text only; written 2026-11-23T15:21:54Z from date -u, after the orchestrator's 15:19Z ruling). Nothing here runs without the orchestrator's word, and no query was made to write it. Code cited at `<D>` = `4a02123ca992`, read with `git show`.
+
+**Today stays as ruled:** F1 has NO READING for 2026-11-23 (the frozen escape, proxy-bill.md:1413). Nothing below changes that, whatever it shows. F1-K FAILS, F1-H55 40.0% FAILS, F1-H115 70.0% HOLDS and D-BOARDS 20 are numbers, information only.
+
+#### 0. Correction to my END's list (append-only)
+
+My END named four alternatives for the 193.5 extra `no_label` lines, (a) to (d). The code at `<D>` names a fifth, and widens (b):
+
+- **(e) a board whose key verified, but whose label digest failed.** `index.ts:371` is `try { meta.devl = await deviceLabel(meta.dev); } catch {}`, and `meta.authPath = "device"` follows at `:383`. Its line has no `dev` (stripped by `record()`) and no `devl`, so it counts as `no_label`. It is **board-shaped**: like (b), it can hide a board from the histogram.
+- **(b), widened:** a board refused before its key is accepted. That covers the per-IP limit (`:359`), 401 (`:362`) and 403 `fake_device_id` (`:363`), not only the 401.
+- (c) is unchanged: `BendFeed` is a named export, "not routes" (`:441-442`), so its calls should not reach the default `fetch`. If that reading is wrong, the classifier below cannot say which route the calls would land on. They could land on `/other` 404, which is where scanner traffic lands too.
+
+#### 1. D-SITE's columns for a future graded hour (proposal)
+
+**The rule I'm proposing: a ceiling comes from a population that is registered before it is read, never from the hour being graded.** 4.48% is never used to set a column; a threshold tuned to today would be the rescue the ruling refuses.
+
+| column | condition | D-SITE | F1's reading |
+|---|---|---|---|
+| HOLD | `no_label` share at most C | "not refuted" | as graded |
+| **MIDDLE (new)** | C < share <= 5% | **no verdict** | the classifier (section 2) runs on the same hour. The reading stands only if board-shaped lines ((b) + (e)) are at most 1% of `req_lines`, which is L's entire no-key rate (36/3695), the most a working fleet has been seen to produce. Above that: **no reading**, because F1 cannot count boards it cannot label |
+| BREACH | share > 5% | as F1-D ADDED; it is attributed to the site only with the site's OWN count of BendFeed calls for that hour (section 3) | no reading (frozen) |
+| outside | anything else, or no C | none | no reading (frozen :1413) |
+
+**C, the ceiling: the population, counts only.**
+- **Population:** for each closed hour, two counts: `scope` and `scope AND dev DOES_NOT_EXIST AND devl DOES_NOT_EXIST`. These are count queries of the kind the scan already sends. The `devl DOES_NOT_EXIST` leaf is new, written the same way as the existing `DEV_ABSENT`. No line is fetched and no `dev` value is touched.
+- **Window:** 24 closed hours straddling the site merge, 2026-11-21T22:00Z to 2026-11-22T21:00Z. The site's #19 merged at 2026-11-22T10:00:04Z and its feed was due on at ~10:02Z. This is about 48 count calls, 60 s apart, about 48 minutes. Those hours are readable until about 11-28.
+
+**Predictions for the population, written before any query:**
+
+| outcome | meaning |
+|---|---|
+| **predicted:** no step at the merge. The median no-key lines per hour for the 12 hours after 10:00Z is within +/-150 of the 12 before | the "no `req` line" reading of BendFeed is not refuted at full volume. C = the window's maximum share |
+| a step of +300 or more lines per hour from the 10:00Z hour onward | (c) at full volume: the code reading is wrong. No C; report |
+| any hour at 10% or more | report it, and set no C |
+| 4 or fewer hours BLIND | those hours are dropped and named. More than 4 BLIND: no population, stop |
+| **none of the above** (for example, a step between +150 and +300) | the instrument is unreliable at this scale: stop and decide |
+
+A "no step" result does not separate "the feed made calls that wrote no line" from "the feed made no calls". MONDAY's named alternative stands, and only the site's own count (section 3) closes it.
+
+#### 2. What separates (a)/(b)/(c)/(d)/(e): a `classify` mode for the reader
+
+- **What it reuses:** the SAME events query as `read`: `scope + dev DOES_NOT_EXIST`, the same pre-flight, backstop, ABR-1 rule and observability-read token. There is **no new token and no new query shape**. The only new thing is in-memory classification of each `no_label` line.
+- **What it classifies, for each `no_label` line:**
+  - **route class:** `routeTemplate()`'s rule over `KNOWN_ROUTES` (`metrics.ts:91`, `:204`), taken from the proxy source in the same tree rather than transcribed. Anything unlisted is `/other`;
+  - **status class:** 2xx/3xx, 401, 403, 404, 429, other 4xx, 5xx;
+  - **authPath:** present or absent;
+  - **time:** the five-minute bucket within the hour, from the event's timestamp.
+- **What it prints: counts only.** A route-class by status table, the authPath-present count, and twelve five-minute counts. **Never** an `ep` (raw paths carry hex ids, `/v1/enrich/<hex>`), a colo, a `devl` or a line.
+- **Controls:**
+  - **The anchor:** the class counts must sum to the read's own `no_label` and `req_lines`. For 14:00Z that is 249 and 5553; anything else means stop.
+  - **Host tests, red first:** fixture events with a known `ep`/status/time, including a raw `/v1/enrich/<hex>` path that must print only as `/v1/enrich`. A sabotaged route map must turn them red.
+  - **A missing field reads BLIND:** a missing timestamp or status makes the time row (or the status table) BLIND, never 0.
+
+**Predictions for 14:00Z** (the only hour holding the excess, readable until about 11-30), written now. A signature counts as MET when it holds at least 150 of the 249 lines, about three quarters of the excess. Uniform timing would put about 21 lines in any one five-minute bucket.
+
+| source | signature | if it is the source |
+|---|---|---|
+| (a) the hold lift | time | at least 150 lines in [14:00, 14:05) |
+| (b) a board refused before its key is accepted | 401/403/429 on known device routes | at least 150 such lines, in 10 or more of the 12 buckets |
+| (e) label digest failed | authPath present, `devl` absent | at least 150 such lines |
+| (c) site calls via `fetch` | one class-and-status cell, steady at about 30 per bucket | at least 150 in that cell, in 10 or more buckets, AND the site's own count (section 3) at or above it. If the cell is `/other` 404, the classifier alone cannot separate it from (d) |
+| (d) public traffic | pages, `/healthz`, `/other`, 404 | at least 150 in those classes, with no other signature met |
+| mixed | no signature reaches 150 | report the table, no attribution |
+| (a) together with one class signature | both met | reported as both: for example, a session's refused requests in the lift window |
+| **none of the above** | for example, the anchor fails, a row is BLIND, or two class signatures are both met | the instrument is unreliable at this scale: stop and decide |
+
+#### 3. The other side of the contract, for (c)
+
+A count taken from where the calls originate beats any inference made on the receiving side: **the site's own count of BendFeed calls in [14:00, 15:00)**. That count belongs to the site, from its logs, as counts only, and is not a statement. If it is 0, (c) is excluded outright, and MONDAY's "feed made no calls" alternative becomes a fact rather than a possibility. I do not know the site Worker's log setup, so this is a question for the site's session, not a query I would make.
+
+#### Order, if ruled
+
+1. The reader's `no_label` fix (already ruled: its own registration, red first). The middle column needs `grade()` to see `no_label` itself.
+2. `classify` plus its host tests (red first), as their own registration.
+3. The population read, then classify on 14:00Z. Each needs its own word; both are counts only, in the background and registered, with bgcheck before each start.
+
+#688 is still unpushed (`b60c6c2b8c5b`); its push, with the CI prediction first, is the next step regardless.
+
+ACCEPTED AS TEXT by the orchestrator (it re-read the sha at 15:23:24Z). Its notes:
+- Today's "no reading" is unchanged.
+- The correction ((e) added, (b) widened) is accepted.
+- The columns are for future hours only.
+- The population and `classify` each run only on its word, after their own registrations.
+- `classify` run on the 14:00Z hour is a diagnostic after the escape, and every line of its output is labelled "diagnostic after F1's no-reading; changes no reading".
+- The site's own BendFeed count is asked of the site by the orchestrator; this session does not query it.
+
+The text of blipscope-5c's `f1r/f1-nolabel-fix-1.md` (sha256 `2dd057605a8c`) follows VERBATIM; only its `##` headings are demoted to `####` here.
+
+F1 NL-FIX (registration, append-only, written 2026-11-23T15:30:51Z from date -u, before any code). This is the reader's `no_label` fix, ruled in F1-D ADDED ("comes after F1, as its own registration, red first") and placed first in the orchestrator's 15:2xZ order. Text only until accepted. It changes nothing about Monday: F1 has NO READING (the ruling), and this fix would not have escaped 4.48% either.
+
+#### The defect
+
+The frozen escape (proxy-bill.md:1413) reads "more than 5% of the hour's `req` lines without a colo **or a board key**".
+
+- **What `grade()` executes:** only the colo half, at `colo_occupancy_read.py:438` (`no_colo > 0.05 * req_lines`).
+- **The other half exists only as prose:** D-LABEL is a by-hand row ("**The grade does not check it**", F1-D).
+- **This is the second-paths shape:** the guard exists, and one of its two clauses is never run.
+
+#### The change (one line, plus its message)
+
+`:438` becomes `if d["req_lines"] and (d["no_colo"] + d["no_label"]) > 0.05 * d["req_lines"]`, with the escape text "over 5% of req lines without a colo or a board key".
+
+- **The sum is the union.** `no_colo` and `no_label` are disjoint by construction: a line with no colo `continue`s at :312-314, before the label test at :315.
+- **The 5% is strict (`>`),** as frozen: "more than".
+- **Nothing else moves:** `ctl`, `lc`, `scan` and `read`, and every file `read` writes, are unchanged.
+
+#### Red first: rows added to `colo_occupancy_plant.py`, grade only
+
+All rows are synthetic, with no network and no token. Each uses a result-file pair 70 s apart, `abr [1]` and histogram `{1:1, 2:1}` (3 boards). Every row varies only `req_lines`, `no_colo` and `no_label`.
+
+| row | pair (req / no_colo / no_label) | OLD reader (blob 50db3cb8cb2a) | NEW reader |
+|---|---|---|---|
+| G-LABEL | 1000 / 0 / 51 | exit 0, F1-K printed: **this is the red** | exit 3, "ESCAPE: over 5% of req lines without a colo or a board key" |
+| G-UNION | 1000 / 30 / 21 | exit 0 (red) | exit 3, same text |
+| G-EDGE | 1000 / 0 / 50 | exit 0 | exit 0 (exactly 5% is not "more than") |
+| G-COLO (control) | 1000 / 51 / 0 | exit 3, "without a colo" | exit 3, the new text (the colo half still fires) |
+| G-SAB (sabotage) | the NEW reader with `:438` reverted by bytes; the plant asserts the anchor was replaced exactly once | | G-LABEL and G-UNION read **OFF** (exit 0), and the harness exits 1 |
+
+#### PREDICTED
+
+- The OLD reader's four rows read as in the table.
+- With the NEW reader, the harness exits **0**, and every existing row reads exactly as it does today.
+- G-SAB makes the harness exit **1**, with exactly 2 rows OFF: G-LABEL and G-UNION.
+- The new reader is then restored by bytes and its sha checked.
+- **CI does not exercise this:** no workflow references `tools/bill/`.
+  - #688's CI count is unchanged at 36, since no path filter matches the new files.
+  - The push gets its own CI prediction first.
+
+**Outside the set:** anything else (another row OFF, a row that will not plant, an exit 2) means stop and report, with nothing re-run.
+
+#### Not in this change
+
+- It adds no D-SITE middle column; that is SITE-1's, and waits for its word.
+- It has no `classify` mode.
+- The D-LABEL row's "The grade does not check it" is corrected below the frozen text in `docs/proxy-bill.md`, never edited in place.
+
+ACCEPTED by the orchestrator before any code. RESULT (append-only, 2026-11-23T15:55:04Z): as registered.
+- **Baseline:** the unchanged plant against the reader before the fix (blob `50db3cb8cb2a`): 13 rows, 13 as predicted, exit 0.
+- **Red:** the plant with the G rows, against the same reader: 17 rows, 15 as predicted, 2 OFF (G-LABEL and G-UNION: exit 0 with no ESCAPE line), exit 1.
+- **Green:** against the fixed reader (blob `88052942e847`): 17 rows, 17 as predicted, exit 0.
+- **G-SAB:** the fixed line reverted by bytes on a COPY (one line changed, asserted). The plant exits 1 with exactly G-LABEL and G-UNION OFF, and the working reader was never touched.
+- **Commits:** `f005d1278997` (the red rows; plant blob `b3b24e1ab1fa`) and `6f2032cb2997` (the fix).
+- **Outputs:** in the handoff folder `f1r/nlfix/` (red `3974ab07fede`, green `474aae2405c7`, sabotage `862ba300759e`).
+
 ## Step 4e: lever (c), what the refresh-data job writes (registered 2026-11-19T00:14:57Z, before its reader exists; read-only, GitHub only)
 
 **Why.** Step 4c showed that production's KV writes are the Worker's request path, plus the refresh-data job at about
