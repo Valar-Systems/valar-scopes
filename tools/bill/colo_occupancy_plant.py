@@ -10,7 +10,9 @@ record, one instrument for the old reader and the new.
 The old reader is the one F1-R replaces (blob af55507b9ad7); the pre-recording reader is F1-R's first commit of the
 change (blob 74556db07510), which kept lc's and scan's attempts in memory only (the reviewer's ruling (4)). Rows, in
 the registered order: the fake's own controls, R-RED, R-PRE, R-CLEAN, R-BACKSTOP, R-SCAN, R-ABR-RED (a byte-asserted
-sabotage), R-ABR, R-ABR-ABSENT, R-ABR-RECOVER, then R-REC-RED, R-REC, R-REC-SCAN-RED and R-REC-SCAN (red first).
+sabotage), R-ABR, R-ABR-ABSENT, R-ABR-RECOVER, then R-REC-RED, R-REC, R-REC-SCAN-RED and R-REC-SCAN (red first), then
+F1 NL-FIX's grade rows G-LABEL, G-UNION, G-EDGE and G-COLO (registration 2dd057605a8c; red on the reader before the fix,
+blob 50db3cb8cb2a, at G-LABEL and G-UNION only).
 Exit 0 when every row reads as predicted; 1 when any is OFF; 2 the rig (a plant that did not apply, a fake control off).
 """
 import contextlib
@@ -304,6 +306,40 @@ def main(argv):
                                                                  rows=rows_json)),
             dict(exit=0, printed=6, json=dict(attempts=6, all_values_first_try=True,
                                               rows=[["2000-01-01T00:00Z", 0, 3], ["1999-12-31T23:00Z", 1, 2], ["1999-12-31T22:00Z", 1, 0]])))
+
+        # G rows (F1 NL-FIX, registration 2dd057605a8c): grade() only, on synthetic result-file pairs 70 s apart, abr [1],
+        # histogram {1:1, 2:1}; each pair varies only req_lines / no_colo / no_label. The frozen escape (proxy-bill.md:1413)
+        # is "more than 5% of req lines without a colo OR A BOARD KEY"; the reader before the fix ran only the colo half.
+        # Whole ESCAPE lines are compared, never a fragment of one.
+        esc_union = "ESCAPE: over 5% of req lines without a colo or a board key -- stop and report, with no reading"
+        esc_colo_old = "ESCAPE: over 5% of req lines without a colo -- stop and report, with no reading"
+
+        def pair(tag, req, no_colo, no_label):
+            ps = []
+            for i, at in enumerate(("2000-01-01T02:00:00Z", "2000-01-01T02:01:10Z")):
+                p = out("g-%s-%d" % (tag, i))
+                with open(p, "w", encoding="utf-8", newline="\n") as fh:
+                    json.dump({"hour": HIS, "read_at": at, "pages": 1, "abr": [1], "req_lines": req, "no_colo": no_colo,
+                               "no_label": no_label, "preflight_dev": 0, "fetched": req, "fetched_dev": 0,
+                               "histogram": {"1": 1, "2": 1}, "attempts": []}, fh)
+                ps.append(p)
+            return ps
+
+        def graded(tag, req, no_colo, no_label):
+            rc, o = run(new, Fake(hour_h(False)), ["grade"] + pair(tag, req, no_colo, no_label))
+            return rc, [l.strip() for l in o.splitlines() if l.strip().startswith("ESCAPE:")]
+
+        rc, esc = graded("label", 1000, 0, 51)
+        row("G-LABEL", dict(exit=rc, escape=esc), dict(exit=3, escape=[esc_union]))
+        rc, esc = graded("union", 1000, 30, 21)
+        row("G-UNION", dict(exit=rc, escape=esc), dict(exit=3, escape=[esc_union]))
+        rc, esc = graded("edge", 1000, 0, 50)
+        row("G-EDGE", dict(exit=rc, escape=esc), dict(exit=0, escape=[]))
+        # The control: the colo half still fires. Equal on the reader before the fix and after, so its line may be either
+        # whole, known form, and nothing else.
+        rc, esc = graded("colo", 1000, 51, 0)
+        row("G-COLO", dict(exit=rc, escape_is_a_colo_line=len(esc) == 1 and esc[0] in (esc_union, esc_colo_old)),
+            dict(exit=3, escape_is_a_colo_line=True))
 
         print("rows %d, as predicted %d, OFF %d" % (len(rows), len(rows) - off, off))
         return 0 if off == 0 else 1
