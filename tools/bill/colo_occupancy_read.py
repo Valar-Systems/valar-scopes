@@ -29,6 +29,11 @@ REASK_S apart (chosen on resolution only, never on the count); still not a value
       corrected 75213feac918): the ceiling C for D-SITE's FUTURE hold column. Count queries only, two per hour, on a
       window fixed in this file (POP_FIRST, 24 hours across the site merge) after two anchors on known hours; every line
       labelled as classify's. Exit 3 = stopped (an anchor off, more than 4 hours BLIND, or outside the set).
+  python -X utf8 -I tools/bill/colo_occupancy_read.py famcount <out.json>   F1 FAMILY COUNT (registration
+      ff8d7f596c0c): is the 11-22 05:00Z no-key rise the api-401-with-model family? COUNT QUERIES ONLY, never an
+      events request, so it can read a `dev`-era hour that walk_hour's pre-flight refuses (the pre-flight stays). Anchors
+      on classify's own hours first; every must-read and hour fixed in this file; every line labelled as classify's.
+      Exit 0 = IS or NOT; 3 = OUTSIDE or stopped at a must-read; 6 = BLIND.
 Every command prints one `attempts <query>:` line per query on every graded exit (0, 3, 5, 6); lc and scan also write
 every attempt to <out.json> on those exits, and read writes them into its own result file (F1-R-1's recording clause;
 ruling (4)). A rig error (exit 2) prints its exception type only, and nothing else.
@@ -609,6 +614,150 @@ def population(path):
     return fin(rc)
 
 
+# F1 FAMILY COUNT (registration ff8d7f596c0c): is the 11-22 05:00Z rise in no-key lines the api-401-with-model family?
+# COUNT QUERIES ONLY (view calculations), never view events: no line and no `dev` value can enter the process, by
+# construction, which is what lets it read a `dev`-era hour. walk_hour's pre-flight, which refuses such an hour for any
+# events walk, stays exactly as it is. The hours and every must-read are fixed HERE.
+FC_STATUS = ({"key": "status", "operation": "eq", "type": "number", "value": 401},)   # the 401 leaf's ONE definition
+FC_200 = {"key": "status", "operation": "eq", "type": "number", "value": 200}
+FC_MODEL = {"key": "model", "operation": "exists", "type": "string"}
+FC_K = "2026-11-23T17:00:00Z"            # classify17's hour: no_label 232; api 218, all 401, all with a model
+FC_H = "2026-11-23T14:00:00Z"            # H0: classify's api 247, all 401, all with a model
+FC_W = ("2026-11-22T04:00:00Z", "2026-11-22T05:00:00Z", "2026-11-22T06:00:00Z")
+FC_W_NOKEY = (2, 236, 255)               # the population's reads of those hours (f1-population-result-1.md)
+FC_E1_MAX, FC_E2_MAX = 1903, 2139        # 05Z: req minus no-key, and req (the population's read)
+FC_IS, FC_NOT = (213, 230), (23, 25)     # at 05Z / 06Z: at least 90%, at most 10%, of 236 / 255
+FC_ONSET_MIN = 10
+FC_TAIL = " -- the instrument cannot answer at this scale: stop and decide"
+
+
+def fc_prefixes(r):
+    """The API prefixes as starts_with leaves. Summing one count per prefix equals classify's `api` family only if no
+    prefix is a prefix of another, none overlaps Missileer's (which family() places first), and no exact path family()
+    places before the api test starts with one. Anything else is a RIG error, before any query."""
+    api, before = list(r["api"]), (r["m_page"] + "/", r["m_api"])
+    exact = (r["m_page"], "/healthz", r["page_prefix"] + "/enroll", "/enroll")
+    for i, p in enumerate(api):
+        for q in api[i + 1:] + list(before):
+            if p.startswith(q) or q.startswith(p):
+                raise Rig("API prefix %d overlaps another family's prefix; the sum would not be the api family" % (i + 1))
+        if any(x.startswith(p) for x in exact):
+            raise Rig("API prefix %d covers a path family() places first; the sum would not be the api family" % (i + 1))
+    return [{"key": "ep", "operation": "starts_with", "type": "string", "value": p} for p in api]
+
+
+def count_span(t0, t1, prm, tok, log, label):
+    """count_query over any span (the onset buckets); count_query itself, which `read` uses, is untouched."""
+    body = {"queryId": "proxy-bill-colo-occupancy", "timeframe": {"from": int(t0.timestamp() * 1000),
+            "to": int(t1.timestamp() * 1000)}, "view": "calculations", "parameters": dict(prm, calculations=[{"operator": "count"}])}
+    res = ask(body, tok, True, log, label)
+    if res is None:
+        raise Blind(label)
+    return count_of(res)
+
+
+def famcount(path):
+    r = route_rules()                    # before any query: a stale rule is a RIG error with nothing asked
+    ap = fc_prefixes(r)
+    tok = TOKEN_FILE.token("observability-read")
+    log, calls = [], [0]
+    rec = {"label": DIAG, "steps": []}
+    fin = lambda rc: done(rc, log, path, "famcount", dict(rec, exit=rc, calls=calls[0]))
+    hk, hh = parse_hour(FC_K), parse_hour(FC_H)
+    w = [parse_hour(s) for s in FC_W]
+    hs = lambda t: t.strftime("%Y-%m-%dT%H:00Z")
+    S = POP_NOKEY + FC_STATUS + (FC_MODEL,)
+
+    def gap():
+        if calls[0]:
+            time.sleep(CALL_GAP_S)
+        calls[0] += 1
+
+    def cq(h, leaves, label):
+        gap()
+        return count_query(h, params(*leaves), tok, log, label)
+
+    def summed(h, leaves, label):
+        return sum(cq(h, tuple(leaves) + (a,), "%s p%d" % (label, i + 1)) for i, a in enumerate(ap))
+
+    def must(st, h, what, got, ok, want):
+        print("%s %s %s: %d (must read %s) -> %s" % (st, hs(h), what, got, want, "HOLDS" if ok else
+                                                     "OFF: stop; nothing after it is queried"))
+        rec["steps"].append([st, hs(h), what, got, ok])
+        return ok
+
+    def stop(at):
+        rec["stopped_at"] = at
+        v = "verdict: OUTSIDE (stopped at %s)%s" % (at, FC_TAIL)
+        print(v)
+        rec["verdict"] = v
+        return fin(3)
+
+    try:
+        for st, leaves, want in (("K1", (), 232), ("K2", FC_STATUS, 218), ("K3", (FC_MODEL,), 218)):
+            what = {"K1": "no-key", "K2": "no-key AND 401", "K3": "no-key AND model"}[st]
+            n = cq(hk, POP_NOKEY + tuple(leaves), "%s %s %s" % (st, hs(hk), what))
+            if not must(st, hk, what, n, n == want, want):
+                return stop(st)
+        for st, h, leaves, what, want in (("K4", hk, POP_NOKEY, "no-key AND api", 218), ("K5", hk, S, "S", 218),
+                                          ("H", hh, S, "S", 247)):
+            n = summed(h, leaves, "%s %s %s" % (st, hs(h), what))
+            if not must(st, h, what, n, n == want, want):
+                return stop(st)
+        n = summed(w[1], (DEV_EXISTS, FC_MODEL), "E1 %s keyed AND model AND api" % hs(w[1]))
+        if not must("E1", w[1], "keyed AND model AND api", n, 1 <= n <= FC_E1_MAX, "1..%d" % FC_E1_MAX):
+            return stop("E1")
+        n = cq(w[1], (FC_200,), "E2 %s status 200" % hs(w[1]))
+        if not must("E2", w[1], "status 200", n, 1 <= n <= FC_E2_MAX, "1..%d" % FC_E2_MAX):
+            return stop("E2")
+        ks, ss = [], []
+        for h, want in zip(w, FC_W_NOKEY):
+            k = cq(h, POP_NOKEY, "W %s no-key" % hs(h))
+            if not must("W", h, "no-key", k, k == want, want):
+                return stop("W " + hs(h))
+            s = summed(h, S, "W %s S" % hs(h))
+            print("W %s S: %d" % (hs(h), s))
+            ks.append(k)
+            ss.append(s)
+        rec["window"] = [[hs(h), k, s] for h, k, s in zip(w, ks, ss)]
+        b = []
+        for i in range(12):
+            t0 = w[1] + timedelta(minutes=5 * i)
+            gap()
+            b.append(count_span(t0, t0 + timedelta(minutes=5), params(*POP_NOKEY), tok, log,
+                                "O %s no-key" % t0.strftime("%Y-%m-%dT%H:%MZ")))
+    except Blind as e:
+        return fin(blind(str(e), log))
+    rec["buckets"] = b
+    ok = sum(b) == FC_W_NOKEY[1]
+    print("O %s buckets %s (sum %d, must read %d) -> %s" % (hs(w[1]), " ".join(str(c) for c in b), sum(b), FC_W_NOKEY[1],
+                                                           "HOLDS" if ok else "OFF: stop; nothing after it is queried"))
+    if not ok:
+        return stop("O")
+    first = next((i for i, c in enumerate(b) if c >= FC_ONSET_MIN), None)
+    if first is None:
+        print("onset: none (no five-minute bucket with 10 or more no-key lines)")
+    else:
+        rec["onset"] = (w[1] + timedelta(minutes=5 * first)).strftime("%Y-%m-%dT%H:%MZ")
+        print("onset: %s (the first five-minute bucket with 10 or more no-key lines)" % rec["onset"])
+    s05, s06 = ss[1], ss[2]
+    detail = "S %d of %d at 05:00Z, %d of %d at 06:00Z" % (s05, ks[1], s06, ks[2])
+    rc = 3
+    if any(s > k for k, s in zip(ks, ss)):
+        v = "verdict: OUTSIDE (S above no-key in an hour)" + FC_TAIL
+    elif first is None:
+        v = "verdict: OUTSIDE (no five-minute bucket with 10 or more no-key lines)" + FC_TAIL
+    elif s05 >= FC_IS[0] and s06 >= FC_IS[1]:
+        v, rc = "verdict: IS -- the 05:00Z rise is the api-401-with-model family (%s)" % detail, 0
+    elif s05 <= FC_NOT[0] and s06 <= FC_NOT[1]:
+        v, rc = "verdict: NOT -- the 05:00Z rise is not the api-401-with-model family (%s)" % detail, 0
+    else:
+        v = "verdict: OUTSIDE (between the bands, or the two hours disagree; %s)%s" % (detail, FC_TAIL)
+    print(v)
+    rec["verdict"] = v
+    return fin(rc)
+
+
 def labelled(fn):
     """F1 CLASSIFY: every line the diagnostic prints carries DIAG, including RIG errors and the attempts lines."""
     buf = io.StringIO()
@@ -746,7 +895,7 @@ def grade(p1, p2):
 
 
 def main(argv):
-    if argv[:1] in (["classify"], ["population"]):
+    if argv[:1] in (["classify"], ["population"], ["famcount"]):
         return labelled(lambda: dispatch(argv))
     return dispatch(argv)
 
@@ -757,6 +906,8 @@ def dispatch(argv):
             return classify(argv[1], argv[2])
         if len(argv) == 2 and argv[0] == "population":
             return population(argv[1])
+        if len(argv) == 2 and argv[0] == "famcount":
+            return famcount(argv[1])
         if argv == ["ctl"]:
             return ctl()
         if len(argv) == 2 and argv[0] == "lc":
