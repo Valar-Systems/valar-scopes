@@ -5330,8 +5330,8 @@ to LF, each file's own sha given.
 `foot16n.py --read G5P` (`foot-read-G5P.out` sha256 `bed98a514027`, 14 CRLF normalized):
 
 ```
-tool C:/Users/DanielFrenkel/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump.exe: GNU objdump (crosstool-NG esp-14.2.0_20260121) 2.43.1
-tool C:/Users/DanielFrenkel/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-addr2line.exe: GNU addr2line (crosstool-NG esp-14.2.0_20260121) 2.43.1
+tool C:/Users/<user>/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump.exe: GNU objdump (crosstool-NG esp-14.2.0_20260121) 2.43.1
+tool C:/Users/<user>/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-addr2line.exe: GNU addr2line (crosstool-NG esp-14.2.0_20260121) 2.43.1
 ELF G5P C:/Github/_handoffs/p4/gains/build-gains-p5b/firmware.elf: sha256 16c8183dc4c3 (T-10 16c8183dc4c3) -> equal
   ok   C1 a known flash function: DrawAircraftTriangle attributes 58 B in .flash.text (> 0)
   ok   C2 a made-up name attributes 0 B (0)
@@ -5349,8 +5349,8 @@ VERDICT G5P: direction NEW > OLD: CONSISTENT; delta 1949 B -> NOT DECISIVE
 `foot16n.py --read G6` (`foot-read-G6.out` sha256 `aadb3c439db3`, 14 CRLF normalized):
 
 ```
-tool C:/Users/DanielFrenkel/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump.exe: GNU objdump (crosstool-NG esp-14.2.0_20260121) 2.43.1
-tool C:/Users/DanielFrenkel/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-addr2line.exe: GNU addr2line (crosstool-NG esp-14.2.0_20260121) 2.43.1
+tool C:/Users/<user>/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump.exe: GNU objdump (crosstool-NG esp-14.2.0_20260121) 2.43.1
+tool C:/Users/<user>/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-addr2line.exe: GNU addr2line (crosstool-NG esp-14.2.0_20260121) 2.43.1
 ELF G6 C:/Github/_handoffs/p4/gains/build-gains-p6/firmware.elf: sha256 23c69d86bdda (T-10 23c69d86bdda) -> equal
   ok   C1 a known flash function: DrawAircraftTriangle attributes 470 B in .flash.text (> 0)
   ok   C2 a made-up name attributes 0 B (0)
