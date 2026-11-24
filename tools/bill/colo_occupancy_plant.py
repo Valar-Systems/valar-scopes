@@ -5,7 +5,7 @@ Synthetic data only, no network, no token: each reader is loaded from a temp cop
 `post` is replaced by the fake's, which RECORDS every event it returns. So the fetched counts below are the fake's
 record, one instrument for the old reader and the new.
 
-  python -X utf8 -I tools/bill/colo_occupancy_plant.py <old reader .py> <new reader .py> <pre-recording reader .py> <pre-classify reader .py> <pre-population reader .py>
+  python -X utf8 -I tools/bill/colo_occupancy_plant.py <old reader .py> <new reader .py> <pre-recording reader .py> <pre-classify reader .py> <pre-population reader .py> <pre-famcount reader .py>
 
 The old reader is the one F1-R replaces (blob af55507b9ad7); the pre-recording reader is F1-R's first commit of the
 change (blob 74556db07510), which kept lc's and scan's attempts in memory only (the reviewer's ruling (4)). Rows, in
@@ -18,6 +18,9 @@ parses (proxy/src/index.ts and missileer.ts) are copied from this tree into the 
 tree whose index.ts has API_PREFIX's name changed by a byte-asserted plant. Then F1 POPULATION's rows P-RED, P-NOSTEP,
 P-STEP, P-ANCHOR, P-BLIND-2 and P-BLIND-5 (registration 5cf7d7288c34, corrected 75213feac918; P-RED runs the
 pre-population reader, blob 9b1a1610626f), on real synthetic events so the reader's no-key filter is exercised.
+Then F1 FAMILY COUNT's rows F-RED, F-IS, F-NOT, F-MID, F-ANCHOR, F-ERA, F-STABLE, F-SUM and F-BLIND (registration
+ff8d7f596c0c; F-RED runs the pre-famcount reader, blob ac94f99a83d0), also on real synthetic events, so its 401, model
+and starts-with leaves are exercised; every F row asserts 0 events requests.
 Exit 0 when every row reads as predicted; 1 when any is OFF; 2 the rig (a plant that did not apply, a fake control off).
 """
 import contextlib
@@ -137,15 +140,63 @@ def pop_set(post_nokey=249, step=0):
     return evs
 
 
+FC_K = datetime(2026, 11, 23, 17, tzinfo=timezone.utc)      # the reader's K hour (classify17's); events here are synthetic
+FC_W = [datetime(2026, 11, 22, h, tzinfo=timezone.utc) for h in (4, 5, 6)]   # the reader's window hours; synthetic
+API_EPS = ("/api/v1/blipscope/blips", "/api/v1/weatherscope/forecast", "/v1/blips")   # one per API prefix
+
+
+def fam_set(s05=233, s06=252, e1=100, k05=236):
+    """F1 FAMILY COUNT's hours, as real events so the reader's leaves are exercised. K (17Z): 218 api-401-with-model
+    no-key lines over the three prefixes and 14 other no-key lines (no 401, no `model` key), so each of the 401, model and
+    api leaves moves its count from 232 to 218; H0: 247 + 2. The window: 04Z 2 no-key; 05Z k05 no-key, s05 of them S;
+    06Z 255, s06 of them S; keyed (`dev`) lines in each, e1 of 05Z's api-with-model. 05Z's no-key lines: three at minute
+    1, the rest spread over 05:05-06:00, so the first bucket with 10 or more is 05:05Z in every row that reaches it."""
+    evs, k = [], [300000]
+
+    def add(t, n, secs=None, **src):
+        for j in range(n):
+            k[0] += 1
+            evs.append(ev(k[0], t + timedelta(seconds=secs(j) if secs else j % 3500), evt="req", colo="ZZ1", **src))
+
+    S = dict(status=401, model="plant-model")
+    for t, n_api in ((FC_K, (200, 10, 8)), (POP_H0, (247, 0, 0))):
+        for ep, n in zip(API_EPS, n_api):
+            add(t, n, ep=ep, **S)
+    add(FC_K, 2, ep="/api/v1/missileer/status", status=200)
+    add(FC_K, 10, ep="/credits", status=200)
+    add(FC_K, 1, ep="/wp-login.php", status=404)
+    add(FC_K, 1, ep="/healthz", status=200)
+    add(FC_K, 50, ep=API_EPS[0], status=200, model="plant-model", devl="lbl-a")
+    add(POP_H0, 1, ep="/missileer", status=200)
+    add(POP_H0, 1, ep="/wp-login.php", status=404)
+    add(POP_H0, 30, ep=API_EPS[0], status=200, model="plant-model", devl="lbl-a")
+    add(FC_W[0], 2, ep="/credits", status=200)
+    add(FC_W[0], 40, ep=API_EPS[0], status=200, model="plant-model", dev=EXAMPLE_ID)
+    rest = k05 - 3
+    nk05 = [dict(ep=API_EPS[i % 3], **S) for i in range(s05)] + [dict(ep="/credits", status=200)] * (k05 - s05)
+    for j, src in enumerate(nk05):
+        add(FC_W[1], 1, secs=lambda _, j=j: 60 if j < 3 else 300 + (j - 3) * 3300 // rest, **src)
+    add(FC_W[1], e1, ep=API_EPS[1], status=200, model="plant-model", dev=EXAMPLE_ID)
+    add(FC_W[1], 20, ep="/credits", status=200, dev=EXAMPLE_ID)
+    for i in range(s06):
+        add(FC_W[2], 1, secs=lambda _, i=i: 60 + i * 13, ep=API_EPS[i % 3], **S)
+    add(FC_W[2], 255 - s06, ep="/credits", status=200)
+    add(FC_W[2], 40, ep=API_EPS[2], status=200, model="plant-model", dev=EXAMPLE_ID)
+    return evs
+
+
 class Fake:
     """The API's documented shapes: timeframe; eq/exists/DOES_NOT_EXIST leaves; filterCombination and groups; events
     paging (limit, offset); calculations count. preflight: per-attempt {"abr": n or None (omitted), "count": n or None
     (the true count)} for a count query carrying `dev exists`."""
 
-    def __init__(self, events, ignore_filters=False, counts_zero=False, preflight=None, blind_hours=()):
+    def __init__(self, events, ignore_filters=False, counts_zero=False, preflight=None, blind_hours=(), ignore_ops=(),
+                 adjust=None):
         self.events = sorted(events, key=lambda e: e["$metadata"]["id"])
         self.ignore, self.counts_zero, self.preflight = ignore_filters, counts_zero, list(preflight or [])
         self.blind_hours = set(blind_hours)      # F1 POPULATION: hour starts (ms) whose count queries answer at ABR 100
+        self.ignore_ops = set(ignore_ops)        # F1 FAMILY COUNT: operations the fake silently treats as always true
+        self.adjust = dict(adjust or {})         # F1 FAMILY COUNT: {(from ms, to ms): delta} added to that window's count
         self.returned, self.events_requests, self.count_requests, self.preflight_attempts = [], 0, 0, 0
 
     def leaf(self, e, f):
@@ -157,6 +208,10 @@ class Fake:
         else:
             src = e.get("source") or {}
             present, val = key in src, src.get(key)
+        if op in self.ignore_ops:
+            return True
+        if op == "starts_with":
+            return present and isinstance(val, str) and val.startswith(f["value"])
         if op in ("eq", "="):
             return present and val == f["value"]
         if op in ("exists", "EXISTS"):
@@ -192,6 +247,7 @@ class Fake:
                 n = n if spec["count"] is None else spec["count"]
             elif self.is_preflight(prm):
                 self.preflight_attempts += 1
+            n += self.adjust.get((tf["from"], tf["to"]), 0)
             if tf["from"] in self.blind_hours:
                 abr = 100
             if abr is not None:
@@ -230,7 +286,7 @@ def run(mod, fake, argv):
 
 
 def main(argv):
-    if len(argv) != 5:
+    if len(argv) != 6:
         print(__doc__)
         return 2
     tmp = tempfile.mkdtemp(prefix="f1r-plant-")
@@ -258,7 +314,7 @@ def main(argv):
         print("plant C-SRC applied: API_PREFIX renamed once in the second tree's index.ts")
         paths = {}
         for name, src in (("old_reader", argv[0]), ("new_reader", argv[1]), ("prerec_reader", argv[2]),
-                          ("precl_reader", argv[3]), ("prepop_reader", argv[4])):
+                          ("precl_reader", argv[3]), ("prepop_reader", argv[4]), ("prefam_reader", argv[5])):
             paths[name] = os.path.join(tmp, "tools", "bill", name + ".py")
             shutil.copyfile(src, paths[name])
         paths["src_reader"] = os.path.join(tmp, "srcplant", "tools", "bill", "src_reader.py")
@@ -275,8 +331,9 @@ def main(argv):
         with open(paths["sab_reader"], "w", encoding="utf-8", newline="\n") as fh:
             fh.write(sab)
         print("sabotage R-ABR-RED planted: the gate line replaced once; reader changed (%d -> %d bytes)" % (len(new_src), len(sab)))
-        old, new, sbr, prerec, precl, srcr, prepop = (load(paths[n], n) for n in (
-            "old_reader", "new_reader", "sab_reader", "prerec_reader", "precl_reader", "src_reader", "prepop_reader"))
+        old, new, sbr, prerec, precl, srcr, prepop, prefam = (load(paths[n], n) for n in (
+            "old_reader", "new_reader", "sab_reader", "prerec_reader", "precl_reader", "src_reader", "prepop_reader",
+            "prefam_reader"))
 
         # The fake's own controls, in the new reader's own query form.
         f = Fake(hour_h(True))
@@ -539,6 +596,80 @@ def main(argv):
         lab, body = cl_body(o)
         row("P-BLIND-5", dict(exit=rc, attempted=len([l for l in body if l.startswith("hour ")]), verdict=verdict(body)),
             dict(exit=3, attempted=24, verdict=["no population: 5 hour(s) BLIND (more than 4)"]))
+
+        # F rows (F1 FAMILY COUNT, registration ff8d7f596c0c): count queries only, every line labelled. Every stop row
+        # checks where it stopped and how many count requests it made, never its exit alone; every row 0 events requests.
+        fverdict = lambda body: [l for l in body if l.startswith("verdict:")]
+        fsteps = lambda body: [l for l in body if l.startswith(("K1 ", "K2 ", "K3 ", "K4 ", "K5 ", "H ", "E1 ", "E2 ", "W ", "O "))]
+        tail = " -- the instrument cannot answer at this scale: stop and decide"
+        stopped = lambda at: ["verdict: OUTSIDE (stopped at %s)%s" % (at, tail)]
+        onset = ["onset: %s (the first five-minute bucket with 10 or more no-key lines)" % (FC_W[1] + timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%MZ")]
+        hold = lambda st, t, what, got, want: "%s %s %s: %d (must read %s) -> HOLDS" % (st, hstr(t), what, got, want)
+        b05 = [3] + [sum(1 for j in range(233) if 300 * (b - 1) <= j * 3300 // 233 < 300 * b) for b in range(1, 12)]
+        f_steps = [hold("K1", FC_K, "no-key", 232, 232), hold("K2", FC_K, "no-key AND 401", 218, 218),
+                   hold("K3", FC_K, "no-key AND model", 218, 218), hold("K4", FC_K, "no-key AND api", 218, 218),
+                   hold("K5", FC_K, "S", 218, 218), hold("H", POP_H0, "S", 247, 247),
+                   hold("E1", FC_W[1], "keyed AND model AND api", 100, "1..1903"), hold("E2", FC_W[1], "status 200", 123, "1..2139"),
+                   hold("W", FC_W[0], "no-key", 2, 2), "W %s S: 0" % hstr(FC_W[0]),
+                   hold("W", FC_W[1], "no-key", 236, 236), "W %s S: 233" % hstr(FC_W[1]),
+                   hold("W", FC_W[2], "no-key", 255, 255), "W %s S: 252" % hstr(FC_W[2]),
+                   "O %s buckets %s (sum 236, must read 236) -> HOLDS" % (hstr(FC_W[1]), " ".join(str(c) for c in b05))]
+
+        rc, o = run(prefam, Fake(fam_set()), ["famcount", out("fred")])
+        row("F-RED", dict(exit=rc, verdict=len(fverdict(cl_body(o)[1])), written=os.path.exists(out("fred"))),
+            dict(exit=2, verdict=0, written=False))
+
+        f = Fake(fam_set()); rc, o = run(new, f, ["famcount", out("fis")])
+        lab, body = cl_body(o)
+        row("F-IS", dict(exit=rc, labelled=lab, steps=fsteps(body), onset=[l for l in body if l.startswith("onset:")],
+                         verdict=fverdict(body), count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=0, labelled=True, steps=f_steps, onset=onset,
+                 verdict=["verdict: IS -- the 05:00Z rise is the api-401-with-model family (S 233 of 236 at 05:00Z, 252 of 255 at 06:00Z)"],
+                 count_requests=40, events_requests=0))
+
+        f = Fake(fam_set(s05=3, s06=4)); rc, o = run(new, f, ["famcount", out("fnot")])
+        lab, body = cl_body(o)
+        row("F-NOT", dict(exit=rc, labelled=lab, onset=[l for l in body if l.startswith("onset:")], verdict=fverdict(body),
+                          count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=0, labelled=True, onset=onset,
+                 verdict=["verdict: NOT -- the 05:00Z rise is not the api-401-with-model family (S 3 of 236 at 05:00Z, 4 of 255 at 06:00Z)"],
+                 count_requests=40, events_requests=0))
+
+        f = Fake(fam_set(s05=120)); rc, o = run(new, f, ["famcount", out("fmid")])
+        lab, body = cl_body(o)
+        row("F-MID", dict(exit=rc, verdict=fverdict(body), count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=3, verdict=["verdict: OUTSIDE (between the bands, or the two hours disagree; S 120 of 236 at 05:00Z, "
+                                  "252 of 255 at 06:00Z)" + tail], count_requests=40, events_requests=0))
+
+        f = Fake(fam_set(), ignore_ops=("starts_with",)); rc, o = run(new, f, ["famcount", out("fanchor")])
+        lab, body = cl_body(o)
+        row("F-ANCHOR", dict(exit=rc, off=[l for l in fsteps(body) if "-> OFF" in l], windows=len([l for l in body if l.startswith("W ")]),
+                             verdict=fverdict(body), count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=3, off=["K4 %s no-key AND api: 696 (must read 218) -> OFF: stop; nothing after it is queried" % hstr(FC_K)],
+                 windows=0, verdict=stopped("K4"), count_requests=6, events_requests=0))
+
+        f = Fake(fam_set(s05=3, s06=4, e1=0)); rc, o = run(new, f, ["famcount", out("fera")])
+        lab, body = cl_body(o)
+        row("F-ERA", dict(exit=rc, verdict=fverdict(body), count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=3, verdict=stopped("E1"), count_requests=15, events_requests=0))
+
+        f = Fake(fam_set(k05=235)); rc, o = run(new, f, ["famcount", out("fstable")])
+        lab, body = cl_body(o)
+        row("F-STABLE", dict(exit=rc, verdict=fverdict(body), count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=3, verdict=stopped("W " + hstr(FC_W[1])), count_requests=21, events_requests=0))
+
+        b30 = FC_W[1] + timedelta(minutes=30)
+        f = Fake(fam_set(), adjust={(ms(b30), ms(b30 + timedelta(minutes=5))): -1}); rc, o = run(new, f, ["famcount", out("fsum")])
+        lab, body = cl_body(o)
+        row("F-SUM", dict(exit=rc, verdict=fverdict(body), count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=3, verdict=stopped("O"), count_requests=40, events_requests=0))
+
+        f = Fake(fam_set(), blind_hours=(ms(FC_W[2]),)); rc, o = run(new, f, ["famcount", out("fblind")])
+        lab, body = cl_body(o)
+        row("F-BLIND", dict(exit=rc, blind=[l for l in body if l.startswith("BLIND:")], verdict=fverdict(body),
+                            count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=6, blind=["BLIND: W %s no-key never reached ABR 1 (3 attempt(s)); F1 does not run on it." % hstr(FC_W[2])],
+                 verdict=[], count_requests=27, events_requests=0))
 
         print("rows %d, as predicted %d, OFF %d" % (len(rows), len(rows) - off, off))
         return 0 if off == 0 else 1
