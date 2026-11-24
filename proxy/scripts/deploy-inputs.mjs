@@ -299,6 +299,8 @@ if ((cmd === "set" || cmd === "check") && TARGETS.includes(rest[0]) && /^(stagin
   else console.log(`deploy-inputs: ${target} set: ${s.set.length} paths (${s.bundle.length} bundled)\n` + s.set.map((p) => `  ${p}`).join("\n"));
   let d;
   try { d = decide(target, s, commitsBehind("HEAD", "origin/main")); } catch (e) { console.log(`deploy-inputs: ${e.message}`); process.exit(2); }
+  // deploy.sh's named-set check (docs/deploy-sha-pin.md): the FULL shas of the blocking commits, to the file it names.
+  if (process.env.DEPLOY_INPUTS_BLOCKING_OUT) writeFileSync(process.env.DEPLOY_INPUTS_BLOCKING_OUT, d.blocking.map((c) => c.sha).join(" ") + "\n");
   for (const c of d.notes) console.log(`note: ${c.sha.slice(0, 12)} ${c.subject}: outside ${target}'s bundle and machinery, not blocking (${c.files.filter((f) => f.startsWith("proxy/")).join(", ")})`);
   if (d.others.length) console.log(`note: ${d.others.length} commit(s) behind origin/main touch nothing under proxy/ or in the machinery (not blocking)`);
   if (d.blocking.length) {
