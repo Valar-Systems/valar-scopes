@@ -5321,3 +5321,530 @@ commits since 4e9ee56e6c2b, and its slot is placed after the staging deploys of 
 - **Outside the set:**
   - a tested base other than 237d5d163eb4: STOP, re-derive the count, and write the amendment before anything is graded;
   - any other count, conclusion or job name: STOP, and read which job before anything else.
+
+### H5's and H6's CI, read; P5 at both; why row 5 ran at H6 (2026-11-18 to 11-22)
+
+**H5's CI, read** (d8089010fd27, the section above). As predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0
+failed, with the same job names as 47bfdfc2's. The reads that count were at 2026-11-18 23:20:11Z and 23:21:18Z. It was tested on the
+merge of d8089010fd27 into 237d5d163eb4, read from run 44417721160's `app-only-write` checkout log.
+
+**P5 at H5, as registered** (2026-11-18 23:21:33Z to 23:22:39Z, in the background and registered, its check passing):
+- P5-1: `git diff e81e794908a6 H5` over the builder's set (`deploy-inputs.mjs set builder staging` at H5) is EMPTY.
+- P5-2: the 16 and the 6 references built stamped H5, both builds exiting 0.
+- P5-3: 16 of 16 and 6 of 6 byte-identical after the stamp patch, with CONTROL 1 and CONTROL 2 reading DIFFERENT on both sets. The
+  references' sha256 list is f045891c51e3. The orchestrator acked P5 by that sha.
+
+**Why H6.** After H5, main gained #775 (2761765e, three offline route-ingest files under `proxy/scripts/`). `deploy.sh`'s
+behind-list then named it, and row 5's frozen D0 refused any behind-list line. The orchestrator ruled (2026-11-22 02:47Z) to prepare
+H6: main cbd999db594f merged into H5, with no #696 file changed.
+- **H6 = b23d5ca1a548**, registered before it was made (`h6_26.pred` b559b74368c5). Its tree, 5dacecfd637b, is the tree `git
+  merge-tree` predicted; its parents are H5 and cbd999db594f; the 26 files it adds are main's, and only #775's three are under
+  `proxy/`; `git diff 237d5d163eb4 H5` and `git diff cbd999db594f H6` are byte-identical patches. Pushed 2026-11-22 02:51:55Z.
+- **H6's CI, read:** 39 check runs, 37 success, 2 skipped (`promote`, `version`), 0 failed: H5's 38 job names plus
+  `driver-selftest`, the one job main's `firmware.yml` had added. The reads that count were at 03:06:59Z and 03:09:03Z; one at
+  03:08:48Z, under 2 min from the first, is not counted. Tested on 6948d529, the merge into cbd999db594f, per a job's checkout log.
+- **P5 at H6, as predicted** (`p5h6.sh` 4afc4add5731: H5's launcher with H5 renamed H6 and nothing else): P5-1 empty; 16 and 6
+  built; 16 of 16 and 6 of 6 with both controls DIFFERENT. The sha list is 5cb763026974, which differs from H5's because the
+  packages carry the head's stamp. The orchestrator acked it at 03:10:56Z.
+- A miscount, recorded: P5-1's "19 paths" at H5 and at H6 counted deploy-inputs' own timing line. The builder's set is 18 paths.
+
+### Row 5's slot terms at H6, as accepted (the slot card, verbatim)
+
+The slot card was frozen before any slot and accepted with each addition in turn; as its own first lines say, it is appended here
+with row 5's reading. Below is `row5_slot26c.pred` 6c0b3bfe4211, byte for byte. Its Sunday booking lapsed (the logs step did not
+deploy that day), and its Monday re-base is the one that ran. The owner's exception of 2026-11-22 03:52Z is quoted in it verbatim.
+
+```text
+ROW 5's SLOT TERMS for SUNDAY 2026-11-22, AT H6 (map-server; PROPOSED, frozen as a proposal; they bind only on the orchestrator's
+acceptance). They REPLACE row5_slot26b.pred 64241f0f9adf's Saturday items 1-6 (that slot lapsed: the logs step was rolled back and
+the owner held row 5). Everything else is row 5's registration in #696's doc, unchanged: S5-0..S5-6, the outcomes, the rollback.
+Appended to #696's doc WITH row 5's reading, as before (a doc commit now would move #696's head off H6).
+
+H6 = b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 (h6_26.pred b559b74368c5): main cbd999db594f merged into H5 d8089010fd27, tree
+5dacecfd637b; #696's patch byte-identical to H5's; CI read twice (03:06:59Z, 03:09:03Z): 39 = 37/2/0, tested as the merge
+6948d529 into cbd999db594f; P5-1..P5-3 at H6 AS PREDICTED (p5h6.sh 4afc4add5731; sha list run-logs/p5h6.shas.txt 5cb763026974).
+READING H5 AS H6: the doc's S5-1 ("H5 is deployed"), S5-6 ("basemap commit must be H5") and its outcome rows name the head under
+test; at this slot that head is H6, all 40 hex as above, and S5-4 / S5-5 grade against the H6 references (refsH6, 5cb763026974).
+The logs step's EXPECT = 4a02123ca992031d60bd9592e3084c9ccf34041f (uk-data's plan, D0-H).
+
+1. WHEN: after uk-data's logs-step PRODUCTION END line (the owner's words release row 5's hold when the logs deploy has passed;
+   the orchestrator relays the line), with staging running EXPECT, AND, read at D0:
+   (a) `git diff --name-only <EXPECT> cbd999db594f -- proxy/` is EXACTLY proxy/scripts/ingest-routes.ts, routes-fakekv.mjs and
+       routes-writer.selftest.sh (#775; read 2026-11-22 03:1xZ: exactly these 3);
+   (b) none of those 3 is a deploy input: they are absent from `node proxy/scripts/deploy-inputs.mjs set proxy staging` and from
+       `... set builder staging` at H6 (the bundler's own answer, printed whole);
+   so H6 adds exactly #696's files to what the logs step deployed. Either fails: NO deploy.
+2. THE BOOKING (PROPOSED): PRIMARY Sunday 2026-11-22, start on the logs END line + the lock (END expected ~08:55Z, worst ~09:10Z,
+   hard end 09:45Z), LATEST START 11:20Z. FALLBACK A: the same day, after KBOS's END line (expected 15:45Z), LATEST START 17:15Z.
+   FALLBACK B: Monday 2026-11-23, on the orchestrator's re-plan. Never inside a PC-QUIET (KBOS from 12:25Z; the L2 re-run's).
+3. START CONDITIONS, all printed before S5-0:
+   (1) uk-data's logs-step production END line;
+   (2) the orchestrator's lock confirmation, by message (the deploy claim held throughout);
+   (3) H6's CI as read twice (39 = 37/2/0, tested into cbd999db594f) AND H6 unmoved at D0;
+   (4) P5 at H6 acked by the orchestrator (5cb763026974);
+   (5) main unmoved under proxy/ since cbd999db594f: `git log cbd999db594f..<main re-read by ls-remote> -- proxy/` EMPTY. (The
+       orchestrator is asked to hold proxy-touching merges to main from the logs END until row 5's END.)
+4. D0, printed before any upload: HEAD == H6 == the remote branch head; cbd999db594f and EXPECT ancestors of H6; deploy.sh's
+   behind-list EMPTY; item 1 (a) and (b); the dirty tree (0). Any mismatch: NO deploy.
+5. TIMES:
+   (a) latest start 11:20Z (Fallback A: 17:15Z);
+   (b) CUTOFF start + 45 min, at latest 12:05Z (Fallback A: 18:00Z): if S5-4 / S5-5 have not all returned, STOP and roll back at once;
+   (c) no rollback step started after 12:18Z (Fallback A: 18:13Z); the rollback ENDS by 12:20Z (Fallback A: 18:15Z), before KBOS's
+       PC-QUIET at 12:25Z (Fallback A: before P6-MOVE's T-10 at 18:20Z, across which no proxy deploy runs);
+   (d) if a rollback step is unfinished at its end time: HOLD; nothing more runs; staging stays as it is; the rollback resumes on
+       the orchestrator's word.
+6. OTHER BOOKINGS: #19 (10:00Z) and its feed (~10:02Z on) are PRODUCTION only (the site's answer, relayed 02:48:43Z); every row 5
+   read is STAGING (S5-4 and S5-5 staging /basemap, S5-6 staging /healthz), so no row 5 read is taken against a production baseline.
+   Map-server touches no board, release, tag or Actions.
+OUTSIDE THE SET: any D0 line other than the above, any start condition missing: NO deploy; report to the orchestrator.
+IF THE OWNER RULES EXCEPTION (i) ("row 5 too") INSTEAD: these terms do not apply; row 5 at H5 needs its own re-based terms first.
+
+ADDED 2026-11-22T03:57:33Z (date -u), BEFORE D0, on the orchestrator's instruction (03:56:12Z): THE OWNER'S WORDS (stamped 03:52Z, relayed by the
+orchestrator), verbatim: "For this deploy and row 5 only, exactly as uk-data proposed: the list is exactly that one commit of
+offline scripts, and the deploy-inputs tool passes on both environments. Anything else, no deploy."
+FOR ROW 5 AT H6 they cover item 1 (a)/(b), read at D0 as:
+   (a) the list is exactly that one commit: `git log --format=%H <EXPECT>..cbd999db594f -- proxy/ scripts/session-claim.py` lists
+       EXACTLY 2761765e (#775), and its files are item 1 (a)'s three proxy/scripts/ files;
+   (b) the deploy-inputs tool passes on both environments: `node proxy/scripts/deploy-inputs.mjs check <proxy|builder>
+       <staging|production>` at H6 exits 0 for all four (predicted: H6 contains main, so nothing is behind it), AND item 1 (b)'s
+       set check holds;
+   anything else: NO deploy. Row 5 still runs at H6: the IF line above (exception (i) at H5) is not used.
+
+ADDED 2026-11-22T03:59:25Z (date -u), the orchestrator's note (03:58:24Z): WHAT CAN FAIL AT D0, AND ITS CONTROL.
+   - The four `deploy-inputs.mjs check` runs in (b) CANNOT fail at H6: `check` judges HEAD..origin/main, and H6 contains main, so the
+     range is empty. They are predicted 0 for that STRUCTURAL reason and are kept only as recorded reads; they prove nothing.
+   - The LOAD-BEARING read is item 1 (b)'s SET check: for each of `deploy-inputs.mjs set proxy staging` and `set builder staging`
+     at H6, saved to a file, each of #775's 3 paths counted by EXACT LINE match (`grep -cx <path> <file>`): 0 each.
+   - ITS CONTROL, read the same way from the same two files: `proxy/scripts/deploy-inputs.mjs`, a known deploy input of both
+     targets (deploy machinery), counts 1 in EACH. Control not 1 in either file: the read cannot see presence: VOID: NO deploy.
+     (Shown possible now: in H6's builder set from P5-1, run-logs/p51h6-set.txt, the control counts 1 and #775's 3 paths 0 each.)
+
+RE-BASED FOR MONDAY 2026-11-23 (2026-11-22T15:26:23Z, date -u; map-server; PROPOSED: binds only on the orchestrator's acceptance). The Sunday
+booking lapsed (no logs deploy on 2026-11-22: stand-down 06:39:15Z). Row 5 now follows the R1 re-run's logs END on Monday (T0
+10:00Z; END expected ~12:55Z, worst ~13:10Z, hard end 13:45Z). Everything above stands except the items below. Row 5 is still at H6
+= b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07; nothing of row 5 before the logs step's production END and the lock.
+R1. READ TODAY (2026-11-22, 15:23:19Z, after `git fetch origin main`): origin/main = 910d8975bdf7 (full sha 910d8975bdf773ba5cc4a5ac4ce6ff6ccaa809bb);
+    cbd999db594f is its ancestor; `git log cbd999db594f..origin/main -- proxy/ scripts/session-claim.py` is EMPTY (start condition 5
+    holds today); H6..origin/main = 3 commits (#786 3cad7724, #785 c96ffb4e, #788 910d8975), 14 files, every one under src/,
+    include/, test/, tools/ or docs/; 0 of the 14 is an exact line of H6's builder set (run-logs/p51h6-set.txt, whose only path
+    outside proxy/ is scripts/session-claim.py). All re-read at D0.
+R2. THE STALE LABEL, FIXED (the 07:13Z note). The "ADDED 03:59:25Z" paragraph says the four `deploy-inputs.mjs check` runs CANNOT
+    fail at H6 because H6 contains main. That was true at 03:59Z and is FALSE now: main is 3 commits past H6, so `check` judges a
+    non-empty HEAD..origin/main and the four runs are LIVE checks. PREDICTED: exit 0 for all four, each printing the line "note: N
+    commit(s) behind origin/main touch nothing under proxy/ or in the machinery (not blocking)", with N = `git rev-list --count
+    H6..origin/main` read at D0 (3 today). Any of the four exiting 1 (a commit behind touches what that target ships): NO deploy.
+    Exit 2 or any other: NO deploy (the instrument). Item 4's "deploy.sh's behind-list EMPTY" is read as: deploy-inputs `check`
+    exits 0 for the target deploy.sh runs (its blocking list empty), with the same note line; deploy.sh does not stop. The SET
+    check and its control (03:59:25Z) are unchanged and stay the load-bearing read.
+R3. THE OWNER'S EXCEPTION (03:52Z, "for this deploy and row 5 only") is read as carried to the re-run AND to row 5 by his 15:17Z
+    ruling (both "this deploy only" rulings carried). The orchestrator confirms that reading; without it, no row 5 Monday.
+R4. EXPECT: if uk-data's re-run deploys an EXPECT other than 4a02123ca992 (its D0-H), item 1 (a)/(b) are re-derived from that
+    EXPECT and re-accepted before row 5; otherwise no row 5.
+R5. TIMES (PROPOSED; the orchestrator fills them from Monday's bookings, which I do not hold): start on uk-data's logs-step
+    production END line + the lock; LATEST START L = 14:30Z unless a booking needs it earlier; CUTOFF L + 45 min at latest (start +
+    45 min): if S5-4 / S5-5 have not all returned, STOP and roll back at once; no rollback step started after start + 58 min; the
+    rollback ENDS by start + 60 min (15:30Z at the latest start). Item 5 (d) unchanged. Never inside any session's PC-QUIET.
+R6. THE MERGE HOLD: the orchestrator is asked to hold proxy-touching merges to main (proxy/ or scripts/session-claim.py) from now
+    through row 5's END (it already holds them until the logs END). Start condition 5 is re-read at D0 by ls-remote.
+R7. UNCHANGED: H6 and its CI (read twice, tested into cbd999db594f) and P5 (5cb763026974); items 3 (1)-(4), 4 and 6; every row 5
+    read is STAGING; no board, release, tag or Actions. OUTSIDE THE SET: any D0 line other than the above: NO deploy; report.
+
+ACCEPTED (the orchestrator, after 15:26:23Z; recorded 2026-11-22T15:27:51Z, date -u): R1-R6 as written; R3 CONFIRMED (the 03:52Z exception
+restored AS GRANTED, "this deploy and row 5 only", by the owner's 15:17Z ruling; at the top of his digest so he can correct it before
+Monday); R5's times accepted (latest start 14:30Z; nothing booked collides); R6 GRANTED (no proxy-touching merge to main through
+row 5's END).
+WHICH LIST ROW 5's D0-B READS (asked by the orchestrator), read 2026-11-22T15:27:37Z:
+   - D0-B reads `git log --format=%H <EXPECT>..cbd999db594f -- proxy/ scripts/session-claim.py`: what H6 carries ON TOP OF what the
+     logs step deployed, apart from #696's own commits. EXPECT 4a02123ca992 is an ancestor of cbd999db594f, and the list is EXACTLY
+     2761765e71bde1e8674f8c58f95dd193e8492293 (#775): proxy/scripts/ingest-routes.ts, routes-fakekv.mjs, routes-writer.selftest.sh.
+     It is NOT empty, so row 5's D0-B passes ONLY under the owner's exception; without the exception: NO row 5.
+   - H6..origin/main (EMPTY under proxy/ and scripts/session-claim.py; 3 commits elsewhere) is a DIFFERENT list: what main has
+     that H6 lacks. It is read by R2's four `check` runs and by start condition 5, never by D0-B. Its being empty does not make
+     the exception unnecessary.
+```
+
+### Row 5 on 2026-11-23: a registered STOP at S5-6, rolled back in full
+
+**The runbook** is `row5_run26.md` fc56f567121d, verbatim below: the accepted runbook (a890ff0d0b12) with three corrections appended
+after the slot, C1 to C3.
+
+**What ran.** S was the deploy claim's stamp, 13:47:08Z; the claim was released at 14:02:31Z.
+- D0 read as predicted, with main at b6af418f0e08 and N = 4.
+- S5-0 read the rollback targets; `current` and bm:store read as predicted.
+- S5-1: the builder and the proxy deployed from H6 through `deploy.sh`, both exiting 0; `/healthz` read commit b23d5ca1.
+- S5-2 and S5-3 as predicted.
+- S5-4/S5-5: the first launch refused before sending anything (C1: the runbook's line lacked the per-shell export). On the
+  orchestrator's ruling the corrected line ran from 13:53:22Z to 14:01:01Z: R5-16 16 of 16 and R5-S4 6 of 6 EQUAL on store
+  33d6dc41c749. All 22 points answered 202 first, then 200: 22 fresh builds on staging, none a 5xx.
+- S5-6: `/healthz`'s basemap block read null, commit and store. **The registered STOP.** The rollback ran in its order, each step
+  read back: `current` to 4c0875738f38's 26 B (byte-identical), bm:store to 4c0875738f38, then the proxy and the builder back to
+  S5-0's versions. Staging's `/healthz` then read commit 4a02123c three times (14:02:18Z to 14:02:19Z).
+- Recorded as it happened: just before those three reads, three GETs of staging's `/healthz` were sent with their bodies discarded
+  (`curl -o /dev/null`, a wrong command). They read nothing and are not counted.
+
+**Why S5-6 could not pass** (C3; accepted by the orchestrator: row 5 stays a STOP and nothing re-grades it). `/healthz`'s basemap
+block is the answering isolate's last builder 200 (`handler.ts`), and an isolate that has only served stored packages has none. The
+same null was already on record twice in other docs, and the registration carried neither. Amendment 1 replaces S5-6.
+
+```text
+ROW 5's RUNBOOK AT H6, MONDAY 2026-11-23 (map-server; PROPOSED; binds only on the orchestrator's acceptance). LOCAL ONLY.
+It turns row 5's accepted registration (#696's doc, "Row 5: the staging reading...", S5-0..S5-6, outcomes, rollback) and its
+slot card (mirror/row5_slot26c.pred 6c0b3bfe4211: items 1-6, R1-R7, the 03:52Z exception, the SET check + control) into the exact
+commands. It adds no step and changes no outcome. Every full sha below was read from git, not typed:
+  H6     b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 (wt-code HEAD)
+  EXPECT 4a02123ca992031d60bd9592e3084c9ccf34041f (uk-data deployed it: staging 10:33Z, production 11:47Z; /healthz commit=4a02123c)
+  MAIN0  cbd999db594fbd5f5659d8505c793922394549e1      #775 2761765e71bde1e8674f8c58f95dd193e8492293
+Paths: SCR = my scratchpad; W = SCR/wt-code (H6, clean; nothing is ever written inside it). Every step goes through runlog.sh, unfiltered,
+stderr to its own file; every command's exit is printed. Staging only. No board, release, tag or Actions. Wrangler only through
+node scripts/wrangler-run.mjs (OAuth login; no token is created or set). Stamps from date -u in the same step.
+
+WHEN: after uk-data's logs-step production END line, the orchestrator's word (lock), latest start L = 14:30Z (card R5). If the
+logs step is ROLLED BACK instead, staging no longer runs EXPECT and item 1 fails: NO row 5 today; it waits for a re-plan.
+
+D0 (read-only; printed whole; any line other than predicted: NO deploy, report):
+ D0-1  git -C W rev-parse HEAD == H6 == git -C W ls-remote origin refs/heads/map-server/dense-code; git -C W status --porcelain: 0 lines.
+ D0-2  git -C W fetch origin main; M = git -C W rev-parse origin/main. merge-base --is-ancestor MAIN0 H6 and EXPECT H6: both 0.
+ D0-3  start condition 5: git -C W log --format=%H MAIN0..M -- proxy/ scripts/session-claim.py: EMPTY.
+ D0-A  item 1 (a): git -C W diff --name-only EXPECT MAIN0 -- proxy/ == exactly proxy/scripts/ingest-routes.ts, routes-fakekv.mjs,
+       routes-writer.selftest.sh.
+ D0-B  the exception's list: git -C W log --format=%H EXPECT..MAIN0 -- proxy/ scripts/session-claim.py == exactly #775 (full sha).
+ D0-C  the SET check (load-bearing), in W/proxy: node scripts/deploy-inputs.mjs set proxy staging > SCR/run-logs/r5d0-set-proxy.txt;
+       the same for builder > r5d0-set-builder.txt. Each of #775's 3 paths: grep -cx = 0 in each file. CONTROL:
+       proxy/scripts/deploy-inputs.mjs: grep -cx = 1 in EACH file (not 1: VOID, NO deploy).
+ D0-D  card R2: node scripts/deploy-inputs.mjs check <proxy|builder> <staging|production>, all four: exit 0, each with the line
+       "note: N commit(s) behind origin/main touch nothing under proxy/ or in the machinery (not blocking)", N = git rev-list
+       --count H6..M. Exit 1, 2 or other: NO deploy.
+ D0-E  staging runs EXPECT: one GET https://scopes-staging.valarsystems.com/healthz, its commit field == EXPECT's first 8 hex.
+ D0-F  r5read26.sh's pre-checks, NOTHING SENT: R5READ_PRECHECK_ONLY=1 BASE=https://scopes-staging.valarsystems.com bash runlog.sh
+       r5pre-mon bash mirror/r5read26.sh refsH6/h16 h16 refsH6/hs4 hs4 run-logs/r5pre-mon 33d6dc41c749: exit 0 (points 22/22
+       identical to mirror/r5-points.tsv; 22 references present; comparator control DIFFERENT / EQUAL). refsH6's 22 shas ==
+       run-logs/p5h6.shas.txt (5cb763026974), by sha256sum -c.
+ D0-G  the new current body: sed 's/4c0875738f38/33d6dc41c749/' mirror/up26-current-before.bin > run-logs/r5-current-33d6.bin;
+       26 B; full sha256 == 544d4b83b35058f16166599346250e832cae920a6d7178881c8e5060c5d49d56 (up26-refs.tsv's current row).
+       The rollback body: mirror/up26-current-before.bin, 26 B, sha256 a8e96fcf8fae (= {"storeId":"4c0875738f38"}).
+
+THE CLAIM (after uk-data releases its claim and the orchestrator's word), from W:
+  BLIPSCOPE_SESSION=map-server python scripts/session-claim.py take deploy --covers proxy:staging,builder:staging --until +75m
+  (then `check deploy --covers proxy:staging` and `... builder:staging`: both 0). Start S = the take's stamp; S <= L.
+
+S5-0 (read-only; the rollback targets), in W/proxy:
+  node scripts/wrangler-run.mjs deployments list --env staging --json                              -> proxy's newest version id P0
+  node scripts/wrangler-run.mjs deployments list -c basemap.wrangler.toml --env staging --json     -> builder's newest version id B0
+  node scripts/wrangler-run.mjs r2 object get blipscope-basemap/bm/v1/current --pipe --remote > run-logs/r5-s50-current.bin
+      PREDICTED byte-identical to mirror/up26-current-before.bin (cmp)
+  node scripts/wrangler-run.mjs kv key get bm:store --namespace-id 8b6e92ed802a4192b6b6c1399fdf96aa --remote
+      PREDICTED exactly 4c0875738f38 (staging's ENRICH_KV id, wrangler.toml line 206; the value shape handler.ts:81 reads: 12 hex)
+  Any other reading: STOP before S5-1 (nothing written; nothing to roll back); report.
+S5-1  in W/proxy: BLIPSCOPE_SESSION=map-server bash scripts/deploy.sh --builder staging, then BLIPSCOPE_SESSION=map-server bash
+      scripts/deploy.sh staging (its confirm step reads /healthz). PREDICTED: both exit 0; proxy /healthz commit == H6's first 8 hex.
+S5-2  current first, then KV (the MI8 order), in W/proxy:
+  node scripts/wrangler-run.mjs r2 object put blipscope-basemap/bm/v1/current --file ../../run-logs/r5-current-33d6.bin --remote
+  then get --pipe into run-logs/r5-s52-readback.bin: cmp-identical to r5-current-33d6.bin.
+  node scripts/wrangler-run.mjs kv key put bm:store 33d6dc41c749 --namespace-id 8b6e92ed802a4192b6b6c1399fdf96aa --remote
+  then kv key get bm:store (same namespace) twice, at least 60 s apart: exactly 33d6dc41c749 both times.
+S5-3  wait at least 60 s after the second KV read (STORE_KV_TTL_S = 60, handler.ts:78).
+S5-4/S5-5  BASE=https://scopes-staging.valarsystems.com bash runlog.sh r5read-mon bash mirror/r5read26.sh refsH6/h16 h16 refsH6/hs4
+      hs4 run-logs/r5read-mon 33d6dc41c749. PREDICTED exit 0: R5-16 16 of 16 and R5-S4 6 of 6 EQUAL on store 33d6dc41c749.
+S5-6  GET staging /healthz after the first 200: basemap.commit == H6, all 40 hex.
+OUTCOMES: exactly the registration's table (#696's doc). Every STOP inside the slot -> THE ROLLBACK.
+
+TIMES (card R5): CUTOFF S+45: S5-4/S5-5 not all returned -> STOP and roll back at once. No rollback step started after S+58;
+the rollback ENDS by S+60 (15:30Z at L). A step unfinished at its end time: HOLD, nothing more runs, report (card item 5 (d)).
+
+THE ROLLBACK (the registration's order; each read back):
+  R-1 r2 object put blipscope-basemap/bm/v1/current --file ../../mirror/up26-current-before.bin --remote; get: cmp-identical.
+  R-2 kv key put bm:store 4c0875738f38 (same namespace); get: exactly 4c0875738f38.
+  R-3 node scripts/wrangler-run.mjs rollback P0 --env staging -y (uk-data's logs1123_rollback.sh form); deployments list: newest P0.
+  R-4 node scripts/wrangler-run.mjs rollback B0 -c basemap.wrangler.toml --env staging -y; deployments list: newest B0.
+  Then staging /healthz commit == EXPECT's first 8 hex. Release the claim, from W:
+  BLIPSCOPE_SESSION=map-server python scripts/session-claim.py release deploy.
+END: the claim released, then one line to the orchestrator and uk-data. The reading is appended to #696's doc with the slot card,
+as registered, in a later commit (not inside the slot: a doc commit moves #696's head off H6).
+
+OUTSIDE THE SET: any reading not named above -> STOP; inside the slot, THE ROLLBACK; before S5-1, nothing to undo; report.
+
+APPENDED CORRECTION (2026-11-23, after the slot; append only; the text above is a890ff0d0b12 as accepted, unchanged).
+The slot ran 13:47:08Z (S) to 14:02:31Z (claim released) and ended in a registered STOP at S5-6, rolled back in full.
+C1  S5-4/S5-5's launch line lacked the per-shell export that r5read26.sh's own header (line 20) requires. The first launch
+    (13:51:23Z, tag r5read-mon) refused, exit 2, "BLIPSCOPE_TOKEN_FILE is not set", nothing sent; D0-F's pre-check-only mode
+    stops before that check, so D0 could not see the gap. By the orchestrator's rulings of 13:52Z and 13:53Z (one re-run of an
+    instrument refusal), the line that ran is:
+      export BLIPSCOPE_TOKEN_FILE="$HOME/.config/blipscope/tokens" && BASE=https://scopes-staging.valarsystems.com bash runlog.sh
+      r5read-mon2 bash mirror/r5read26.sh refsH6/h16 h16 refsH6/hs4 hs4 run-logs/r5read-mon2 33d6dc41c749
+    The out dir and tag moved to r5read-mon2 because r5read26.sh refuses an existing out dir (line 39) and the refused launch
+    had created run-logs/r5read-mon, which is kept untouched as its record. Any future use of this runbook takes this line.
+C2  A breach, recorded as stated: in D0-C the two SET runs were first displayed through `tail -n 3`. Their exits were the
+    processes' own (runlog), and both outputs were printed whole straight after; the rule "every read in this deploy runs
+    unfiltered" was still broken.
+C3  S5-6 as written cannot see the bound builder under A1. /healthz's basemap block is this isolate's last builder 200
+    (handler.ts:52-58, index.ts:96); under A1 a 200 is a "stored" answer with no builder call, and the build runs under
+    waitUntil in the isolate that answered 202. A re-plan replaces S5-6; the replacement is the orchestrator's to accept.
+```
+
+### Row 5's Amendment 1, and the owner's yes to a re-run (2026-11-23)
+
+Amendment 1 is `row5_amend1.md` 01331953f453, verbatim below, accepted by the orchestrator. A second run after an instrument failure
+needs the owner. The owner's answer (2026-11-23 15:20Z), verbatim: "map row 5 re-run: yes. Tue 24 09:00Z, staging only, and my
+03:52Z exception carries to it." Its section 3 (D4-R1 to D4-R4) stands for D4's plan, which is not yet written.
+
+```text
+ROW 5 AMENDMENT 1 (map-server, 2026-11-23; PROPOSED, text only; binds only on the orchestrator's acceptance AND the owner's
+"map row 5 re-run: yes"). LOCAL ONLY. It amends row 5's registration (#696's doc, basemap-dense-code.md 5071-5151, as accepted
+2026-11-17), its card (mirror/row5_slot26c.pred 6c0b3bfe4211) and its runbook (mirror/row5_run26.md fc56f567121d). Frozen before
+any slot; every prediction below is written before the reading it grades.
+
+0. WHAT TODAY ALREADY SHOWS (information beside the registered STOP; it re-grades nothing)
+   - 22 of 22 points answered 202 first, then 200: 22 fresh builds on staging by the builder bound in the slot, none a 5xx,
+     New York's four (KJFK, KLGA, KEWR, MIDTOWN) included. 16 of 16 and 6 of 6 EQUAL to refsH6 on store 33d6dc41c749.
+   - Read offline from those 22 packages: builder line b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 22 of 22, store line 33d6dc41c749
+     22 of 22, with a presence control.
+   - S5-6 read null because /healthz's basemap block is per isolate (handler.ts:52-58, :104; index.ts:96). The same null is already
+     on record twice: docs/basemap-name-key.md:357 ("the isolate that answered had built nothing") and docs/basemap-release.md:698-721
+     (D3 read seven times, then "D3 by one 200" with PASS = at least one read, nulls counted). Row 5's registration carried neither.
+
+1. WHAT A RE-RUN CAN AND CANNOT SHOW (the reason this is section 1, not a footnote)
+   Today's builds left their 22 packages in staging's BASEMAP_PKG under store 33d6dc41c749, and Cache API copies (7 days) in the
+   colos that served them. The registered rollback (current, KV, two Workers) does not remove them, by design. So on a re-run with
+   the same store and the same 22 points:
+   - PREDICTED: every point's attempt 1 is HTTP 200 ("hit" or "stored"), no 202, no build. A 202 on any point is INFORMATION (that
+     package was in neither the cache nor PKG), not a STOP; its 200 is graded the same way.
+   - So S5-4/S5-5 and AM1 below would grade TODAY's builds served back, not builds in the re-run slot. The re-run would show the
+     H6 proxy serving the stored store correctly, plus (AM2) ONE fresh build by the builder bound in the slot. It cannot show SG-B
+     (memory) for the 22 again; that evidence is today's, as information.
+   - Forcing 22 fresh builds is not on offer: deleting 22 PKG objects is possible, but the Cache API copies would still answer
+     first and cannot be removed from outside without a zone purge, which also touches production. Not proposed.
+
+2. THE AMENDMENTS
+AM1. S5-6 REPLACED: THE BUILDER LINE, offline, no request. After S5-4/S5-5 exit 0, over the 22 packages they saved in the out dir:
+     - each has exactly ONE line matching `builder: blipscope-basemap [0-9a-f]{40}`, and its 40 hex == H6
+       b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07; and exactly ONE line `store: [0-9a-f]{12}` == 33d6dc41c749. The commit is
+       EXTRACTED and compared, never matched as a fixed string, so any other commit shows as itself.
+     - CONTROLS, run before the 22 are graded: (c1) presence: on refsH6/h16's first reference the extractor returns H6; (c2) the
+       grader can fail: on a byte copy of that reference in the out dir (synthetic, never sent) with ONE hex digit of the builder
+       commit changed, it returns a commit other than H6 and grades NOT H6. Either control off: VOID, S5-6 cannot grade: STOP.
+     - PREDICTED: c1 H6, c2 NOT H6; builder H6 22 of 22, store 33d6dc41c749 22 of 22.
+     - Meaning, stated narrowly: every served package was built by a builder stamped H6. With section 1, on a re-run that is
+       today's builder; the builder bound in the slot is AM2's.
+AM2. S5-6b, THE BOUND BUILDER, BY ONE FRESH BUILD (the "D3 by one 200" form, basemap-release.md). After AM1, ONE request:
+       export BLIPSCOPE_TOKEN_FILE="$HOME/.config/blipscope/tokens" && BASE=https://scopes-staging.valarsystems.com bash runlog.sh
+       r5probe-<tag> bash sg-request.sh KJAC 43.61 -110.74 run-logs/r5probe-<tag>.bmpk
+     sg-request.sh 6e67ae96ee08 (its sha re-read at D0); ε 201,169, one millimetre off row 5's 201,168, so its key differs from
+     all 22 of today's packages. KJAC fit at ε 201,168 today (200, 208,954 B).
+     - PREDICTED: try 1 HTTP 202, then 200 within its 3 retries; the package's builder line == H6 (40 hex) and store line ==
+       33d6dc41c749, graded as AM1 with AM1's controls.
+     - Try 1 a 200: the package was stored by someone else; the probe cannot show the bound builder: VOID: STOP.
+       A 404/422/5xx, or no 200 after the retries: STOP. Builder or store other than predicted: STOP.
+AM3. /healthz, INFORMATION ONLY. Read four times after AM2's 200. Nulls are counted and are never a pass or a fail. A read whose
+     top-level commit is b23d5ca1 and whose basemap block names any store other than 33d6dc41c749 or any commit other than H6 is
+     positive evidence of a wrong binding: STOP.
+AM4. STANDING LINES (C1 of fc56f567121d, made standing):
+     - every request launch carries `export BLIPSCOPE_TOKEN_FILE="$HOME/.config/blipscope/tokens" &&` in the SAME command line;
+     - every out dir and runlog tag is new: D0 reads `[ ! -e run-logs/<dir> ]` for the pre-check dir, the read dir and the probe
+       file, each printed; tags proposed r5pre-<day>3, r5read-<day>3, r5probe-<day>3;
+     - D0-F adds, booleans and counts only: token file present; key names test-device + test-key-staging 2 of 2;
+       BLIPSCOPE_TOKEN_FILE set in the launch shell. Any other: NO deploy.
+AM5. S5-4/S5-5 PREDICTIONS on a re-run: as registered (200, ETag store 33d6dc41c749, sha256 == reference; 16 of 16, 6 of 6),
+     PLUS section 1's attempt pattern (attempt 1 = 200 on all 22; a 202 is information).
+AM6. HOLDS: R6 (no proxy-touching merge to main) re-granted from acceptance through the re-run's END; D0-3 re-reads it. The
+     owner's 03:52Z exception is re-read at D0 by its own two conditions (D0-B exactly #775; the four checks exit 0), as today.
+AM7. OUTCOMES, added to the registration's table: AM1 or AM2 or AM3 as predicted -> row 5 as predicted (with section 1's
+     narrower meaning recorded beside it); any AM line other than predicted -> STOP and THE ROLLBACK; anything else -> outside
+     the set: STOP and decide. Everything not named here is unchanged, the rollback R-1..R-4 included.
+
+3. THE SAME BLIND SPOT AT D3/D4 (a standing rule for D4's plan, which is not yet written)
+   Docs that use /healthz basemap.commit as PROOF or as a SOURCE: basemap-deploy.md :31, :71, :341, :428 (D2's "real proof is D3",
+   V1); basemap-release.md :231-:242 (also as "the builder's rollback target") and :654; deploy.sh :193 and worker.ts :100,
+   index.ts :97 (comments stating D3's premise).
+   D4-R1. The bound builder is proven ONLY by the builder line of a package from a FRESH build in D4's window (attempt 1 = 202),
+          == the deployed stamp, all 40 hex, graded as AM1 with its controls. Never by /healthz basemap.commit.
+   D4-R2. The builder's ROLLBACK TARGET is read before the deploy from `deployments list -c basemap.wrangler.toml --env
+          production --json` (newest version id, as S5-0 read B0 today). Never from /healthz, which reads null on any isolate
+          that has not built.
+   D4-R3. /healthz's basemap block is information: nulls counted; a non-null store or commit other than expected, on an isolate
+          whose top-level commit is the new proxy, is a STOP.
+   D4-R4. Production has no BASEMAP binding until D4, so its first builds are fresh by construction; the attempt-1 202 is still
+          graded, because a stored or cached answer is exactly the case the rule exists for.
+
+4. SLOT OPTIONS (for the orchestrator to confirm; the owner's yes comes first)
+   - TODAY: R5's envelope is start + 60 min, so finishing before 16:45Z means LATEST START 15:45Z (claim free, uk-data off
+     staging, R6 re-granted). NOTE THE END STATE: on a PASS the registration does NOT roll back; staging stays on H6 with current
+     and bm:store = 33d6dc41c749, and D4 is next. The look's T-5 at 17:40Z would read staging in THAT state, not today's
+     4a02123c + 4c0875738f38. If the look must see today's state, today is out unless the look rules otherwise.
+   - TUESDAY 24: D0 re-derived (main, N, the SET, EXPECT still on staging); the exception's two conditions re-read.
+   - THE 03:52Z EXCEPTION, in my reading: its words are "For this deploy and row 5 only, exactly as uk-data proposed: the list is
+     exactly that one commit of offline scripts, and the deploy-inputs tool passes on both environments. Anything else, no
+     deploy." Its scope is the ROW, not a date, and its conditions are facts re-read at D0. So it covers a re-run of row 5 at H6
+     on either day WHILE D0-B lists exactly #775 and the four checks exit 0; it never covers another commit or another EXPECT (R4).
+     Today is the stronger case: nothing it depends on has moved since 13:45Z. Because "this deploy" was Monday's logs deploy,
+     the cleanest is one clause in the owner's question: "and the 03:52Z exception carries to it".
+
+OUTSIDE THE SET (of this amendment): any reading not named above -> STOP; inside the slot, THE ROLLBACK; before S5-1, nothing to
+undo; report.
+```
+
+### Row 5's re-run on 2026-11-24: AS PREDICTED under Amendment 1; staging stays on H6
+
+**The runbook** is `row5_run27.md` 2943407eff1a, verbatim below: run26's commands with Amendment 1 turned into commands. It adds no
+step and changes no outcome beyond Amendment 1.
+
+**Before START, as the orchestrator ruled (2026-11-23):**
+- T-10 (08:50Z) ran D0's local and GitHub reads only (D0-1, -2, -3, -A, -B, -C, -D, -F, -G and -H), with no request to staging or
+  production. D0-E ran at START, where D0-1, -2, -3 and -D were read again: the START copies are the gate.
+- A gate the orchestrator registered before it could be read: a keyed staging read with the test identity, taken that morning by
+  another session, had to answer 200 for row 5 to start (401: no start; anything else: stop and decide). It answered 200.
+- Staging holds still from row 5's END to D3's END at 16:30Z: no deploy, and no KV or `current` change, by anyone.
+
+**D0, all as predicted** (T-10 from 08:51:13Z to 08:52:35Z; START from 09:00:24Z to 09:00:44Z):
+- HEAD == H6 == the remote branch, with a clean tree. Main was 5957b5308717, six commits past cbd999db594f and none of them under
+  `proxy/` or `scripts/session-claim.py` (R6 held). cbd999db594f and EXPECT 4a02123ca992 are ancestors of H6.
+- D0-A: EXPECT..cbd999db594f under `proxy/` is #775's three paths. D0-B: exactly #775. With D0-D's four exits at 0, the two
+  conditions of the owner's exception held.
+- D0-C: `set proxy staging` lists 69 paths and `set builder staging` 18; #775's three paths count 0 in each, and the control counts
+  1 in each.
+- D0-D: four exits 0, each with "note: 6 commit(s) behind origin/main touch nothing under proxy/ or in the machinery (not
+  blocking)"; N = 6.
+- D0-E, at START (09:00:24Z): staging's `/healthz` read commit 4a02123c.
+- D0-F: the token file present with both key names; the reader's pre-check passed with nothing sent; the 22 references 22 OK. D0-G:
+  the new `current` body is 26 B, sha256 544d4b83b350. D0-H: the pinned shas equal, and the new output names absent.
+
+**The slot.** S was the claim's stamp, 09:00:48Z; the claim was released at 09:06:32Z.
+- S5-0 read the rollback targets; `current` byte-identical to 4c0875738f38's 26 B; bm:store 4c0875738f38.
+- S5-1: the builder and the proxy deployed from H6 through `deploy.sh`, both exiting 0; the confirm step read `/healthz` commit
+  b23d5ca1.
+- S5-2: `current` put to 33d6dc41c749's body and read back byte-identical; bm:store 33d6dc41c749 read twice, 88 s apart (09:02:11Z
+  and 09:03:39Z). S5-3: a registered wait to 09:04:45Z.
+- S5-4/S5-5 (09:05:22Z to 09:05:34Z): **attempt 1 was HTTP 200 on all 22**, each with ETag and PROVENANCE store 33d6dc41c749; R5-16
+  16 of 16 and R5-S4 6 of 6 EQUAL; DIFFERENT 0, other store 0, ungradable 0. There was no 202: as Amendment 1's section 1 predicted,
+  these are 2026-11-23's packages served back.
+- S5-6 (AM1, offline): controls c1 AS EXPECTED and c2 DIFFERENT; builder b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 and store
+  33d6dc41c749 in 22 of 22; different 0; unreadable 0.
+- S5-6b (AM2): KJAC at eps 201169. Try 1 HTTP 202, try 2 HTTP 200, 208,954 B, magic BMPK. Graded as AM1: 1 of 1, builder H6 at all
+  40 hex, store 33d6dc41c749. **The builder bound in the slot is proven by a fresh build.**
+- S5-6c (AM3, information): four reads, every one commit b23d5ca1. Three basemap blocks were null; one named store 33d6dc41c749 and
+  commit H6 at all 40 hex; none named a wrong binding.
+- The slot's 23 requests (22 and 1) were all sent as the test identity (test-device and test-key-staging), as the scripts' own
+  stderr says: the same identity as the gate's read.
+
+**The reading, by the registration's table and AM7: row 5 as predicted.** Amendment 1 section 1's narrower meaning goes beside it:
+the 22 graded packages are the builds of 2026-11-23, served back by #696's proxy on the census store and equal, byte for byte, to
+step 8's once the stamp is accounted for. The builder bound in this slot is shown by the one fresh KJAC build, not by the 22.
+- A pass does not roll back, so **staging stays on H6** (`/healthz` b23d5ca1), with `current` and bm:store at 33d6dc41c749. The KJAC
+  package is one more object in staging's package store under 33d6dc41c749.
+- Next is D4, production's basemap switch-on: on its own plan with D4-R1 to D4-R4, not before D3's END (2026-11-24 16:30Z), and only
+  on the owner's OK.
+
+```text
+ROW 5's RE-RUN RUNBOOK AT H6, TUESDAY 2026-11-24 (map-server; PROPOSED; binds only on the owner's "map row 5 re-run: yes" AND
+the orchestrator's acceptance and START). LOCAL ONLY. It is mirror/row5_run26.md fc56f567121d (its commands and its appended C1)
+with mirror/row5_amend1.md 01331953f453 (AM1-AM7, accepted) turned into commands. It adds no step and changes no outcome beyond
+Amendment 1. D0's day values (M, N, the SET files, P0, B0) are NOT filled in here: they are read on the day.
+Fixed values, read from git (unchanged since Monday):
+  H6     b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 (wt-code HEAD)      EXPECT 4a02123ca992031d60bd9592e3084c9ccf34041f
+  MAIN0  cbd999db594fbd5f5659d8505c793922394549e1                     #775   2761765e71bde1e8674f8c58f95dd193e8492293
+Pinned tools and inputs (sha256, first 12; each re-read at D0-H): r5read26.sh 01c129f036ee; r5builder27.sh c3cef0e496a9 (selftest
+S1-S4 as predicted, 2026-11-23, mirror/r5builder27.selftest.pred 5bd7af9bca81); sg-request.sh 6e67ae96ee08; run-logs/p5h6.shas.txt
+5cb763026974; mirror/r5-points.tsv 54f97f84042a; mirror/up26-current-before.bin a8e96fcf8fae.
+Paths: SCR = my scratchpad; W = SCR/wt-code (H6, clean; nothing written inside it). Every step through runlog.sh, unfiltered, stderr
+to its own file, every exit printed; no pipe or filter on any read. Staging only. No board, release, tag or Actions. Wrangler only
+through node scripts/wrangler-run.mjs. Stamps from date -u in the same step. TAG SUFFIX: -tue for every new name.
+
+WHEN: the orchestrator's START line, after the owner's yes; START 09:00Z, LATEST START L = 10:00Z. CUTOFF S+45 (S5-4..S5-6c not
+all returned: STOP, roll back at once); no rollback step started after S+58; the rollback ENDS by S+60. A step unfinished at its
+end time: HOLD, nothing more runs, report. R6 (no proxy-touching merge to main) holds through this run's END.
+
+D0 (read-only; printed whole; any line other than predicted: NO deploy, report):
+ D0-1  git -C W rev-parse HEAD == H6 == git -C W ls-remote origin refs/heads/map-server/dense-code; git -C W status --porcelain: 0 lines.
+ D0-2  git -C W fetch origin main; M = git -C W rev-parse origin/main, cross-read by ls-remote origin refs/heads/main (equal).
+       merge-base --is-ancestor MAIN0 H6 and EXPECT H6: both 0.
+ D0-3  git -C W log --format=%H MAIN0..M -- proxy/ scripts/session-claim.py: EMPTY (R6).
+ D0-A  git -C W diff --name-only EXPECT MAIN0 -- proxy/ == exactly the three #775 paths.
+ D0-B  git -C W log --format=%H EXPECT..MAIN0 -- proxy/ scripts/session-claim.py == exactly #775 (the 03:52Z exception's list).
+ D0-C  in W/proxy: deploy-inputs.mjs set proxy staging / set builder staging, each through runlog; their .out copied to
+       SCR/run-logs/r5d0-set-proxy-tue.txt and r5d0-set-builder-tue.txt and printed WHOLE. #775's 3 paths grep -cx = 0 in each;
+       CONTROL proxy/scripts/deploy-inputs.mjs = 1 in each (not 1: VOID, NO deploy).
+ D0-D  deploy-inputs.mjs check <proxy|builder> <staging|production>, all four: exit 0, each with "note: N commit(s) behind
+       origin/main touch nothing under proxy/ or in the machinery (not blocking)", N = git rev-list --count H6..M (the
+       exception's second condition). Exit 1, 2 or other: NO deploy.
+ D0-E  one GET of staging /healthz: top-level commit == 4a02123c (EXPECT still on staging; else R4: NO row 5).
+ D0-F  (AM4) booleans and counts only, printed: token file present; key names test-device + test-key-staging 2 of 2. Then, in
+       ONE command line: export BLIPSCOPE_TOKEN_FILE="$HOME/.config/blipscope/tokens" && R5READ_PRECHECK_ONLY=1
+       BASE=https://scopes-staging.valarsystems.com bash runlog.sh r5pre-tue bash mirror/r5read26.sh refsH6/h16 h16 refsH6/hs4
+       hs4 run-logs/r5pre-tue 33d6dc41c749: exit 0 (22/22 points; comparator control DIFFERENT / EQUAL); sha256sum -c
+       run-logs/p5h6.shas.txt: 22 OK.
+ D0-G  sed 's/4c0875738f38/33d6dc41c749/' mirror/up26-current-before.bin > run-logs/r5-current-33d6-tue.bin: 26 B, full sha256 ==
+       544d4b83b35058f16166599346250e832cae920a6d7178881c8e5060c5d49d56. Rollback body mirror/up26-current-before.bin a8e96fcf8fae.
+ D0-H  (AM4) the pinned shas above, each printed and equal; ABSENT before the slot, each printed: run-logs/r5read-tue,
+       run-logs/r5b27-tue.d, run-logs/r5probe-tue.bmpk, run-logs/r5b27-probe-tue.d (r5pre-tue is created by D0-F).
+
+THE CLAIM, from W: BLIPSCOPE_SESSION=map-server python scripts/session-claim.py take deploy --covers proxy:staging,builder:staging
+  --until +75m; then check deploy --covers proxy:staging and builder:staging: both 0. S = the take's stamp; S <= L.
+
+S5-0 (read-only; rollback targets), in W/proxy, each through runlog, printed whole:
+  deployments list --env staging --json -> P0 = the newest deployment's version id (by created_on), written to
+  SCR/run-logs/r5-rollback-targets-tue.txt with B0 and S;
+  deployments list -c basemap.wrangler.toml --env staging --json -> B0, the same way;
+  r2 object get blipscope-basemap/bm/v1/current --pipe --remote: its .out cmp-identical to mirror/up26-current-before.bin;
+  kv key get bm:store --namespace-id 8b6e92ed802a4192b6b6c1399fdf96aa --remote: exactly 4c0875738f38.
+  Any other reading: STOP before S5-1 (nothing written); report.
+S5-1  in W/proxy: BLIPSCOPE_SESSION=map-server bash scripts/deploy.sh --builder staging, then BLIPSCOPE_SESSION=map-server bash
+      scripts/deploy.sh staging. PREDICTED: both exit 0; the proxy's confirm step reads /healthz commit=b23d5ca1.
+S5-2  r2 object put blipscope-basemap/bm/v1/current --file ../../run-logs/r5-current-33d6-tue.bin --remote; get --pipe: its .out
+      cmp-identical to r5-current-33d6-tue.bin. kv key put bm:store 33d6dc41c749 (same namespace) --remote; kv key get twice, at
+      least 60 s apart (a registered background wait between them): exactly 33d6dc41c749 both times.
+S5-3  a registered background wait to at least 60 s after the second KV read.
+S5-4/S5-5 (AM5), from SCR, ONE command line:
+      export BLIPSCOPE_TOKEN_FILE="$HOME/.config/blipscope/tokens" && BASE=https://scopes-staging.valarsystems.com bash runlog.sh
+      r5read-tue bash mirror/r5read26.sh refsH6/h16 h16 refsH6/hs4 hs4 run-logs/r5read-tue 33d6dc41c749
+      PREDICTED: exit 0; R5-16 16 of 16 and R5-S4 6 of 6 EQUAL; every 200 with etag and provenance store 33d6dc41c749; attempt 1
+      HTTP 200 on all 22 (section 1: today's stored packages). A 202 on any point is INFORMATION, not a STOP.
+S5-6 (AM1), from SCR:
+      bash runlog.sh r5b27-tue bash mirror/r5builder27.sh b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 33d6dc41c749
+      refsH6/h16/KBOS-h16.bmpk run-logs/r5b27-tue.d 22 run-logs/r5read-tue/*.bmpk
+      PREDICTED: c1 AS EXPECTED; c2 "1 byte differs", builder 023d5ca1a5488ab05865ab67ffe3cd2979c4ff07 -> DIFFERENT; "22 of 22 as
+      expected; different 0; unreadable 0"; exit 0. Exit 4: VOID: STOP. Exit 1: STOP. Exit 2: the instrument: STOP.
+S5-6b (AM2), from SCR, ONE command line:
+      export BLIPSCOPE_TOKEN_FILE="$HOME/.config/blipscope/tokens" && BASE=https://scopes-staging.valarsystems.com bash runlog.sh
+      r5probe-tue bash sg-request.sh KJAC 43.61 -110.74 run-logs/r5probe-tue.bmpk
+      PREDICTED: "KJAC try 1: HTTP 202", then a 200 within its retries, magic 'BMPK'; exit 0. TRY 1 A 200: VOID (not a fresh
+      build): STOP. A 404/422/5xx, or no 200: STOP. Then:
+      bash runlog.sh r5b27-probe-tue bash mirror/r5builder27.sh b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 33d6dc41c749
+      refsH6/h16/KBOS-h16.bmpk run-logs/r5b27-probe-tue.d 1 run-logs/r5probe-tue.bmpk
+      PREDICTED: controls as S5-6; "1 of 1 as expected"; exit 0. Any other: STOP.
+S5-6c (AM3): GET staging /healthz four times, each through runlog, printed whole. INFORMATION: nulls counted, never a pass or a
+      fail. A read with top-level commit b23d5ca1 whose basemap block names a store other than 33d6dc41c749 or a commit other
+      than H6: STOP.
+OUTCOMES (registration's table + AM7): S5-4..S5-6c all as predicted -> row 5 as predicted, with Amendment 1 section 1's narrower
+meaning recorded beside it; staging STAYS on H6 with current and bm:store = 33d6dc41c749 (no rollback on a pass); the claim is
+released. Any line other than predicted -> STOP and THE ROLLBACK. Anything else -> outside the set: STOP and decide.
+
+THE ROLLBACK (unchanged; each read back): R-1 current put from ../../mirror/up26-current-before.bin, get cmp-identical; R-2 kv
+bm:store 4c0875738f38, get exact; R-3 rollback P0 --env staging -y, deployments list newest == P0; R-4 rollback B0 -c
+basemap.wrangler.toml --env staging -y, newest == B0. Then staging /healthz commit == 4a02123c, read three times. Release the claim.
+END: the claim released, then one line to the orchestrator and uk-data. The reading is appended to #696's doc later, never inside
+the slot. Background waits: run_in_background only, each registered and its ledger line confirmed; each checked at its end
+(only 0 is PASS); a stopped wait is followed by a ledger check and, if its children remain, a kill of exactly its PGID.
+OUTSIDE THE SET: any reading not named above -> STOP; inside the slot, THE ROLLBACK; before S5-1, nothing to undo; report.
+```
+
+### H7: main merged in after row 5; CI for this push, predicted
+
+**Main merged in.** e9d60e9caa3d merges main 5957b5308717. Its tree, 884a4e360b73, is the tree `git merge-tree` predicted before it,
+and its parents are H6 and 5957b5308717. The 29 files it adds are exactly main's since cbd999db594f, none under `proxy/` and none of
+this branch's. `git diff cbd999db594f H6` and `git diff 5957b5308717 e9d60e9caa3d` are byte-identical patches. This section is the
+docs-only commit on top of it, H7.
+
+**#696 merges next in the declared order:** this head's CI read twice, then the orchestrator's APPROVED naming main, then
+`merge-by-rule.sh`. Merging deploys nothing.
+
+**CI for this push, predicted before the push.** It carries the merge and this docs-only section.
+- **The base.** Main is 5957b5308717 by ls-remote at 2026-11-24T09:10:45Z. Since cbd999db594f, which H6 tested into, six commits
+  landed: #786, #785, #788, #784, #782 and #789.
+- **What changed among the paths that shape CI** (`.github/`, `skus.yml`, `scripts/skus.py`, `platformio.ini`): only
+  `.github/workflows/bench-tools.yml`, where one step is added inside its existing job (`board-port.py --selftest`). No job is added
+  or removed, and no trigger changes.
+- **Predicted: 39 check runs, 37 success, 2 skipped (`promote`, `version`), 0 failed,** with the same job-name set as H6's run. It
+  is tested on the merge into 5957b5308717, read from a job's own checkout log, and read twice at least 65 s apart.
+- **Main's coordinate gate** (`check_precise_coords.py --diff` against main), run on this head before the push, must count 0 added.
+- **Outside the set:**
+  - a tested base other than 5957b5308717: STOP, re-derive the count, and write the amendment before anything is graded;
+  - any other count, conclusion or job name: STOP, and read which job before anything else.
