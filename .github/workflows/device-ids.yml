@@ -107,6 +107,20 @@ jobs:
       # PD6's fleet instrument (docs/wx-opuk.md, the 2026-11-24 re-grade): its real queries run in SQLite over planted
       # rows, and one point of each of the seven families in this dataset must leave every fleet count unchanged.
       - run: python3 tools/wx/pd6_fleet.py --selftest
+      # D4's V6 reader (docs/basemap-v6.md), in PD6's form: its selftest over planted rows, with the network blocked inside it.
+      # The step asserts from the selftest's own output, not from its exit alone: ST0 (the block fires on its own control) and
+      # ST10 (no network attempt after it) as exact lines, then the pass line. Under the runner's `bash -e` the exit status is
+      # captured first and the whole output printed before any assertion.
+      - run: |
+          out="$RUNNER_TEMP/v6-selftest.out"; rc=0
+          python3 -I tools/basemap/v6_fleet.py --selftest > "$out" 2>&1 || rc=$?
+          cat "$out"; echo "v6_fleet.py --selftest exit $rc"
+          [ "$rc" -eq 0 ] || { echo "V6 selftest: exit $rc"; exit 1; }
+          grep -qx 'PASS ST0 the network block fires on its own control: attempts 1' "$out" || { echo "V6 selftest: ST0, the network block's own control, did not read attempts 1"; exit 1; }
+          grep -qx 'PASS ST10 no network attempt after the control: attempts 0' "$out" || { echo "V6 selftest: ST10 did not read attempts 0"; exit 1; }
+          grep -qx 'SELFTEST PASSED: 12 of 12 rows' "$out" || { echo "V6 selftest: no 'SELFTEST PASSED: 12 of 12 rows' line"; exit 1; }
+      # ... and its red first: each plant, one exact edit in a temp copy, must fail exactly its registered selftest rows.
+      - run: python3 -I tools/basemap/v6_fleet_sabotage.py
       # Every in-tree wrangler call goes through proxy/scripts/wrangler-run.mjs (docs/wrangler-run.md): the check, its
       # planted shapes, and the helper's own selftest against a stand-in wrangler (no network, no account).
       - run: python3 scripts/check_wrangler_calls.py --selftest

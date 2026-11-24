@@ -585,6 +585,44 @@ else
   pass=$((pass+1))
 fi
 
+# 2c. ENRICH ON A FIXED HEX. Section 2's row follows the sky and grades the status only, so a deploy's before-run and
+#     after-run can enrich different aircraft, and a grader can then only call them "not comparable". 2c asks ONE hex
+#     in both runs and grades the ANSWER, with a control that must read NOT FOUND from the body. The hex is
+#     SMOKE_FIXED_HEX when the deploy runner hands over the hex the before-run's "2c hex:" line printed, else this
+#     run's T1 hex; the row names carry the hex only. The verdicts and their reasons live in enrich-fixed-verdict.sh,
+#     graded by enrich-fixed-verdict.selftest.sh in CI. Bodies go to files and are never printed: only statuses, v, r,
+#     t, tn, pk and p reach the output, never op.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/enrich-fixed-verdict.sh"
+EF_PICK="$(enrich_fixed_hex "${SMOKE_FIXED_HEX:-}" "${HEX:-}")"
+case "$EF_PICK" in
+  REFUSED*)
+    skip "2c /v1/enrich (fixed hex)" "SMOKE_FIXED_HEX is not 6 lowercase hex digits (its length is ${EF_PICK#REFUSED }), so no 2c request was made. The runner's handoff is broken: fix it, then re-run." ;;
+  NONE*)
+    skip "2c /v1/enrich (fixed hex)" "${EF_PICK#NONE }, so 2c has no hex and made no request." ;;
+  *)
+    EF_HEX="${EF_PICK%% *}"
+    EF_SRC="${EF_PICK#* }"; [ "$EF_SRC" = "T1" ] && EF_SRC="this run's T1"
+    printf '\n2c hex: %s (source: %s)\n' "$EF_HEX" "$EF_SRC"
+    EF_DIR="$(mktemp -d)"
+    ef_row() {   # <name> <http status> <verdict line>: one row, counted like every other
+      printf '\n===== %s =====\nHTTP %s\nRESULT: %s\n' "$1" "$2" "$3"
+      case "$3" in PASS*) pass=$((pass+1)) ;; *) fail=$((fail+1)) ;; esac
+    }
+    EF_S0="$(curl -s --max-time 25 -o "$EF_DIR/e0" -w '%{http_code}' "${AUTH[@]}" "$BASE/v1/enrich/$EF_HEX")"
+    ef_row "2c-E0 /v1/enrich/$EF_HEX" "$EF_S0" "$(enrich_fixed_row "$EF_S0" "$EF_DIR/e0")"
+    EF_S6="$(curl -s --max-time 25 -o "$EF_DIR/e6" -w '%{http_code}' "${AUTH[@]}" \
+      -H "X-Blip-FW: 6" -H "X-Blip-Model: s3-128" "$BASE/v1/enrich/$EF_HEX")"
+    ef_row "2c-E6 /v1/enrich/$EF_HEX (FW 6, s3-128)" "$EF_S6" "$(enrich_fixed_row "$EF_S6" "$EF_DIR/e6")"
+    EF_S7="$(curl -s --max-time 25 -o "$EF_DIR/e7" -w '%{http_code}' "${AUTH[@]}" \
+      -H "X-Blip-FW: 7" -H "X-Blip-Model: s3-128" "$BASE/v1/enrich/$EF_HEX")"
+    ef_row "2c-E7 /v1/enrich/$EF_HEX (FW 7, s3-128)" "$EF_S7" "$(enrich_fixed_row "$EF_S7" "$EF_DIR/e7")"
+    EF_SK="$(curl -s --max-time 25 -o "$EF_DIR/k" -w '%{http_code}' "${AUTH[@]}" "$BASE/v1/enrich/~$EF_HEX")"
+    ef_row "2c-K /v1/enrich/~$EF_HEX (control: must read NOT FOUND)" "$EF_SK" "$(enrich_fixed_control "$EF_SK" "$EF_DIR/k")"
+    enrich_fixed_answer "$EF_HEX" "$EF_DIR/e0" "$EF_DIR/e6" "$EF_DIR/e7"
+    rm -rf "$EF_DIR"
+    ;;
+esac
+
 # 3. config for every model slug the firmware can send (variant::SLUG values).
 #    Note s3-128 / s3-175-amoled have no MODEL_DEFAULTS row -- they resolve to the
 #    BASE config, which is correct, not a miss.

@@ -1,6 +1,7 @@
 import type { BasemapBranch } from "./basemap/handler";
 import { normDeviceId } from "./devlabel";
 import type { Env } from "./types";
+import { PRODUCTS } from "./wx/products";
 
 export interface RequestMetric {
   ep: string;
@@ -98,6 +99,10 @@ export const KNOWN_ROUTES = new Set([
   "/api/v1/blipscope/blips",
   "/api/v1/blipscope/config",
   "/api/v1/blipscope/airports",
+  // The map under the planes (docs/basemap-route.md): unlisted from #486 (2026-10-29) to docs/route-labels.md, so every
+  // /basemap request sat in "/other". test/route-labels.test.ts now reads the router's dispatch, so a route cannot be added
+  // without its label again.
+  "/api/v1/blipscope/basemap",
   // Weather under the planes, exact paths, never a wildcard: from v19 a board asks every 60 s, which makes this the
   // busiest route, and unlisted it would sit inside "/other". test/metrics.test.ts takes the path from the firmware.
   "/api/v1/blipscope/wx/cref",
@@ -131,6 +136,9 @@ export const KNOWN_ROUTES = new Set([
   "/v1/blips",
   "/v1/config",
   "/v1/airports",
+  "/v1/basemap",
+  // The legacy alias of every weather product, from the same list KR2 reads, so it cannot drift from it.
+  ...PRODUCTS.map((p) => `/v1/wx/${p.id}`),
   "/v1/leaderboard",
   "/leaderboard",
   "/leaderboard.json",
@@ -208,6 +216,10 @@ export function routeTemplate(pathname: string): string {
   if (pathname.startsWith("/v1/enrich/")) return "/v1/enrich";
   if (pathname.startsWith("/v1/photo/")) return "/v1/photo";
   if (/^\/leaderboard\/[0-9a-f]{8,32}$/.test(pathname)) return "/leaderboard/:id";
+  // Follow's single airport (index.ts, airport/<code>). The TEMPLATE is stored, never the code: a device's airport is
+  // location-adjacent, so it stays out of the dataset by construction (docs/route-labels.md).
+  if (/^\/api\/v1\/blipscope\/airport\/[^/]+$/.test(pathname)) return "/api/v1/blipscope/airport/:code";
+  if (/^\/v1\/airport\/[^/]+$/.test(pathname)) return "/v1/airport/:code";
   // Checked BEFORE the exact-match set, like every other template. Order is not
   // load-bearing between these two and the literal Missileer paths -- both
   // regexes require a segment the literals do not have, so
