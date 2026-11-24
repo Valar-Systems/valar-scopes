@@ -2,8 +2,13 @@
 Change from N6: TWO devices excluded, E2:08 (records-device) and the test identity (test-device), both read from
 the token file and never printed; the token is the token file's analytics-read.
 
-Fleet = per-request points carrying a device id, the smoke credential's device excluded; err5xx points are their own
-family and excluded. Counts are sample-weighted (_sample_interval x double4, the app's hit-sampling weight), as P5.
+Fleet = per-request ROUTE points (blob1 starts with '/') carrying a device id, the excluded devices left out. The rule
+is POSITIVE: every other family any Worker writes into this dataset (ota, usage, boot, enrich_gap, provision, sitefeed,
+err5xx) is excluded by not being a route, not by name. The earlier filter excluded only err5xx and an empty blob5, so it
+admitted usage points (blob5 = their arity, "u8" or "u9", counted as a device), boot points (blob5 = a device id) and
+ota points with a reset reason (blob5 = the reason; double4 = a byte count, counted as requests): docs/wx-opuk.md's
+record, the 2026-11-24 re-grade. Counts are sample-weighted (_sample_interval x double4, the app's hit-sampling weight),
+as P5.
 The token and the excluded device id are read from the environment and never printed.
 Usage: python -I pd6_fleet.py <from> <to>     times as 'YYYY-MM-DD HH:MM:SS' (UTC)
        python -I pd6_fleet.py --selftest      offline: the real queries run against planted rows in SQLite
@@ -17,8 +22,9 @@ BLIPS = "/api/v1/blipscope/blips"
 
 
 def where(t0, t1, excl):
-    return (f"timestamp >= toDateTime('{t0}') AND timestamp < toDateTime('{t1}') AND index1 != 'err5xx' "
-            f"AND blob5 != '' AND blob5 NOT IN ('{excl[0]}', '{excl[1]}')")
+    # substring, not startsWith: Analytics Engine's SQL reference lists substring (1-based) and not startsWith.
+    return (f"timestamp >= toDateTime('{t0}') AND timestamp < toDateTime('{t1}') AND substring(blob1, 1, 1) = '/' "
+            f"AND index1 != 'err5xx' AND blob5 != '' AND blob5 NOT IN ('{excl[0]}', '{excl[1]}')")
 
 
 def queries(t0, t1, excl):
