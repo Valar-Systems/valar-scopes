@@ -5,7 +5,7 @@ Synthetic data only, no network, no token: each reader is loaded from a temp cop
 `post` is replaced by the fake's, which RECORDS every event it returns. So the fetched counts below are the fake's
 record, one instrument for the old reader and the new.
 
-  python -X utf8 -I tools/bill/colo_occupancy_plant.py <old reader .py> <new reader .py> <pre-recording reader .py> <pre-classify reader .py> <pre-population reader .py> <pre-famcount reader .py> <pre-famhours reader .py>
+  python -X utf8 -I tools/bill/colo_occupancy_plant.py <old reader .py> <new reader .py> <pre-recording reader .py> <pre-classify reader .py> <pre-population reader .py> <pre-famcount reader .py> <pre-famhours reader .py> <pre-popgap reader .py>
 
 The old reader is the one F1-R replaces (blob af55507b9ad7); the pre-recording reader is F1-R's first commit of the
 change (blob 74556db07510), which kept lc's and scan's attempts in memory only (the reviewer's ruling (4)). Rows, in
@@ -24,6 +24,10 @@ and starts-with leaves are exercised; every F row asserts 0 events requests.
 Then F1 FAMILY HOURS' rows Q-RED, Q-FOLLOWS, Q-WRONG, Q-MID, Q-ANCHOR, Q-STABLE, Q-POP, Q-PRE, Q-BLIND-1, Q-BLIND-5 and
 Q-BLIND-K (registration f522149ae7ac; Q-RED runs the pre-famhours reader, blob ba636810808b), on a synthetic window of 91
 hours with the reader's clock pinned (last_closed_hour) to 2026-11-24T18:00Z; every Q row asserts 0 events requests.
+Then F1 POP-GAP's rows PG-RED, PG-GAP, PG-OWN-NLOW, PG-OWN-NHIGH, PG-OWN-NSPLIT, PG-PARTIAL, PG-COLLAPSE, PG-CTL0,
+PG-ANCHOR, PG-BLIND-A and PG-BLIND-W (registration 7ee3a7a57822, whose Q- names would collide with FAMILY HOURS'
+Q-ANCHOR; PG-RED runs the pre-popgap reader, blob 21a83381b247), on synthetic events for the two population anchors and
+the 19 window hours, with the reader's clock pinned to 2026-11-24T23:00Z; every PG row asserts 0 events requests.
 Exit 0 when every row reads as predicted; 1 when any is OFF; 2 the rig (a plant that did not apply, a fake control off).
 """
 import contextlib
@@ -235,6 +239,40 @@ def qh_set(over=None):
     return evs
 
 
+PG_FIRST = datetime(2026, 11, 24, 2, tzinfo=timezone.utc)    # the reader's PG_FIRST; every event here is synthetic
+PG_CLOCK = datetime(2026, 11, 24, 23, tzinfo=timezone.utc)   # the pinned last closed hour: 20Z closed, before PG_LAST_START
+PG_HOURS = [PG_FIRST + timedelta(hours=i) for i in range(19)]
+PG_STOP = [h for h in PG_HOURS if 4 <= h.hour <= 18]
+
+
+def pg_set(over=None, post_n=249):
+    """F1 POP-GAP's hours as real events, so the reader's leaves are exercised. The anchors as the population's: L 36 no-key
+    + 3659 keyed; H0 post_n no-key + the rest labelled (5553 in all). Each window hour holds (k, s, o): k keyed lines
+    (`dev`, status 200, a model), s family lines (no key, 401, a model, over the three API prefixes), o other no-key lines
+    (/credits, status 200, model ""). Default: 02Z (200, 68, 14), 03Z (200, 8, 14), the stop (180, 0, 14), 19Z and 20Z
+    (200, 0, 14); over = {hour: (k, s, o)} replaces an hour."""
+    over = dict(over or {})
+    evs, k = [], [500000]
+
+    def add(t, n, **src):
+        for j in range(n):
+            k[0] += 1
+            evs.append(ev(k[0], t + timedelta(seconds=(j * 7) % 3600), evt="req", colo="ZZ1", **src))
+
+    add(POP_L, 36)
+    add(POP_L, 3659, dev=EXAMPLE_ID)
+    add(POP_H0, post_n)
+    add(POP_H0, 5553 - post_n, devl="lbl-a")
+    for h in PG_HOURS:
+        spec = (200, 68, 14) if h.hour == 2 else (200, 8, 14) if h.hour == 3 else (180, 0, 14) if h in PG_STOP else (200, 0, 14)
+        kk, s, o = over.get(h, spec)
+        add(h, kk, ep=API_EPS[0], status=200, model="plant-model", dev=EXAMPLE_ID)
+        for i in range(s):
+            add(h + timedelta(seconds=i * 11 % 3600), 1, ep=API_EPS[i % 3], status=401, model="plant-model")
+        add(h, o, ep="/credits", status=200, model="")
+    return evs
+
+
 class Fake:
     """The API's documented shapes: timeframe; eq/exists/DOES_NOT_EXIST leaves; filterCombination and groups; events
     paging (limit, offset); calculations count. preflight: per-attempt {"abr": n or None (omitted), "count": n or None
@@ -338,7 +376,7 @@ def run(mod, fake, argv):
 
 
 def main(argv):
-    if len(argv) != 7:
+    if len(argv) != 8:
         print(__doc__)
         return 2
     tmp = tempfile.mkdtemp(prefix="f1r-plant-")
@@ -367,7 +405,7 @@ def main(argv):
         paths = {}
         for name, src in (("old_reader", argv[0]), ("new_reader", argv[1]), ("prerec_reader", argv[2]),
                           ("precl_reader", argv[3]), ("prepop_reader", argv[4]), ("prefam_reader", argv[5]),
-                          ("prefh_reader", argv[6])):
+                          ("prefh_reader", argv[6]), ("prepg_reader", argv[7])):
             paths[name] = os.path.join(tmp, "tools", "bill", name + ".py")
             shutil.copyfile(src, paths[name])
         paths["src_reader"] = os.path.join(tmp, "srcplant", "tools", "bill", "src_reader.py")
@@ -384,9 +422,9 @@ def main(argv):
         with open(paths["sab_reader"], "w", encoding="utf-8", newline="\n") as fh:
             fh.write(sab)
         print("sabotage R-ABR-RED planted: the gate line replaced once; reader changed (%d -> %d bytes)" % (len(new_src), len(sab)))
-        old, new, sbr, prerec, precl, srcr, prepop, prefam, prefh = (load(paths[n], n) for n in (
+        old, new, sbr, prerec, precl, srcr, prepop, prefam, prefh, prepg = (load(paths[n], n) for n in (
             "old_reader", "new_reader", "sab_reader", "prerec_reader", "precl_reader", "src_reader", "prepop_reader",
-            "prefam_reader", "prefh_reader"))
+            "prefam_reader", "prefh_reader", "prepg_reader"))
 
         # The fake's own controls, in the new reader's own query form.
         f = Fake(hour_h(True))
@@ -842,6 +880,111 @@ def main(argv):
                               count_requests=f.count_requests, events_requests=f.events_requests),
             dict(exit=6, blind=["BLIND: K1 %s no-key never reached ABR 1 (3 attempt(s)); F1 does not run on it." % hstr(FC_K)],
                  verdict=[], count_requests=3, events_requests=0))
+
+        # PG rows (F1 POP-GAP, registration 7ee3a7a57822; its Q- names collide with FAMILY HOURS' Q-ANCHOR, so PG-): count
+        # queries only, every line labelled, the reader's clock pinned to PG_CLOCK. 54 count queries on a full run. Every
+        # row checks its exit, its verdict line and its count requests; every row 0 events requests.
+        def pgrun(mod, fake, name):
+            keep = mod.last_closed_hour
+            mod.last_closed_hour = lambda: PG_CLOCK
+            try:
+                return run(mod, fake, ["popgap", out(name)])
+            finally:
+                mod.last_closed_hour = keep
+
+        pgh = lambda hr: datetime(2026, 11, 24, hr, tzinfo=timezone.utc)
+        day = [h for h in PG_STOP if 6 <= h.hour <= 16]
+        own = ("verdict: THE FAMILY'S OWN CHANGE, (a)-(c) -- T above 0 and K at least 50% of the controls' median in all 15 "
+               "stopped hours; sub-reading ")
+        n_low = ("N-LOW: N at most 50 in every stopped hour -- keyless asking stopped: (a), or (b) now keyed; "
+                 "(c) excluded")
+        n_high = ("N-HIGH: N at least 150 in every DAY-class stopped hour -- the device still asks with NO key and no longer "
+                  "matches the family: (c), or (b) through a firmware or path change; (a) excluded")
+        pg_steps = ["ANCHOR-PRE %s: T 3695, N 36 (must read 3695 / 36) -> HOLDS" % hstr(POP_L),
+                    "ANCHOR-POST %s: T 5553, N 249 (must read 5553 / 249) -> HOLDS" % hstr(POP_H0),
+                    "S-02 2026-11-24T02:00Z S: 68 (must read 68) -> HOLDS", "S-03 2026-11-24T03:00Z S: 8 (must read 8) -> HOLDS"]
+        pg_info = ["window 2026-11-24T02:00Z to 2026-11-24T20:00Z: 19 hour(s); controls 2026-11-24T02:00Z 2026-11-24T03:00Z "
+                   "2026-11-24T19:00Z 2026-11-24T20:00Z; the stop 2026-11-24T04:00Z to 2026-11-24T18:00Z; 54 count queries",
+                   "controls: K 200, 200, 200, 200; median K 200.0; floor (50%) 100.0",
+                   "the stop: T 194..194, N 14..14, K 180..180",
+                   "S after the stop (grades nothing): 2026-11-24T19:00Z 0, 2026-11-24T20:00Z 0"]
+        pg_prefixes = ("window ", "controls:", "the stop:", "S after ")
+
+        rc, o = pgrun(prepg, Fake(pg_set()), "pgred")
+        row("PG-RED", dict(exit=rc, verdict=len(fverdict(cl_body(o)[1])), written=os.path.exists(out("pgred"))),
+            dict(exit=2, verdict=0, written=False))
+
+        f = Fake(pg_set({h: (0, 0, 0) for h in PG_STOP})); rc, o = pgrun(new, f, "pggap")
+        lab, body = cl_body(o)
+        row("PG-GAP", dict(exit=rc, stop=starts(body, "the stop:"), verdict=fverdict(body), count_requests=f.count_requests,
+                           events_requests=f.events_requests),
+            dict(exit=0, stop=["the stop: T 0..0, N 0..0, K 0..0"],
+                 verdict=["verdict: LOG GAP, (d) -- T reads 0 in all 15 stopped hours and above 0 in all 4 controls"],
+                 count_requests=54, events_requests=0))
+
+        f = Fake(pg_set()); rc, o = pgrun(new, f, "pgnlow")
+        lab, body = cl_body(o)
+        row("PG-OWN-NLOW", dict(exit=rc, labelled=lab, steps=starts(body, "ANCHOR-", "S-0"), info=starts(body, *pg_prefixes),
+                                hours=len(starts(body, "hour ")), verdict=fverdict(body), count_requests=f.count_requests,
+                                events_requests=f.events_requests),
+            dict(exit=0, labelled=True, steps=pg_steps, info=pg_info, hours=19, verdict=[own + n_low], count_requests=54,
+                 events_requests=0))
+
+        f = Fake(pg_set({h: (180, 0, 240) for h in day})); rc, o = pgrun(new, f, "pgnhigh")
+        lab, body = cl_body(o)
+        row("PG-OWN-NHIGH", dict(exit=rc, verdict=fverdict(body), count_requests=f.count_requests,
+                                 events_requests=f.events_requests),
+            dict(exit=0, verdict=[own + n_high], count_requests=54, events_requests=0))
+
+        f = Fake(pg_set({h: (180, 0, 100) for h in day})); rc, o = pgrun(new, f, "pgnsplit")
+        lab, body = cl_body(o)
+        row("PG-OWN-NSPLIT", dict(exit=rc, verdict=fverdict(body), count_requests=f.count_requests,
+                                  events_requests=f.events_requests),
+            dict(exit=0, verdict=[own + "NOT SEPARATED"], count_requests=54, events_requests=0))
+
+        part = [h for h in PG_STOP if h.hour <= 10]
+        f = Fake(pg_set({h: (0, 0, 0) for h in part})); rc, o = pgrun(new, f, "pgpartial")
+        lab, body = cl_body(o)
+        row("PG-PARTIAL", dict(exit=rc, verdict=fverdict(body), count_requests=f.count_requests,
+                               events_requests=f.events_requests),
+            dict(exit=3, verdict=["verdict: OUTSIDE (7 of 15 stopped hours read T 0: %s)%s" % (
+                " ".join(hstr(h) for h in part), tail)], count_requests=54, events_requests=0))
+
+        f = Fake(pg_set({pgh(12): (80, 0, 14)})); rc, o = pgrun(new, f, "pgcollapse")
+        lab, body = cl_body(o)
+        row("PG-COLLAPSE", dict(exit=rc, verdict=fverdict(body), count_requests=f.count_requests,
+                                events_requests=f.events_requests),
+            dict(exit=3, verdict=["verdict: OUTSIDE (K under the floor in 1 stopped hour(s): 2026-11-24T12:00Z)" + tail],
+                 count_requests=54, events_requests=0))
+
+        f = Fake(pg_set({pgh(20): (0, 0, 0)})); rc, o = pgrun(new, f, "pgctl0")
+        lab, body = cl_body(o)
+        row("PG-CTL0", dict(exit=rc, verdict=fverdict(body), count_requests=f.count_requests,
+                            events_requests=f.events_requests),
+            dict(exit=3, verdict=["verdict: OUTSIDE (a control hour reads T 0: 2026-11-24T20:00Z)" + tail],
+                 count_requests=54, events_requests=0))
+
+        f = Fake(pg_set(post_n=250)); rc, o = pgrun(new, f, "pganchor")
+        lab, body = cl_body(o)
+        row("PG-ANCHOR", dict(exit=rc, off=[l for l in body if "-> OFF" in l], hours=len(starts(body, "hour ")),
+                              verdict=fverdict(body), count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=3, off=["ANCHOR-POST %s: T 5553, N 250 (must read 5553 / 249) -> OFF: stop; nothing after it is "
+                              "queried" % hstr(POP_H0)], hours=0, verdict=stopped("ANCHOR-POST"), count_requests=4,
+                 events_requests=0))
+
+        f = Fake(pg_set(), blind_hours=(ms(POP_L),)); rc, o = pgrun(new, f, "pgblinda")
+        lab, body = cl_body(o)
+        row("PG-BLIND-A", dict(exit=rc, blind=starts(body, "BLIND:"), verdict=fverdict(body), count_requests=f.count_requests,
+                               events_requests=f.events_requests),
+            dict(exit=6, blind=["BLIND: ANCHOR-PRE T never reached ABR 1 (3 attempt(s)); F1 does not run on it."],
+                 verdict=[], count_requests=3, events_requests=0))
+
+        f = Fake(pg_set(), blind_hours=(ms(pgh(10)),)); rc, o = pgrun(new, f, "pgblindw")
+        lab, body = cl_body(o)
+        row("PG-BLIND-W", dict(exit=rc, blind=[l for l in body if "BLIND" in l and l.startswith("hour ")],
+                               verdict=fverdict(body), count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=3, blind=["hour 2026-11-24T10:00Z BLIND: stop; nothing after it is queried"],
+                 verdict=stopped("BLIND 2026-11-24T10:00Z"), count_requests=29, events_requests=0))
 
         print("rows %d, as predicted %d, OFF %d" % (len(rows), len(rows) - off, off))
         return 0 if off == 0 else 1
