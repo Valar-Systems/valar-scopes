@@ -5,6 +5,7 @@
 // DomesticNames_<USPS>_Text -- and every water, rivers, roads and peaks file must land in exactly one region: a file in
 // none would never be read, and its features would silently never reach a package.
 import type { Box, Region } from "../../src/basemap/store";
+import { TIGER2025_URLS } from "./sources";
 
 const REGIONAL = new Set(["water", "rivers", "roads", "peaks"]);
 
@@ -21,7 +22,10 @@ export function regionsFor(
     }).sort();
   const out: Region[] = [];
   for (const g of Object.keys(counties).sort()) {
-    const fs = take(`county ${g}`, (f) => (f.layer === "water" || f.layer === "rivers") && f.url.includes(`/tl_2024_${g}_`));
+    // BUILD-25: a county also takes its TIGER2025 file when that file is one of the six (sources.ts); no other 2025 file
+    // matches, so any other stays an orphan and the guard below refuses it.
+    const fs = take(`county ${g}`, (f) => (f.layer === "water" || f.layer === "rivers") &&
+      (f.url.includes(`/tl_2024_${g}_`) || (TIGER2025_URLS.has(f.url) && f.url.includes(`/tl_2025_${g}_`))));
     out.push({ box: counties[g]!, files: fs });
   }
   for (const fp of Object.keys(states).sort()) {

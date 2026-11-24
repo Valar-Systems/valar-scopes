@@ -1,7 +1,7 @@
 // MB, ME3, ME7 (docs/basemap-route.md A1.7): build.ts over the synthetic stores of basemap-synth.ts (committed before
 // build.ts, A2.25). Each test is named by its case id; scripts/sabotage-basemap.mjs grades its exact sets from them.
 import { describe, expect, it } from "vitest";
-import { type BuildResult, build } from "../src/basemap/build";
+import { type BuildResult, build, refusedBuiltOf } from "../src/basemap/build";
 import { type Pt, decode, validate } from "../src/basemap/format";
 import { COMMIT, mbStore, me3Store, me7Store } from "./basemap-synth";
 
@@ -25,26 +25,38 @@ async function mb(which: "A" | "B" | "A8", cap: number) {
   const water = (sec(1) as { rings: Pt[][] }).rings, roads = (sec(3) as { roads: Array<{ cls: number; pts: Pt[] }> }).roads, p = prov(r.bytes);
   expect(validate(r.bytes).status).toBe("kOk");
   return {
-    status: 200, totalBytes: r.bytes.length, toleranceMm: pkg.toleranceMm, water: water.map((w) => w[0]![0]), roads: roads.length,
+    status: 200, totalBytes: r.bytes.length, toleranceMm: pkg.toleranceMm, radiusMm: pkg.radiusMm, radii: r.report.radii, water: water.map((w) => w[0]![0]), roads: roads.length,
     roadPts: roads.map((x) => x.pts.length), roadEnds: roads.map((x) => x.pts[x.pts.length - 1]![0]), dropped: `${p["dropped.water"]} / ${p["dropped.roads"]}`, eps: p["epsilon.m"],
   };
 }
 
+// MB and MN under Q-W4's ladder (rungs 0-7, then D2): the values are the pinned prototype's on these same fixtures, frozen before these
+// rows were edited (docs/basemap-dense-code.md, "The old ladder's test rows, re-frozen"; pq4d-oldrows.mts ff6351759648 on
+// map-server/scratch-record 8c86cab778d6), never taken from the code under test.
 describe("MB, §6's budget", () => {
   it("MB1: A at 812 fits as built", async () => expect(await mb("A", 812)).toMatchObject({ status: 200, totalBytes: 812, toleranceMm: 100_584, water: rings(1), roads: 7, dropped: "0 / 0", eps: "100.584" }));
-  it("MB2: A at 811 doubles ε, then drops ring 1", async () => expect(await mb("A", 811)).toMatchObject({ status: 200, totalBytes: 796, toleranceMm: 201_168, water: rings(2), roads: 7, dropped: "1 / 0", eps: "100.584" }));
-  it("MB3: A at 667 drops every ring and the 3 km secondary", async () => {
+  it("MB2: A at 811 fits at rung 2: water at ε × 8 collapses ring 1 (collapsed, not dropped)", async () => expect(await mb("A", 811)).toMatchObject({ status: 200, totalBytes: 796, toleranceMm: 201_168, water: rings(2), roads: 7, dropped: "0 / 0", eps: "100.584" }));
+  it("MB3: A at 667 drops every secondary, then rings 2-7 smallest first: rung 4", async () => {
     const r = await mb("A", 667);
-    expect(r).toMatchObject({ status: 200, totalBytes: 657, toleranceMm: 201_168, water: [], roads: 6, dropped: "9 / 1", eps: "100.584" });
-    // which 6: the three primaries (10, 11, 12 km) and the secondaries of 4, 5 and 6 km -- the 3 km one is the one dropped
+    expect(r).toMatchObject({ status: 200, totalBytes: 656, toleranceMm: 201_168, water: rings(8), roads: 3, dropped: "6 / 4", eps: "100.584" });
+    // which 3: the primaries (10, 11, 12 km) -- primaries are never dropped
+    expect(r.roadEnds).toEqual([10, 11, 12].map(roadEnd));
+  });
+  it("MB4: A at 623 does not fit at 97 km even with every secondary and ring dropped, so D2 builds it at 49.664 km", async () =>
+    expect(await mb("A", 623)).toMatchObject({ status: 200, totalBytes: 623, toleranceMm: 201_168, radiusMm: 49_664_000, radii: [97, 77.6, 62.08, 49.664], water: [26391, 29690], roads: 0, dropped: "2 / 0", eps: "100.584" }));
+  it("MB5: A at 624 keeps only the primaries: rung 4", async () => expect(await mb("A", 624)).toMatchObject({ status: 200, totalBytes: 624, toleranceMm: 201_168, radii: [97], water: [], roads: 3, dropped: "8 / 4", eps: "100.584" }));
+  it("MB6: B at 841 fits at 2ε", async () => expect(await mb("B", 841)).toMatchObject({ status: 200, totalBytes: 839, toleranceMm: 201_168, water: rings(1), roads: 9, roadPts: [2, 2, 2, 2, 2, 2, 2, 2, 3], dropped: "0 / 0", eps: "100.584" }));
+  it("MB7: B at 838 fits at rung 2: water at ε × 8 collapses ring 1", async () => expect(await mb("B", 838)).toMatchObject({ status: 200, totalBytes: 823, toleranceMm: 201_168, water: rings(2), roads: 9, roadPts: [2, 2, 2, 2, 2, 2, 2, 2, 3], dropped: "0 / 0", eps: "100.584" }));
+  it("MB8a: A8 at 1,322 fits: the TERRAIN body is not counted", async () => expect(await mb("A8", 1322)).toMatchObject({ status: 200, totalBytes: 1346, toleranceMm: 100_584, water: rings(1), roads: 7, dropped: "0 / 0", eps: "100.584" }));
+  it("MB8b: A8 at 1,321 fits at rung 2: water at ε × 8 collapses ring 1", async () => expect(await mb("A8", 1321)).toMatchObject({ status: 200, totalBytes: 1330, toleranceMm: 201_168, water: rings(2), roads: 7, dropped: "0 / 0", eps: "100.584" }));
+  // MB9 (R12, ruled after 03:49:01Z; values frozen from pq4d at 771afd34 before this row): the re-frozen MB3 drops all four secondaries,
+  // so this is the row that pins WHICH secondary goes first on the b path (S-ROADORDER's)
+  it("MB9: A at 795 fits at rung 3 by dropping only the shortest secondary (3 km)", async () => {
+    const r = await mb("A", 795);
+    expect(r).toMatchObject({ status: 200, totalBytes: 785, toleranceMm: 201_168, water: rings(2), roads: 6, dropped: "0 / 1", eps: "100.584" });
+    // which 6: the primaries (10, 11, 12 km) and the 4, 5 and 6 km secondaries -- the 3 km one is the one dropped
     expect(r.roadEnds).toEqual([10, 11, 12, 4, 5, 6].map(roadEnd));
   });
-  it("MB4: A at 623 is too large: primaries are never dropped", async () => expect(await mb("A", 623)).toEqual({ status: 422 }));
-  it("MB5: A at 624 keeps only the primaries", async () => expect(await mb("A", 624)).toMatchObject({ status: 200, totalBytes: 624, toleranceMm: 201_168, water: [], roads: 3, dropped: "9 / 4", eps: "100.584" }));
-  it("MB6: B at 841 fits at 2ε", async () => expect(await mb("B", 841)).toMatchObject({ status: 200, totalBytes: 839, toleranceMm: 201_168, water: rings(1), roads: 9, roadPts: [2, 2, 2, 2, 2, 2, 2, 2, 3], dropped: "0 / 0", eps: "100.584" }));
-  it("MB7: B at 838 drops ring 1 at 2ε", async () => expect(await mb("B", 838)).toMatchObject({ status: 200, totalBytes: 823, toleranceMm: 201_168, water: rings(2), roads: 9, roadPts: [2, 2, 2, 2, 2, 2, 2, 2, 3], dropped: "1 / 0", eps: "100.584" }));
-  it("MB8a: A8 at 1,322 fits: the TERRAIN body is not counted", async () => expect(await mb("A8", 1322)).toMatchObject({ status: 200, totalBytes: 1346, toleranceMm: 100_584, water: rings(1), roads: 7, dropped: "0 / 0", eps: "100.584" }));
-  it("MB8b: A8 at 1,321 doubles ε, then drops ring 1", async () => expect(await mb("A8", 1321)).toMatchObject({ status: 200, totalBytes: 1330, toleranceMm: 201_168, water: rings(2), roads: 7, dropped: "1 / 0", eps: "100.584" }));
 });
 
 // MN (docs/basemap-dense.md, step 0): what §6's ladder measured, carried on build()'s 200 and 422 for the builder's
@@ -58,23 +70,18 @@ const tooLarge = (r: BuildResult) => { if (r.ok || r.status !== 422) throw new E
 const sumOf = (b: object) => Object.values(b as Record<string, number>).reduce((a, x) => a + x, 0);
 
 describe("MN, step 0's ladder", () => {
-  it("MN1: A at 623 is too large, and its ladder reads 812, 812, x, 624 with 667 < x < 812", async () => {
-    const r = tooLarge(await ml("A", 623));
-    expect(r.ladder.rung).toBe(-1);
-    expect(r.ladder.nt.length).toBe(4);
-    const [n0, n1, n2, n3] = r.ladder.nt as [number, number, number, number];
-    expect([n0, n1, n3]).toEqual([812, 812, 624]);
-    expect(n2).toBeGreaterThan(667);
-    expect(n2).toBeLessThan(812);
-    for (let i = 1; i < 4; i++) expect(r.ladder.nt[i]!, `rung ${i}`).toBeLessThanOrEqual(r.ladder.nt[i - 1]!);
-    expect(n3).toBeGreaterThan(623); // the ladder ends over the cap: that is why it is a 422
+  it("MN1: A at 100 is a 422 after D2's 7 steps; the ruled ladder records no nt, and its layer bytes are the last rung tried's", async () => {
+    const r = tooLarge(await ml("A", 100));
+    expect([r.ladder.rung, r.ladder.nt]).toEqual([-1, []]);
+    expect(r.report.radii).toEqual([97, 77.6, 62.08, 49.664, 39.7312, 31.78496, 25.427968]);
+    expect(r.ladder.sections).toEqual({ water: 0, rivers: 0, roads: 0, peaks: 0, places: 0, provenance: 511 });
   });
   it("MN2: A at 812 fits as built: rung 0, and no nt on a 200", async () => {
     const r = ok(await ml("A", 812));
     expect([r.ladder.rung, r.ladder.nt]).toEqual([0, []]);
   });
-  it("MN3: A at 811 doubles ε, then drops ring 1: rung 2", async () => expect(ok(await ml("A", 811)).ladder.rung).toBe(2));
-  it("MN4: A at 624 drops every ring and every secondary: rung 3", async () => expect(ok(await ml("A", 624)).ladder.rung).toBe(3));
+  it("MN3: A at 811 fits with water at ε × 8: rung 2", async () => expect(ok(await ml("A", 811)).ladder.rung).toBe(2));
+  it("MN4: A at 624 drops every secondary and every ring it can: rung 4", async () => expect(ok(await ml("A", 624)).ladder.rung).toBe(4));
   it("MN5: B at 841 fits at 2ε: rung 1", async () => expect(ok(await ml("B", 841)).ladder.rung).toBe(1));
   it("MN6: the header, every directory entry and the layers' bytes sum to the final non-terrain bytes", async () => {
     // A and B have no terrain, so a package's non-terrain bytes are all of its bytes (RD20)
@@ -85,10 +92,17 @@ describe("MN, step 0's ladder", () => {
       if (w === "A" && cap === 624) count624 = n;
       expect(32 + 16 * n + sumOf(r.ladder.sections), `${w} at ${cap}`).toBe(r.bytes.length);
     }
-    // the 422's last rung tried is A at 624's package exactly: every ring and every secondary dropped, at 2ε
-    const t = tooLarge(await ml("A", 623));
     expect(count624).toBeGreaterThan(0); // CONTROL: the 624 package was read
-    expect(32 + 16 * count624 + sumOf(t.ladder.sections), "A at 623").toBe(t.ladder.nt[3]);
+    // a 422's layer bytes are its last rung tried at its last D2 step: A at 100's is PROVENANCE's alone
+    const t = tooLarge(await ml("A", 100));
+    expect(sumOf(t.ladder.sections), "A at 100").toBe(511);
+  });
+  // MN7 (the owner's ruling, 05:01Z; registered at 1c44790b): a permanent catch for the defect S-BTWICE found. refusedBuilt is every set
+  // BUILT, each once (R4), so two sets at one tolerance are both counted -- which a tolerance-keyed map silently is not
+  it("MN7: refusedBuilt counts every set built, each once: two sets at the same tolerance are both counted", () => {
+    const sea = (refused3: number) => ({ n: { refused3 } });
+    expect(refusedBuiltOf([{ tolMm: 100, refusedW: 1 }, { tolMm: 200, refusedW: 1 }]), "CONTROL, first: distinct tolerances are counted").toBe(2);
+    expect(refusedBuiltOf([{ tolMm: 400, refusedW: 1 }, { tolMm: 400, refusedW: 1 }, { tolMm: 800, refusedW: 0, seaW: sea(2) }])).toBe(4);
   });
 });
 

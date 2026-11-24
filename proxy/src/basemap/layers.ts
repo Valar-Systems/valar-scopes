@@ -11,13 +11,14 @@
 // everything in RD2's order. The list functions the ML rows bind to (keepWater, selectRivers, ...) are LayerSet over
 // a list, so the rows test the code build.ts runs.
 import {
-  type Frame, type Pt, clipLine, clipRing, dedupe, inDiscLengthM, isOuter, openRing, planarDist, quantise, simplify,
-  simplifyRing, toFrameKm, within3km,
+  type Frame, type Pt, REFUSED, clipLine, clipRing, dedupe, inDiscLengthM, isOuter, openRing, planarDist, quantise, simplify,
+  toFrameKm, waterQ4, within3km,
 } from "./frame";
+import { type SeaCounts, type SeaOut, type SeaPart, newSeaCounts, seaRings } from "./sea";
 
 /** A stored feature, as store.ts's decodeFeature returns it: its source-order key, attributes and lon/lat pairs. */
 export interface SrcFeature { file: number; record: number; part: number; attrs: Record<string, string | number>; xy: Float64Array }
-export type LayerKind = "water" | "rivers" | "roads" | "peaks" | "places";
+export type LayerKind = "water" | "rivers" | "roads" | "peaks" | "places" | "sea";
 interface Key { file: number; record: number; part: number }
 
 /** RD2, RD4: files by URL ascending (the manifest's order, so `file`), then record, then part. */
@@ -55,12 +56,19 @@ export interface Summit { fid: number; name: string; p: Pt; lat: number; lon: nu
 export type Road = { cls: 1 | 2; pts: Pt[] };
 export type Place = { q: Pt; pop: number; name: string };
 
+/** waterRings()'s result: the rings drawn (TIGER's and the sea's), in source order; the rings that collapsed under 3 vertices; the
+ *  rings the backstop REFUSED (counted apart from the collapses: the "(C)" rule); and the sea path's counts, fates and drawn rings. */
+export interface WaterRings { rings: Pt[][]; collapsed: number; refused: number; sea: { n: SeaCounts; fates: SeaOut[]; set: Set<Pt[]> } }
+
 export class LayerSet {
-  private water: Array<Key & { ring: Pt[] | null }> = [];
+  private water: Array<Key & { ring: Pt[] | null; refused: boolean }> = [];
   private rivers: Array<Key & { name: string; lengthM: number; items: Pt[][]; collapsed: number }> = [];
   private roads: Array<Key & { cls: 1 | 2; items: Pt[][]; collapsed: number }> = [];
   private peaks: Array<Key & Summit> = [];
   private places: Array<Key & Place> = [];
+  private sea: SeaPart[] = []; // the sea's parts, unclipped, in the frame
+  seaN: SeaCounts = newSeaCounts();
+  private seaOut: SeaOut[] | null = null;
   droppedBus = 0;
   constructor(readonly f: Frame) {}
 
@@ -88,8 +96,14 @@ export class LayerSet {
         if (!isOuter(part)) return;
         const clipped = clipRing(openRing(part).map(([x, y]) => toFrameKm(f, x, y)), f.rKm);
         if (!clipped.length) return;
-        const q = dedupe(simplifyRing(clipped, f.epsM).map((p) => quantise(p, f.rMm)), true);
-        this.water.push({ ...keyOf(ft), ring: q.length < 3 ? null : q });
+        const q = waterQ4(clipped, f.epsM, f.rMm); // tp, then the backstop: REFUSED is an empty ring, never drawn, counted apart
+        this.water.push({ ...keyOf(ft), ring: q.length < 3 ? null : q, refused: q === REFUSED });
+        return;
+      }
+      case "sea": { // kept whole here; seaRings() clips, simplifies, repairs, bridges and draws them
+        const ll = openRing(lonLat(ft.xy));
+        this.sea.push({ file: ft.file, record: ft.record, part: ft.part, km: ll.map(([x, y]) => toFrameKm(f, x, y)),
+          lock: ll.map(([x, y]) => Math.abs(x - Math.round(x)) < 1e-9 || Math.abs(y - Math.round(y)) < 1e-9) }); // KB8: on its cell's boundary
         return;
       }
       case "rivers": {
@@ -123,9 +137,12 @@ export class LayerSet {
   }
 
   /** §5.1, RD2: the rings in source order, and how many collapsed. */
-  waterRings(): { rings: Pt[][]; collapsed: number } {
-    const recs = [...this.water].sort(bySource);
-    return { rings: recs.flatMap((r) => (r.ring ? [r.ring] : [])), collapsed: recs.filter((r) => !r.ring).length };
+  waterRings(): WaterRings {
+    const seaOut = this.seaOut ?? (this.seaOut = seaRings(this.sea, this.f, this.seaN)); // once per set
+    const seaRecs = seaOut.flatMap((s) => (s.ring ? [{ file: s.file, record: s.record, part: 0, ring: s.ring, refused: false }] : []));
+    const recs = [...this.water, ...seaRecs].sort(bySource);
+    return { rings: recs.flatMap((r) => (r.ring ? [r.ring] : [])), collapsed: recs.filter((r) => !r.ring && !r.refused).length, refused: recs.filter((r) => r.refused).length,
+      sea: { n: this.seaN, fates: seaOut, set: new Set(seaRecs.map((r) => r.ring)) } };
   }
 
   /** §5.2, RD8, RD29: groups by FULLNAME; each group's length is the sum of its parts' raw lengths inside the disc,

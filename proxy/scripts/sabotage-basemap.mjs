@@ -2,6 +2,7 @@
 //
 //   node scripts/sabotage-basemap.mjs            # every sabotage
 //   node scripts/sabotage-basemap.mjs S-IBUS     # one
+//   node scripts/sabotage-basemap.mjs --set=sea  # every sabotage graded on one set
 //
 // For each: assert every anchor occurs EXACTLY once and that the file changed (a plant that did not take
 // proves nothing); run the basemap tests; grade the set of failing CASES (the id each test name begins with)
@@ -33,9 +34,14 @@ const SETS = {
   ingest: { files: ["test/basemap-ingest.test.ts"] },
   mv: { files: ["test/basemap-format.test.ts"], filter: "MV" },
   all: { files: ["test/basemap-"] },
+  // The SEA-CI file alone: its sabotages' red sets were registered against it (docs/basemap-dense-code.md, SEA-CI; R12 (a))
+  sea: { files: ["test/basemap-sea.test.ts"] },
 };
+const SEA = "src/basemap/sea.ts";
+const SEA_PIECES = "scripts/basemap/sea-pieces.ts", USCONTAIN = "scripts/basemap/uscontain.ts";
 
-/** name: { file, edits: [[anchor, replacement]], expect: [case ids] } -- the sets are A1.7's, frozen. */
+/** name: { file, edits: [[anchor, replacement]], expect: [case ids] } -- the sets are A1.7's, frozen. A plant that needs more than one
+ *  file says `files: [[file, edits], ...]` instead (R12): every file is planted before the run and restored and checked after it. */
 const SABOTAGES = {
   "S-ISIZE": {
     file: LIB,
@@ -210,43 +216,45 @@ const SABOTAGES = {
   "S-BTWICE": {
     file: BUDGET, set: "all",
     edits: [["export const EPS_STEP = 2;\n", "export const EPS_STEP = 4; // SABOTAGE S-BTWICE\n"]],
-    expect: ["MB2", "MB3", "MB5", "MB6", "MB7", "MB8b"],
+    // R12 (b), from pq4d under this plant (docs/basemap-dense-code.md, "R12"): was {MB2, MB3, MB5, MB6, MB7, MB8b} on the old ladder
+    expect: ["MB2", "MB3", "MB4", "MB5", "MB6", "MB7", "MB8b", "MB9", "MN3", "T-PROV-b"],
   },
+  // R12 (c): the four below are re-anchored to the SAME defect in the b path's dropSeq (rungs 3-4 and 6-7), their sets read from pq4d
+  // under the same plant. Their old-ladder anchors and sets stay on record in this file at 6bf83d64d7dd.
   "S-DROPORDER": {
     file: BUDGET, set: "all",
-    // anchors moved with fitBudget's bisection (A2.37); every plant below is unchanged in what it does
-    edits: [["  const wOrder = dropOrder(rings.map(ringArea2));\n", "  const wOrder = dropOrder(rings.map((r) => -ringArea2(r))); // SABOTAGE S-DROPORDER: largest first\n"]],
-    expect: ["MB2", "MB7", "MB8b"],
+    edits: [["    const w0 = dropOrder(rings0.map(ringArea2));\n", "    const w0 = dropOrder(rings0.map((r) => -ringArea2(r))); // SABOTAGE S-DROPORDER: largest first\n"]],
+    expect: ["MB3", "MB4"],
   },
   "S-NOCOUNT": {
     file: BUDGET, set: "all",
-    // dropped.water never counts a drop, in every place the bisection sets it. Re-anchored for step 0
-    // (docs/basemap-dense.md): the attempt now records the full drop's bytes; the defect is the same
-    edits: [["const w = smallestFit(rings.length, (k) => { d.water = k; const got", "const w = smallestFit(rings.length, (k) => { d.water = 0; /* SABOTAGE S-NOCOUNT */ const got"],
-            ["  if (w) { d.water = w.k; return", "  if (w) { d.water = 0; return"],
-            ["  d.water = rings.length;\n", "  d.water = 0;\n"]],
-    expect: ["MB2", "MB3", "MB5", "MB7", "MB8b"],
+    // dropped.water never counts a drop, in every place dropSeq sets it
+    edits: [["    const w1 = smallestFit(rings0.length, (k) => { d.water = k; return", "    const w1 = smallestFit(rings0.length, (k) => { d.water = 0; /* SABOTAGE S-NOCOUNT */ return"],
+            ["    if (w1) { d.water = w1.k; return", "    if (w1) { d.water = 0; return"]],
+    expect: ["MB3", "MB4", "MB5"],
   },
   "S-ROADORDER": {
     file: BUDGET, set: "all",
-    edits: [["  const rOrder = dropOrder(secondary.map((i) => roadLength(roads[i]!.pts))).map((k) => secondary[k]!);\n",
-             "  const rOrder = dropOrder(secondary.map((i) => -roadLength(roads[i]!.pts))).map((k) => secondary[k]!); // SABOTAGE S-ROADORDER: longest first\n"]],
-    expect: ["MB3"],
+    edits: [["    const order0 = dropOrder(sec0.map((i) => roadLength(roads0[i]!.pts))).map((k) => sec0[k]!);\n",
+             "    const order0 = dropOrder(sec0.map((i) => -roadLength(roads0[i]!.pts))).map((k) => sec0[k]!); // SABOTAGE S-ROADORDER: longest first\n"]],
+    // R12's finding: on the b path only MB9 (ruled in after 03:49:01Z) pins which secondary goes first; without it this set was empty
+    expect: ["MB9"],
   },
   "S-PRIMARYDROP": {
     file: BUDGET, set: "all",
-    // Re-anchored for step 0 (docs/basemap-dense.md): the same step, after the "no secondary" line. Its set grows by MN1
-    // and MN6, which read A at 623 as a 422
-    edits: [["  if (nt.length < 4) nt.push(nt[2]!); // no secondary to drop: the value before it\n",
-             "  if (nt.length < 4) nt.push(nt[2]!); // no secondary to drop: the value before it\n" +
-             "  // SABOTAGE S-PRIMARYDROP: primaries droppable after the secondaries\n" +
-             "  const base2 = withRoads(rOrder.length), r2 = base2.roads ?? [];\n" +
-             "  const prim = r2.map((x, i) => [x, i] as const).filter(([x]) => x.cls === 1).map(([, i]) => i);\n" +
-             "  const pOrder = dropOrder(prim.map((i) => roadLength(r2[i]!.pts))).map((k) => prim[k]!);\n" +
-             "  const withPrim = (k: number): C => { const gone = new Set(pOrder.slice(0, k)); return { ...base2, roads: r2.filter((_, i) => !gone.has(i)) }; };\n" +
-             "  const p = smallestFit(pOrder.length, (k) => { d.roads = rOrder.length + k; return fits(withPrim(k), tol); });\n" +
-             "  if (p) { d.roads = rOrder.length + p.k; return done(3, { content: withPrim(p.k), toleranceMm: tol, dropped: d, sections: p.got }); }\n"]],
-    expect: ["MB4", "MN1", "MN6"],
+    // primaries droppable after the secondaries and the rings: a third bisection, shortest primary first, before dropSeq gives up
+    edits: [["    if (w1) { d.water = w1.k; return done(rB, { content: noWater0(w1.k), toleranceMm: tolH, dropped: d, sections: w1.got }); }\n    return null;\n",
+             "    if (w1) { d.water = w1.k; return done(rB, { content: noWater0(w1.k), toleranceMm: tolH, dropped: d, sections: w1.got }); }\n" +
+             "    // SABOTAGE S-PRIMARYDROP: primaries droppable after the secondaries and the rings\n" +
+             "    d.water = rings0.length;\n" +
+             "    const c2p = noWater0(rings0.length), r2 = c2p.roads ?? [];\n" +
+             "    const prim = r2.map((x, i) => [x, i] as const).filter(([x]) => x.cls === 1).map(([, i]) => i);\n" +
+             "    const pOrder = dropOrder(prim.map((i) => roadLength(r2[i]!.pts))).map((k) => prim[k]!);\n" +
+             "    const withPrim = (k: number): C => { const gone = new Set(pOrder.slice(0, k)); return { ...c2p, roads: r2.filter((_, i) => !gone.has(i)) }; };\n" +
+             "    const p = smallestFit(pOrder.length, (k) => { d.roads = order0.length + k; return fits(withPrim(k), tolH); });\n" +
+             "    if (p) { d.roads = order0.length + p.k; return done(rB, { content: withPrim(p.k), toleranceMm: tolH, dropped: d, sections: p.got }); }\n" +
+             "    return null;\n"]],
+    expect: ["MB4", "T-D2", "T-D2c"],
   },
   "S-TERRCAP": {
     file: BUDGET, set: "all",
@@ -418,24 +426,23 @@ const SABOTAGES = {
     edits: [["      console.log(JSON.stringify(buildLine(r, stat, Date.now() - t0)));", "      console.log(JSON.stringify({ ...buildLine(r, stat, Date.now() - t0), lat0Micro: q.lat0Micro })); // SABOTAGE S-BB3"]],
     expect: ["BB3"],
   },
-  // Step 0 (docs/basemap-dense.md): the ladder's own defects, each with its registered set
-  "S-LADDER": {
-    file: BUDGET, set: "all",
-    edits: [["if (k === rOrder.length) nt[3] = lastBytes;", "if (k === rOrder.length) nt[3] = nt[0]!; /* SABOTAGE S-LADDER: the first value for the last */"]],
-    expect: ["MN1", "MN6"],
-  },
+  // Step 0 (docs/basemap-dense.md): the ladder's own defects, each with its registered set.
+  // S-LADDER (nt[3] = nt[0], {MN1, MN6}) is RETIRED by R12 (c): the b path has no nt ladder, so the defect has no place to live. Its
+  // entry stays on record in this file at 6bf83d64d7dd.
   "S-RUNG": {
     file: BUDGET, set: "all",
     edits: [["return done(2, {", "return done(1, { /* SABOTAGE S-RUNG */"]],
-    expect: ["MN3"],
+    // R12 (b), from pq4d: was {MN3}; T-PROV-b asserts rung 2 too
+    expect: ["MN3", "T-PROV-b"],
   },
   "S-SECSUM": {
     file: BUDGET, set: "all",
     // A BLOCK comment (Q-ST0, ruled ~19:43Z): the anchor sits inside a one-line loop, and the first run's `//` comment
     // swallowed the loop's closing brace, so the planted file did not compile and read BLIND (my miss, kept on record)
     edits: [["if (k) b[k] += sectionSize(s);", "if (k) b[k] += k === \"provenance\" ? 0 : sectionSize(s); /* SABOTAGE S-SECSUM */"]],
-    // Corrected before any run: BB4's control (secProv over 0) catches it too
-    expect: ["MN6", "BB4"],
+    // Corrected before any run: BB4's control (secProv over 0) catches it too. R12 (b), from pq4d: + MN1, which now asserts the
+    // 422's layer bytes (PROVENANCE's 511)
+    expect: ["MN6", "BB4", "MN1"],
   },
   // A1's (docs/basemap-a1.md): each plant as #551 froze it. S-MS1's and S-MS8's sets were corrected before any run:
   // KV's store id feeds every MS path but MS5 and MS9, and MS3 and MS6 read the package key back.
@@ -525,6 +532,14 @@ const SABOTAGES = {
     edits: [["keyed: nameKeyOf(env.BASEMAP_NAME_KEY) !== undefined };\n", "keyed: true }; // SABOTAGE S-NKHEALTH\n"]],
     expect: ["NK6"],
   },
+  // MN7's plant (the owner's red-first ruling, 05:01Z; registered at 1c44790b): today's tolerance-indexed sum put back. Under EPS_STEP 2
+  // the four tolerances are distinct, so only MN7 (two sets at one tolerance) sees it; S-BTWICE is the second catcher
+  "S-RBMAP": {
+    file: BUILD, set: "all",
+    edits: [["  for (const s of sets) n += (s.refusedW ?? 0) + (s.seaW?.n.refused3 ?? 0);\n",
+             "  const byTol: Record<number, (typeof sets)[number]> = {}; for (const s of sets) byTol[s.tolMm] = s; // SABOTAGE S-RBMAP\n  for (const s of Object.values(byTol)) n += (s.refusedW ?? 0) + (s.seaW?.n.refused3 ?? 0);\n"]],
+    expect: ["MN7"],
+  },
   "S-MX1": {
     file: BUILD, set: "all",
     edits: [["export const READ_AHEAD = 6;", "export const READ_AHEAD = 1; // SABOTAGE S-MX1: one at a time"]],
@@ -536,6 +551,102 @@ const SABOTAGES = {
     edits: [["  for (const o of objects) await bucket.put(o.key, o.bytes);\n  let v = await verifyStore(bucket, objects);\n",
              "  for (const o of objects) await bucket.put(o.key, o.bytes);\n  if (kv) await kv.put(STORE_KV_KEY, \"000000000000\"); // SABOTAGE S-MI9: before the verify\n  let v = await verifyStore(bucket, objects);\n"]],
     expect: ["MI9"],
+  },
+  // SEA-CI's nine (docs/basemap-dense-code.md, "SEA-CI: ... registered"), graded on the SEA-CI file alone (R12 (a)). Each plant is the
+  // shipped-code form of the pinned prototype's plant its red set was read under (pq4d-seaci.mts in plant mode): the same edit, in the
+  // file where the shipped code keeps that step.
+  "S-KB-CROSS": {
+    // pq4d "cross": bridge() takes the nearest pair with no crossing test, and step 5 is skipped, so KB2 sees the crossing
+    files: [[SEA, [["      if (!clear(h[i]!, ring[j]!, [ring, h, ...others])) continue;\n", "      void clear; // SABOTAGE S-KB-CROSS: the nearest pair, no crossing test\n"],
+                   ["    if (properPairs(ring).length) { n.refused++; n.refused5++;", "    if (false && properPairs(ring).length) { /* SABOTAGE S-KB-CROSS: step 5 skipped */ n.refused++; n.refused5++;"]]]],
+    set: "sea", expect: ["KB2"],
+  },
+  "S-KB-NOBRIDGE": {
+    // pq4d "nobridge": the islands go out as their own rings, unbridged (sea.ts drops the piece's bridging and step 5; layers.ts draws
+    // the islands as parts 1..n, as pq4d's plantedRings)
+    files: [[SEA, [["    const qkeep = { outer: oq, holes: hq };\n",
+                    "    const qkeep = { outer: oq, holes: hq };\n    n.drawn++; out.push({ ...key, ring: oq, fate: \"drawn\", q: qkeep, planted: hq } as SeaOut); continue; // SABOTAGE S-KB-NOBRIDGE: the islands as their own rings\n"]]],
+            [LAYERS, [["    const seaRecs = seaOut.flatMap((s) => (s.ring ? [{ file: s.file, record: s.record, part: 0, ring: s.ring, refused: false }] : []));\n",
+                       "    const seaRecs = seaOut.flatMap((s) => (s.ring ? [{ file: s.file, record: s.record, part: 0, ring: s.ring, refused: false }, ...((s as { planted?: Pt[][] }).planted ?? []).map((r, i) => ({ file: s.file, record: s.record, part: i + 1, ring: r, refused: false }))] : [])); // SABOTAGE S-KB-NOBRIDGE\n"]]]],
+    set: "sea", expect: ["BRIDGES", "T-SEA0c", "KB1"], // KB1 from pq4d (667f7b6c): kb1 20,818 and kb1c 15,388 differing
+  },
+  "S-KB-ORDER": {
+    // pq4d "order": the piece is bridged BEFORE simplifying, then simplified unlocked (pq4d's simp: waterQ4), so no step 4a on this
+    // path; a refusal there is counted in refused3, as pq4d's counter counts it
+    files: [[SEA, [["simplifyRingTPLockedState, waterQ4Locked } from \"./frame\";", "simplifyRingTPLockedState, waterQ4, waterQ4Locked } from \"./frame\"; // SABOTAGE S-KB-ORDER: waterQ4"],
+                   ["    n.islandsSmall += hc.length - holesKm.length;\n",
+                    "    n.islandsSmall += hc.length - holesKm.length;\n" +
+                    "    { // SABOTAGE S-KB-ORDER: bridged BEFORE simplifying\n" +
+                    "      const b = bridge(oc, holesKm); n.bridges += b.bridges; n.islandsDropped += b.dropped;\n" +
+                    "      const ring = waterQ4(b.ring, f.epsM, f.rMm);\n" +
+                    "      if (ring === REFUSED) { n.refused++; n.refused3++; out.push({ ...key, ring: null, fate: \"refused\" }); continue; }\n" +
+                    "      if (ring.length < 3) { n.collapsed++; out.push({ ...key, ring: null, fate: \"collapsed\" }); continue; }\n" +
+                    "      if (properPairs(ring).length) { n.refused++; n.refused5++; out.push({ ...key, ring: null, fate: \"refused\" }); continue; }\n" +
+                    "      n.drawn++; out.push({ ...key, ring, fate: \"drawn\", q: { outer: simpL(oc), holes: holesKm.map(simpL).filter((h) => h !== REFUSED && h.length >= 3) } }); continue;\n" +
+                    "    }\n"]]]],
+    set: "sea", expect: ["EDGE2", "XISLAND", "XISLAND-TALL", "T-SEALOG", "KB1"], // KB1 from pq4d (667f7b6c): kb1c 128 differing
+  },
+  "S-KB-EDGEUNLOCK": {
+    // pq4d "edgeunlock": step 3 unlocked (pq4d's simp, waterQ4) and step 4a's state with no vertex locked
+    files: [[SEA, [["simplifyRingTPLockedState, waterQ4Locked } from \"./frame\";", "simplifyRingTPLockedState, waterQ4, waterQ4Locked } from \"./frame\"; // SABOTAGE S-KB-EDGEUNLOCK: waterQ4"],
+                   ["    const lockOf = (r: Pt[]) => r.map(([x, y]) => lockKeys.has(`${x},${y}`));\n", "    const lockOf = (r: Pt[]) => r.map(() => false); // SABOTAGE S-KB-EDGEUNLOCK: no vertex locked\n"],
+                   ["    const simpL = (r: Pt[]): Pt[] => waterQ4Locked(r, f.epsM, f.rMm, lockOf(r));\n", "    const simpL = (r: Pt[]): Pt[] => waterQ4(r, f.epsM, f.rMm); // SABOTAGE S-KB-EDGEUNLOCK: the unlocked path\n"]]]],
+    set: "sea", expect: ["EDGE2"],
+  },
+  "S-KB-REPAIRLIMIT": {
+    // pq4d "limit1": the repair's limit 64 -> 1 (its one use is step 4a's repairRings call)
+    file: FRAME, set: "sea",
+    edits: [["export const SEA_REPAIR_LIMIT = 64;", "export const SEA_REPAIR_LIMIT = 1; // SABOTAGE S-KB-REPAIRLIMIT"]],
+    // Re-registered before the re-run (c3e0faa0), the off reading kept: under limit 1 each build still yields exactly one counts-only
+    // line (the 500's), so T-SEALOG stays green; S-SEALOG-POINT, S-KB-REPAIROFF and S-KB-ORDER catch it. {..., T-SEALOG} stays on record
+    expect: ["XISLAND", "XISLAND-TALL"],
+  },
+  "S-KB-REPAIROFF": {
+    // (C)'s control, the code before (B'): step 4a removed (run 9's reading: xisland refused at step 5)
+    file: SEA, set: "sea",
+    edits: [["    if (hq.length && crossRingEdges([oq, ...hq]).size) {", "    if (false && hq.length && crossRingEdges([oq, ...hq]).size) { /* SABOTAGE S-KB-REPAIROFF: step 4a removed */"]],
+    expect: ["XISLAND", "XISLAND-TALL", "T-SEALOG"],
+  },
+  "S-BACKSTOP-OFF": {
+    // pq4d Q4_BACKSTOP=0: waterQ4 and waterQ4Locked never refuse, and step 5 never refuses
+    files: [[FRAME, [["  const q = simplifyRingTP(ringKm, epsM, rMm);\n  return properPairs(q).length ? REFUSED : q;\n", "  const q = simplifyRingTP(ringKm, epsM, rMm);\n  return q; // SABOTAGE S-BACKSTOP-OFF: never refused\n"],
+                     ["  const q = simplifyRingTPLockedState(ringKm, epsM, rMm, locked).q;\n  return properPairs(q).length ? REFUSED : q;\n", "  const q = simplifyRingTPLockedState(ringKm, epsM, rMm, locked).q;\n  return q; // SABOTAGE S-BACKSTOP-OFF: never refused\n"]]],
+            [SEA, [["    if (properPairs(ring).length) { n.refused++; n.refused5++;", "    if (false && properPairs(ring).length) { /* SABOTAGE S-BACKSTOP-OFF: step 5 never refuses */ n.refused++; n.refused5++;"]]]],
+    set: "sea", expect: ["KB7C", "T-PROV-a", "T-PROV-b"],
+  },
+  "S-PROV-OLD": {
+    // pq4d with Q4_PROV unset, the old counting rule: a refusal is an empty ring (so it counts as collapsed), and rungs 2 and 5 keep the
+    // epsilon x 2 set's collapsed.water (pq4d's non-PROV c2 and c4)
+    files: [[FRAME, [["  const q = simplifyRingTP(ringKm, epsM, rMm);\n  return properPairs(q).length ? REFUSED : q;\n", "  const q = simplifyRingTP(ringKm, epsM, rMm);\n  return properPairs(q).length ? [] : q; // SABOTAGE S-PROV-OLD: a refusal is an empty ring\n"],
+                     ["  const q = simplifyRingTPLockedState(ringKm, epsM, rMm, locked).q;\n  return properPairs(q).length ? REFUSED : q;\n", "  const q = simplifyRingTPLockedState(ringKm, epsM, rMm, locked).q;\n  return properPairs(q).length ? [] : q; // SABOTAGE S-PROV-OLD\n"]]],
+            [BUDGET, [["  const c2 = { ...content, water: water8, collapsed: { ...content.collapsed, water: m8.collapsed?.water, sea: m8.collapsed?.sea }, refusedW: m8.refusedW, seaW: m8.seaW } as C;\n",
+                       "  const c2 = { ...content, water: water8 } as C; // SABOTAGE S-PROV-OLD: the epsilon x 2 set's counts kept\n"],
+                      ["  const c4 = (): C => { const m4 = make(tol4); return { ...m4, water: water8, collapsed: { ...m4.collapsed, water: m8.collapsed?.water, sea: m8.collapsed?.sea }, refusedW: m8.refusedW, seaW: m8.seaW } as C; };\n",
+                       "  const c4 = (): C => { const m4 = make(tol4); return { ...m4, water: water8, collapsed: { ...m4.collapsed, water: content.collapsed?.water } } as C; }; // SABOTAGE S-PROV-OLD\n"]]]],
+    set: "sea", expect: ["KB7C", "T-PROV-a", "T-PROV-b"],
+  },
+  "S-SEALOG-POINT": {
+    // the production lines are the harness's full lines (record key, island point): no prototype plant, the format is the port's
+    file: WORKER, set: "sea",
+    edits: [["  if (r.ok) return (r.report.sea?.repairCounts ?? []).map(repairLine);\n", "  if (r.ok) return r.report.sea?.repairLog ?? []; // SABOTAGE S-SEALOG-POINT: the full lines\n"],
+            ["  if (r.status === 500 && r.repair) return [repairLine(r.repair)];\n", "  if (r.status === 500 && r.repair) return [r.why]; // SABOTAGE S-SEALOG-POINT\n"]],
+    expect: ["T-SEALOG"],
+  },
+  // The sea ingest's CI rows (registered at 883c52b1): F1 seen refusing, the US edge test, and the containment itself
+  "S-F1DIRTY": {
+    file: LIB, set: "all",
+    edits: [['  if (run.dirtyTree) return "the dry run\'s tree was dirty";\n', "  // SABOTAGE S-F1DIRTY: a dirty tree not refused\n"]],
+    expect: ["MI10"],
+  },
+  "S-USVERTS": {
+    file: USCONTAIN, set: "all",
+    edits: [['mode: "full" | "vertices" = "full"): boolean {', 'mode: "full" | "vertices" = "vertices"): boolean { /* SABOTAGE S-USVERTS: no edge test */']],
+    expect: ["C-BORDER-S"],
+  },
+  "S-KB7-NOUS": {
+    file: SEA_PIECES, set: "all",
+    edits: [["    if (whollyInside(USC, ps.map((p) => p.outer))) { inside++; continue; }\n", "    if (false && whollyInside(USC, ps.map((p) => p.outer))) { inside++; continue; } // SABOTAGE S-KB7-NOUS\n"]],
+    expect: ["KB7-a"],
   },
   // The CONTROL on the missing-cases check below: a module that fails to load must grade BLIND, never "as predicted".
   "C-LOADFAIL": {
@@ -552,7 +663,8 @@ const COMMITTED_OUTPUT = new Set(["MD3a", "MD4"]);
 // A PK id may hold hyphens (A12.15's neg-terrain-count) and must end at the title's colon, so it is either whole or
 // UNNAMED, never a shorter id that looks real (A2.46: the hyphen-less pattern graded MV/PK-terrain-count as MV/PK-terrain).
 // BB<n> (docs/basemap-build-reads.md): the builder's read-line rows, named in #539's plan before this pattern knew them.
-const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+(?=:))/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
+// SEA-CI's 15 ids (R12 (a); KB1 registered at 667f7b6c) and the sea ingest's KB7-a and C-BORDER-S (883c52b1): an EXACT list, each ending at the title's colon, so no title that was UNNAMED before gains an id by accident.
+const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+(?=:)|(?:T-SEA0c?|T-SEALOG|T-PROV-[ab]|T-D2c?|KB1|KB2|KB7C|KB7-a|C-BORDER-S|BRIDGES|EDGE2|XISLAND(?:-TALL)?|REFUSED5)(?=:))/.exec(title) ?? [null, `UNNAMED(${title})`])[1];
 
 // THE DUPLICATE-ID GUARD (ruled 2026-11-05 ~20:05Z, docs/basemap-a1.md). Grading is by case id, so two rows sharing an id
 // grade as one -- A1's first run, where a new MI8 met basemap-regions.test.ts's MI8 and baseline[all] read 158 for 159.
@@ -563,7 +675,7 @@ const caseOf = (title) => (/^(M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-
 // the driver never runs cannot grade as one of its rows, and #577's MP3 in wx-opera.test.ts stopped every run until then.
 function duplicateCaseIds(testDir = join(PROXY, "test")) {
   const byId = new Map();
-  const TITLE = /\bit(?:\.each\([\s\S]*?\))?\(\s*(["'`])((?:M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+)[^"'`]*)\1/g;
+  const TITLE = /\bit(?:\.each\([\s\S]*?\))?\(\s*(["'`])((?:M[A-Z](?:\d+[a-z]?|-[a-z]+)|BB\d+|NK\d+|MV\/PK-[A-Za-z0-9-]+|(?:T-SEA0c?|T-SEALOG|T-PROV-[ab]|T-D2c?|KB1|KB2|KB7C|KB7-a|C-BORDER-S|BRIDGES|EDGE2|XISLAND(?:-TALL)?|REFUSED5)(?=:))[^"'`]*)\1/g;
   for (const f of readdirSync(testDir).filter((n) => n.startsWith("basemap-") && n.endsWith(".test.ts")).sort()) {
     for (const m of readFileSync(join(testDir, f), "utf8").matchAll(TITLE)) {
       const title = m[2], id = caseOf(title);
@@ -680,6 +792,8 @@ function plant(name, src, edits) {
 }
 
 const only = process.argv[2];
+const onlySet = only?.startsWith("--set=") ? only.slice("--set=".length) : null;
+if (onlySet !== null && !SETS[onlySet]) { console.log(`RIG: no set "${onlySet}"`); process.exit(2); }
 let ok = true;
 const baselines = {};
 /** Each set's clean baseline, once: with nothing planted, nothing in the set may fail. */
@@ -692,14 +806,13 @@ function baseline(setName) {
   baselines[setName] = base.seen;
 }
 for (const [name, s] of Object.entries(SABOTAGES)) {
-  if (only && only !== name) continue;
   const setName = s.set ?? "ingest";
+  if (onlySet !== null ? setName !== onlySet : only && only !== name) continue;
   baseline(setName);
-  const path = join(PROXY, s.file);
-  const orig = readFileSync(path);
-  const before = sha(orig);
+  // Every file of the plant: its byte copy and sha256 first; all are planted (each anchor exactly once) before the run
+  const plants = (s.files ?? [[s.file, s.edits]]).map(([file, edits]) => { const orig = readFileSync(join(PROXY, file)); return { file, edits, path: join(PROXY, file), orig, before: sha(orig) }; });
   try {
-    writeFileSync(path, plant(name, orig.toString("utf8"), s.edits));
+    for (const p of plants) writeFileSync(p.path, plant(name, p.orig.toString("utf8"), p.edits));
     const r = runTests(setName);
     // Every case the baseline saw must be seen again: a file that failed to load drops its cases from `seen`
     // WITHOUT adding them to `failed`, and would otherwise grade as "nothing else failed".
@@ -720,8 +833,8 @@ for (const [name, s] of Object.entries(SABOTAGES)) {
     else if (r.failed.join(",") === want.join(",")) console.log(`${name}: AS PREDICTED, failing {${r.failed.join(", ")}}${r.at}`);
     else { ok = false; console.log(`${name}: OFF-PREDICTION, failing {${r.failed.join(", ")}} against {${want.join(", ")}}${r.at}`); }
   } finally {
-    writeFileSync(path, orig);
-    if (sha(readFileSync(path)) !== before) { console.log(`${name}: RESTORE FAILED for ${s.file}`); process.exit(3); }
+    for (const p of plants) writeFileSync(p.path, p.orig);
+    for (const p of plants) if (sha(readFileSync(p.path)) !== p.before) { console.log(`${name}: RESTORE FAILED for ${p.file}`); process.exit(3); }
   }
 }
 printTally();
