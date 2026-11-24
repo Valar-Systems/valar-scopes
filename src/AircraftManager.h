@@ -16,7 +16,7 @@
 #include "Logbook.h"
 #include "FactoryReset.h"
 #include "MqttPublisher.h"
-#include "UsageStore.h"  // anonymous feature-use counters (README "Telemetry")
+#include "UsageStore.h"  // feature-use counters (README "Telemetry")
 #include "StarvationPolicy.h"  // the starvation watch's rule and the starved-seconds accrual
 #include "LGFX.h"
 #include "BandCanvas.h"
@@ -194,7 +194,7 @@ private:
     /// counted -- or, when that is wrong, being visibly not counted.
     void EnterScreen(Screen s);
 
-    /// Anonymous feature-use counters. Loop task only (it touches NVS).
+    /// Feature-use counters. Loop task only (it touches NVS).
     ///
     /// §17-adjacent and deliberately narrow: this object is handed COUNTS, never
     /// subjects. See include/UsageReport.h -- its report builder has no
