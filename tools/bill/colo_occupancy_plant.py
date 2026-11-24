@@ -5,7 +5,7 @@ Synthetic data only, no network, no token: each reader is loaded from a temp cop
 `post` is replaced by the fake's, which RECORDS every event it returns. So the fetched counts below are the fake's
 record, one instrument for the old reader and the new.
 
-  python -X utf8 -I tools/bill/colo_occupancy_plant.py <old reader .py> <new reader .py> <pre-recording reader .py> <pre-classify reader .py> <pre-population reader .py> <pre-famcount reader .py>
+  python -X utf8 -I tools/bill/colo_occupancy_plant.py <old reader .py> <new reader .py> <pre-recording reader .py> <pre-classify reader .py> <pre-population reader .py> <pre-famcount reader .py> <pre-famhours reader .py>
 
 The old reader is the one F1-R replaces (blob af55507b9ad7); the pre-recording reader is F1-R's first commit of the
 change (blob 74556db07510), which kept lc's and scan's attempts in memory only (the reviewer's ruling (4)). Rows, in
@@ -21,6 +21,9 @@ pre-population reader, blob 9b1a1610626f), on real synthetic events so the reade
 Then F1 FAMILY COUNT's rows F-RED, F-IS, F-NOT, F-MID, F-ANCHOR, F-ERA, F-STABLE, F-SUM and F-BLIND (registration
 ff8d7f596c0c; F-RED runs the pre-famcount reader, blob ac94f99a83d0), also on real synthetic events, so its 401, model
 and starts-with leaves are exercised; every F row asserts 0 events requests.
+Then F1 FAMILY HOURS' rows Q-RED, Q-FOLLOWS, Q-WRONG, Q-MID, Q-ANCHOR, Q-STABLE, Q-POP, Q-PRE, Q-BLIND-1, Q-BLIND-5 and
+Q-BLIND-K (registration f522149ae7ac; Q-RED runs the pre-famhours reader, blob ba636810808b), on a synthetic window of 91
+hours with the reader's clock pinned (last_closed_hour) to 2026-11-24T18:00Z; every Q row asserts 0 events requests.
 Exit 0 when every row reads as predicted; 1 when any is OFF; 2 the rig (a plant that did not apply, a fake control off).
 """
 import contextlib
@@ -186,6 +189,52 @@ def fam_set(s05=233, s06=252, e1=100, k05=236):
     return evs
 
 
+QH_FIRST = datetime(2026, 11, 21, tzinfo=timezone.utc)      # the reader's FH_FIRST; every event here is synthetic
+QH_END = datetime(2026, 11, 24, 18, tzinfo=timezone.utc)     # the pinned last closed hour: N = 91
+QH_LEAD = {"NIGHT": 62, "DAWN": 113, "DAY": 247, "DUSK": 218}   # the lead, with the excess seen (247, 218)
+
+
+def qh_class(h):
+    return "DAWN" if h.hour == 5 else "DAY" if 6 <= h.hour <= 16 else "DUSK" if h.hour == 17 else "NIGHT"
+
+
+def qh_hours():
+    return [QH_FIRST + timedelta(hours=i) for i in range(int((QH_END - QH_FIRST).total_seconds() // 3600) + 1)]
+
+
+def qh_night_from_22z():
+    """Q-WRONG's and Q-MID's hours: every NIGHT hour from 11-22 22:00Z (after the population's 24), oldest first."""
+    return [h for h in qh_hours() if qh_class(h) == "NIGHT" and h >= datetime(2026, 11, 22, 22, tzinfo=timezone.utc)]
+
+
+def qh_set(over=None):
+    """F1 FAMILY HOURS' window as real events, so the reader's leaves are exercised: S lines (no key, 401, a model, over the
+    three API prefixes) by the lead -- QUIET (0) before 11-22 05:00Z, 203 at 05:00Z, 248 at 06:00Z, then QH_LEAD by
+    class -- with over = {hour: S} replacing an hour. K (11-23 17:00Z) also carries the 14 other no-key lines (no 401,
+    model "") that make each of the 401, model and api leaves move K from 232 to 218; keyed 401-with-model lines sit in K
+    and 05:00Z so the no-key leaves are load-bearing."""
+    over = dict(over or {})
+    evs, k = [], [400000]
+
+    def add(t, n, **src):
+        for j in range(n):
+            k[0] += 1
+            evs.append(ev(k[0], t + timedelta(seconds=(j * 13) % 3600), evt="req", colo="ZZ1", **src))
+
+    for h in qh_hours():
+        n = 0 if h < FC_W[1] else 203 if h == FC_W[1] else 248 if h == FC_W[2] else QH_LEAD[qh_class(h)]
+        n = over.get(h, n)
+        for i in range(n):
+            add(h + timedelta(seconds=i * 13 % 3600), 1, ep=API_EPS[i % 3], status=401, model="plant-model")
+    add(FC_K, 2, ep="/api/v1/missileer/status", status=200, model="")
+    add(FC_K, 10, ep="/credits", status=200, model="")
+    add(FC_K, 1, ep="/wp-login.php", status=404, model="")
+    add(FC_K, 1, ep="/healthz", status=200, model="")
+    add(FC_K, 50, ep=API_EPS[0], status=401, model="plant-model", devl="lbl-a")
+    add(FC_W[1], 40, ep=API_EPS[2], status=401, model="plant-model", dev=EXAMPLE_ID)
+    return evs
+
+
 class Fake:
     """The API's documented shapes: timeframe; eq/exists/DOES_NOT_EXIST leaves; filterCombination and groups; events
     paging (limit, offset); calculations count. preflight: per-attempt {"abr": n or None (omitted), "count": n or None
@@ -289,7 +338,7 @@ def run(mod, fake, argv):
 
 
 def main(argv):
-    if len(argv) != 6:
+    if len(argv) != 7:
         print(__doc__)
         return 2
     tmp = tempfile.mkdtemp(prefix="f1r-plant-")
@@ -317,7 +366,8 @@ def main(argv):
         print("plant C-SRC applied: API_PREFIX renamed once in the second tree's index.ts")
         paths = {}
         for name, src in (("old_reader", argv[0]), ("new_reader", argv[1]), ("prerec_reader", argv[2]),
-                          ("precl_reader", argv[3]), ("prepop_reader", argv[4]), ("prefam_reader", argv[5])):
+                          ("precl_reader", argv[3]), ("prepop_reader", argv[4]), ("prefam_reader", argv[5]),
+                          ("prefh_reader", argv[6])):
             paths[name] = os.path.join(tmp, "tools", "bill", name + ".py")
             shutil.copyfile(src, paths[name])
         paths["src_reader"] = os.path.join(tmp, "srcplant", "tools", "bill", "src_reader.py")
@@ -334,9 +384,9 @@ def main(argv):
         with open(paths["sab_reader"], "w", encoding="utf-8", newline="\n") as fh:
             fh.write(sab)
         print("sabotage R-ABR-RED planted: the gate line replaced once; reader changed (%d -> %d bytes)" % (len(new_src), len(sab)))
-        old, new, sbr, prerec, precl, srcr, prepop, prefam = (load(paths[n], n) for n in (
+        old, new, sbr, prerec, precl, srcr, prepop, prefam, prefh = (load(paths[n], n) for n in (
             "old_reader", "new_reader", "sab_reader", "prerec_reader", "precl_reader", "src_reader", "prepop_reader",
-            "prefam_reader"))
+            "prefam_reader", "prefh_reader"))
 
         # The fake's own controls, in the new reader's own query form.
         f = Fake(hour_h(True))
@@ -673,6 +723,125 @@ def main(argv):
                             count_requests=f.count_requests, events_requests=f.events_requests),
             dict(exit=6, blind=["BLIND: W %s no-key never reached ABR 1 (3 attempt(s)); F1 does not run on it." % hstr(FC_W[2])],
                  verdict=[], count_requests=27, events_requests=0))
+
+        # Q rows (F1 FAMILY HOURS, registration f522149ae7ac): count queries only, every line labelled, the reader's clock
+        # pinned so the window is QH_FIRST..QH_END (N = 91, 6 + 3N = 279 count queries). Every row checks its exit, its
+        # verdict line (which names a stop step) and its count requests, never its exit alone; every row 0 events requests.
+        def qrun(mod, fake, name):
+            keep = mod.last_closed_hour
+            mod.last_closed_hour = lambda: QH_END
+            try:
+                return run(mod, fake, ["famhours", out(name)])
+            finally:
+                mod.last_closed_hour = keep
+
+        qh = lambda *a: datetime(*a, tzinfo=timezone.utc)
+        starts = lambda body, *p: [l for l in body if l.startswith(p)]
+        q_full = lambda n: "NIGHT %d/23, DAWN 2/2, DAY 33/33, DUSK 3/3 IN" % n
+        q_start = ["START: 2026-11-22T06:00Z (the first hour inside the NIGHT or DAY band)"]
+        q_before = lambda bad: ["before START: 30 hour(s) read; onset hour 2026-11-22T05:00Z S 203; not QUIET (other than the "
+                                "onset hour): %s" % bad]
+        q_steps = [hold("K1", FC_K, "no-key", 232, 232), hold("K2", FC_K, "no-key AND 401", 218, 218),
+                   hold("K3", FC_K, "no-key AND model", 218, 218), hold("K4", FC_K, "no-key AND api", 218, 218),
+                   hold("M1", FC_K, "S", 218, 218), hold("M2", POP_H0, "S", 247, 247),
+                   hold("M3", FC_W[1], "S", 203, 203), hold("M4", FC_W[2], "S", 248, 248)]
+        q_info = ["window 2026-11-21T00:00Z to 2026-11-24T18:00Z: 91 hour(s); 279 count queries",
+                  "bands (about = the owner's number +/-12%, rounded outward): NIGHT 60 52..68; DAWN 110 96..124; "
+                  "DAY 240 211..269; DUSK 213 187..239",
+                  "C-POP: 24 hour(s) checked, every S at most the population's no-key -> HOLDS",
+                  "dropped (BLIND): none"]
+        q_classes = ["class NIGHT (about 60, band 52..68): 23 graded, IN 23, HIGH 0, LOW 0",
+                     "class DAWN (about 110, band 96..124): 2 graded, IN 2, HIGH 0, LOW 0",
+                     "class DAY (about 240, band 211..269): 33 graded, IN 33, HIGH 0, LOW 0",
+                     "class DUSK (about 213, band 187..239): 3 graded, IN 3, HIGH 0, LOW 0"]
+        q_days = ["day 2026-11-22: NIGHT 6/6, DAWN 0/0, DAY 11/11, DUSK 1/1 IN",
+                  "day 2026-11-23: NIGHT 11/11, DAWN 1/1, DAY 11/11, DUSK 1/1 IN",
+                  "day 2026-11-24: NIGHT 6/6, DAWN 1/1, DAY 11/11, DUSK 1/1 IN"]
+        q_rest = ["never read before: NIGHT 19/19, DAWN 2/2, DAY 21/21, DUSK 1/1 IN", "HIGH and LOW hours: none",
+                  "QUIET runs after START: none"]
+        q_prefixes = ("window ", "bands ", "C-POP:", "dropped ")
+
+        rc, o = qrun(prefh, Fake(qh_set()), "qred")
+        row("Q-RED", dict(exit=rc, verdict=len(fverdict(cl_body(o)[1])), written=os.path.exists(out("qred"))),
+            dict(exit=2, verdict=0, written=False))
+
+        f = Fake(qh_set()); rc, o = qrun(new, f, "qfollows")
+        lab, body = cl_body(o)
+        row("Q-FOLLOWS", dict(exit=rc, labelled=lab, steps=starts(body, "K1 ", "K2 ", "K3 ", "K4 ", "M1 ", "M2 ", "M3 ", "M4 "),
+                              info=starts(body, *q_prefixes), start=starts(body, "START:"), before=starts(body, "before START:"),
+                              classes=starts(body, "class "), days=starts(body, "day "),
+                              rest=starts(body, "never read before:", "HIGH and LOW", "QUIET runs"), hours=len(starts(body, "hour ")),
+                              verdict=fverdict(body), count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=0, labelled=True, steps=q_steps, info=q_info, start=q_start, before=q_before("none"), classes=q_classes,
+                 days=q_days, rest=q_rest, hours=87,
+                 verdict=["verdict: FOLLOWS -- the hours follow the lead (START 2026-11-22T06:00Z; %s)" % q_full(23)],
+                 count_requests=279, events_requests=0))
+
+        wrong = qh_night_from_22z()
+        f = Fake(qh_set({h: 247 for h in wrong})); rc, o = qrun(new, f, "qwrong")
+        lab, body = cl_body(o)
+        row("Q-WRONG", dict(exit=rc, night=starts(body, "class NIGHT"), high=len(starts(body, "HIGH 2")), verdict=fverdict(body),
+                            count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=0, night=["class NIGHT (about 60, band 52..68): 23 graded, IN 4, HIGH 19, LOW 0"], high=19,
+                 verdict=["verdict: DOES NOT FOLLOW -- the lead is wrong in NIGHT (START 2026-11-22T06:00Z; %s)" % q_full(4)],
+                 count_requests=279, events_requests=0))
+
+        f = Fake(qh_set({h: 120 for i, h in enumerate(wrong) if i % 3 == 0})); rc, o = qrun(new, f, "qmid")
+        lab, body = cl_body(o)
+        row("Q-MID", dict(exit=rc, night=starts(body, "class NIGHT"), verdict=fverdict(body), count_requests=f.count_requests,
+                          events_requests=f.events_requests),
+            dict(exit=3, night=["class NIGHT (about 60, band 52..68): 23 graded, IN 16, HIGH 7, LOW 0"],
+                 verdict=["verdict: OUTSIDE (no class under 50%%, but not every class has 2 or more graded hours at 80%% or "
+                          "more; %s)%s" % (q_full(16), tail)], count_requests=279, events_requests=0))
+
+        f = Fake(qh_set(), ignore_ops=("starts_with",)); rc, o = qrun(new, f, "qanchor")
+        lab, body = cl_body(o)
+        row("Q-ANCHOR", dict(exit=rc, off=[l for l in body if "-> OFF" in l], hours=len(starts(body, "hour ")),
+                             verdict=fverdict(body), count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=3, off=["K4 %s no-key AND api: 696 (must read 218) -> OFF: stop; nothing after it is queried" % hstr(FC_K)],
+                 hours=0, verdict=stopped("K4"), count_requests=6, events_requests=0))
+
+        f = Fake(qh_set({FC_W[1]: 202})); rc, o = qrun(new, f, "qstable")
+        lab, body = cl_body(o)
+        row("Q-STABLE", dict(exit=rc, verdict=fverdict(body), count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=3, verdict=stopped("M3"), count_requests=15, events_requests=0))
+
+        f = Fake(qh_set({qh(2026, 11, 22, 1): 3})); rc, o = qrun(new, f, "qpop")
+        lab, body = cl_body(o)
+        row("Q-POP", dict(exit=rc, off=[l for l in body if "-> OFF" in l], verdict=fverdict(body),
+                          count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=3, off=["C-POP 2026-11-22T01:00Z: S 3 above the population's no-key 1 -> OFF: stop; nothing after it is "
+                              "queried"], verdict=stopped("C-POP 2026-11-22T01:00Z"), count_requests=96, events_requests=0))
+
+        f = Fake(qh_set({qh(2026, 11, 21, 10): 30})); rc, o = qrun(new, f, "qpre")
+        lab, body = cl_body(o)
+        row("Q-PRE", dict(exit=rc, start=starts(body, "START:"), before=starts(body, "before START:"), verdict=fverdict(body),
+                          count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=3, start=q_start, before=q_before("2026-11-21T10:00Z S 30"),
+                 verdict=["verdict: OUTSIDE (an hour before START is not QUIET)" + tail], count_requests=279, events_requests=0))
+
+        f = Fake(qh_set(), blind_hours=(ms(qh(2026, 11, 23, 3)),)); rc, o = qrun(new, f, "qblind1")
+        lab, body = cl_body(o)
+        row("Q-BLIND-1", dict(exit=rc, dropped=starts(body, "dropped ", "hour 2026-11-23T03:00Z"), verdict=fverdict(body),
+                              count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=0, dropped=["hour 2026-11-23T03:00Z BLIND (dropped)", "dropped (BLIND): 1 hour(s): 2026-11-23T03:00Z"],
+                 verdict=["verdict: FOLLOWS -- the hours follow the lead (START 2026-11-22T06:00Z; "
+                          "NIGHT 22/22, DAWN 2/2, DAY 33/33, DUSK 3/3 IN)"], count_requests=279, events_requests=0))
+
+        b5 = [qh(2026, 11, 23, 1), qh(2026, 11, 23, 2), qh(2026, 11, 23, 3), qh(2026, 11, 23, 8), qh(2026, 11, 23, 20)]
+        f = Fake(qh_set(), blind_hours=[ms(h) for h in b5]); rc, o = qrun(new, f, "qblind5")
+        lab, body = cl_body(o)
+        row("Q-BLIND-5", dict(exit=rc, dropped=starts(body, "dropped "), verdict=fverdict(body),
+                              count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=3, dropped=["dropped (BLIND): 5 hour(s): " + " ".join(hstr(h) for h in b5)],
+                 verdict=["verdict: OUTSIDE (5 hour(s) BLIND, more than 4)" + tail], count_requests=279, events_requests=0))
+
+        f = Fake(qh_set(), blind_hours=(ms(FC_K),)); rc, o = qrun(new, f, "qblindk")
+        lab, body = cl_body(o)
+        row("Q-BLIND-K", dict(exit=rc, blind=starts(body, "BLIND:"), verdict=fverdict(body),
+                              count_requests=f.count_requests, events_requests=f.events_requests),
+            dict(exit=6, blind=["BLIND: K1 %s no-key never reached ABR 1 (3 attempt(s)); F1 does not run on it." % hstr(FC_K)],
+                 verdict=[], count_requests=3, events_requests=0))
 
         print("rows %d, as predicted %d, OFF %d" % (len(rows), len(rows) - off, off))
         return 0 if off == 0 else 1
