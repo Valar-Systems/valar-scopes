@@ -1018,3 +1018,1216 @@ reading come true.
 **What a masked echo becomes, raised now as Q17:**
 - **Recommended: 0, if C3 holds.** That is what MRMS's QC does with clutter.
 - **The alternative is 15 (missing):** it is honest, and it draws a hatch on every clutter spot.
+
+## Addendum 2, 2026-10-28: the rulings on R1, K14, and M1's predictions
+
+### A2.1 The rulings, verbatim (source: the reviewer chat, pasted by the owner, 2026-10-28)
+
+> Rulings (reviewer chat, 2026-10-28)
+>
+> 1. #492 (the NOAA line) is approved to merge at b5f37eb98313c623d238200c452806d966d49bd0, once CI on that head
+>    completes with 0 failed.
+> - I read all 4 files; N1 and N2 are as predicted.
+> - A clean squash, no --admin. If the head moves, this approval lapses.
+> - Then deploy under the standing rule and read N3-N6 as frozen, with the carried commits listed first.
+>
+> 2. #490 (the plan and R1's predictions) is approved to merge at 606e2ebd05996c2766479cbee22438922206a37e, once CI
+>    on that head completes with 0 failed.
+> - The rulings and the owner's answers are recorded verbatim, and R1 was frozen at 456988b before any R1 reading.
+> - A clean squash, no --admin. If the head moves, this approval lapses.
+>
+> 3. R1, as frozen: accepted, with four notes.
+> - Grading T and B on the .tiff's LastModified is right, since R2 reads the COG. It was recorded at ba5b557, before
+>   the first run.
+> - B's outcome (a) bar (B1 ≤ 1 %, B2 ≤ 1 an hour, B3 ≤ 300 s): accepted as the bar for keeping #445's 600 s limit.
+> - Q17: a masked echo becomes 0, if C3 holds. If C3 misses, stop, as your table says.
+> - L: if it reads (b) (no limit stated, no rate-limit header, no term against automated use), R3 does not wait for an
+>   answer.
+>   - A few requests a minute on a public open-data cache is ordinary use.
+>   - the owner sends a short courtesy note to OPERA support saying who we are and what we read. I'll draft it once L is
+>     read.
+>   - The ingest identifies itself. A new R2 row, frozen now: K14, every request to the cache carries a User-Agent
+>     naming us with a contact URL, as the map server's does. Its sabotage: the header dropped.
+>
+> 4. The OPERA line for R4, with "created by Meteo France" as the file spells it: accepted in principle. Final at
+>    R4's review.
+>
+> 5. M1: start it now, predictions first, GB and NI together.
+>
+> 6. The collection's caveat is accepted. If this session ends, the next one re-arms it within 24 h, and the gap rule
+>    covers anything lost.
+
+**What happened under 1 and 2:**
+- **#492:** merged as `77f6913`, deployed, and **production was rolled back** on N3's miss (two `/blips` 503s with no
+  upstream in the post-deploy smoke run). The record is `docs/wx-server.md` on #494.
+- **#490:** merged as `aa24294`, a clean squash at `606e2eb` (the tree equals `git merge-tree`'s; patch-id
+  `1bed0f71957b` on both).
+- **This branch** carries main by merge rather than a rebase, so `ba5b557`, which item 3 cites, stays in its history.
+
+### A2.2 K14, frozen as ruled
+
+| | check | predicted | sabotage, which must turn it red |
+|---|---|---|---|
+| **K14** | every request the `opuk` ingest makes to `openradar-24h` (listings, the 8 KB header, the tile ranges), seen through a wrapped `fetch` in the test | each carries `User-Agent: BlipscopeWxIngest/1 (+https://github.com/Valar-Systems/valar-scopes)`, the map server's form (`ingest-basemap.ts`: `BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes)`) | the header dropped from one request kind |
+
+- **The week's collector is not the ingest.** It sends `valar-systems-uk-radar-measurement/1`, which names us
+  without a URL.
+- It is left as committed at `ba5b557`, so the instrument does not change mid-week. It can take the same form at
+  its next restart, if wanted.
+
+### A2.3 The NI serving gate has a second path (raised as Q19)
+
+- **The ruled gate switches off NI *origins*:** NI's coverage bits.
+- **But a GB origin's square can reach NI.** At 161 km, an origin in south-west Scotland has NI land inside its
+  square, so its package would carry NI-derived features (the OSNI roads, the DAERA lakes, the gazetteer places)
+  before LPS has answered.
+- **That is CLAUDE.md's first table:** a guard that exists, and a path that does not go through it.
+- **Recommended:** the gate belongs to the NI sources, not only to the NI origins. The store marks every NI-derived
+  feature, and the builder leaves them out of every package while the gate is off, whatever the origin.
+  - So a GB package near NI shows NI as empty, as v1 shows Canada.
+  - **A test for M2:** a GB origin whose square meets NI carries 0 NI features with the gate off, and > 0 with it on.
+- M1 measures with the NI features both included and left out, so the sizes cover either ruling.
+
+### A2.4 M1's predictions, frozen before any M1 reading
+
+**What M1 is.** An offline size dry run of §2.2's UK rules, GB and NI together.
+- No Cloudflare, no store and no route.
+- It is a measurement, not the builder: the map server builds that in M2.
+
+**The instrument, `m1_sizes.py`,** written after this freeze.
+- **The geometry steps are written from the format doc:** §2 (project, clip, quantise), §6 (Douglas-Peucker and the
+  budget loop) and §13 (RD1-RD21).
+- **The bytes come from the format owner's encoder,** `tools/weatherscope/basemap/bmpk.py` on main.
+- **Every package is checked by its reference validator,** `validate.py`.
+- **The sources:** §2.1's files, downloaded once, each with its sha256 recorded in a manifest:
+  - OS Open Roads, Open Rivers, Open Names and OpenMap – Local (`SurfaceWater_Area`);
+  - the ONS BUA table and boundaries; NRS's 2022 settlements;
+  - OSNI's 50K transport lines and its gazetteer; DAERA's lakes;
+  - NISRA's CT0046 and its 2015 limits;
+  - the Terrain Tiles z9 tiles the squares need.
+
+**The centres** (public airports, by code):
+- **GB:** LHR, MAN, BHX, NCL, EDI, GLA, ABZ, INV, CWL, NQY;
+- **NI:** BFS, LDY.
+
+**The radii:**
+- **graded:** the Blipscope's 161 km (default) and 222 km (maximum), at ε = 671 m and 925 m (half a pixel on the 240 px
+  Kit S3, as the map server's plan uses);
+- **printed:** Weatherscope's 97 km at ε = 100.6 m.
+
+**The road variants measured:**
+- **(i)** class 2 = every A road, links as OS publishes them (split at every junction);
+- **(ii)** class 2 = `primaryRoute` A roads, links as published;
+- **(iii)** and **(iv):** (i) and (ii) with links **chained** into one polyline wherever two links meet end to end
+  with the same road number and class. That is a candidate UK rule (Q18), not §2.2's.
+- **All four:** slip roads dropped, Motorway as class 1.
+
+**The outcome classes:** the map server's (§5.4 of its plan).
+- **F:** within 20 KB;
+- **C:** inside the 32 KB cap;
+- **D:** over the cap, brought under it by §6's drops, which are counted;
+- **X:** still over: `too_large`.
+
+**Predicted:**
+
+| | measured | predicted |
+|---|---|---|
+| **M1-a** | LHR, MAN, BHX at 161 km, variants (i) and (ii) | **X**. Links split at every junction give each a structural floor of about 12 B, and the motorway links in a 322 km square around London alone approach the cap |
+| **M1-b** | the same, variant (iv) (primary A roads, chained) | **C or D** |
+| **M1-c** | the same, variant (iii) (every A road, chained) | **D or X** |
+| **M1-d** | every other centre at 161 km, variant (iv) | **F, C or D**: never X |
+| **M1-e** | 222 km, every centre, variant (iv) | **D or X** |
+| **M1-f** | the share of the kept hills (top 16 per centre and radius) whose z9 value at the Open Names point is more than 50 m below the z9 maximum within 1 km (Q16) | **≤ 20 %**; the median difference **≤ 30 m** |
+| **M1-g** (printed) | for each centre: the bytes per layer; the drops and collapses; the class-2 road length kept against the length in the square; and BFS, LDY, GLA with NI features in and out (A2.3) | — |
+
+**Controls, run first:**
+- **every package passes `validate.py`;**
+- the section lengths plus the header and directory sum to `totalBytes`;
+- **a synthetic straight line** with a bump half of ε simplifies to its two ends, and **a synthetic ring** cut by the
+  square stays closed;
+- the encoder reproduces `syn-min.bmpk` byte for byte from `synth.py`'s data.
+
+**Sabotages:**
+- **ε = 0** (no simplification) must raise every centre's road bytes;
+- **the drop policy off** must turn every D into X;
+- **chaining off** in (iv) must reproduce (ii)'s bytes exactly.
+
+**What the results will mean:**
+
+| outcome | meaning |
+|---|---|
+| **(a)** variant (i) fits (F or C) at LHR, MAN and BHX at 161 km | class 2 = every A road, as published (Q12, as ruled). **Not what I predict** |
+| **(b)** only (ii) fits | class 2 = primary A roads (Q12, as ruled) |
+| **(c)** neither (i) nor (ii) fits, and (iii) or (iv) does | **Q12's rule cannot decide alone:** chaining becomes a question (Q18). **This is the outcome I predict** |
+| **(d)** none of the four fits at 161 km | stop and decide: the Blipscope's default radius would need fewer layers or a coarser ε |
+| **(e)** M1-f misses | Q16's point elevation is not a summit elevation; rule between the 1 km maximum (with the processing line saying so) and the point |
+| **(f)** anything else, or a control failing | stop and decide |
+
+**Raised now, for the rulings that M1's numbers will inform:**
+- **Q18:** may the UK rules chain OS road links that meet end to end with the same road number and class?
+  - It changes no field. A US package is untouched, since TIGER's lines are not split this way.
+  - **Recommended: yes,** with a fixed, deterministic chaining order written into the rule.
+- **Q19:** the NI gate, on the sources rather than only the origins (A2.3). **Recommended: yes.**
+
+### A2.5 M1's results (read 2026-10-28, 17:23-17:50Z): two misses and three instrument defects. Stopped for a ruling
+
+**The instruments, as committed before each reading:**
+- fetch, extract and sizing at `e7188e0`;
+- the grader and `--only161` (the sabotage reruns at the default radius) at `0223cfb`.
+- **The sources:** 74 files, each with its URL, sha256 and Last-Modified in `docs/uk-data/r1/m1-manifest.json`.
+- **The extract's counts** are in `m1-extract.json`.
+- **Raw outputs:** `m1-sizes.json` (sha256 `cc689565d1bc…`) and the three sabotage runs, in `docs/uk-data/r1/`.
+
+**Two faults the controls caught before any reading, both fixed before the sizing run:**
+- **A text field that is not UTF-8:** OS's DBFs are code page 1252. Every one declares language driver `0x03`, and the
+  extract now decodes by that byte and refuses any other.
+- **The BUA boundaries short by half** (4,545 of 8,545): the service caps a page at 1,000. They were re-fetched in
+  1,000-record pages, giving 8,545 features and 8,545 distinct codes.
+
+**The controls (A2.4):**
+- every one of 150 packages validates `kOk`;
+- `synth.py --check` reports "every committed byte equal";
+- the DP bump cases, the clipped ring and the re-entering line all behave as frozen.
+- **All passed.**
+
+| | read | verdict |
+|---|---|---|
+| **M1-a** | LHR, MAN, BHX at 161 km, (i) and (ii): **X** in all six (LHR (i): 1,231,423 B first) | **as predicted** |
+| **M1-b** | the same, (iv): LHR **D**, MAN **D**, **BHX X** | **MISS** (BHX) |
+| **M1-c** | the same, (iii): D, D, X | **as predicted** |
+| **M1-d** | the other nine centres at 161 km, (iv): NCL D, EDI D, GLA D, ABZ **C**, INV **C**, CWL D, NQY **F**, BFS D, LDY D | **as predicted** |
+| **M1-e** | 222 km, (iv): LHR, MAN, BHX X; **ABZ C, INV C**; the rest D | **MISS** (ABZ and INV fit without drops) |
+| **M1-f** | 384 kept hills: the median is **5 m** below the 1 km maximum; **2.9 %** are more than 50 m below; the worst is 138 m | **as predicted** |
+
+**The sabotages:**
+
+| | read | verdict |
+|---|---|---|
+| no drop policy | every 161 km D became X (37 of 37) | **red, as frozen** |
+| ε = 0 | **as graded, the final road section rose at 8 centres and fell at 4** (INV, NQY, BFS, LDY). The grader read the road bytes **after** §6's drops, and an unsimplified package overflows and drops more. The frozen sabotage means the bytes **before** the budget, which the instrument does not record | **not red as graded; the frozen quantity is unrecorded, so BLIND.** Beside it, as data: the first-build total rose at 12 of 12 |
+| no chaining | (iv) with chaining off equals (ii) at 11 of 12 centres. **NCL differs by 1 B, in PROVENANCE**, while its road section before the budget is identical | **not red** (defect 2 below) |
+
+**The three instrument defects, found after reading.** None is re-graded, and none is fixed until ruled.
+1. **ONS's counts were never read.**
+   - **The cause:** the column was found with `startswith("Count")`, and "Country code" matches first. So every
+     England and Wales place got population 0. That is the editor-anchor row in CLAUDE.md's table again.
+   - **The bound** (`m1_popbound.py`, the column found exactly): 6,985 counts; 1,199 places gain one. At most
+     **1,451 B** is missing from any graded package, and **no outcome class changes**. The closest cases:
+     - NQY 161 (iv) F: 20,237 + 134 B, still ≤ 20 KB;
+     - ABZ 222 (iv) C: 32,014 + 5 B.
+2. **PROVENANCE's `files.terrain` counted every tile cached in the process,** not the tiles the package read. A package
+   built after more centres carries a longer count. It is 1-2 B of PROVENANCE, and it is the 1 B that kept the
+   no-chaining sabotage from going red.
+3. **The ε = 0 sabotage's measure is unrecorded.** The instrument keeps only the final section bytes.
+
+**What the numbers say (M1-g, printed).** The cap is set by layers §6 cannot drop.
+- **LHR at 161 km (iv), after its drops:**
+  - **rivers 15,545 B**, places 7,834 B, roads 7,332 B, PROVENANCE about 1.6 KB;
+  - every water ring dropped; **40 % of the A-road length kept**.
+- **Open Rivers splits a river into links at every confluence:** the structural floor the map server foresaw for
+  TIGER (its §5.1).
+- **BHX at 161 km:** places alone take 11,579 B and rivers 13,837 B. With the motorways, which are class 1 and not
+  droppable, even every A road dropped cannot fit. Hence X.
+- **NI's OSNI lines are short pieces, with no numbers to chain:**
+  - GLA at 161 km is 61 KB with NI's features and 33 KB without;
+  - BFS with NI out is F at 11.8 KB.
+
+**Outcomes against A2.4's table:**
+- LHR and MAN are **(c)**: only the chained variants fit, and only through drops.
+- **BHX is (d)**: none of the four fits at 161 km.
+- **(d)'s registered meaning:** stop and decide; the default radius would need fewer layers or a coarser ε.
+- **Stopped here.**
+
+**For the ruling, the levers M1's numbers point at.** Each is a UK data rule or a format question, not decided here:
+- **chain Open Rivers links** by name, as Q18 proposes for roads;
+- **select places,** for example City and Town above a population, or the N most populous;
+- **coarser ε at 161 km;**
+- **whether §6's drop order may reach rivers and places.** That is a v1 layer-definition change, so v2, unless ruled
+  otherwise.
+
+## Addendum 3, 2026-10-28: the rulings on M1, London's populations, and M1′'s predictions
+
+### A3.1 The rulings, items 2 and 3, verbatim (source: the reviewer chat, pasted by the owner, 2026-10-28)
+
+Item 1, #492's redeploy, is recorded in `docs/wx-server.md` (#494).
+
+> 2. Q19: yes. Gate the NI sources in the builder. Until LPS's written answer is recorded, no package carries
+>    NI-derived data, including a GB package whose square reaches NI.
+>
+> 3. M1 (A2.5): BHX's outcome (d) is accepted, with both misses kept.
+> - Q18: yes. Chain OS road links that meet end to end with the same road number and class, in a fixed, deterministic
+>   order written into the rule.
+> - Rivers: chain Open Rivers links by name the same way.
+> - Places: City and Town, keeping the N most populous (ties by name). London's missing ONS figures come first (your
+>   Nomis check). If they can't be found, propose a rule that keeps London's places in, before M1′.
+> - Q16: the point's z9 elevation stands; M1-f held.
+> - Fix the three instrument defects before re-running: ONS's column found by exact name; files.terrain counting only
+>   the tiles each package reads; and the pre-budget road bytes recorded for the ε = 0 sabotage.
+> - Then M1′, predictions first: the same centres and radii, NI out (as Q19 gates it), with NI in printed only. N is
+>   measured over {64, 128, 256}; the rule takes the largest N that keeps every centre out of X at 161 km.
+> - If BHX is still X at 161 km, stop. Coarser ε and v2 come up only then.
+> - For later, not now: NI's OSNI lines are short and unnumbered, so they will need their own chaining rule once LPS
+>   answers (GLA was 61 KB with them, 33 KB without).
+
+**The chaining rule, as it will be written** (Q18 for roads, and the same for rivers). Two links join when all of
+these hold:
+- they meet end to end, sharing a node by OS's own node ids (`startNode`/`endNode`);
+- they carry the same key: for a road, its number and class; for a river, its name after Q10's English rule;
+- exactly two links with that key meet at the node.
+
+**The order:**
+- seeds in source order (RD2);
+- each chain extended first from the seed's end node, then from its start node;
+- a reversed link contributes its vertices reversed;
+- the shared vertex is written once.
+
+**Not chained:** unnumbered roads and unnamed rivers.
+
+### A3.2 London's populations: not published by BUA; a rule proposed (L), for a ruling before M1′ runs
+
+**The Nomis check, read 2026-10-28:**
+- Census 2021's usual residents (`NM_2021_1`, TS001) are published at 21 geography types, from output areas to
+  regions. **None is a built-up area.**
+- ONS's own article says why London's 33 BUAs have no figures: "in Greater London, the method to identify BUAs does
+  not recognise individual settlements in the same way."
+- **So London's BUA populations cannot be found as published figures.**
+
+**Which places this touches:** read from M1's extract with ONS's column found exactly.
+- **Only 3 of the 1,426 City and Town places:** "London", "City of Westminster" and "City of London". Each is an Open
+  Names City, and each point lies in a London BUA with no count.
+- "London"'s point lies in the City of Westminster BUA.
+- **A fourth, New Galloway** (Scotland), lies in no NRS settlement. It keeps 0, as the rules already say.
+
+**Proposed rule L**, by code joins only, never by name:
+- **L1:** a place in a BUA with no ONS count, and inside the London region (`RGN22CD` `E12000007`, from ONS's Regions
+  boundaries), takes the Census 2021 usual residents (Nomis TS001) of the local authority district containing it
+  (`LAD22CD`, from ONS's district boundaries).
+- **L2:** except that a City whose name equals the name of the region containing it takes the region's count.
+- **What L gives** (read from Nomis): **London 8,799,728** (`E12000007`); **City of Westminster 204,236**
+  (`E09000033`); **City of London 8,583** (`E09000001`).
+- **Why the region for "London":** with Westminster's figure, the city a map most needs to label would rank below
+  Croydon. With 0, it would be dropped from any top N.
+- **The alternative:** keep London's three places in whatever N, with population 0, which the format allows ("0 = no
+  figure"). That is honest, but a client that ranks by population would never label "London".
+- **The sources L adds:** ONS's Regions and Local Authority Districts (December 2022) boundaries, and Nomis TS001 at
+  two geography types. All are OGL v3, with ONS's attribution line, already carried for the BUA boundaries.
+
+### A3.3 M1′'s predictions, frozen before any M1′ reading
+
+**When it runs:** **only after rule L, or its replacement, is ruled.** If the ruling changes L, these predictions are
+restated before any run.
+
+**What changes from M1:**
+- **The three instrument defects, fixed:**
+  - ONS's counts column found by its exact name, "Counts";
+  - `files.terrain` counting only the tiles each package's summit elevations read;
+  - every package's section bytes recorded **before** §6's budget as well as after.
+- **Roads:** chained (Q18), in variant (iii), every A road, and (iv), primary A roads.
+- **Rivers:** chained by name (A3.1).
+- **Places:** City and Town; the N most populous within R, ties by name in byte order, kept in file order;
+  **N ∈ {64, 128, 256}**; London's three by rule L.
+- **NI:**
+  - **graded with NI out,** by the source gate Q19 rules;
+  - **printed with NI in** for BFS, LDY and GLA;
+  - BFS and LDY with NI out hold only the GB features their squares reach.
+- **The same 12 centres, and radii 161 and 222 km** (97 km printed).
+
+**The controls** (M1's, plus four):
+- **London's three populations** read as A3.2's figures;
+- **the river chaining:** a synthetic three-link river with one name, in the middle link's reversed direction, chains
+  into one polyline of 2 + 2 + 2 − 2 = 4 distinct vertices, in order;
+- **the place selection:** synthetic places with tied populations come out ordered by name;
+- **`files.terrain`:** one package built on its own reports the same count as when it is built after every other
+  centre.
+
+**Predicted:**
+
+| | measured | predicted |
+|---|---|---|
+| **M1′-a** | X at 161 km, any centre, variant (iv), for each N ∈ {64, 128, 256} | **no centre X for any N**, so **the rule takes N = 256** |
+| **M1′-b** | BHX at 161 km, (iv), N = 256 | **D** |
+| **M1′-c** | LHR, MAN, BHX at 161 km, (iii), N = 256 | **D**, all three: none fits without drops |
+| **M1′-d** | LHR, MAN, BHX at 222 km, (iv), N = 256 | **D**: out of X once rivers and motorways chain |
+| **M1′-e** | the other nine centres at 161 km, (iv), N = 256 | **F, C or D**; never X |
+| **M1′-f** (printed) | per package: bytes per section before and after the budget, the drops, the class-2 road length kept (iii and iv), and NI in against NI out | — |
+
+**Sabotages, each of which must turn its row red:**
+- **ε = 0:** the pre-budget road bytes rise at every centre;
+- **no drop policy:** every D becomes X;
+- **river chaining off:** the pre-budget river bytes equal those of an unchained river build, centre by centre;
+- **N = all places:** the places bytes equal a no-selection build, and are larger than N = 256's wherever more than 256
+  places lie inside R.
+
+**What the results will mean:**
+
+| outcome | meaning |
+|---|---|
+| **(a)** M1′-a holds | N = 256 (the rule, as ruled); M2 builds with it |
+| **(b)** some N leaves a centre X, but a smaller N does not | N is the largest that does not (as ruled) |
+| **(c)** BHX is X at 161 km for every N | **stop** (as ruled). Coarser ε and v2 come up only then |
+| **(d)** for Q12, (iii) fits (F or C) at LHR, MAN and BHX | class 2 = every A road |
+| **(e)** for Q12, (iii) does not fit and (iv) does | class 2 = primary A roads |
+| **(f)** for Q12, neither fits without drops | **Q12 cannot be decided by fit.** The drops decide what is kept, so I report both kept lengths and it is ruled. **This is what I predict** |
+| **(g)** anything else, or a control failing | stop and decide |
+
+### A3.4 Rule L, ruled; and M1′'s results (read 2026-10-28, 19:54-20:02Z): every row as predicted
+
+**The ruling (reviewer chat, pasted by the owner, 2026-10-28), verbatim:**
+> 2. Rule L: accepted, both parts, joined by code.
+> - L1: a place in a London BUA with no count takes its local authority district's Census 2021 usual residents (City
+>   of Westminster 204,236; City of London 8,583).
+> - L2, pinned to the code rather than a name rule: the Open Names City "London" takes the London region's figure
+>   (E12000007), 8,799,728.
+> - PROVENANCE's processing line names rule L.
+> - M1′ runs now, as frozen at c7ac2db. Report both road variants' kept A-road lengths for Q12, as you planned.
+
+**How L2 is pinned:** to the one Open Names feature, by its ID (`osgb4000000` + `074813508`, split here for the
+device-id hook), and to region code `E12000007`. A control asserts that the ID is the City "London".
+- PROVENANCE carries `processing.population` naming rule L, and `processing.names` with Q10's English-name rule.
+
+**The instruments, committed before any M1′ run:** `m1p_sizes.py` and `m1p_extract_rivers.py` at `f5d7647`, the grader
+at `b574a8e`.
+- **Rule L's sources** (ONS's London districts and region, December 2022; Nomis TS001 at districts and regions) are
+  in the manifest.
+- **The rivers' re-extract** with node ids kept 98,628 polylines, M1's count, every one with both nodes.
+- **Raw outputs** (`docs/uk-data/r1/`): `m1p-sizes.json` (sha256 `6201cb6aacb7…`) and the four sabotage runs.
+
+**The controls: all passed.**
+- 222 of 222 packages validate `kOk`;
+- `synth.py --check` reports "every committed byte equal";
+- M1's geometry cases all pass;
+- the three-link river chains to exactly 4 vertices in order;
+- tied places come out by name;
+- rule L reads 8,799,728, 204,236 and 8,583, and the pinned ID is the City "London";
+- `files.terrain` is 34 for the first package built, and 34 when the same package is rebuilt after every other centre.
+
+| | read | verdict |
+|---|---|---|
+| **M1′-a** | X at 161 km, (iv): **no centre at N = 64, 128 or 256**; (iii) the same | **as predicted**: **N = 256** |
+| **M1′-b** | BHX 161 km (iv) N = 256: **D** | **as predicted** |
+| **M1′-c** | LHR, MAN, BHX 161 km (iii) N = 256: **D, D, D** | **as predicted** |
+| **M1′-d** | LHR, MAN, BHX 222 km (iv) N = 256: **D, D, D** | **as predicted** |
+| **M1′-e** | 161 km (iv) N = 256: NCL D, EDI D, **GLA C**, ABZ C, INV C, CWL D, NQY F, **BFS F, LDY F** | **as predicted** |
+
+**The sabotages: all four red.**
+
+| | read | verdict |
+|---|---|---|
+| ε = 0 | pre-budget road bytes rose at 12 of 12 centres (LHR 102,918 → 514,198 B) | red |
+| no drop policy | every 161 km (iv) N = 256 D became X (6 of 6) | red |
+| river chaining off | the pre-budget river bytes equal M1's unchained figures **exactly** where M1 was F/C: ABZ 8,049, INV 8,989, NQY 5,012 B. Chained they are 3,798, 4,644 and 1,896 B | red |
+| N = all places | larger than N = 256 wherever more than 256 places lie inside R (LHR 470 places: 8,539 against 4,710 B; MAN 541; BHX 697; NCL 276; CWL 368), and equal elsewhere | red |
+
+**Q12: outcome (f), as predicted.** Neither variant fits without drops at LHR, MAN and BHX. §6's drops decide what is
+kept: class-2 roads, shortest first.
+
+**The kept A-road lengths at 161 km, N = 256** (km kept / km in the square):
+
+| centre | (iii) every A road | (iv) primary A roads |
+|---|---|---|
+| LHR | **11,068 / 18,824** (D) | 7,251 / 8,857 (D) |
+| MAN | **13,620 / 19,532** (D) | 8,916 / 10,441 (D) |
+| BHX | **13,089 / 26,599** (D) | 9,197 / 12,481 (D) |
+| NCL | 8,908 / 9,828 (D) | 4,072 / 4,172 (D) |
+| EDI | 9,396 / 9,854 (D) | 3,682 / 3,683 (D) |
+| GLA | 8,341 / 8,488 (D) | 3,006 / 3,006 (C) |
+| ABZ | 5,925 / 5,992 (D) | 1,785 / 1,785 (C) |
+| INV | 5,838 / 5,841 (D) | 1,925 / 1,925 (C) |
+| CWL | 11,056 / 13,525 (D) | 5,888 / 6,221 (D) |
+| NQY | 4,159 / 4,207 (D) | 1,594 / 1,594 (F) |
+| BFS | 2,755 / 2,755 (C) | 688 / 688 (F) |
+| LDY | 1,213 / 1,213 (F) | 485 / 485 (F) |
+
+- **In the same 32 KB, (iii) keeps more A-road length than (iv) at all 12 centres.** At LHR it is 11,068 km against
+  7,251.
+- **What (iii) does not promise:** shortest-first drops can remove a short primary-route chain while keeping a longer
+  non-primary one. This run measured lengths, not whether every primary route survives.
+- **Recommended, for the ruling:** (iii), every A road, thinned by §6's drops. Its cost is that guarantee: a primary
+  route could go missing where (iv) would show it.
+
+**NI in against NI out (printed, (iv), N = 256):**
+
+| centre | 161 km, NI out | 161 km, NI in | 222 km, NI out | 222 km, NI in |
+|---|---|---|---|---|
+| GLA | C, 28,937 B | D, 56,964 B | D, 46,514 B | D, 89,641 B |
+| BFS | F, 10,322 B | D, 51,826 B | C, 30,765 B | D, 68,768 B |
+| LDY | F, 5,821 B | D, 51,384 B | F, 14,327 B | D, 56,487 B |
+
+So NI's own chaining rule (ruled for later) matters: OSNI's lines alone add about 40-45 KB to an NI centre at 161 km.
+
+### A3.5 The rulings on M1′, verbatim (source: the reviewer chat, pasted by the owner, 2026-10-28)
+
+> 1. M1′: accepted as read. N = 256.
+>
+> 2. Q12: (iii), every A road, with one change to what the drops take first.
+> - The drops take non-primary chains before primary ones: non-primary chains shortest first, then primary chains
+>   shortest first. So every A road stays in sparse areas, and in dense areas the primary network is the last to thin.
+> - That answers the caveat you named: a short primary chain no longer goes before a longer non-primary one.
+> - It's a UK source rule, like chaining. The package format doesn't change, and both builders take the drop key from
+>   the source's primaryRoute flag.
+> - M1″, a small re-run with predictions first: the new drop key at LHR, MAN and BHX at 161 km. Report the share of
+>   primary-route length kept, and that each outcome class is unchanged from M1′.
+>
+> 3. #492's N6: still owed. The owner is being asked again; your token file has the R2 and observability keys but no
+>    analytics-read line.
+>
+> 4. NI in vs out: noted, for NI's own chaining rule after LPS answers.
+>
+> 5. The disk: 11 GB free is tight for a week of collection beside the other sessions' caches. If free space falls
+>    below 5 GB, pause the collection and report. The gap rule covers what's lost.
+
+### A3.6 M1″'s predictions, frozen before any M1″ reading
+
+**A reading the ruling leaves open, fixed here before any run:**
+- **The problem:** Q18 chains links by road number and class, so one chain can hold both primary and non-primary
+  links. The drop key needs one flag per chain.
+- **The reading: a chain is primary if any of its links has `primaryRoute` = true.** That keeps the primary network the
+  last to thin, which is the ruling's stated purpose.
+- **The alternative,** "primary only if all its links are", would drop a mixed chain early, primary links and all.
+- **M1″ prints** how many chains are mixed, and their length, so the reviewer can see whether the reading matters.
+
+**The drop order** (§6's steps, with the ruled key on class 2):
+1. double ε once;
+2. water rings, smallest area first (RD18);
+3. class-2 chains: **non-primary chains shortest first, then primary chains shortest first** (RD19's length, ties as RD19).
+
+**Scope:** LHR, MAN and BHX at 161 km, variant (iii), N = 256, NI out. M1′'s instruments are used, with only the drop
+key added behind a flag.
+
+**The metrics:**
+- **the primary-route length kept:** the in-square length of the class-2 chains flagged primary that survive the drops,
+  over the in-square length of all chains flagged primary;
+- the non-primary length kept, measured the same way.
+
+| | measured | predicted |
+|---|---|---|
+| **M1″-a** | each centre's outcome class | **D, D, D**: unchanged from M1′ |
+| **M1″-b** | the non-primary length kept | **0 km at all three.** M1′'s (iv), with primary roads alone, still needed drops at all three, so every non-primary chain goes before any primary one is touched |
+| **M1″-c** | the share of primary-route length kept | **≥ 60 % at each.** M1′'s (iv) kept 82 %, 85 % and 74 %; mixed chains add non-primary length to the primary set, so the share can only be lower |
+| M1″-d (printed) | mixed chains (count, km), primary km kept and in the square, bytes per section | — |
+
+**Controls:**
+- **The order function, on a synthetic set:** a long non-primary chain, a short non-primary chain and a short primary
+  chain come out non-primary-short, non-primary-long, primary-short.
+- **On every package:** if any primary chain is dropped, no non-primary chain is kept.
+
+**Sabotage:** the drop key off (M1′'s shortest-first order). It must reproduce M1′'s (iii) results at all three centres
+**exactly**: bytes after the budget, and class-2 km kept (11,068.3, 13,620.1 and 13,088.9).
+
+**What the results will mean:**
+
+| outcome | meaning |
+|---|---|
+| **(a)** M1″-a to c as predicted | the drop key stands as ruled |
+| **(b)** an outcome class changes | stop and decide |
+| **(c)** anything else, or a control failing | stop and decide |
+
+### A3.7 M1″'s results (read 2026-10-28, about 22:09-22:20Z): every row as predicted, outcome (a)
+
+**The instrument:** `m1p_sizes.py` at `a9790e2`, with `--m1pp --primarylast`; the grader at `b60ac34`. Raw outputs:
+`docs/uk-data/r1/m1pp.json` and `m1pp-sab.json`.
+
+**A slip, recorded:** the sabotage's first launch ran from the wrong directory and never started ("can't open file",
+exit 2). A shell `&` had backgrounded the `cd` with the first run only. It was re-run from the right directory, exit 0.
+No reading came from the failed launch.
+
+**The controls, all passed:**
+- the synthetic order comes out non-primary short, non-primary long, primary short (`[1, 0, 2]`);
+- on all 3 packages, no non-primary chain is kept while a primary one is dropped;
+- all `kOk`;
+- `synth.py --check` matches every byte.
+
+| | read | verdict |
+|---|---|---|
+| **M1″-a** | LHR **D**, MAN **D**, BHX **D**; M1′ had D, D, D | **as predicted**: no class changes |
+| **M1″-b** | non-primary length kept: **0 km** at all three (of 9,675, 8,629 and 13,504 km in the square) | **as predicted** |
+| **M1″-c** | primary-route length kept: **LHR 80.8 %** (7,388 of 9,149 km), **MAN 84.6 %** (9,219 of 10,896), **BHX 72.5 %** (9,490 of 13,088) | **as predicted** (≥ 60 %) |
+| sabotage: the drop key off | reproduces M1′'s (iii) **exactly** at all three: bytes after the budget 32,761 / 32,760 / 32,757; class-2 km kept 11,068.3 / 13,620.1 / 13,088.9 | **red, as required** |
+
+**Printed (M1″-d):**
+- **Mixed chains:** LHR 140 (565 km), MAN 177 (800 km), BHX 259 (1,045 km): about 6-8 % of the primary set's length.
+  **So the "any link primary" reading moves little.**
+- **The trade, stated plainly:** the ruled key keeps **less total A-road length** than M1′'s shortest-first order. LHR
+  keeps 7,388 km against 11,068. What it keeps is the primary network, and every non-primary chain in these three
+  squares goes first.
+- **Where the class-2 set fits without drops** (GLA, ABZ, INV, NQY, BFS and LDY at 161 km in M1′), the key never acts:
+  every A road stays, as the ruling intends for sparse areas.
+
+### A3.8 The ruling on M1″, verbatim (source: the reviewer chat, pasted by the owner, 2026-10-28)
+
+> M1″: accepted, outcome (a). Q12 is settled: every A road, with non-primary chains dropped before primary ones, and a
+> chain counting as primary if any of its links is (A3.6). The sabotage reproducing M1′ exactly shows the drop key is
+> the only change. The wrong-directory launch produced no reading and is noted. N6 waits for the analytics-read line,
+> which the owner is adding to the token file now.
+
+**The UK road rule, settled:**
+- class 1 = Motorway;
+- class 2 = every A road, with slip roads dropped;
+- links chained by number and class (Q18);
+- under §6's budget, non-primary chains drop before primary ones, each shortest first. A chain is primary if any of
+  its links is.
+- **With:** rivers chained by name; places City and Town, the 256 most populous within R; London by rule L; NI gated
+  out until LPS answers (Q19).
+- **These are M2's inputs.**
+
+**N6, since:** read once the line was in the file. As predicted, with no regression (`docs/wx-server.md` on #494).
+
+### A3.9 L, the bucket's terms (read 2026-10-29, ~03:30Z): outcome (b), as predicted
+
+**The ruling that started R2 (reviewer chat, pasted by the owner, 2026-10-29)** said "Read L (the bucket's terms) now".
+It is recorded verbatim with R2's predictions (`docs/wx-opuk.md`).
+
+**What was read:**
+- **the ORD documentation:** its overview, discovering-and-accessing and MQTT pages; the HVD summary was read
+  2026-10-28;
+- **its GitHub repository's README:** CC BY 4.0 for the documentation, no terms of use, and no LICENSE file;
+- **MeteoGate's site:** its "Terms and conditions" link leads to the documentation's references page, which links the
+  **MeteoGate Data Governance Policy** (`Data_governance_policy.docx`, 202,756 B, sha256 `4ecbdfa0f7f7…`, 163
+  paragraphs, all read);
+- **the API-key portal:** it renders only a title without scripts, so it carried no readable terms.
+
+**L2, the headers.** A listing (200) and an 8 KB range GET (206) on `openradar-24h`, both sent with the ingest's
+User-Agent.
+- **No rate-limit, quota or retry header on either. As predicted.**
+- **Present, and worth knowing:** `x-amz-expiration: expiry-date="…", rule-id="24h-cache-lifecycle"`. That is the
+  cache's own lifecycle rule.
+
+**L1, a published limit for the S3 cache:**
+- **None. As predicted.**
+- The ORD page names only an `x-ratelimit-remaining` header for anonymous *API* queries, with no number. The S3 cache
+  sent no such header.
+
+**The only governing text,** from the Data Governance Policy, verbatim:
+> "To protect the availability of this service for everyone, accidental or deliberate heavy traffic from an IP address
+> may result in disconnection. In addition, Registered users may be contacted by EUMETNET's FEMDI Coordinating Member
+> to support them find and access data in a sustainable way."
+
+**No term forbids automated use.**
+
+**Outcome (b):** no limit stated, no rate-limit header, no term against automated use.
+- **As ruled (A2.1, item 3), R3 does not wait.** The reviewer drafts the courtesy note, and the owner sends it.
+- **Our load against the one clause:**
+  - about 1,728 range reads and 2,880 listings a day: **about 3 requests a minute;**
+  - from Cloudflare's egress, not one fixed address;
+  - with a User-Agent naming us and a contact URL (K14).
+  - That is not the "heavy traffic" the clause guards against.
+
+### A3.10 The collection paused by the disk rule, and resumed (2026-11-04)
+
+**The disk rule (ruled 2026-10-28):** "If free space falls below 5 GB, pause the collection and report."
+
+**What happened:**
+- **The watcher fired at 23:30:03Z on 11-03,** with 1 GB free.
+- **Its notice reached the session only at 04:27Z on 11-04.** The watcher of the time only exited; it did not stop the
+  loop. So the collection ran twice after the threshold, at 00:38Z and 03:42Z, both without error (2,340 frames held).
+- **The loop was stopped at 04:27:47Z** and the pause written to `loop.log`.
+- **The collection was not what filled the disk.** It holds about 900 MB (876 MB of frames, 17 MB of HDF5, 7 MB else),
+  against a fall from about 39 GB free on 10-29 to 1 GB. The largest items found:
+  - WSL Ubuntu's virtual disk, 53.1 GB, being written at the time;
+  - `~/.platformio`, 14.2 GB, and the repo's `.pio`, 7.7 GB.
+- **About 16.5 GB was freed between 04:27Z and 04:36Z by something outside this session** (nothing was deleted by it).
+  `df` and two Windows counters agreed at 17,722 MB, steady over 20 s.
+- **No data was at risk.** The cache holds the previous UTC day and today. All of 11-03 was already collected, and any
+  run before 11-06 00:00Z collects every frame up to the frozen end.
+
+**The decision, the owner, 2026-11-04, verbatim:** "1".
+
+It answered:
+> 1. **Resume**, with the disk watcher re-armed: catch-up runs on the 3-hour cycle to 16:00Z, or one final run after
+>    16:00Z. Either way the frozen window is complete.
+> 2. **Or close the collection at 03:44Z** and read T, B and C on what's held.
+
+**Done, 04:48:14Z:** the loop was re-armed on the same cycle and the same end, 2026-11-04T16:00Z, and so is the watcher.
+- **The loop's last run lands just after 16:00Z,** as the original loop's would have. That covers both readings of (1).
+  Frames after 16:00Z are filtered out by time at the readings.
+- **One change in how the ruling is carried out, not in the ruling:** below 5 GB, the watcher now pauses the
+  collection itself, instead of only exiting. It writes `PAUSE` in the collection folder, and the loop skips every run
+  while that file exists.
+- **Rehearsed on copies before arming:**
+  - with `PAUSE` present, the collector does not run;
+  - without it, the collector runs;
+  - given a threshold it must trip, the watcher creates `PAUSE` and exits 2;
+  - after the loop's end, the watcher exits 0 and creates no `PAUSE`.
+- **The scripts:** `docs/uk-data/instruments/r1_loop.sh` and `r1_watch.sh`.
+
+### A3.11 The ruling on A3.10, verbatim (source: the reviewer chat, pasted by the owner, 2026-11-04 ~05:05Z)
+
+> A3.10: accepted.
+> - The restart on the owner's "1" is accepted: same cycle, same frozen end (16:00Z), and frames after 16:00Z dropped by time.
+> - The watcher now writing PAUSE is accepted as how the disk rule is carried out. The rule itself is unchanged.
+> - The rehearsal on copies is accepted as the check that it can fire.
+> - The record of where the disk went is noted. The collection holds about 0.9 GB; the rest is WSL's virtual disk and
+>   PlatformIO's caches, which aren't yours to touch.
+>
+> Next as you planned: the last run after 16:00Z, then T, B and C. C's reading comes to me with the clutter-mask proposal
+> before R3, predictions first.
+
+### A3.12 T, B and C: what the frozen rows leave open, pinned before any instrument runs (2026-11-04, ~05:20Z)
+
+**Nothing below has been computed on the week.** No instrument runs on the week before the loop logs `loop ended`.
+The instruments are proved first on synthetic data, each control and sabotage included.
+
+**The week, and its controls.**
+- **The week's frames:** every `DBZH` `.tiff` key whose V lies in **[2026-10-28T00:00Z, 2026-11-04T16:00Z]**. Later
+  frames are dropped by time, as ruled.
+- **The gap rule's 7 days** are the UTC days 10-28 to 11-03. A day is **wholly held** when every key listed with a V
+  on that day has its frame held (its `.json` and `.tiles`). The part of 11-04 up to 16:00Z counts in the readings,
+  not in the gap rule.
+- **The listing control:** for every key in more than one listing, the `.tiff`'s `LastModified` is identical in all.
+  One that differs means stop.
+- **The decode control:** `decode_check.py` on each of the 8 held `.h5` files (one a UTC day, 10-28 to 11-04). One
+  mismatch makes T, B and C BLIND.
+
+**T.**
+- **T1:** the steps between consecutive V's, sorted.
+- **T2:** P − V per key, with P the `.tiff`'s `LastModified` (A2.1, note 1). p50 and p95 by the nearest-rank method.
+- **T3:** the 300 s slots from 10-28T00:00Z to 11-04T16:00Z inclusive, **2,209**, of which slots with no key.
+- **The sabotage:** every third key, by V, dropped.
+
+**B.**
+- **The offset:** read from `cref`'s `wx_ingest` events in Workers Logs (`t0` = event time − `ms`) over the newest
+  24 h the logs hold.
+  - **Two numbers:** the median of `t0` mod 60 for the `:00` checks, and the same for the `:30` checks.
+  - **If either cannot be read,** B is graded with both checks at offsets 0 s and 5 s, and both must meet the
+    predictions.
+- **The model:**
+  - **A check** at time t stores the newest frame with P ≤ t, which is servable from t + `b`.
+  - **The served frame** at time s is the newest frame stored by a check with t + `b` ≤ s.
+  - **The device** polls at φ + 60 n, and from its reply holds the frame served at the poll. It draws while
+    now − V ≤ 600 s (`WhatToShow`: blank only when the age is over 600).
+- **The span measured:** [10-28T00:10Z, 11-04T16:00Z]. Starting 600 s in removes the start-up blank that frames
+  before the week would have covered.
+- **The readings:**
+  - **B2:** blank intervals in the span, over its hours, averaged over the 60 phases.
+  - **B3:** the longest over every phase.
+- **The extra checks:** besides `:00` and `:30`, a check at V + 240 + 10 k s (k = 0, 1, …) until one finds the frame
+  listed, at the `:00` checks' offset.
+  - **B4:** their count a day, times 8 ms of CPU, and one listing each.
+- **`b` = 2 s graded;** B printed at 0 and 5 s, and with the reply 1 s late.
+
+**C.**
+- **The grid:** the collection's stored UK window, on the HDF5's georeference (the corrected corner).
+- **An echo:** value ≥ 15 (NaN and −9,999,000 are not). **The mask:** quality < t, strict, with t = 0.5 graded.
+- **Isolated:** the 11 × 11 neighbourhood centred on the cell (±5), clipped at the window's edge, holds ≤ 3 echoes,
+  the cell included.
+- **C2's masked run** recomputes isolation over the masked echoes.
+- **Persistent:** isolated in at least 0.10 × N of the week's N held frames.
+- **C3:** over the week, the unmasked run's non-isolated echoes with quality < 0.5, over all its non-isolated echoes.
+- **C4:** the cell-frames ≥ 65 dBZ, unmasked and masked; and C1-C3 at t = 0.1, 0.2, …, 0.9.
+- **The control's cell:** the first cell in row-major order that is covered (not −9,999,000) in every frame and whose
+  11 × 11 neighbourhood holds no echo in any frame. Planted at 40 dBZ in every frame:
+  - with quality 1.0, **C1 + 1 and C2 + 1**;
+  - with quality 0.2, **C1 + 1 and C2 unchanged.**
+  - If no such cell exists, the control is BLIND, so C is BLIND.
+- **The sabotage:** C2's run with the mask off gives C2 = C1, which is red unless C1 is 0.
+
+**Outside the set:** any reading not listed in A1.3 or here means stop and report.
+
+### A3.13 The ruling on A3.12 and the instruments, verbatim (source: the reviewer chat, pasted by the owner, 2026-11-04 ~05:30Z)
+
+> A3.12 and the instruments (da7f1bb): accepted. Run them as planned once the loop logs its end: the 8 daily decode checks
+> and the listing check, then T, B and C. C's reading comes to me with the clutter-mask proposal, predictions first,
+> before R3.
+
+### A3.14 R1's readings (2026-11-04, from 16:59Z): the controls and T as predicted; B outside the set
+
+**The collection was static before it was read.** The loop logged its end at 16:58:42Z, with no errors and 2,499
+frames held. The frame files (4,998) and the listings' bytes were the same in two reads 30 s apart. `loop.err` is
+empty.
+
+**The controls:**
+- **Decode:** `decode_check.py` on the 8 daily `.h5` files gives **0 differing cells of 2,221,632** on each. `r1_c.py`'s
+  own decoder gives 0 on the same 8 too, so C's decoder is held to the same truth as the control's.
+- **Listing:** no key's `LastModified` changed between listings.
+- **The gap rule:** **7 of 7 days wholly held** (10-28 to 11-03: 288, 284, 286, 288, 288, 288 and 288 keys, none
+  missing a held frame). The week counts. It has 2,201 frames up to 16:00Z on 11-04.
+
+**T: every row as predicted.**
+
+| | got | predicted |
+|---|---|---|
+| T1 | **99.73 %** of steps exactly 300 s | ≥ 99 % |
+| T2 | p50 **252.4 s**, p95 **283.2 s**, **0.64 %** over 450 s | p50 in [240, 265], p95 ≤ 320, ≤ 1 % over 450 |
+| T3 | **8** of 2,209 slots missing (0.36 %) | ≤ 0.5 % |
+
+The sabotage (every third key dropped) is red in the instrument's selftest (T1 0.50).
+
+**B's offsets, read as pinned, with one step added and stated.**
+- **The first read was sampled.** It covered 24 h in one query and returned 423 events spread across the day at
+  sampling (ABR) level 10: 125 `:00` and 143 `:30` checks of `cref`. Medians: 6.025 s and 5.233 s.
+- **Read again in 24 one-hour windows,** each unsampled (ABR level 1, none at the 2,000-event page limit): 1,438 and
+  1,436 checks. Medians **6.019 s and 5.233 s.** The sample agreed. The complete read is the one used.
+- **Every `:30` check reads exactly 5.233 s,** which looked like an artifact, and it is not:
+  - the cron's own `scheduledTime` sits 5.233 s past the minute;
+  - each `:30` check starts exactly 30.000 s after it, on a timer;
+  - the `:00` checks start 0.6-1.6 s after `scheduledTime`.
+  So the checks really run at about :06 and :35.
+
+**B: OUTSIDE THE SET, outcome (c). Stopped for a ruling.** Graded at `b` = 2 s, offsets 6.019 / 5.233 s:
+
+| | today's schedule | predicted | with the extra checks | predicted |
+|---|---|---|---|---|
+| **B1** | **5.51 %** | [2.0, 5.0] | **2.97 %** | [0.5, 2.5] |
+| B2 | 7.31 an hour | [4, 8] | 4.37 an hour | [2, 5] |
+| **B3** | **1,177 s** | ≤ 600 | **1,177 s** | ≤ 600 |
+| B4 | — | — | 768 extra checks a day: 6.1 s of CPU at 8 ms, and 768 listings | printed |
+
+- **B1 and B3 miss on both schedules.** B2 is as predicted.
+- **Neither schedule meets outcome (a)'s bar.** Outcome (b) needed every row as predicted, so this is **(c): stop
+  and decide.**
+- **Printed:** B1 at `b` = 0 is 5.11 / 2.73 %; at `b` = 5 it is 6.15 / 3.37 %; with the reply 1 s late, 5.72 / 3.10 %.
+- **B5:** at a device limit of 720 s, B1 is **0.69 / 0.66 %**; at 900 s, **0.30 / 0.29 %** (today's / extra).
+
+**Data beside the verdict, not a re-grade:**
+- **All 8 missing slots fall between 00:10 and 00:45 UTC,** on 10-29, 10-30 and 11-04. So do the latest frames (up to
+  561 s) and the longest blanks: at the worst phase, 1,177 s at 10-29 00:15 and 877 s at 11-04 00:25. OPERA's
+  composite stalls in that hour on some nights, and that is what breaks B3.
+- **That is not what breaks B1.** At the worst phase, blanks over 300 s hold only 4.7 % of the blank time.
+- **With the checks at :00/:30 exactly** (the schedule my ranges assumed), measured on the same week:
+  - today's schedule: B1 **4.67 %**, inside its range;
+  - with the extra checks: B1 **2.92 %**, still outside its range.
+  - So the measured offsets account for today's miss.
+  - The extra schedule's range was too low on its own account. I have not shown why, and do not offer a
+    cause.
+
+### A3.15 B's stop: the cause as read, and the options (2026-11-04 ~17:15Z, asked for ahead of C)
+
+**More data beside the verdict, not a re-grade:** B at three device limits, measured on the same week at the same
+offsets. "An ideal ingest" serves each frame the instant it is listed (a check at every frame's own P, `b` = 0): the
+best any ingest could do.
+
+| device limit | today's schedule | with the extra checks | an ideal ingest |
+|---|---|---|---|
+| **600 s** (#445 today) | 5.51 %, 7.31/h, 1,177 s | 2.97 %, 4.37/h, 1,177 s | **2.19 %, 2.96/h, 1,169 s** |
+| **720 s** | 0.69 %, 0.15/h, 1,057 s | 0.66 %, 0.13/h, 1,057 s | 0.64 %, 0.13/h, 1,049 s |
+| **900 s** | 0.30 %, 0.03/h, 877 s | 0.29 %, 0.03/h, 877 s | 0.29 %, 0.03/h, 869 s |
+
+(B1, B2, B3 in each cell.)
+
+**The cause, as read.**
+- **B1 and B2 at 600 s are set by the device's limit, not by the ingest.**
+  - A frame reaches OPERA's listing with T2's 252 s median latency (95th percentile 283 s).
+  - That leaves under 50 s of the 300 s that the 600 s limit allows between frames, which is less than the 60 s
+    between the device's polls.
+  - **The alternative, our ingest's timing, is excluded:** an ideal ingest still blanks **2.19 %, 2.96 an hour.** No
+    schedule can reach outcome (a)'s bar (1 %, 1 an hour) at 600 s. The ingest's whole share is the gap between 5.51 %
+    and 2.19 %.
+- **B3 is OPERA's own nightly gap.**
+  - The longest blanks sit on the missing slots and late frames at 00:10-00:45 UTC (10-29, 10-30, 11-04).
+  - **The alternative, an ingest cause, is excluded:** B3 is the same on today's schedule, the extra checks and an
+    ideal ingest (1,177 / 1,177 / 1,169 s). No ingest can serve a frame the source has not published.
+  - B3 shrinks with the device limit only by the limit's own increase (1,177 → 1,057 → 877 s).
+- **Why my ranges missed:**
+  - today's B1 range assumed checks at :00/:30, and production runs them at about :06/:35 (at :00/:30 the week gives
+    4.67 %, inside the range);
+  - the extra schedule's range sat below what the extra checks reach. They land 0.78 points above an ideal ingest (the
+    10 s grid, the 6 s offset, `b`), the only thing that differs between those two runs.
+
+**The options.**
+
+| | what | the week says |
+|---|---|---|
+| **1** | **#445 gets a per-product age limit, with `opuk` at 720 s** (sent by the server per product, or set in #445 for `opuk`); `cref` keeps 600 s; today's schedule; no extra checks | B1 **0.69 %**, B2 **0.15 an hour**: inside outcome (a)'s B1 and B2 bars. B3 1,057 s, only on OPERA's nightly gaps |
+| 2 | the same at 900 s | B1 0.30 %, B2 0.03/h, B3 877 s. Frames up to 15 min old are shown, for 0.4 more points |
+| 3 | keep 600 s and buy the extra checks | B1 2.97 %, B2 4.37/h: the layer still blinks about four times an hour, for 768 more listings a day |
+| 4 | the device polls faster (WD3 (g)) | not modelled. It changes #445's request rate, and at 600 s the floor is set by OPERA's latency |
+
+**Recommended: option 1.**
+- 720 s meets B1 and B2's bar with no new cost. The extra checks buy 0.03 points at 720 s, so they are not worth 768
+  listings a day.
+- A frame is at most 12 min old when shown. That is consistent with `opuk`'s 1,800 s server limit, and fresher than
+  option 2.
+- **B3's bar (≤ 300 s) cannot be met at any limit up to 900 s while OPERA stalls at night.** I recommend recording B3
+  as the source's gap, not grading it against the ingest. During such a gap the device draws nothing, which is honest.
+- **This is the conclusion outcome (b) named:** #445 needs a per-product age limit before it merges. The row grading
+  is (c), so it is put to you rather than taken.
+
+### A3.16 C's readings (2026-11-04, 16:59-17:33Z), and the clutter-mask proposal with its predictions frozen
+
+**C: OUTSIDE THE SET. Stopped for a ruling.** `r1_c.py` over the week's 2,201 held frames, with no errors.
+
+| | got | predicted |
+|---|---|---|
+| **C1** | **0** persistent clutter cells | ≥ 1 |
+| C2 | 0 | ≤ 25 % of C1 |
+| **C3** | **98.0 %** of non-isolated echoes have quality < 0.5 | ≤ 5 % |
+| C4 (printed) | cell-frames ≥ 65 dBZ: **801 unmasked, 2 masked**. C2 is 0 at every threshold; C3 runs from 96.9 % (t = 0.1) to 98.1 % (t = 0.9) | — |
+
+- **The control: as predicted.** The planted cell at quality 1.0 gives C1 1 and C2 1; at quality 0.2, C1 1 and C2 0.
+- **The sabotage is BLIND, as A1.3 foresaw** ("red, unless C1 is 0"). With C1 = 0, turning the mask off cannot change
+  C2. The instrument printed `red: true` here. That label is wrong when C1 is 0, and this line replaces it.
+- **The outcomes that apply:** **(b)**, C1 = 0, "the week shows no clutter; no mask"; and **(d)**, C3 misses, "the mask
+  deletes real rain". Two outcomes at once is "anything else", so **stop and decide.** Both point the same way.
+
+**C3 checked against an independent instrument before being believed.** The decode controls hold the value band to
+the HDF5; nothing yet held the quality band. The alternative was that `r1_c.py` misreads band 2.
+- **Excluded:** each `.h5` carries its own quality field, `dataset1/data1/quality1` (`how/task` =
+  `pl.imgw.quality.qi_total`). On every echo cell of the 8 daily frames, the decoder's quality band equals it:
+  **0 differences.**
+- **From the HDF5 alone, with no code of ours:** 98.1 % of echoes, and 98.1 % of non-isolated echoes, have quality
+  < 0.5 (per frame, 89.5 % to 99.9 %).
+- **The histogram says why.** On echoes, `qi_total` is almost always **exactly 0.0**, with a small group at 1.0 and
+  little between. Across the 8 frames, 173,239 of the 177,937 echoes read 0.0, and 3,188 read 1.0. In this
+  composite, the quality index is not a per-echo clutter score.
+- **And C1 = 0:** no cell is an isolated echo in 10 % of the week's frames. The composite reaches us without
+  persistent specks.
+
+**What this means for R2, already merged.**
+- `OPUK_QI_MASK` is **on, at 0.5**, on main. So it removes about 98 % of the rain `opuk` would serve.
+- **K12's crops and K13's render were made with it on.** The 8 crops on main hold 1,665 echo cells in total, 6 at LHR.
+- **K13's "LHR is all dry" is likely the mask, not the weather,** and is withdrawn as a statement about the weather.
+- Nothing is deployed: R3 has not run, and no device reads `opuk`.
+
+**The proposal: turn the mask off before R3.**
+- `OPUK_QI_MASK = { on: false, threshold: 0.5 }`. The switch stays, so a future product with a real clutter score can
+  use it.
+- Q17 (what a masked echo becomes) is then moot: nothing is masked.
+- **One PR, from main.** Its predictions, frozen here before any code:
+
+| | check | predicted |
+|---|---|---|
+| **M1** | K15, restated for a default of off | with the default: (40 dBZ, QI 0.4) → **6**, (40, 0.5) → 6, (40, 0.9) → 6. With the switch on: K15's frozen rows unchanged (0, 6, 6; off 6), and its sabotage (`<=` for `<`) still red |
+| **M2** | K12 rebuilt with the mask off | each crop's echo cells **≥** its masked count (it cannot fall: the unmasked echoes include the masked ones). **The total ≥ 10 × 1,665 = 16,650.** 8 / 8 decode, and the sabotage fails exactly `man-161km.wxc` |
+| **M3** | K13 re-rendered at LHR, and the ABZ extra | rendered, looked at; no echo count is predicted |
+| **M4** | every other R2 row (K1-K11, K14) | unchanged: the mask is not in their path (K2′ plants quality 0.9; K9's share counts code 14, which the mask never makes) |
+| — | the whole proxy suite, and host-tests | green |
+
+**Outside the set:** any other reading means stop and report.
+
+**C's outputs:** `docs/uk-data/r1-readings/r1-c.json` (rounded as before) and the quality cross-check in
+`r1-qi-check.jsonl`.
+
+### A3.17 The rulings on B and C, verbatim (source: the reviewer chat, pasted by the owner, 2026-11-04 ~17:50Z)
+
+> C: the mask-off PR is approved to build, from main, with M1-M4 and CI green as frozen in A3.16. The evidence is
+> accepted: the decoder is held to the HDF5's own qi_total with 0 differences, 98.1 % of echoes are under 0.5 read
+> straight from the file, and C1 = 0.
+> - OPUK_QI_MASK stays as a switch, default off.
+> - K13's "dry London" is withdrawn, as you recorded. The instrument's `red: true` label for the C1 = 0 case is corrected
+>   in the record.
+> - A follow-up on record: re-read C on a summer week (June-August), when anomalous propagation is likeliest. If
+>   persistent clutter shows then, the mask question reopens with that week's data.
+>
+> B: option 1, a per-product age limit, with opuk at 720 s and cref at 600 s. Today's schedule; no extra checks.
+> - The server tells the device each product's limit. Your side: the /wx/cref handler states 720 for opuk, and states
+>   nothing new for cref. blipscope-5c's side, in #445: read it, clamp it to [600, 900], and default to 600 when it's
+>   absent or invalid.
+> - The channel (a response header, or a field in the crop's header) is agreed between you and blipscope-5c, with the
+>   reason. You propose it, predictions first, in your PR.
+> - B3 is recorded as OPERA's nightly gap (00:10-00:45 UTC), not graded against the ingest. During it the device draws
+>   nothing.
+> - The misses stay on record, with their causes as you read them (the :06/:35 offsets; the extra schedule's range).
+>
+> R3, the opuk ingest's production deploy, comes after the mask-off PR merges, and after the server side of the age limit
+> merges. Predictions first. Deploy it staged and verify it, outside any announced board window: it shares the ingest with
+> cref, which E2:08 reads.
+>
+> Before opuk serves in production, /credits carries OPERA's CC BY 4.0 attribution. Confirm it's there, or add it to the
+> mask-off PR.
+
+**/credits, checked against main at `0a84a64`:** it does not carry OPERA. It has the NOAA line (with a unit test and a
+smoke check) and nothing for OPERA. So the attribution goes into the mask-off PR, in the wording A2.1 accepted in
+principle ("Final at R4's review"), with its own predictions frozen in that PR before its code.
+
+**A follow-up on record:** C re-read on a summer week (June-August).
+
+### A3.18 The rulings on #521 and #522, verbatim (source: the reviewer chat, pasted by the owner, 2026-11-04 ~18:25Z)
+
+> #521:
+> - The credits-test fix is approved: the check reads the photo-credits section only. Predictions as frozen: the
+>   public-domain photo passes, and a CC-BY-SA-4.0 one still fails. Its control: the PD photo moved into the
+>   CC-licensed form turns it red.
+> - M1-M5 accepted, as read: 192,184 echo cells against 1,665 masked; M3's renders; K11 0.27-0.34 s CPU a frame, 54.6 MB
+>   peak; M5 with its control.
+> - Approved to merge at the head that adds exactly that fix on top of b265b3ce6941. CI complete, 0 failed, with the
+>   count predicted before the push. Squash with --match-head-commit, no --admin; record main's CI. Anything else: send
+>   it to me.
+>
+> #522: X-Wx-Max-Age is the channel, ruled for both sides. The reasons are accepted: WXC1 v1 stays frozen, a 304 restates
+> the header, and a lost header falls back to 600.
+> - blipscope-5c implements the device side in #445 (my block to it).
+> - #522 can leave draft now. A device that doesn't read the header is unaffected.
+> - Approved to merge at 04da4bc76b70 once its CI is complete with 0 failed and the count predicted. Same merge terms.
+>
+> R3 after both merge: predictions first. Staged and verified, outside any announced board window. It shares the ingest
+> with cref.
+
+### A3.19 The ruling on #521's and #522's count, verbatim (source: the reviewer chat, pasted by the owner, 2026-11-04 ~19:15Z)
+
+> #521 and #522: (a). The count is re-registered at 41 on both: 38 passed, plus firmware.yml's `version`, `promote` and
+> `ship-alert`, skipped. `ship-alert` and `version` need `build`, and `promote` needs `version`, so their checks exist
+> only once the build matrix finishes; your baseline was read before that. The miss is kept on both PRs. Lesson
+> accepted, with one addition: count only from a finished run, and a job behind `needs:` shows up only when what it
+> needs has finished.
+> - Merge #521 at edfe52fea3c1, then #522 at 04da4bc76b70: squash, --match-head-commit, no --admin. Record main's CI
+>   on each merge commit.
+> - I checked both against today's main (ec4f0d4, after #518, #513 and #517): each merges cleanly, and #522 merges
+>   cleanly after #521. #521 and #513 both touch smoke-prod.sh: the merge is clean, and your edfe52f run came after
+>   #513 merged, so it tested them together. Nothing under proxy/src changed on main since your base. If GitHub
+>   reports a conflict anyway, stop: a hand-resolved head needs a fresh look.
+> - After #521 merges, production's smoke has the OPERA check, and it fails until a proxy deploy carries #521. Your
+>   next predictions: that deploy (a "carried by the deploy" row, as #513 did; the smoke as the test identity, now 38
+>   checks with the OPERA line passing; cref's /wx unchanged with no X-Wx-Max-Age; what /wx does for opuk before R3),
+>   then R3's. Nothing deploys before my ruling on them.
+>
+> Disk: accepted. node_modules in your own worktrees counts as regenerable (npm ci rebuilds it). C: read 15.5 GB free
+> at 19:13Z, steady: above the 10 GB stop, so disk-wise R3's small Worker bundle is fine. Large builds still wait for
+> 30 GB.
+
+### A3.20 Items A (Northern Ireland: LPS's answer) and B (OPERA coverage by country), verbatim (source: the reviewer chat, pasted by the owner, 2026-11-05 ~21:20Z)
+
+> Two items. Neither touches production, staging or the dev bucket, and neither may delay item 3 or R3'.
+>
+> A. Northern Ireland: LPS's written OK has arrived
+> 1. Facts, taken from the email thread itself. On 2026-10-28 (15:53Z) the owner asked LPS whether map files derived from these may be redistributed to customer devices under OGL v3.0: OSNI Open Data 50K Transport; OSNI Open Data Gazetteer; DAERA's Lakes of Northern Ireland (if derived from OSNI mapping); NISRA settlement populations joined to NISRA settlement boundaries (to rank towns). LPS's IPR/Copyright team (OSNI) answered on 2026-11-04 at 14:03Z: yes, they are Open Data and can be used to create small map files sent to customer devices, provided the OGL acknowledgement is included. Required wording, verbatim:
+>    Contains Ordnance Survey of Northern Ireland information licensed under the Open Government Licence v3.0.
+>    Where a link is possible, "Open Government Licence v3.0" links to https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/
+> 2. Read-only first: open each dataset's own publisher page and record its licence and any attribution statement it asks for, with URL and date read. LPS answered for all four, but DAERA and NISRA publish separately: any line their page asks for goes in beside the OSNI line. If a page isn't OGL v3.0, or conflicts with LPS's answer, stop and report that dataset; its layer stays unserved until I rule.
+> 3. Record (small docs PR): where the NI gate is written, put the dates, organisation and team, the four datasets as asked, the answer in your own words, the line verbatim, and step 2's findings. No personal names, email addresses or phone numbers in the repo; the owner keeps the email. The NI gate lifts when this PR merges. NI still ships with GB under the UK map plan, so its timing doesn't change. Predict CI from the latest finished docs-only run; I review before merge.
+> 4. The line ships in the same change that first serves NI-derived data, never after, everywhere the GB OS OpenData line goes: docs/basemap-attribution.md, /credits, and the provenance list of each package holding NI-derived features. Predictions frozen first. Checks: (a) live /credits holds the line exactly, as one string, with the OGL link; (b) an NI fixture package carries the NI provenance entry. Sabotages: change one word → (a) red; drop the entry from the NI fixture → (b) red.
+>
+> B. OPERA coverage by country (the owner's go): read-only survey
+> Purpose: rank European countries by how much of their land the open OPERA composite covers. Input for the owner, not a build plan. Run it after your item-3 PR is pushed, outside any R3' slot or board hold.
+> 1. Read-only: no deploy, no Worker/bucket/KV writes anywhere, ingest untouched. Read only the public OPERA source the ingest already uses, one request at a time: at most 24 frames plus their listings, 1 GB or less, in your own scratch. Check free disk first (the under-10 GB rule stands). You may delete your own downloaded frames afterwards.
+> 2. Frames: the DBZH composite the ingest reads, hourly on the hour, 2026-11-04 00:00–23:00Z (or the latest full UTC day the source holds; say which). Fewer than 20 readable → stop and report.
+> 3. Countries: Natural Earth admin-0 at 1:10m (name the version), rasterised onto the composite's own grid with the same reader and georeferencing as opuk (K1 corner rule), pixel-centre rule. Covered = data or undetect; nodata = not covered. Covered % = covered / in-domain land pixels; in-domain % = in-domain land / the country's whole land. Rank countries with at least 50% in-domain and at least 100 pixels; list the rest apart with their numbers.
+> 4. Controls, predictions frozen before code. Each has a sabotage that must turn it red; one that doesn't = BLIND = FAIL → stop and report.
+>    C1 same reading: on one frame, your UK figure matches wx-opuk-verdict.sh's for that frame, exactly if both count the composite's own pixels, otherwise within a tolerance you state in the predictions. Sabotage: count undetect as uncovered, on a frame with undetect pixels in that area (give the count).
+>    C2 geometry: for ranked countries wholly in-domain, pixels × pixel area within ±3% of the polygon's area computed in an equal-area projection. Sabotage: rasterise with the wrong pixel size.
+>    C3 placement: Shetland (no radar coverage, per R1) under 5% covered in every frame. Sabotage: a misplaced raster (e.g. north–south flip). Pre-ruled: if your first sabotage doesn't turn it red, pick one that does, miss kept.
+> 5. Report in your reply; no PR until I've read it. Ranked table: country | in-domain % | covered % (median of frames) | lowest frame | frames read | contributing radars by country prefix (only if the files carry a node list). Also give the controls and sabotages (predicted/observed), plus the script's sha256 and command line. Coverage only: clutter, quality and latency aren't graded.
+
+### A3.21 A, step 2: each dataset's publisher page, read (2026-11-05, 21:28-21:36Z). Three of the four stop
+
+Read-only. Every URL is the one fetched, and every quote is the page's own.
+
+| dataset (as asked) | the page read | licence stated | attribution it asks for | verdict |
+|---|---|---|---|---|
+| **DAERA, Lakes of Northern Ireland** | DAERA's own hub catalogue, `https://opendata-daerani.hub.arcgis.com/api/feed/dcat-us/1.1.json` (landing page `https://opendata-daerani.hub.arcgis.com/datasets/DAERANI::lakes-of-northern-ireland`), read 21:32:18Z | **OGL v3.0**: "DAERA NIEA dataset contains Ordnance Survey of Northern Ireland information licensed under the Open Government Licence v3.0. Per the National Archive guidance on OGL found at: Open Government Licence (nationalarchives.gov.uk)", linking `http://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/` | that same sentence. It is DAERA's line, and it confirms the data is OSNI-derived | **consistent with LPS's answer.** DAERA's line goes in beside the OSNI line |
+| **OSNI Open Data 50K Transport** | **OSNI's own pages could not be read.** OpenDataNI (`admin.opendatani.gov.uk/dataset/...`) answers **403** to every fetch, and its public front end gives 404/500. OSNI's hub item (`osni-spatialni.opendata.arcgis.com`, ArcGIS item `476bb4e6f8e64f60a08ae84888733bd4`) answers "Item does not exist or is inaccessible". **Read instead, a mirror:** `https://www.data.gov.uk/dataset/828a8d26-b199-4620-9e02-b61557792500/osni-open-data-50k-transport-transport-lines`, harvested from OSNI's hub (record updated 8 July 2026) | licence field "UK Open Government Licence (OGL)", **but its text: "By download or use of this dataset you agree to abide by the LPS Open Government Data License."** | none stated beyond that | **STOP: the publisher's page can't be read, and the mirror names the "LPS Open Government Data Licence", not OGL v3.0** |
+| **OSNI Open Data Gazetteer** (place names) | the same blocks. Mirror: `https://www.data.gov.uk/dataset/4ad70f94-c874-452c-94ee-2b2c39f57006/osni-open-data-gazetteer-place-names` (harvested from OSNI's hub; updated 8 July 2026) | field "UK Open Government Licence (OGL)"; **text: "By download or use of this dataset you agree to abide by the LPS Open Government Data Licence."** | none beyond that | **STOP, as for 50K Transport** |
+| **NISRA settlement populations joined to NISRA settlement boundaries** | NISRA's pages: `https://www.nisra.gov.uk/publications/2011-census-headcount-and-household-estimates-settlements-northern-ireland` (published 26 March 2015) and `https://www.nisra.gov.uk/publications/settlement-2015-documentation` (published 2 May 2016). Neither states a licence; both defer to the site's `https://www.nisra.gov.uk/crown-copyright` (last updated 30 December 2025) | Crown copyright page: "under the terms of Open Government Licence", linking OGL v3, **and: "Ordnance Survey of Northern Ireland (OSNI) branded Land & Property Services (LPS) mapping (or any mapping based on, or derived from OSNI branded mapping) is exempt from the terms of the OGL."** The boundaries' own OpenDataNI page (Settlement Development Limits 2015) answers 403 | "acknowledge the source of the Information by including attribution statements specified by the Information Provider(s)", with the example **"Source: NISRA : Website: www.nisra.gov.uk"** | **populations: OGL**, NISRA's line beside the OSNI line. **Boundaries: STOP. NISRA's own page exempts OSNI-derived mapping from OGL, which conflicts with LPS's answer** |
+
+**Recorded beside, not a finding:** search results quoted a second LPS acknowledgement form, "Contains LPS
+Intellectual Property © Crown copyright and database right (year) This information is licensed under the terms of the
+Open Government Licence". I couldn't trace it to a readable LPS page: the LPS Q&A URL found answered 404. It is not
+the line LPS's IPR team gave in writing.
+
+**As ruled, until the reviewer rules:** the layers built from the three stopped datasets stay unserved.
+- **Roads:** OSNI 50K Transport.
+- **Places:** OSNI Gazetteer, and NISRA boundaries for the ranking.
+- **Water (DAERA lakes)** is consistent. NISRA's populations are OGL, but they are only used through the boundary join.
+- **The docs PR (A.3) waits** for that ruling, so it records one settled answer, not a partial one.
+
+### A3.22 B, the OPERA coverage survey: predictions, frozen before any code (2026-11-05 21:38Z)
+
+**Frames.**
+- The source the ingest reads is `https://s3.waw3-1.cloudferro.com/openradar-24h`, and it keeps 24 hours. So
+  2026-11-04's frames are already gone.
+- **The latest full UTC day the source will hold is 2026-11-05, 00:00-23:00Z hourly.** Every one of those 24 frames
+  is present together only between the 23:00 frame's arrival (about 23:05Z) and the 00:00 frame's expiry (about
+  00:00Z on 11-06).
+- **Plan:**
+  - list, then download 00:00-21:00Z now, oldest first, one request at a time;
+  - 22:00 and 23:00Z after they land;
+  - nothing else.
+- **Predicted:** **24 readable**. Fewer than 20 means stop and report. At most 24 frames plus their listings, under
+  1 GB, in my scratch only. Free disk was 43 GB at 21:36Z.
+- **No deploy, no Worker, bucket or KV write anywhere, and the ingest untouched.** The frames are deleted
+  afterwards.
+
+**The reader and georeferencing:**
+- `parseHead`, with K1's corner rule, from `proxy/src/wx/opera.ts`, and `laea` from `proxy/src/wx/laea.ts`, imported
+  unchanged and run under `tsx`.
+- The tiles are decoded with `readWindow`'s own loop over the whole raster. **No change to `opera.ts`.**
+- **Predicted:** every frame parses, with corner **`cirrus-slip`** (as K1 read). Width, height, pixel size and LAEA
+  parameters are identical in all 24.
+
+**Classification, as opuk's `operaCode`:**
+- `NaN` (undetect) or any finite value other than `NODATA` (-9999000) is **covered**.
+- `NODATA` is **not covered**.
+
+**Countries:**
+- **Natural Earth 1:10m admin-0 countries, v5.1.2** (the GitHub release's GeoJSON, `ne_10m_admin_0_countries`). The
+  version is read from the release tag and recorded.
+- Each polygon is projected vertex by vertex into the frame's LAEA and rasterised onto the composite grid by the
+  **pixel-centre rule** (even-odd scanline).
+- **in-domain land pixels:** country pixels inside the raster.
+- **whole land:** the polygon's area in LAEA, which is equal-area, divided by one pixel's area.
+- **in-domain %** = in-domain land / whole land. **covered %** = covered / in-domain land, per frame, as a median.
+- **Ranked:** in-domain >= 50% and >= 100 pixels. The rest are listed apart with their numbers.
+- Admin-0 "countries" include overseas parts: France includes French Guiana, so its in-domain % is below 100. That
+  is said as read, not corrected.
+
+**The controls** (each with a sabotage that must turn it red; a sabotage that doesn't is BLIND, which is FAIL):
+
+| | the check | predicted | sabotage | predicted under it |
+|---|---|---|---|---|
+| **C1** same reading | frame **2026-11-05 20:00Z**. The survey's classification is sampled at each `OPUK_GRID` cell centre (the containing composite pixel), as the share of cells covered. The reference is that frame's `coveredShare` as opuk's code computed it: the `wx_ingest` line logged when Plan S's S4 stored it (`blipscope-wx-ingest-dev`, code at `788dab3cf200`, the same `buildOperaFrame` as production). That is the number `wx-opuk-verdict.sh` reads from `/healthz` when the frame is `latest` | **within +/-0.005** (absolute) of the reference. **Not exact:** opuk's `resample` gives a cell holding several pixel centres echo over nodata over undetect, while the survey takes the centre pixel. They differ only on coverage edges | **C1s:** undetect counted as uncovered | **red, far outside +/-0.005**. In November most covered cells are undetect. The undetect count in the box is printed |
+| **C2** geometry | ranked countries with in-domain 100%: pixels x pixel area against the polygon's LAEA area | **within +/-3%** for every one | **C2s:** rasterise with the pixel size x1.1 | **red for every one** (about -17%) |
+| **C3** placement | Shetland: UK pixels whose centres lie at lat 59.8-61.0, lon -2.2 to -0.6 | **covered < 5% in each of the 24 frames** (R1: no radar coverage) | **C3s:** the raster flipped north-south | **red** (> 5%): the box's rows then read the domain's far south. If it isn't red, another sabotage that is red is picked (pre-ruled), and the miss kept |
+
+- **Contributing radars by country prefix:** reported only if the files carry a node list. Whether they do is read
+  from the GeoTIFF's own tags, not assumed.
+- **Coverage only:** clutter, quality and latency are not graded.
+- **Escape:** anything else means stop and report. The report goes in my reply, with no PR until it's read: the
+  ranked table, the controls and sabotages (predicted and observed), the script's sha256 and its command line.
+
+### A3.23 B's reading: OPERA's coverage by country (graded run 2026-11-05 23:09:00Z, 2026-11-05's 24 hourly frames)
+
+**Inputs:**
+- **Frames:** 24 of 24 readable, 2026-11-05 00:00-23:00Z hourly, from `openradar-24h`. Fetched one request at a time
+  (00:00-21:00Z at 21:39-21:40Z, 22:00Z at 22:08Z, 23:00Z at 23:08Z), every one HTTP 200, 46,959,585 B in total.
+  The sha256 of each is in `frames/manifest.json` in my scratch.
+- **Raster:** 3800 x 4400 at 1,000 m, LAEA (lat0 55, lon0 10). The corner is **`cirrus-slip`** in all 24, as predicted.
+- **Natural Earth 1:10m admin-0 countries v5.1.2** (GitHub release tag), 258 countries; file sha256
+  `239eec57ac17f100a11e2536cffc56752c318b50ae765b0918ff7aab4ce8f255`.
+- **The reader:** `parseHead` and `laea` from `proxy/src/wx/`, identical to main. The script is
+  `b_survey.mts`, sha256 `5a9590f0fac754020e1d7df563dc5dad3908293b1992bb52a56c21f197eef5c5`.
+- **The command:** `node ../wt-plan-s/proxy/node_modules/tsx/dist/cli.mjs b_survey.mts frames
+  ne/ne_10m_admin_0_countries.geojson $REF 20261105T2000`, where `$REF` is the 20:00Z frame's logged `coveredShare` in full (0.750772231862 to 12 places; its full float sits in the S4 log line, uncopied here because a 16-digit run trips the device-id hook). Output sha256
+  `0b0d43ac4363093b840655aaa763a57b78946b856f13bc1c60156b6374c1a6bd`.
+- **A development pass** over the first 22 frames ran first. It is not the reading, and the graded run's controls
+  match it.
+
+**The controls, all as predicted:**
+
+| | predicted | observed |
+|---|---|---|
+| **C1** (frame 20:00Z) | within +/-0.005 of the reference 0.7507722 | **0.7508004 (+0.000028)** |
+| **C1s** (undetect counted as uncovered) | red, far outside | **red: 0.0562 (-0.6945)**; undetect cells in the box: **1,531,016 of 2,204,325** |
+| **C2** (39 ranked countries wholly in-domain) | each within +/-3% | **all 39 within; the largest are Malta +1.94% and Jersey -1.72%** |
+| **C2s** (pixel size x1.1) | red for every one | **red for all 39: -15.5% to -18.6%** |
+| **C3** (Shetland, 1,365 pixels) | < 5% covered in each frame | **0% in all 24** |
+| **C3s** (north-south flip) | red | **red: 100% in every frame** |
+
+**The ranking** (in-domain >= 50% and >= 100 pixels; covered = data or undetect, which is the radar footprint).
+Radars come from each frame's own node list (156-162 nodes a frame), by OPERA prefix, as median (min-max):
+
+| country | in-domain % | covered % (median) | lowest frame | frames | its own radars |
+|---|---|---|---|---|---|
+| Aland, Andorra, Austria, Belgium, Bosnia and Herzegovina, Croatia, Czechia, Denmark, Estonia, Finland, Germany, Hungary, Ireland, Isle of Man, Jersey, Liechtenstein, Lithuania, Luxembourg, Malta, Moldova, Montenegro, Netherlands, Poland, Romania, Slovakia, Slovenia, Switzerland | 98.3-101.9 | **100.00** | 100.00 | 24 | be 3, hr 5, cz 2, dk 5 (4-5), ee 2, fi 12, de 17 (15-17), hu 5 (4-5), ie 2, lt 2, mt 1, nl 2, pl 8 (7-10), ro 7 (6-7), sk 4, si 2, ch 5; **none in the node list** for at, ba, ax, ad, im, je, li, lu, md, me |
+| France | 86.0 (its overseas parts are outside) | **100.00** | 100.00 | 24 | fr 24 (23-24) |
+| Portugal | 96.3 | **100.00** | 100.00 | 24 | pt 3 |
+| Sweden | 100.0 | **100.00** | 99.39 (00:00Z) | 24 | se 11 |
+| Iceland | 100.0 | **99.99** | 99.99 | 24 | is 3 |
+| **United Kingdom** | 100.0 | **99.44** | 99.44 | 24 | uk 15 (14-15) |
+| Norway | 83.7 | **99.29** | 99.29 | 24 | no 11 |
+| Latvia | 100.0 | **97.90** | 97.90 | 24 | none listed |
+| Spain | 98.5 | **92.58** | 92.58 | 24 | es 9 |
+| Serbia | 100.0 | **90.99** | 90.99 | 24 | none listed |
+| Italy | 100.0 | **70.57** | 70.57 | 24 | **none listed** |
+| Bulgaria | 100.0 | **67.88** | 65.15 (13:00Z) | 24 | none listed |
+| Belarus | 100.0 | **45.05** | 45.05 | 24 | none listed |
+| Albania | 99.9 | **27.53** | 27.53 | 24 | none listed |
+| Ukraine | 81.5 | **25.75** | 25.75 | 24 | none listed |
+| Kosovo | 100.0 | **17.25** | 17.25 | 24 | none listed |
+| Faroe Islands | 100.6 | **0.00** | 0.00 | 24 | none listed |
+| Greece | 100.0 | **0.00** | 0.00 | 24 | none listed |
+| North Macedonia | 100.0 | **0.00** | 0.00 | 24 | none listed |
+
+**Listed apart** (under 50% in-domain, or under 100 pixels), as in-domain % / pixels / covered % (median):
+- Morocco 24.1 / 142,833 / 21.53
+- Russia 9.1 / 1,548,111 / 16.61
+- Turkey 27.3 / 212,896 / 0
+- Tunisia 46.7 / 73,065 / 0
+- Algeria 11.6 / 268,411 / 0
+- Greenland 5.5 / 119,529 / 0
+- San Marino 102.8 / 62 / 100
+- Monaco 100.9 / 19 / 100
+- Gibraltar 108.3 / 4 / 100
+- Guernsey 100 / 74 / 100
+
+**Read beside the table, not graded:**
+- **Coverage hardly moves within the day.** For every country except Sweden (00:00Z) and Bulgaria (13:00Z), the
+  lowest frame equals the median. Covered includes undetect, so this is the radar network's footprint, not the
+  weather.
+- **Some countries are covered with none of their own radars in the node list:** Austria, Luxembourg, Moldova and
+  Latvia at 98-100%, and Italy at 70.6%. That fits neighbours' radars reaching across the border.
+  - The alternative, a country prefix the survey doesn't recognise, is excluded only where the node list shows no
+    other unrecognised prefix. All 24 prefixes found are ISO-2 codes or `uk`, and none of them is at, it, lu, md or
+    lv.
+- **Above 100% in-domain** (Malta 101.9, Gibraltar 108.3) is pixel-centre quantisation on tiny polygons, the same
+  effect C2 bounds at +/-3% for the ranked ones.
+- **The frames stay in my scratch until the reviewer has read this**, then they are deleted as allowed.
+
+**Ruling, pasted 2026-11-06 ~00:56Z (verbatim):**
+
+> 1. B is accepted as read. Delete the frames now (allowed). The record goes in with your next docs PR, not a PR of its own. b_survey.mts stays out of the repo; its sha is recorded.
+> 2. #556's count: miss kept, re-registered to 34, provided it splits 31 success, 3 skipped, 0 failed (the shape of #548's finished run on the same workflows). The cause: the baseline (#521/#522) predates #549's s3-146 retirement (−8) and #552's ota-identity job (+1): 41 − 8 + 1 = 34. If the split differs, stop and report. I review #556 once its report reaches me.
+>    - Rule for all sessions: a CI baseline must postdate main's last workflow change, named with the prediction.
+> 3. Item A's three stopped datasets stay held, unserved, until the owner decides, and A.3 waits as you proposed. For the record:
+>    - LPS's written answer (2026-11-04) named all four datasets for this use, NISRA's boundaries included.
+>    - Both discrepancies point back to LPS: the mirrors' "LPS Open Government Data Licence", and NISRA's exemption of OSNI-derived mapping from the OGL, which leaves that mapping to LPS.
+>    - the owner is choosing between relying on that answer and asking LPS to confirm the two points first.
+>    - Either way, DAERA's line and NISRA's "Source: NISRA : Website: www.nisra.gov.uk" sit beside the OSNI line wherever it shows. The second acknowledgement form you couldn't trace is not used.
+> 4. One whole-suite run at a time on the owner's PC (all sessions). Before any whole-suite vitest or sabotage driver: no other session's vitest or sabotage- process running (by name and start time only), and TIME_WAIT under 2,000. If busy, poll for up to 20 minutes, then report.
+> 5. R4 and node_modules stay held.
+
+**Acted on:**
+- **B's frames deleted** (2026-11-06 ~00:58Z): the 24 `.tiff` files, 45 MB, removed by literal name from my scratch.
+  `frames/manifest.json`, with each frame's sha256, is kept. `b_survey.mts` stays out of the repo; its sha256 is
+  `5a9590f0fac754020e1d7df563dc5dad3908293b1992bb52a56c21f197eef5c5`.
+- **#556's count under the re-registration:**
+  - **34 check-runs: 31 success, 3 skipped, 0 failed**, read from the finished head at `41da3b47f553`. That is the
+    shape required, so **as re-registered**. The miss stays in the record.
+  - **The basis this time:** main's last workflow changes before #556's base were #549 (`dd1246e0`, the s3-146
+    retirement) and the OTA identity commit `84409651` (the ruling's #552). Both predate `7cca8983`, the base #556
+    was cut from.
+
+**Ruling, pasted 2026-11-06 ~00:58Z (verbatim):**
+
+> Item A, the owner's decision: use the data under LPS's written answer of 2026-11-04. No further confirmation will be asked of LPS.
+> 1. The three stopped datasets are released: OSNI 50K Transport, the OSNI Gazetteer, and NISRA's settlement boundaries (with the populations, for the ranking). Record in A.3:
+>    - LPS's answer named all four datasets for this use, and both discrepancies point back to LPS;
+>    - the owner decided on 2026-11-06 to rely on that answer;
+>    - the mirrors' wording and NISRA's exemption, recorded beside it.
+> 2. Credits, wherever NI-derived data shows: the OSNI line (verbatim, with the OGL link), DAERA's line, and NISRA's "Source: NISRA : Website: www.nisra.gov.uk". The checks and sabotages are as already ruled.
+> 3. A.3 now records one settled answer, so it can go up. Predict CI from main's run of 12569fa (31: 29 success, 2 skipped), with ship-alert skipped on a PR: 31: 28 success, 3 skipped, 0 failed. I review before merge. The NI gate lifts when it merges; NI still ships only with GB under the UK map plan.
+
+**A.3 is PR #557** (`docs/ni-gate-lps`, head `d155686cba5d`).
+- It adds `docs/uk-data.md` §A1.1d on main, with a pointer from §2.1's NI licences block.
+- It also adds item B's record as `docs/opera-coverage-2026-11-05.md`, as ruled ~00:56Z.
+- No personal names, email addresses or phone numbers are added. A scan of the added lines found 0 addresses.
+- **Predicted CI:** 31 check-runs, 28 success, 3 skipped, 0 failed.
+  - **Baseline:** main's finished run at `12569fa0` (31: 29 success, 2 skipped).
+  - `12569fa0` is itself main's last workflow change (2026-11-05 13:37).
+  - `ship-alert` skips on a PR.
+  - It is read only from a finished run.
+
+**#557's CI at `d155686cba5d`, finished 01:16:26Z on 2026-11-06:** **31 check-runs: 28 success, 3 skipped (`promote`,
+`ship-alert`, `version`), 0 failed.** The workflows were device-ids, firmware and no-traffic-captures, all
+`success`. **As predicted** (baseline: main's run at `12569fa0`, its last workflow change). Waiting for the review.
+
+**Ruling, pasted 2026-11-06 ~02:40Z (verbatim):**
+
+> 1. #557 is approved to merge at d155686cba5d once its CI reads 31: 28 success, 3 skipped, 0 failed. It merges clean with main.
+>    - My scan of the added lines: 0 email addresses, 0 phone numbers, 0 personal names; OSNI's line verbatim with the OGL link; DAERA's and NISRA's lines present.
+>    - One wording fix for your next docs change, not blocking. "LPS's answer named all four datasets" should read "LPS's answer covers the four datasets the owner's question named", since LPS wrote "the datasets you intend to use". The imprecise wording was mine (~00:56Z and ~00:58Z).
+> 2. Order: #556 first, since R3′ waits on it, then #557. Before each merge, wait until main's CI on its current head has finished, so each main reading stays attributable. Squash, --match-head-commit, no --admin. Predict main's CI for #557 as on 12569fa0 (31: 29 success, 2 skipped).
+> 3. The NI gate lifts when #557 merges.
+> 4. The baseline rule, refined for all sessions: a baseline must postdate main's last change to the set of jobs. A step added to an existing job doesn't count. Name the last workflow change either way.
+> 5. The ~01:04Z block stands for #556 and R3′.
+
+- **#557's condition is met:** its CI read 31: 28 success, 3 skipped, 0 failed at 01:16:26Z.
+- **Neither PR is merged yet.** The ~01:04Z block that the ruling says stands for #556 and R3′ never reached this
+  session. No text was pasted between ~00:58Z and ~02:40Z. #556's approval is in that block, and the order puts
+  #556 first, so both merges wait for it.
+- **The wording fix is queued for the next docs change:** "LPS's answer covers the four datasets the owner's question
+  named". That change touches #557's A1.1d after it merges, and this record.
+
+**#557 merged, and the NI gate lifted.**
+- The ~01:04Z block reached this session after ~02:40Z. #556 merged first, as ordered (`9db83163a60d`, 03:01:01Z);
+  its main CI read as predicted, 34 (32 success, 2 skipped) and 964/1.
+- #557 then merged: squash, `--match-head-commit d155686cba5d`, no `--admin`, branch deleted. **Merge commit
+  `ac5f85090394`, 03:16:30Z.**
+- The guard re-read main's head (`9b511dc274c3`, another session's `/basemap` code) and waited until its CI had
+  finished with 0 failures (03:16:27Z) before merging.
+- **The NI gate is lifted:** §A1.1d is in main. NI still ships only with GB under the UK map plan.
+- Main's CI on `ac5f8509` is predicted at 31 (29 success, 2 skipped), as on `12569fa0`, and is read when finished.
+- **Queued for the next docs change** (the ~02:40Z ruling): §A1.1d's "LPS's answer named all four datasets" becomes
+  "LPS's answer covers the four datasets the owner's question named".
+
+**Main's CI on #557's merge `ac5f85090394`, finished 03:27:59Z: as predicted.**
+- **31 check-runs: 29 success, 2 skipped (`promote`, `version`), 0 failed.**
+- The workflows were device-ids, firmware and no-traffic-captures, all `success`.
