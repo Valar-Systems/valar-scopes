@@ -89,3 +89,16 @@ failed differently: the Workers runtime never started (`No such module ... mock-
 error on the same machine means the local pool is unreliable here (the ruled outcome for "the error differs"), so neither run
 judges the change. **R5 is graded by CI's Linux `test (proxy)` job:** predicted all pass, the 46 new cases among them, and
 nothing skipped that ran before. A failure there in any of the four crashed files: stop.
+
+## Readings note (the merge turn, 2026-11-24; everything above is unchanged)
+
+- **The control's outcome is OUTSIDE, not "the error differs".** The control on unchanged main ran no test at all: the
+  runtime never started. That is not a second reading of the same instrument with a different error; it is an instrument
+  that measured nothing. It was ruled OUTSIDE the registered set, with the consequence written above unchanged: no local
+  verdict, and R5 graded by CI.
+- **The finding, on its own:** on this Windows machine the local Workers test pool failed two different ways on two trees,
+  `ConnectEx(): #52` mid-run on the change and the `mock-agent` module missing at start on unchanged main. A local run of the
+  proxy suite there can fail before it measures anything, so a crash in it is an instrument failure, never a red.
+- **R5, graded by CI** (`test (proxy)` on the PR's first push, merged into 0391e844, read twice): 86 files (85 passed,
+  1 skipped) and 1,200 tests (1,199 passed, 1 skipped). The 46 cases of `route-labels.test.ts` pass, and the four files that
+  crashed locally pass. That is the prediction: all pass, the 46 new cases among them, nothing skipped that ran before.

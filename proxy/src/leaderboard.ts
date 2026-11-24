@@ -678,10 +678,12 @@ export async function handleLeaderboardJson(_request: Request, env: Env): Promis
     // The profile key. It was NOT emitted before -- the old server-rendered board
     // built its own links from a value the JSON never carried, so a client-side
     // page had no way to construct /leaderboard/<id> and would have had to invent
-    // one. Safe to publish: `id` is the device's LeaderboardId, the first 8 bytes
-    // of SHA-256(MAC || salt) as 16 hex chars, computed on-device so the raw MAC
-    // never leaves it and the id cannot be reversed to hardware. It is already
-    // the public profile URL.
+    // one. Published deliberately: `id` is the device's LeaderboardId, the first
+    // 8 bytes of SHA-256(MAC || salt) as 16 hex chars, computed on-device so the
+    // raw MAC never leaves it. It is not anonymous: the salt is public in this
+    // repo (include/DeviceIdentity.h), so the id can be traced back to the
+    // hardware address by recomputing it from a known or guessed MAC. It is
+    // already the public profile URL, so emitting it here discloses nothing new.
     id: r.id,
     rank: season ? r.seasonRank : r.rank,
     name: r.name,
