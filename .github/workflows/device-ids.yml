@@ -99,6 +99,9 @@ jobs:
       - run: python3 tools/token_file_sabotage.py
       - run: python3 scripts/check_token_file_readers.py --selftest
       - run: python3 scripts/check_token_file_readers.py
+      # PD6's fleet instrument (docs/wx-opuk.md, the 2026-11-24 re-grade): its real queries run in SQLite over planted
+      # rows, and one point of each of the seven families in this dataset must leave every fleet count unchanged.
+      - run: python3 tools/wx/pd6_fleet.py --selftest
       # Every in-tree wrangler call goes through proxy/scripts/wrangler-run.mjs (docs/wrangler-run.md): the check, its
       # planted shapes, and the helper's own selftest against a stand-in wrangler (no network, no account).
       - run: python3 scripts/check_wrangler_calls.py --selftest

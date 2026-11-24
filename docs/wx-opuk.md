@@ -2290,3 +2290,46 @@ objects after 1 days", for all prefixes, enabled**.
   landed after the baseline, so the count holds.
 - **Those steps' guard was run on this branch merged onto main at `3835c043880c`:** `check_macs.py`,
   `check_device_ids.py`, `check_wifi.py` and `check_binary_strings.py` all pass.
+
+---
+
+## PD6's fleet device counts, re-graded (2026-11-24; appended, nothing above is edited)
+
+**The finding** (from a read of the code, then measured). `tools/wx/pd6_fleet.py` counted as "fleet" every point whose
+`index1` is not `err5xx` and whose `blob5` is not empty. Seven families of point share this dataset, written by every
+`writeDataPoint` in `proxy/src`. Four have no `blob5` (`err5xx`, `enrich_gap`, `provision`, `sitefeed`), so the filter
+kept them out. Three have one, so the filter let them in: `usage` (its `blob5` is the report's arity, `u8` or `u9`),
+`boot` (a device id) and `ota` (the reset reason; its `double4` is a byte count). None of the three is a request.
+
+**The measurement** (read-only, counts only, predictions frozen before any query and accepted). For each window graded
+with `pd6_fleet.py`: an anchor that re-ran PD6's own queries, the admitted non-route points by family, and the counts
+recomputed from route points only (`blob1` starting with `/`). A control window (the 48 hours after v19's release on
+2026-11-12) had to show `ota` points, to prove the query could see one.
+
+| window | as recorded (and re-read exactly) | non-route points admitted | route points only |
+|---|---|---|---|
+| PD6, 2026-11-04 21:31:14-22:01:14Z | 1,582 requests, 11 devices, 1,053 `/blips`, 4xx 0, 5xx 0 | `usage` 2 (1 arity), weight 0 | 1,582 requests, **10 devices**, 1,053 `/blips`, 4xx 0, 5xx 0 |
+| R3-8, 2026-11-04 22:07:26-22:37:26Z | 1,701 requests, 12 devices, 1,116 `/blips`, 4xx 0, 5xx 0 | `usage` 9 (2 arities), weight 0 | 1,701 requests, **10 devices**, 1,116 `/blips`, 4xx 0, 5xx 0 |
+| R3′-8, 2026-11-06 04:44:03-05:14:03Z | 661 requests, 11 devices, 410 `/blips`, 4xx 0, 5xx 0 | `usage` 9 (1 arity), weight 0 | 661 requests, **10 devices**, 410 `/blips`, 4xx 0, 5xx 0 |
+
+No `ota` or `boot` point fell in any window, and the four families without a `blob5` read 0, as the code says. The
+control read 16 `ota` points, carrying 1,018,688 sample-weighted "requests" (bytes): had one fallen inside a window,
+the request count would have been wrong by that much.
+
+**What changes.** Each window's device count was one or two too high: the `usage` arity strings were counted as
+devices (`u8` and `u9` both appeared in R3-8's window). The request counts, `/blips`, 4xx and 5xx do not change:
+`usage`'s weight was 0 in all three windows, and no admitted point was a 4xx or 5xx.
+
+**No verdict changes, and why.** PD6's criteria were fleet 4xx 0, fleet 5xx (other than `/blips` 503s with no
+upstream) 0, and those 503s at most 1 % of fleet `/blips`; R3-8 and R3′-8 were graded "as PD6". Removing points from a
+count of 0 cannot raise it, and `/blips` is unchanged, so every verdict stands. **No graded row or control used the
+device count as a threshold** (no "at least N devices", no per-device rate). PD6's instrument control (2026-11-04
+20:30-21:00Z, recorded as 11 devices) was graded "Readable": points present and `/blips` above 0. Its device count may
+carry the same inflation and was not re-read, but "Readable" is a presence test, so a device count, inflated or not,
+cannot change that verdict.
+
+**The fix** is `pd6_fleet.py`'s positive filter, in the same change as this note: a fleet point is a route point,
+`substring(blob1, 1, 1) = '/'`. Every other family is out by not being a route, not by name. Its `--selftest` runs the
+real queries against planted rows in SQLite: the route rows alone give the expected counts, and one point of each of the
+seven families, alone or together, must leave every count unchanged. It failed against the old filter first (the
+`ota`, `usage` and `boot` points, and all seven together), then passed with the fix. It runs in CI.
