@@ -4,7 +4,7 @@
 // Which files were READ is the caller's (RD-P6: the counties and states whose box meets the square, the tiles of the
 // mosaics and the summits); this module only writes what it is given, in the fixed order.
 
-export const LAYER_ORDER = ["water", "rivers", "roads", "peaks", "places", "population", "terrain"] as const;
+export const LAYER_ORDER = ["water", "sea", "rivers", "roads", "peaks", "places", "population", "terrain"] as const; // sea: part 2's layer
 export type Layer = (typeof LAYER_ORDER)[number];
 export interface FileRef { url: string; sha256: string; vintage: string }
 

@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { rarityMultiplier } from "../src/leaderboard";
+import { deviceLabel } from "../src/devlabel";
 import { AUTH_HEADERS, call, TEST_KEY } from "./helpers";
 
 // Capture the structured console lines the submit path emits, so a diagnostic
@@ -490,7 +491,9 @@ describe("clamp logging makes silent drift self-announcing", () => {
     );
     const clamp = events.find((e) => e.evt === "lb_clamp");
     expect(clamp).toBeDefined();
-    expect(clamp.id).toBe(ID_A);
+    // The device LABEL, never the id (the owner's "label too", 2026-11-17; device-label-lines.test.ts LL5).
+    expect(clamp.devl).toBe(await deviceLabel(ID_A));
+    expect(clamp.id).toBeUndefined();
     expect(clamp.clamps).toContainEqual({ field: "airlines", stored: 6, submitted: 4, kind: "floor" });
   });
 

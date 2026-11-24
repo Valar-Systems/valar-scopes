@@ -187,3 +187,144 @@ export function inDiscLengthM(ptsKm: Pt[], rKm: number): number {
   }
   return total;
 }
+
+// ------------------------------------------------------------------------------------------------ water rings: tp and the backstop
+// (docs/basemap-dense-code.md, Q-W4: the owner's "Water fix: TP"; part 2's edge lock KB8 and repair KB4 (B')). Every water ring, TIGER's and
+// the sea's, is simplified by Douglas-Peucker and quantised; then, while the quantised ring crosses itself, each crossing edge gets back
+// the original vertex farthest from its chord (DP's own next choice) until none crosses or none can be added ("tp"). A ring that still
+// crosses itself after that is REFUSED by the backstop: never drawn, and counted apart from the rings that collapse.
+
+/** ring_stats()'s proper crossings, exact on integers, with pairs pruned by a sweep on x: the crossing edge indices. A shared vertex, a
+ *  touch or a collinear overlap is not a proper crossing, so a keyhole bridge's two coincident edges (a contact) are never counted. */
+export function properPairs(q: Pt[]): Array<[number, number]> {
+  const n = q.length, out: Array<[number, number]> = [];
+  if (n < 4) return out;
+  const o = (a: Pt, b: Pt, c: Pt) => { const v = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]); return v > 0 ? 1 : v < 0 ? -1 : 0; };
+  const E = q.map((a, i) => { const b = q[(i + 1) % n]!; return { i, a, b, x0: Math.min(a[0], b[0]), x1: Math.max(a[0], b[0]), y0: Math.min(a[1], b[1]), y1: Math.max(a[1], b[1]) }; });
+  const ord = [...E].sort((u, v) => u.x0 - v.x0);
+  for (let s = 0; s < ord.length; s++) {
+    const e = ord[s]!;
+    for (let t = s + 1; t < ord.length && ord[t]!.x0 <= e.x1; t++) {
+      const g = ord[t]!, i = Math.min(e.i, g.i), j = Math.max(e.i, g.i);
+      if (j < i + 2 || (i === 0 && j === n - 1) || e.y1 < g.y0 || g.y1 < e.y0) continue;
+      if (o(e.a, e.b, g.a) * o(e.a, e.b, g.b) < 0 && o(g.a, g.b, e.a) * o(g.a, g.b, e.b) < 0) out.push([i, j]);
+    }
+  }
+  return out;
+}
+/** Quantise the kept path vertices, then dedupe as dedupe(q, true) does, remembering each survivor's path index. */
+function quantKept(path: Pt[], kept: number[], rMm: number): { q: Pt[]; at: number[] } {
+  const q: Pt[] = [], at: number[] = [];
+  for (const k of kept) { const p = quantise(path[k]!, rMm), l = q[q.length - 1]; if (!l || l[0] !== p[0] || l[1] !== p[1]) { q.push(p); at.push(k); } }
+  while (q.length > 1 && q[q.length - 1]![0] === q[0]![0] && q[q.length - 1]![1] === q[0]![1]) { q.pop(); at.pop(); }
+  return { q, at };
+}
+/** tp: Douglas-Peucker as simplifyRing, then, while the quantised ring crosses itself, each crossing edge gets back the original vertex
+ *  farthest from its chord, until none crosses or none can be added. */
+export function simplifyRingTP(ringKm: Pt[], epsM: number, rMm: number): Pt[] {
+  if (ringKm.length < 3) return dedupe(ringKm.map((p) => quantise(p, rMm)), true);
+  const path = [...ringKm, ringKm[0]!], m = toM(path), n = ringKm.length;
+  const keep = new Set(dpKeep(m, epsM).slice(0, -1));
+  for (;;) {
+    const kept = [...keep].sort((a, b) => a - b), { q, at } = quantKept(path, kept, rMm), pairs = properPairs(q);
+    if (!pairs.length) return q;
+    let added = 0;
+    for (const s of new Set(pairs.flat())) {
+      const a = at[s]!, b = s + 1 < at.length ? at[s + 1]! : n;
+      let best = -1, k = -1;
+      for (let x = a + 1; x < b; x++) { if (keep.has(x)) continue; const d = segDist(m[x]!, m[a]!, m[b]!); if (d > best) { best = d; k = x; } }
+      if (k >= 0) { keep.add(k); added++; }
+    }
+    if (!added) return q;
+  }
+}
+/** The backstop's refusal: a ring still crossing itself after tp. Callers test identity (`q === REFUSED`), so a refusal is never mistaken
+ *  for a ring that collapsed under 3 vertices (the "(C)" counting rule: refusals and collapses are counted apart). */
+export const REFUSED: Pt[] = [];
+/** A water ring through tp and the backstop: the quantised ring, or REFUSED. */
+export function waterQ4(ringKm: Pt[], epsM: number, rMm: number): Pt[] {
+  const q = simplifyRingTP(ringKm, epsM, rMm);
+  return properPairs(q).length ? REFUSED : q;
+}
+// EDGE-LOCKED simplification, for the sea path only (KB8). locked[i] marks a vertex on its own cell's boundary (the ingest's cut: a
+// meridian or a parallel at a whole degree). The anchors are index 0 (Douglas-Peucker's own anchor, as simplifyRingTP's) and every locked
+// vertex; DP runs on each chain between consecutive anchors, its two ends kept; then simplifyRingTP's own topology loop, which only ever
+// adds vertices. With no locked vertex this is simplifyRingTP exactly: one chain, 0 .. n, the same dpKeep over the same path.
+// The loop's state is returned too (simplifyRingTPLockedState), so the sea path's repair (KB4 (B')) restores vertices on the SAME path by
+// the SAME rule (restoreNext, the one implementation of DP's next choice).
+export interface TPState { path: Pt[]; m: Pt[]; n: number; rMm: number; keep: Set<number>; q: Pt[]; at: number[] }
+/** DP's next choice on quantised edge s (at: each quantised vertex's path index): the unkept original vertex farthest from the edge's
+ *  chord, the first maximum winning. 1 if one was restored, else 0. Used by the topology loop and by the repair. */
+function restoreNext(st: TPState, at: number[], s: number): number {
+  const a = at[s]!, b = s + 1 < at.length ? at[s + 1]! : st.n;
+  let best = -1, k = -1;
+  for (let x = a + 1; x < b; x++) { if (st.keep.has(x)) continue; const d = segDist(st.m[x]!, st.m[a]!, st.m[b]!); if (d > best) { best = d; k = x; } }
+  if (k >= 0) { st.keep.add(k); return 1; }
+  return 0;
+}
+/** The edge-locked simplify, with its state. */
+export function simplifyRingTPLockedState(ringKm: Pt[], epsM: number, rMm: number, locked: boolean[]): TPState {
+  if (ringKm.length < 3) return { path: ringKm.slice(), m: [], n: ringKm.length, rMm, keep: new Set(), q: dedupe(ringKm.map((p) => quantise(p, rMm)), true), at: [] };
+  const path = [...ringKm, ringKm[0]!], m = toM(path), n = ringKm.length;
+  const anchors = [...new Set([0, ...locked.flatMap((v, i) => (v && i < n ? [i] : []))])].sort((a, b) => a - b);
+  const keep = new Set<number>(anchors);
+  anchors.forEach((a, j) => {
+    const b = j + 1 < anchors.length ? anchors[j + 1]! : n;
+    for (const k of dpKeep(m.slice(a, b + 1), epsM)) if (a + k < n) keep.add(a + k);
+  });
+  const st: TPState = { path, m, n, rMm, keep, q: [], at: [] };
+  for (;;) {
+    const kept = [...keep].sort((a, b) => a - b), { q, at } = quantKept(path, kept, rMm), pairs = properPairs(q);
+    st.q = q; st.at = at;
+    if (!pairs.length) return st;
+    let added = 0;
+    for (const s of new Set(pairs.flat())) added += restoreNext(st, at, s);
+    if (!added) return st;
+  }
+}
+/** The edge-locked ring through the backstop: the quantised ring, or REFUSED. */
+export function waterQ4Locked(ringKm: Pt[], epsM: number, rMm: number, locked: boolean[]): Pt[] {
+  const q = simplifyRingTPLockedState(ringKm, epsM, rMm, locked).q;
+  return properPairs(q).length ? REFUSED : q;
+}
+// ---- KB4 (B'), the sea path's step 4a: the repair, between simplify (step 3) and bridge (step 4).
+const xo = (a: Pt, b: Pt, c: Pt) => { const v = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]); return v > 0 ? 1 : v < 0 ? -1 : 0; };
+/** Every edge of two DIFFERENT rings in a PROPER crossing (a touch, a shared vertex or a collinear overlap is not one), by ring index;
+ *  exact on the quantised integers. The bounding-box test only skips pairs that cannot cross. */
+export function crossRingEdges(rings: Pt[][]): Map<number, Set<number>> {
+  const hit = new Map<number, Set<number>>(), add = (k: number, s: number) => { (hit.get(k) ?? hit.set(k, new Set()).get(k)!).add(s); };
+  for (let A = 0; A < rings.length; A++) for (let B = A + 1; B < rings.length; B++) {
+    const P = rings[A]!, Q = rings[B]!;
+    for (let s = 0; s < P.length; s++) {
+      const a = P[s]!, b = P[(s + 1) % P.length]!, x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
+      for (let t = 0; t < Q.length; t++) {
+        const c = Q[t]!, d = Q[(t + 1) % Q.length]!;
+        if (Math.max(c[0], d[0]) < x0 || Math.min(c[0], d[0]) > x1 || Math.max(c[1], d[1]) < y0 || Math.min(c[1], d[1]) > y1) continue;
+        if (xo(a, b, c) * xo(a, b, d) < 0 && xo(c, d, a) * xo(c, d, b) < 0) { add(A, s); add(B, t); }
+      }
+    }
+  }
+  return hit;
+}
+/** The frozen limit: vertices restored per piece (KB4 (B'), the owner's ruling of 2026-11-12 16:57Z). */
+export const SEA_REPAIR_LIMIT = 64;
+export type SeaRepairStopCode = "sea_repair_failed" | "sea_repair_limit";
+/** Rounds of DP's next choice on every edge in a crossing (with another ring, or with its own), until nothing crosses. Stops on a round
+ *  that restores nothing (sea_repair_failed) or past `limit` restored vertices (sea_repair_limit). `crossed`: the rings of round 1. */
+export function repairRings(states: TPState[], limit: number): { q: Pt[][]; restored: number; rounds: number; crossed: number[]; stop: SeaRepairStopCode | null } {
+  let restored = 0, rounds = 0, crossed: number[] | null = null;
+  for (;;) {
+    const qa = states.map((st) => quantKept(st.path, [...st.keep].sort((a, b) => a - b), st.rMm));
+    const hit = crossRingEdges(qa.map((x) => x.q));
+    qa.forEach((x, k) => { for (const [i, j] of properPairs(x.q)) { const h = hit.get(k) ?? hit.set(k, new Set()).get(k)!; h.add(i); h.add(j); } });
+    const q = qa.map((x) => x.q);
+    if (!hit.size) return { q, restored, rounds, crossed: crossed ?? [], stop: null };
+    crossed ??= [...hit.keys()].sort((a, b) => a - b);
+    rounds++;
+    let added = 0;
+    for (const k of [...hit.keys()].sort((a, b) => a - b)) for (const s of [...hit.get(k)!].sort((a, b) => a - b)) added += restoreNext(states[k]!, qa[k]!.at, s);
+    if (!added) return { q, restored, rounds, crossed, stop: "sea_repair_failed" };
+    restored += added;
+    if (restored > limit) return { q, restored, rounds, crossed, stop: "sea_repair_limit" };
+  }
+}

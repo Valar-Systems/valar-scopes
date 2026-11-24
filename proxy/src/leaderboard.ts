@@ -3,6 +3,7 @@ import { SCHEMA_V } from "./schema";
 import { TYPE_NAMES } from "./typenames";
 import { leaderboardHtml } from "./pages.generated";
 import { errorResponse, jsonResponse } from "./util";
+import { labelOf } from "./devlabel";
 
 // The public spotting leaderboard.
 //
@@ -292,7 +293,8 @@ export async function handleLeaderboardSubmit(request: Request, env: Env): Promi
     }
   }
   if (clamps.length) {
-    console.log(JSON.stringify({ evt: "lb_clamp", id: sub.id, model, legacy: sub.legacy, clamps }));
+    // The device LABEL, never the id (the owner's "label too", 2026-11-17; src/devlabel.ts).
+    console.log(JSON.stringify({ evt: "lb_clamp", devl: await labelOf(sub.id), model, legacy: sub.legacy, clamps }));
   }
   // What is kept for context only. Seen counts are shown on the profile page as
   // the denominator ("47 of 153") and score nothing, so they are not rate-limited
@@ -571,13 +573,17 @@ async function buildBoard(env: Env): Promise<Board> {
   // claimed types, and the growth-clamp path relies on it. The two things that
   // genuinely cannot be true are a score with NOTHING claimed, and a "rarest
   // catch" with no claimed types to have been rarest among.
+  // Collected, then logged after the filter: the label is async and a filter callback is not. The line carries the
+  // device LABEL, never the id, and no label at all for a stored id that is not a device id (src/devlabel.ts).
+  const incoherent: { id: string; points: number }[] = [];
   const scored = allScored.filter((r) => {
     const claims = r.counts.types + r.counts.airlines + r.counts.countries + r.counts.airports;
     const contradictory = (r.points > 0 && claims === 0) || (r.rarestType !== "" && r.counts.types === 0);
-    if (contradictory)
-      console.log(JSON.stringify({ evt: "incoherent_row", id: r.id, points: r.points }));
+    if (contradictory) incoherent.push({ id: r.id, points: r.points });
     return !contradictory;
   });
+  for (const r of incoherent)
+    console.log(JSON.stringify({ evt: "incoherent_row", devl: await labelOf(r.id), points: r.points }));
 
   const byPoints = [...scored].sort((a, b) => b.points - a.points);
   byPoints.forEach((r, i) => (r.rank = i + 1));

@@ -10,6 +10,10 @@
 // (the failure the real API has shown twice), so a verifier can be shown to catch it. ROUTES_FAKEKV_GET_SUFFIX=newline
 // appends a newline to every `kv key get` (N2, docs/route-weekly-code.md 2q): real output may differ from the bytes put by
 // a byte like that, so J7w can show both sides of J7 hash bytes read by the same reader.
+// The sample read-back's outcomes (fix (e), 2026-11-20, rows SR1-SR3): each names ONE key and touches only that key's
+// `kv key get`. ROUTES_FAKEKV_GET_FAIL=<key> fails it as a rate limit (exit 1, "429 Too Many Requests"),
+// ROUTES_FAKEKV_GET_ABSENT=<key> answers the fake's own not-found (exit 1, "Value not found"), and
+// ROUTES_FAKEKV_GET_WRONG=<key> returns the stored value plus "#planted". bulk get is untouched by all three.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const STORE = process.env.ROUTES_FAKEKV_STORE;
@@ -27,8 +31,11 @@ const [kv, a, b, target] = pos;
 if (kv !== "kv") { console.error(`routes-fakekv: unsupported: ${pos.join(" ")}`); process.exit(2); }
 if (a === "key" && b === "get") {
   const k = unq(target ?? "");
+  if (k !== "" && process.env.ROUTES_FAKEKV_GET_FAIL === k) { console.error("429 Too Many Requests"); process.exit(1); }
+  if (k !== "" && process.env.ROUTES_FAKEKV_GET_ABSENT === k) { console.error("Value not found"); process.exit(1); }
   if (!(k in ns)) { console.error("Value not found"); process.exit(1); }
-  process.stdout.write(ns[k] + (process.env.ROUTES_FAKEKV_GET_SUFFIX === "newline" ? "\n" : ""));
+  const planted = k !== "" && process.env.ROUTES_FAKEKV_GET_WRONG === k ? "#planted" : "";
+  process.stdout.write(ns[k] + planted + (process.env.ROUTES_FAKEKV_GET_SUFFIX === "newline" ? "\n" : ""));
 } else if (a === "key" && b === "list") {
   const p = flag("prefix") ?? "";
   process.stdout.write(JSON.stringify(Object.keys(ns).filter((k) => k.startsWith(p)).map((name) => ({ name }))));

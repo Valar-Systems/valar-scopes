@@ -1,0 +1,37 @@
+{
+ "source": "GET actions/runs/<id>/jobs?filter=latest for the 5 push runs on main at 2761765e71bd, read 2026-11-21",
+ "source_file": "_handoffs/blipscope-5c/ci/lposted-jobs-read.json",
+ "source_sha256": "b3565d52778c3802dc575c68b1423d59d4ad1d3816fff5903bf4cc664dbe1db0",
+ "fields": [
+  "check_run_url",
+  "completed_at",
+  "conclusion",
+  "created_at",
+  "head_branch",
+  "head_sha",
+  "html_url",
+  "id",
+  "labels",
+  "name",
+  "node_id",
+  "run_attempt",
+  "run_id",
+  "run_url",
+  "runner_group_id",
+  "runner_group_name",
+  "runner_id",
+  "runner_name",
+  "started_at",
+  "status",
+  "steps",
+  "url",
+  "workflow_name"
+ ],
+ "kept_url": "https://github.com/Valar-Systems/valar-scopes/actions/runs/{run_id}/job/{id}",
+ "posted_url": "https://github.com/Valar-Systems/valar-scopes/runs/{id}",
+ "counts": {
+  "jobs": 39,
+  "kept": 38,
+  "posted": 1
+ }
+}
