@@ -146,8 +146,9 @@ API_EPS = ("/api/v1/blipscope/blips", "/api/v1/weatherscope/forecast", "/v1/blip
 
 
 def fam_set(s05=233, s06=252, e1=100, k05=236):
-    """F1 FAMILY COUNT's hours, as real events so the reader's leaves are exercised. K (17Z): 218 api-401-with-model
-    no-key lines over the three prefixes and 14 other no-key lines (no 401, no `model` key), so each of the 401, model and
+    """F1 FAMILY COUNT's hours, as real events so the reader's leaves are exercised. Every line carries `model`, "" when
+    it has none, as the proxy writes it (index.ts:452; AMENDMENT 1). K (17Z): 218 api-401-with-model
+    no-key lines over the three prefixes and 14 other no-key lines (no 401, model ""), so each of the 401, model and
     api leaves moves its count from 232 to 218; H0: 247 + 2. The window: 04Z 2 no-key; 05Z k05 no-key, s05 of them S;
     06Z 255, s06 of them S; keyed (`dev`) lines in each, e1 of 05Z's api-with-model. 05Z's no-key lines: three at minute
     1, the rest spread over 05:05-06:00, so the first bucket with 10 or more is 05:05Z in every row that reaches it."""
@@ -162,25 +163,25 @@ def fam_set(s05=233, s06=252, e1=100, k05=236):
     for t, n_api in ((FC_K, (200, 10, 8)), (POP_H0, (247, 0, 0))):
         for ep, n in zip(API_EPS, n_api):
             add(t, n, ep=ep, **S)
-    add(FC_K, 2, ep="/api/v1/missileer/status", status=200)
-    add(FC_K, 10, ep="/credits", status=200)
-    add(FC_K, 1, ep="/wp-login.php", status=404)
-    add(FC_K, 1, ep="/healthz", status=200)
+    add(FC_K, 2, ep="/api/v1/missileer/status", status=200, model="")
+    add(FC_K, 10, ep="/credits", status=200, model="")
+    add(FC_K, 1, ep="/wp-login.php", status=404, model="")
+    add(FC_K, 1, ep="/healthz", status=200, model="")
     add(FC_K, 50, ep=API_EPS[0], status=200, model="plant-model", devl="lbl-a")
-    add(POP_H0, 1, ep="/missileer", status=200)
-    add(POP_H0, 1, ep="/wp-login.php", status=404)
+    add(POP_H0, 1, ep="/missileer", status=200, model="")
+    add(POP_H0, 1, ep="/wp-login.php", status=404, model="")
     add(POP_H0, 30, ep=API_EPS[0], status=200, model="plant-model", devl="lbl-a")
-    add(FC_W[0], 2, ep="/credits", status=200)
+    add(FC_W[0], 2, ep="/credits", status=200, model="")
     add(FC_W[0], 40, ep=API_EPS[0], status=200, model="plant-model", dev=EXAMPLE_ID)
     rest = k05 - 3
-    nk05 = [dict(ep=API_EPS[i % 3], **S) for i in range(s05)] + [dict(ep="/credits", status=200)] * (k05 - s05)
+    nk05 = [dict(ep=API_EPS[i % 3], **S) for i in range(s05)] + [dict(ep="/credits", status=200, model="")] * (k05 - s05)
     for j, src in enumerate(nk05):
         add(FC_W[1], 1, secs=lambda _, j=j: 60 if j < 3 else 300 + (j - 3) * 3300 // rest, **src)
     add(FC_W[1], e1, ep=API_EPS[1], status=200, model="plant-model", dev=EXAMPLE_ID)
-    add(FC_W[1], 20, ep="/credits", status=200, dev=EXAMPLE_ID)
+    add(FC_W[1], 20, ep="/credits", status=200, model="", dev=EXAMPLE_ID)
     for i in range(s06):
         add(FC_W[2], 1, secs=lambda _, i=i: 60 + i * 13, ep=API_EPS[i % 3], **S)
-    add(FC_W[2], 255 - s06, ep="/credits", status=200)
+    add(FC_W[2], 255 - s06, ep="/credits", status=200, model="")
     add(FC_W[2], 40, ep=API_EPS[2], status=200, model="plant-model", dev=EXAMPLE_ID)
     return evs
 
@@ -212,6 +213,8 @@ class Fake:
             return True
         if op == "starts_with":
             return present and isinstance(val, str) and val.startswith(f["value"])
+        if op in ("neq", "!="):
+            return present and val != f["value"]
         if op in ("eq", "="):
             return present and val == f["value"]
         if op in ("exists", "EXISTS"):
