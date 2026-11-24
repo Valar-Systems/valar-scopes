@@ -50,7 +50,9 @@ function fixAt(p, t, lat0, lon0) {
 }
 
 // enrich: true answers /enrich for the scene's hexes; false answers 404 for every one (the smoke test's R4).
-export function makeScene({ enrich = true, t0 = Date.now() } = {}) {
+// photos (opt-in; _handoffs/p4/web-photos/REG-web-photos.txt, AMENDMENT 4 (b)): { hex: { path, bytes } }. For those
+// hexes enrich names `path` as p, and the scene answers `path` with `bytes`. Without it every answer is unchanged.
+export function makeScene({ enrich = true, t0 = Date.now(), photos = null } = {}) {
   const log = [];
   const enc = new TextEncoder();
   const answer = (status, obj) => ({ status, body: enc.encode(obj === undefined ? "" : JSON.stringify(obj)) });
@@ -69,7 +71,10 @@ export function makeScene({ enrich = true, t0 = Date.now() } = {}) {
     }
     const m = u.pathname.match(/\/api\/v1\/blipscope\/enrich\/([0-9a-f]+)$/);
     const p = m && PLANES.find((q) => q[0] === m[1]);
-    if (p && enrich) return Promise.resolve(answer(200, { v: 1, r: "", t: p[2], tn: p[3], op: p[4], o: p[5], d: p[6], p: null, pk: "" }));
+    const ph = photos && p ? photos[p[0]] : null;
+    if (p && enrich) return Promise.resolve(answer(200, { v: 1, r: "", t: p[2], tn: p[3], op: p[4], o: p[5], d: p[6], p: ph ? ph.path : null, pk: "" }));
+    const served = photos && Object.values(photos).find((q) => q.path === u.pathname);
+    if (served) return Promise.resolve({ status: 200, body: served.bytes });
     return Promise.resolve(answer(404));
   }
   return { fetch, log, planes: PLANES };

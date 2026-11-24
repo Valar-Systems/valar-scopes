@@ -5,8 +5,8 @@
 //
 // The release set's JavaScript (each model's loader, the render module) must hold no eval, no storage, no cookies
 // and no absolute URL. The wasm reaches the network only through the loader's fetch import (web_http.cpp answers
-// every path but /blips and /enrich locally, R6), so it is held to its URL strings alone, against the named list
-// below: a new one fails until someone has looked at it. The probe proves -sDYNAMIC_EXECUTION=0 took, since the flag
+// every path but /blips, /enrich and the card's /photo/ locally, R6), so it is held to its URL strings alone, against
+// the named list below: a new one fails until someone has looked at it. The probe proves -sDYNAMIC_EXECUTION=0 took, since the flag
 // changes no byte of the web build: build.sh links a program that needs eval with its own flags (none allowed) and
 // again with only that flag removed (exactly one required, or the probe could not see the flag at all).
 //

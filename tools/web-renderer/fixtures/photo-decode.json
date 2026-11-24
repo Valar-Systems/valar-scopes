@@ -1,0 +1,16 @@
+{
+ "photo-240.jpg": {
+  "jpeg_sha256": "f1ecafbb02c2b3cd64ad82fd7b457381c5e95a23533a18a7954d1b8d790b1b8c",
+  "quality": 82,
+  "rgb565_sha256": "b6365234c537e4ef61447ebf433b13cf73e1f8866b4c9fbf52a574c51438d73e",
+  "size": 240,
+  "subsampling": "4:2:0"
+ },
+ "photo-480.jpg": {
+  "jpeg_sha256": "370dab59d00488fc2e82220b5300a381c29daefda9c2e5d0eab19b538d4980b6",
+  "quality": 82,
+  "rgb565_sha256": "d2378dad72716360053de1f3f6c1318b3ccad2a10a5c434f72de6b6cdad92468",
+  "size": 480,
+  "subsampling": "4:2:0"
+ }
+}

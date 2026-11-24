@@ -5,6 +5,9 @@
 #include "variants/Variant.h"
 #include <emscripten.h>
 #include "glcdfont.h"     // LovyanGFX's Font0 bitmap (Adafruit glcdfont, BSD): the page draws glyphs from it
+#include "web_photo.h"    // the card's photo: which photo the presented frame carries
+#include <cstdio>
+#include <cstdlib>
 
 namespace {
 lgfx::DisplayList g_presented;     // the last frame pushed to the "panel"
@@ -31,6 +34,11 @@ bool lgfx::LGFX_Device::getTouch(int32_t* x, int32_t* y)
 void lgfx::LGFX_Sprite::pushSprite(int32_t, int32_t)
 {
     // The frame is done: it becomes what the page draws, and the sprite starts the next one empty.
+    if (hasPixels()) {   // a sprite of real pixels as the frame itself: its pixels would not reach the page
+        std::fprintf(stderr, "web renderer: a sprite holding pixels was presented as the frame; stopping\n");
+        std::abort();
+    }
+    webphoto::Presented(dl_);
     std::swap(g_presented, dl_);
     dl_.clear();
 }
@@ -45,6 +53,13 @@ void lgfx::LGFX_Sprite::pushSprite(LGFX_Sprite* dst, int32_t x, int32_t y)
     dst->dl_.text += dl_.text;
     dst->dl_.pixelCalls += dl_.pixelCalls;
     dst->dl_.imageCalls += dl_.imageCalls + 1;
+    if (hasPixels()) {
+        // Its pixels first, under any vector content drawn on it since (_handoffs/p4/web-photos, C5): the page reads
+        // them by id, and their hash rides in the list so a frame's hash covers the photo's content.
+        const uint64_t h = webphoto::Hash(reinterpret_cast<const uint8_t*>(pixels()), (size_t)w_ * (size_t)h_ * 2);
+        dst->dl_.op({(float)OP_RASTER, (float)rasterId(), (float)x, (float)y, (float)w_, (float)h_,
+                     (float)(uint32_t)(h & 0xFFFFFF), (float)(uint32_t)((h >> 24) & 0xFFFFFF)});
+    }
     for (size_t i = 0; i < v.size();) {
         const int len = (int)v[i];
         std::vector<float> o(v.begin() + i, v.begin() + i + len);
