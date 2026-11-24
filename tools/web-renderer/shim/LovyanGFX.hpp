@@ -109,9 +109,13 @@ namespace fonts {
 // One flat float array per drawable: [length, op, colour, args...]. Colours are 0xRRGGBB as floats
 // (exact below 2^24). Text is [len, OP_TEXT, fg, bg (-1 none), x, y, sx, sy, offset, count] into
 // `text`. The page decodes this (site/radar.js); the order is the paint order.
+// A raster -- a sprite holding real pixels, today only the card's photo -- is [len, OP_RASTER, id, x, y, w, h,
+// hashLo, hashHi]: the page reads the pixels by id (web_raster_ptr), and the hash of those pixels rides in the list,
+// so whatever hashes a frame's list hashes the photo's content too (_handoffs/p4/web-photos/REG-web-photos.txt, C5).
 enum Op : int {
     OP_FILL_SCREEN = 0, OP_LINE, OP_CIRCLE, OP_FILL_CIRCLE, OP_FILL_TRI, OP_FILL_RECT, OP_RECT,
-    OP_FILL_RRECT, OP_RRECT, OP_FILL_ARC, OP_ARC, OP_TEXT, OP_PIXEL, OP_IMAGE, OP_ELLIPSE, OP_FILL_ELLIPSE
+    OP_FILL_RRECT, OP_RRECT, OP_FILL_ARC, OP_ARC, OP_TEXT, OP_PIXEL, OP_IMAGE, OP_ELLIPSE, OP_FILL_ELLIPSE,
+    OP_RASTER
 };
 
 struct DisplayList {
@@ -127,13 +131,16 @@ class ITouch { public: virtual ~ITouch() {} virtual bool init() { return true; }
 
 class LGFXBase
 {
+  protected:
+    // A sprite that holds pixels fills them instead of recording a fill (LGFX_Sprite overrides this).
+    virtual bool fillPixels(float /*rgb888*/) { return false; }
   public:
     virtual ~LGFXBase() {}
     int32_t width() const { return w_; }
     int32_t height() const { return h_; }
     DisplayList& list() { return dl_; }
 
-    template <typename T> void fillScreen(const T& c) { dl_.op({OP_FILL_SCREEN, q(c)}); }
+    template <typename T> void fillScreen(const T& c) { if (!fillPixels(q(c))) dl_.op({OP_FILL_SCREEN, q(c)}); }
     template <typename T> void clear(const T& c) { fillScreen(c); }
     void clear() { fillScreen((uint32_t)0); }
     template <typename T> void drawPixel(int32_t x, int32_t y, const T& c) { dl_.pixelCalls++; dl_.op({OP_PIXEL, q(c), (float)x, (float)y}); }
@@ -310,10 +317,23 @@ class LGFX_Sprite : public LGFXBase
   public:
     LGFX_Sprite() {}
     explicit LGFX_Sprite(LGFXBase* parent) : parent_(parent) {}
+    ~LGFX_Sprite() override { dropPixels(); }
     void setPsram(bool) {}
-    void* createSprite(int32_t w, int32_t h) { w_ = w; h_ = h; created_ = true; return this; }
-    void deleteSprite() { created_ = false; w_ = h_ = 0; dl_.clear(); }
-    void* getBuffer() const { return created_ ? (void*)this : nullptr; }
+    void* createSprite(int32_t w, int32_t h) { dropPixels(); w_ = w; h_ = h; created_ = true; return this; }
+    void deleteSprite() { dropPixels(); created_ = false; w_ = h_ = 0; dl_.clear(); }
+    // The pixels once drawJpg has given this sprite some (C3); a token otherwise, as before.
+    void* getBuffer() const { return !px_.empty() ? (void*)px_.data() : created_ ? (void*)this : nullptr; }
+    // The card's photo (_handoffs/p4/web-photos/REG-web-photos.txt, C3/C4): the first drawJpg turns this sprite into
+    // real RGB565 pixels, seeded from a fill recorded before it, and decodes with the device's own decoder
+    // (web/web_jpg.h). Anything the firmware never asks -- zoom, a datum, offsets, a colour depth but 16, vector
+    // content under the pixels -- stops the build with a message instead of drawing something the device would not.
+    bool drawJpg(const uint8_t* data, uint32_t len, int32_t x = 0, int32_t y = 0, int32_t maxWidth = 0,
+                 int32_t maxHeight = 0, int32_t offX = 0, int32_t offY = 0, float scale_x = 1.0f,
+                 float scale_y = 0.0f, int datum = 0);   // web/web_photo.cpp
+    bool hasPixels() const { return !px_.empty(); }
+    const uint16_t* pixels() const { return px_.data(); }
+    int rasterId() const { return rid_; }
+    const std::string& source() const { return src_; }
     bool isCreated() const { return created_; }
     // The per-pixel weather layer wraps its own buffer here (AircraftManager::AllocateWeatherBuffers, only with
     // wx-layer on). This stand-in has no pixels -- getBuffer() above is a token -- and the firmware reads that layer
@@ -330,9 +350,16 @@ class LGFX_Sprite : public LGFXBase
     // Onto another sprite: its commands composited at (x, y), as LovyanGFX blits the pixels.
     void pushSprite(LGFX_Sprite* dst, int32_t x, int32_t y);
 
+  protected:
+    bool fillPixels(float rgb) override;   // web/web_photo.cpp
+
   private:
+    void dropPixels();                     // web/web_photo.cpp
     LGFXBase* parent_ = nullptr;
     bool created_ = false;
+    std::vector<uint16_t> px_;             // w_ x h_ RGB565, row-major, once this sprite holds pixels
+    int rid_ = 0;                          // its id in the page's raster table (web_raster_ptr)
+    std::string src_;                      // the photo path whose bytes it decoded ("" if none known)
 };
 
 // The touch chip on its I2C bus, as TouchWatchdog probes it: always present and awake, answering the

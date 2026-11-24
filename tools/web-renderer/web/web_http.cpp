@@ -3,16 +3,17 @@
 //
 // The firmware builds every URL itself (CloudFeed::BlipsUrl / EnrichUrl and its query); this file only decides
 // where a request may go:
-//   - under the configured cloud base, the paths web_route.h forwards (/blips, /enrich/, and /airports only when the
-//     page sets "airports-remote") are re-rooted onto the page's apiBase (default "": the same origin) and fetched
-//     with NO headers -- the firmware's X-Blip-* set never leaves the page;
-//   - everything else (/config, /airports when not asked for, photos, any other host) is answered here with 404 and
-//     no request;
+//   - under the configured cloud base, the paths web_route.h forwards (/blips, /enrich/, the card's /photo/, and
+//     /airports only when the page sets "airports-remote") are re-rooted onto the page's apiBase (default "": the same
+//     origin) and fetched with NO headers -- the firmware's X-Blip-* set never leaves the page;
+//   - everything else (/config, /airports when not asked for, any other host) is answered here with 404 and no
+//     request;
 //   - every Post() is answered here with 404 and no request (the leaderboard, ntfy, reports).
 // A fetch runs in the browser while the calling task's fiber yields frame by frame (web_rtos.cpp); 15 s without
 // an answer reads as status 0, the way a dead socket reads on the device.
 #include "HttpRequestManager.h"
 #include "web_route.h"     // which requests are forwarded (docs/web-kiosk-airfield.md)
+#include "web_photo.h"     // the card's photo: which fetched bytes came from which path
 #include <freertos/task.h>
 #include <emscripten.h>
 #include <emscripten/stack.h>
@@ -54,7 +55,7 @@ namespace web {
 String g_cloudBase;                 // web_config.cpp: the firmware's "cloud-url", which only this file reads
 bool g_airportsRemote = false;      // web_config.cpp: the page's "airports-remote", off unless exactly "true"
 std::string g_apiBase;              // the page's apiBase ("" = the page's own origin)
-struct NetStats { uint32_t blips = 0, enrich = 0, local404 = 0, posts = 0, timeouts = 0, fromLoop = 0; } g_net;
+struct NetStats { uint32_t blips = 0, enrich = 0, local404 = 0, posts = 0, timeouts = 0, fromLoop = 0, photos = 0; } g_net;
 }
 
 namespace {
@@ -157,12 +158,27 @@ HttpResult HttpRequestManager::GetJson(const String& url, JsonDocument& doc, con
 {
     return GetJsonImpl(url, doc, &filter, params, headers);
 }
-// Get() is the photo path (and nothing else on the cloud build): photos are not part of the web renderer.
-HttpResult HttpRequestManager::Get(const String&, const std::vector<std::pair<String, String>>&,
+// Get() is the photo path (and nothing else on the cloud build). The card's photo, and only a URL under web_route.h's
+// one photo prefix, is fetched from the page's origin and handed back as raw bytes -- no JSON parse -- exactly as the
+// device's Get() hands the photo to drawJpg (_handoffs/p4/web-photos/REG-web-photos.txt, C2). Anything else is
+// answered here with 404 and no request, as before.
+HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pair<String, String>>& params,
                                    const std::vector<std::pair<String, String>>&)
 {
-    web::g_net.local404++;
-    return Answer(404, "");
+    const bool photo = !web::g_cloudBase.isEmpty() && url.startsWith(web::g_cloudBase) &&
+                       webroute::IsPhoto(url.substring(web::g_cloudBase.length()).str());
+    bool isBlips = false;
+    const std::string target = photo ? Route(url, params, isBlips) : std::string();
+    if (target.empty()) { web::g_net.local404++; return Answer(404, ""); }
+    web::g_net.photos++;
+    const unsigned long t0 = millis();
+    std::string body;
+    const int status = Fetch(target, body);
+    const bool ok = status >= 200 && status < 300;
+    if (ok) webphoto::NoteFetched(url.substring(web::g_cloudBase.length()).str(), body);
+    HttpResult r = Answer(status, ok ? body : std::string());
+    r.requestMs = millis() - t0;
+    return r;
 }
 // GetBytes() is the weather layer's path (WxPolicy), asked only with wx-layer on: the website does not draw weather
 // (docs/wx-device.md, (A)). If it is ever asked, it answers as a dead socket -- status 0, nothing read, no request.
@@ -199,8 +215,9 @@ extern "C" EMSCRIPTEN_KEEPALIVE int web_http_probe(const char* url)
 
 extern "C" EMSCRIPTEN_KEEPALIVE const uint32_t* web_net_stats()
 {
-    static uint32_t s[6];
+    static uint32_t s[7];   // s[6], photos, was appended: every reader of the first six reads what it always read
     s[0] = web::g_net.blips; s[1] = web::g_net.enrich; s[2] = web::g_net.local404;
     s[3] = web::g_net.posts; s[4] = web::g_net.timeouts; s[5] = web::g_net.fromLoop;
+    s[6] = web::g_net.photos;
     return s;
 }

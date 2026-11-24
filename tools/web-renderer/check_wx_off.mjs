@@ -3,6 +3,11 @@
 // and the firmware's weather layer reads and writes raw buffers through that pointer. So the web config must never
 // turn "wx-layer" on while getBuffer() is that token.
 //
+// Since the card's photo (_handoffs/p4/web-photos/REG-web-photos.txt, C3 and AMENDMENT 3): a sprite that receives
+// drawJpg holds real pixels, and getBuffer() returns them; every other sprite still returns the token. Only the
+// card's photo sprite ever receives drawJpg, so every sprite the weather layer reads or writes is still the token, and
+// setBuffer still aborts: the rule above is unchanged. The line below is still compared whole.
+//
 //   node tools/web-renderer/check_wx_off.mjs [<web-renderer dir>]   exit 0 off; 1 turned on; 2 cannot tell
 //   node tools/web-renderer/check_wx_off.mjs --selftest              its control and its plant, each in a copy
 //
@@ -20,7 +25,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const STAND_IN = "void* getBuffer() const { return created_ ? (void*)this : nullptr; }";
+const STAND_IN = "void* getBuffer() const { return !px_.empty() ? (void*)px_.data() : created_ ? (void*)this : nullptr; }";
+const TOKEN_ONLY = "void* getBuffer() const { return created_ ? (void*)this : nullptr; }";   // the form before C3
 
 export function check(dir) {
   let shim, config;
@@ -82,6 +88,15 @@ function selftest() {
     fs.writeFileSync(cfgA, srcA.replace(entry, "/* PLANT: the entry removed */"));
     if (fs.readFileSync(cfgA, "utf8") === srcA) { console.log("RIG: the plant did not apply"); return 2; }
     cases.push(['plant: the wx-layer entry removed from a copy of the web config', absent, 1]);
+    // AMENDMENT 3: the check binds to the exact getBuffer() line -- any other form, the pre-photo one included, is
+    // CANNOT TELL, never read as off.
+    const other = copy("getbuffer");
+    const shimO = path.join(other, "shim", "LovyanGFX.hpp");
+    const srcO = fs.readFileSync(shimO, "utf8");
+    if (srcO.split(STAND_IN).length !== 2) { console.log(`RIG: the plant's anchor occurs ${srcO.split(STAND_IN).length - 1} times, need 1`); return 2; }
+    fs.writeFileSync(shimO, srcO.replace(STAND_IN, `${TOKEN_ONLY}   // PLANT`));
+    if (fs.readFileSync(shimO, "utf8") === srcO) { console.log("RIG: the plant did not apply"); return 2; }
+    cases.push(["plant: the getBuffer() line replaced (the pre-photo form) in a copy of the shim", other, 2]);
     for (const [label, dir, want] of cases) {
       const r = check(dir);
       const ok = r.code === want;

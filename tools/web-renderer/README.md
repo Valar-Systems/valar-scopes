@@ -31,9 +31,13 @@ radar.setTextMode("smooth");                    // or "device" (the panel's glcd
 **What the page's origin must serve:**
 - `GET /api/v1/blipscope/blips?lat=&lon=&r=&limit=40`, in the device's response shape.
 - Optionally `GET /api/v1/blipscope/enrich/<hex>`. Without it, labels show no type or operator.
+- Optionally `GET /api/v1/blipscope/photo/<key>`, the card's photo: fetched only when a card opens on an aircraft
+  whose enrich reply names a `p` under that prefix, and drawn by the device's own JPEG decoder at the model's
+  `SCREEN_SIZE`, unscaled (a photo of another size is clipped or margined, exactly as on the device). Serve the square
+  at that size. `web_photo_shown()` names the photo on screen, so the page can draw its credit beside the canvas.
 
 **What the renderer never does:**
-- It requests nothing else from anywhere, including `/config`, `/airports` and photos.
+- It requests nothing else from anywhere, including `/config` and `/airports`.
 - It sends no header.
 - It posts nothing.
 - It uses no eval (it is linked with `-sDYNAMIC_EXECUTION=0`), no storage of any kind and no cookies, and it has no

@@ -40,7 +40,7 @@ if ! command -v em++ >/dev/null 2>&1; then
   # shellcheck disable=SC1091
   source "${EMSDK:-$HOME/emsdk}/emsdk_env.sh" >/dev/null 2>&1
 fi
-for lib in ArduinoJson/src QRCode/src LovyanGFX/src/lgfx/Fonts; do
+for lib in ArduinoJson/src QRCode/src LovyanGFX/src/lgfx/Fonts LovyanGFX/src/lgfx/utility; do
   [ -d "$LIBDEPS/$lib" ] || { echo "missing $LIBDEPS/$lib -- run: pio pkg install -e blipscope-s3-128 (or set LIBDEPS)"; exit 3; }
 done
 mkdir -p "$OUT" "$OBJ"
@@ -58,10 +58,10 @@ CXXFLAGS=(-std=gnu++17 -O2 ${EXTRA_CXX:-} -fno-exceptions -Wno-unused-function -
 FIRMWARE=(AircraftManager CloudFeed AircraftInfoFields SpecialAircraft IcaoCountry Logbook SevenSegment
           ConfigMigration HeapHealth MqttPublisher OpenSkyAuthTokenHandler TouchWatchdog TlsAllocator
           models/Aircraft anim/Coastlines anim/StateBorders)
-WEB=(web_platform web_rtos web_gfx web_http web_config web_ota web_board web_main)
+WEB=(web_platform web_rtos web_gfx web_http web_config web_ota web_board web_main web_photo)
 EXPORTS=_main,_web_start,_web_frame,_web_touch,_web_list_ptr,_web_list_len,_web_text_ptr,_web_text_len
 EXPORTS=$EXPORTS,_web_screen_size,_web_stats_ptr,_web_brightness,_web_font_ptr,_web_net_stats,_web_config_set
-EXPORTS=$EXPORTS,_web_set_api_base,_web_http_probe${EXTRA_EXPORTS:-}
+EXPORTS=$EXPORTS,_web_set_api_base,_web_http_probe,_web_photo_shown,_web_raster_ptr${EXTRA_EXPORTS:-}
 
 objs=()
 build() {   # src obj
@@ -72,6 +72,11 @@ build() {   # src obj
 }
 for f in "${FIRMWARE[@]}"; do build "$SRC_ROOT/src/$f.cpp" "$OBJ/${f//\//_}.o"; done
 emcc -O2 -c "$LIBDEPS/QRCode/src/qrcode.c" -I"$LIBDEPS/QRCode/src" -o "$OBJ/qrcode.o"; objs+=("$OBJ/qrcode.o")
+# The card's photo (_handoffs/p4/web-photos/REG-web-photos.txt, C4): the DEVICE'S OWN JPEG decoder, compiled from the
+# firmware's libdeps as it is (LovyanGFX's lgfx_tjpgd.c, JD_BAYER on), and the zoom-1 drawJpg over it.
+TJPGD="$LIBDEPS/LovyanGFX/src/lgfx/utility"
+emcc -O2 -c "$TJPGD/lgfx_tjpgd.c" -I"$TJPGD" -o "$OBJ/lgfx_tjpgd.o"; objs+=("$OBJ/lgfx_tjpgd.o")
+em++ "${CXXFLAGS[@]}" -I"$TJPGD" -c "$HERE/web/web_jpg.cpp" -o "$OBJ/web_jpg.o"; objs+=("$OBJ/web_jpg.o")
 for f in "${WEB[@]}"; do build "$HERE/web/$f.cpp" "$OBJ/$f.o"; done
 
 NAME=blipscope-web-$SKU-v$FW
