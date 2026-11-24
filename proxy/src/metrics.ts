@@ -408,7 +408,7 @@ export function recordBoot(env: Env, raw: string | null, model: string, fw: stri
 
 // X-Blip-Usage: "<cardOpens>,<radar>,<list>,<stats>,<follow>,<claims>,<followEnabled>,<uptimeHours>"
 // sent by a device at most once an hour on a check-in it was making anyway
-// (include/UsageReport.h). Anonymous COUNTS of feature use.
+// (include/UsageReport.h). COUNTS of feature use, kept against the device's identifier.
 //
 // WHAT IT CARRIES AND WHAT IT CANNOT. Counts of how often features are used --
 // never what the use was about. No aircraft, no callsign, no tail number, no
