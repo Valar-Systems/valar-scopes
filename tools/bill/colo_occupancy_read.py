@@ -39,6 +39,12 @@ REASK_S apart (chosen on resolution only, never on the count); still not a value
       the owner's lead by class (NIGHT / DAWN / DAY / DUSK, bands fixed in this file). COUNT QUERIES ONLY, as famcount;
       anchors K1-K4, re-reads M1-M4, C-POP against the population's no-key. Every line labelled as classify's.
       Exit 0 = FOLLOWS or DOES NOT FOLLOW; 3 = OUTSIDE or stopped; 6 = BLIND at an anchor.
+  python -X utf8 -I tools/bill/colo_occupancy_read.py popgap <out.json>   F1 POP-GAP (registration 7ee3a7a57822):
+      did the WHOLE population keep logging through FAMILY HOURS' 15-hour stop (11-24 04:00Z-18:00Z)? T (every req
+      line), N (no key) and K = T - N per hour over 02:00Z-20:00Z, after the population's anchors and two S re-reads.
+      COUNT QUERIES ONLY, as famcount; every hour, anchor and threshold fixed in this file; every line labelled as
+      classify's. Exit 0 = LOG GAP or THE FAMILY'S OWN CHANGE; 3 = OUTSIDE or stopped (a BLIND window hour stops);
+      6 = BLIND at an anchor.
 Every command prints one `attempts <query>:` line per query on every graded exit (0, 3, 5, 6); lc and scan also write
 every attempt to <out.json> on those exits, and read writes them into its own result file (F1-R-1's recording clause;
 ruling (4)). A rig error (exit 2) prints its exception type only, and nothing else.
@@ -957,6 +963,146 @@ def famhours(path):
     return fin(rc)
 
 
+# F1 POP-GAP (registration 7ee3a7a57822): did the WHOLE population keep logging through FAMILY HOURS' 15-hour stop
+# (11-24 04:00Z-18:00Z, S = 0)? COUNT QUERIES ONLY, as famcount: no line and no `dev` value can enter the process.
+# T = every req line (params()); N = T AND no key (POP_NOKEY); K = T - N, independent of the family by construction (the
+# family is no-key). The window, the anchors and every threshold are fixed HERE.
+PG_FIRST = "2026-11-24T02:00:00Z"
+PG_HOURS = 19                            # 02Z..20Z: controls 02Z, 03Z; the stop 04Z..18Z; controls 19Z, 20Z
+PG_STOP = ("2026-11-24T04:00:00Z", 15)   # FAMILY HOURS' QUIET run after START: 15 hours of S = 0
+PG_S = (("S-02", "2026-11-24T02:00:00Z", 68), ("S-03", "2026-11-24T03:00:00Z", 8))   # FAMILY HOURS' printed S
+PG_S_AFTER = ("2026-11-24T19:00:00Z", "2026-11-24T20:00:00Z")   # S read there too, grading nothing
+PG_LAST_START = "2026-11-26T06:00:00Z"   # ANCHOR-PRE (11-19 12:00Z) leaves Workers Logs' 7-day retention 11-26 12:00Z
+PG_N_HIGH = 150                          # every DAY-class stopped hour (06Z..16Z) at or above: still asking keyless
+PG_N_LOW = 50                            # every stopped hour at or below: keyless asking stopped
+
+
+def popgap(path):
+    r = route_rules()                    # before any query: a stale rule is a RIG error with nothing asked
+    ap = fc_prefixes(r)
+    hs = lambda t: t.strftime("%Y-%m-%dT%H:00Z")
+    first = parse_hour(PG_FIRST)
+    hours = [first + timedelta(hours=i) for i in range(PG_HOURS)]
+    s0 = parse_hour(PG_STOP[0])
+    stop_h = [s0 + timedelta(hours=i) for i in range(PG_STOP[1])]
+    ctl = [h for h in hours if h not in stop_h]
+    after = [parse_hour(x) for x in PG_S_AFTER]
+    if len(ctl) != 4 or any(h not in hours for h in stop_h) or any(h not in ctl for h in after):
+        raise Rig("the window's controls are not the four hours the registration names")
+    last = last_closed_hour()
+    if last < hours[-1]:
+        raise Rig("the window's last hour is not closed yet")
+    if last + timedelta(hours=1) >= parse_hour(PG_LAST_START):
+        raise Rig("the run starts after %s: ANCHOR-PRE nears the logs' retention" % PG_LAST_START)
+    tok = TOKEN_FILE.token("observability-read")
+    log, calls = [], [0]
+    rec = {"label": DIAG, "window_first": hs(hours[0]), "window_last": hs(hours[-1]), "steps": []}
+    fin = lambda rc: done(rc, log, path, "popgap", dict(rec, exit=rc, calls=calls[0]))
+    S = POP_NOKEY + FC_STATUS + (FC_MODEL,)
+    n_calls = 2 * len(POP_ANCHORS) + 3 * len(PG_S) + 2 * len(hours) + 3 * len(after)
+    print("window %s to %s: %d hour(s); controls %s; the stop %s to %s; %d count queries" % (
+        hs(hours[0]), hs(hours[-1]), len(hours), " ".join(hs(h) for h in ctl), hs(stop_h[0]), hs(stop_h[-1]), n_calls))
+
+    def gap():
+        if calls[0]:
+            time.sleep(CALL_GAP_S)
+        calls[0] += 1
+
+    def cq(h, leaves, label):
+        gap()
+        return count_query(h, params(*leaves), tok, log, label)
+
+    def summed(h, leaves, label):
+        return sum(cq(h, tuple(leaves) + (a,), "%s p%d" % (label, i + 1)) for i, a in enumerate(ap))
+
+    def stop(at):
+        rec["stopped_at"] = at
+        v = "verdict: OUTSIDE (stopped at %s)%s" % (at, FC_TAIL)
+        print(v)
+        rec["verdict"] = v
+        return fin(3)
+
+    try:
+        for name, h_s, want_t, want_n in POP_ANCHORS:
+            h = parse_hour(h_s)
+            t = cq(h, (), "%s T" % name)
+            n = cq(h, POP_NOKEY, "%s N" % name)
+            ok = (t, n) == (want_t, want_n)
+            print("%s %s: T %d, N %d (must read %d / %d) -> %s" % (name, hs(h), t, n, want_t, want_n,
+                                                                  "HOLDS" if ok else "OFF: stop; nothing after it is queried"))
+            rec["steps"].append([name, hs(h), t, n, ok])
+            if not ok:
+                return stop(name)
+        for st, h_s, want in PG_S:
+            h = parse_hour(h_s)
+            n = summed(h, S, "%s %s S" % (st, hs(h)))
+            ok = n == want
+            print("%s %s S: %d (must read %d) -> %s" % (st, hs(h), n, want, "HOLDS" if ok else
+                                                       "OFF: stop; nothing after it is queried"))
+            rec["steps"].append([st, hs(h), n, ok])
+            if not ok:
+                return stop(st)
+    except Blind as e:
+        return fin(blind(str(e), log))
+
+    vals = {}
+    for h in hours:
+        try:
+            t = cq(h, (), "hour %s T" % hs(h))
+            n = cq(h, POP_NOKEY, "hour %s N" % hs(h))
+            s = summed(h, S, "hour %s S" % hs(h)) if h in after else None
+        except Blind:
+            print("hour %s BLIND: stop; nothing after it is queried" % hs(h))
+            return stop("BLIND " + hs(h))
+        if n > t:
+            print("hour %s: N %d above T %d: stop; nothing after it is queried" % (hs(h), n, t))
+            return stop("N above T " + hs(h))
+        vals[h] = (t, n, s)
+        print("hour %s %s T %d N %d K %d%s" % (hs(h), "stop" if h in stop_h else "control", t, n, t - n,
+                                               "" if s is None else " S %d" % s))
+    rec["hours"] = [[hs(h), vals[h][0], vals[h][1], vals[h][2]] for h in hours]
+
+    K = {h: vals[h][0] - vals[h][1] for h in hours}
+    ck = sorted(K[h] for h in ctl)
+    med2 = ck[1] + ck[2]                 # twice the controls' median K; the floor test is 4 K >= med2 (K >= 50% of it)
+    print("controls: K %s; median K %.1f; floor (50%%) %.1f" % (", ".join("%d" % K[h] for h in ctl), med2 / 2.0, med2 / 4.0))
+    rng = lambda v: "%d..%d" % (min(v), max(v))
+    print("the stop: T %s, N %s, K %s" % (rng([vals[h][0] for h in stop_h]), rng([vals[h][1] for h in stop_h]),
+                                          rng([K[h] for h in stop_h])))
+    print("S after the stop (grades nothing): %s" % ", ".join("%s %d" % (hs(h), vals[h][2]) for h in after))
+
+    ctl0 = [h for h in ctl if vals[h][0] == 0]
+    zero = [h for h in stop_h if vals[h][0] == 0]
+    under = [h for h in stop_h if vals[h][0] > 0 and 4 * K[h] < med2]
+    rc = 3
+    if ctl0:
+        v = "verdict: OUTSIDE (a control hour reads T 0: %s)%s" % (" ".join(hs(h) for h in ctl0), FC_TAIL)
+    elif len(zero) == len(stop_h):
+        v, rc = "verdict: LOG GAP, (d) -- T reads 0 in all %d stopped hours and above 0 in all 4 controls" % len(stop_h), 0
+    elif zero:
+        v = "verdict: OUTSIDE (%d of %d stopped hours read T 0: %s)%s" % (len(zero), len(stop_h), " ".join(hs(h) for h in zero),
+                                                                         FC_TAIL)
+    elif under:
+        v = "verdict: OUTSIDE (K under the floor in %d stopped hour(s): %s)%s" % (len(under), " ".join(hs(h) for h in under),
+                                                                                FC_TAIL)
+    else:
+        day = [h for h in stop_h if 6 <= h.hour <= 16]
+        if day and all(vals[h][1] >= PG_N_HIGH for h in day):
+            sub = ("N-HIGH: N at least %d in every DAY-class stopped hour -- the device still asks with NO key and no longer "
+                   "matches the family: (c), or (b) through a firmware or path change; (a) excluded" % PG_N_HIGH)
+        elif all(vals[h][1] <= PG_N_LOW for h in stop_h):
+            sub = ("N-LOW: N at most %d in every stopped hour -- keyless asking stopped: (a), or (b) now keyed; "
+                   "(c) excluded" % PG_N_LOW)
+        else:
+            sub = "NOT SEPARATED"
+        rec["sub_reading"] = sub.split(":")[0]
+        v, rc = ("verdict: THE FAMILY'S OWN CHANGE, (a)-(c) -- T above 0 and K at least 50%% of the controls' median in all "
+                 "%d stopped hours; sub-reading %s" % (len(stop_h), sub)), 0
+    print(v)
+    rec["verdict"] = v
+    return fin(rc)
+
+
 def labelled(fn):
     """F1 CLASSIFY: every line the diagnostic prints carries DIAG, including RIG errors and the attempts lines."""
     buf = io.StringIO()
@@ -1094,7 +1240,7 @@ def grade(p1, p2):
 
 
 def main(argv):
-    if argv[:1] in (["classify"], ["population"], ["famcount"], ["famhours"]):
+    if argv[:1] in (["classify"], ["population"], ["famcount"], ["famhours"], ["popgap"]):
         return labelled(lambda: dispatch(argv))
     return dispatch(argv)
 
@@ -1109,6 +1255,8 @@ def dispatch(argv):
             return famcount(argv[1])
         if len(argv) == 2 and argv[0] == "famhours":
             return famhours(argv[1])
+        if len(argv) == 2 and argv[0] == "popgap":
+            return popgap(argv[1])
         if argv == ["ctl"]:
             return ctl()
         if len(argv) == 2 and argv[0] == "lc":
