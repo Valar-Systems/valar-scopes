@@ -38,18 +38,22 @@
 #                `python scripts\board-port.py --release <board> --by <who>`.
 #
 #   -Board       which bench board, by NAME (scripts\board-port.py BOARDS):
-#                  missileer        E9:D8  Missileer bench   flash freely
-#                  missileer-photo  E7:94  Missileer photo   Missileer envs only
-#                  weatherscope     6E:64  Weatherscope bench (the Blipscope soak board until 2026-10-20)
-#                  blipscope-bench  E2:08  Blipscope bench
+#                  missileer        E9:D8  Missileer bench     flash freely
+#                  missileer-photo  E7:94  Missileer photo     YKUSH port 1: any firmware
+#                  weatherscope     6E:64  Weatherscope bench  YKUSH port 2: any firmware
+#                  blipscope-bench  E2:08  Blipscope bench     YKUSH port 3: any firmware
+#                (the three YKUSH boards: the owner, 2026-11-22; a reservation first, every
+#                flash and switch logged). A board outside this table is never touched; the
+#                closed set refuses it.
 #                The port is resolved from the board's USB serial number (its MAC)
 #                by scripts\board-port.py -- never from a COM number, which changes
 #                whenever the firmware's USB layout does (the Missileer board was
 #                COM15, COM4 and COM17 on 2026-09-24), and is printed with the
 #                serial before anything is written.
-#   -DanielApproved  required for every board but `missileer` (CLAUDE.md, Bench
-#                boards): the Blipscope and Weatherscope boards belong to other work, and the photo
-#                unit is flashed on Daniel's go.
+#   -DanielApproved  accepted and ignored since 2026-11-22, when the owner's rule let the three
+#                YKUSH boards take any firmware with a reservation alone; older command lines run.
+#   -RulesOnly   apply the board rules, print the verdict and exit 0: before the reservation,
+#                before any USB. The seam that shows which boards and envs the rules let through.
 #   -NoCapture   flash only; do not re-attach the recorder
 #   -AppOnly     write the app image to ota_0 ONLY (scripts\app-only-write.py):
 #                bootloader, partition table, otadata and NVS are never written, and
@@ -67,6 +71,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Label,
     [Parameter(Mandatory=$true)][string]$By,
     [switch]$DanielApproved,
+    [switch]$RulesOnly,
     [switch]$NoCapture,
     [switch]$AppOnly
 )
@@ -80,28 +85,21 @@ $resolver = "$repo\scripts\board-port.py"
 function Say($t) { Write-Host "[bench-flash] $t" }
 
 # ---- 0. WHICH BOARD, by serial number, and the board rules -------------------
-if ($Board -eq 'weatherscope' -and -not $DanielApproved) {
-    Say "REFUSING: the Weatherscope board belongs to the Weatherscope session. Ask Daniel,"
-    Say "  then re-run with -DanielApproved. (CLAUDE.md, Bench boards.)"
-    exit 4
-}
-if ($Board -eq 'blipscope-bench' -and -not $DanielApproved) {
-    Say "REFUSING: the Blipscope bench board belongs to the Blipscope session. Ask"
-    Say "  Daniel, then re-run with -DanielApproved. (CLAUDE.md, Bench boards.)"
-    exit 4
-}
-if ($Board -eq 'missileer-photo' -and -not $DanielApproved) {
-    Say "REFUSING: the Missileer photo unit is flashed on Daniel's go. Ask him, then"
-    Say "  re-run with -DanielApproved. (CLAUDE.md, Bench boards.)"
-    exit 4
-}
-if ($PioEnv -like 'missileer-*' -and $Board -notlike 'missileer*') {
-    Say "REFUSING: $PioEnv is Missileer firmware and only goes on a Missileer board."
-    exit 4
-}
-if ($Board -eq 'missileer-photo' -and $PioEnv -notlike 'missileer-*') {
-    Say "REFUSING: the photo unit takes Missileer envs only; $PioEnv is not one."
-    exit 4
+# Until 2026-11-22 this block refused every board but `missileer` without -DanielApproved, a
+# Missileer env on a non-Missileer board, and a non-Missileer env on the photo unit. The owner
+# replaced all of that for the three boards on the YKUSH hub (2026-11-22):
+#
+#   "All three can be used however the sessions need: any firmware, flashing, and power cycles
+#    on any of the three ports, in parallel. This replaces every earlier limit of mine on them
+#    [...] A session still reserves a board before using it, and every flash and switch is
+#    still logged."
+#
+# So the rules left are the closed -Board set and the reservation (0b, exit 6). A board outside
+# the table is never touched; the closed set refuses it at parameter binding, before this script
+# runs a line. -DanielApproved is accepted and ignored, so an older command line still runs.
+if ($RulesOnly) {
+    Say "RULES OK: $Board may take $PioEnv (the owner's rule of 2026-11-22); a reservation is still required."
+    exit 0
 }
 # ---- 0b. THE RESERVATION, before anything touches USB (Daniel, 2026-10-12) ----
 # Several sessions share these boards. A held port shows only while something has it

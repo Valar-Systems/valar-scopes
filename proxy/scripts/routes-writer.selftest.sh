@@ -492,6 +492,62 @@ ROUTES_FAKEKV_GET_SUFFIX=newline run "$T/j7xb.out" "${KL[@]}" --file "$F/prev.ta
 sx=$( [ -f "$T/j7xr.json" ] && ROUTES_FAKEKV_GET_SUFFIX=newline run "$T/j7xs.out" "${SO[@]}" --receipt "$T/j7xr.json" || echo none )
 if [ "$sx" = 1 ] && has "$T/j7xs.out" "(J7)"; then ok J7w-ctl; else bad J7w-ctl "the old receipt's seal exit $sx"; fi
 
+# ---- SR0-SR7 (fix (e), 2026-11-20, registration 64ffb43fea17 + A1): the sample read-back names each kind of miss -----
+# k0 is the key at sample position 0, writes[0]: --out-written holds the writes in order. It reaches the fake through the
+# environment and is compared inside node; it is never printed. n is min(12, the fixture's writes).
+fresh; rm -f "$T/srw.json.sample-failing.json"
+rc0=$(run "$T/sr0.out" "${KL[@]}" --file "$F/new.tar.gz" --no-seal --readback off --out-written "$T/srw.json" --out-deleted "$T/srd.json")
+k0=$(node -e 'try{const w=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).written??{};process.stdout.write(Object.keys(w)[0]??"")}catch{}' "$T/srw.json")
+n=$(node -e 'const e=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); process.stdout.write(String(Math.min(12, e.writes)))' "$F/expect.json")
+nm1=$((n - 1))
+if [ "$rc0" = 0 ] && line_is "$T/sr0.out" "sample: $n/$n written keys read back byte-identical" && [ -n "$k0" ]; then ok SR0; else bad SR0 "exit $rc0, k0 found: $([ -n "$k0" ] && echo yes || echo no)"; fi
+fresh; rc1=$(ROUTES_FAKEKV_GET_FAIL="$k0" run "$T/sr1.out" "${KL[@]}" --file "$F/new.tar.gz" --no-seal --readback off --out-written "$T/sr1w.json" --out-deleted "$T/sr1d.json")
+fresh; rc2=$(ROUTES_FAKEKV_GET_WRONG="$k0" run "$T/sr2.out" "${KL[@]}" --file "$F/new.tar.gz" --no-seal --readback off --out-written "$T/sr2w.json" --out-deleted "$T/sr2d.json")
+fresh; rc3=$(ROUTES_FAKEKV_GET_ABSENT="$k0" run "$T/sr3.out" "${KL[@]}" --file "$F/new.tar.gz" --no-seal --readback off --out-written "$T/sr3w.json" --out-deleted "$T/sr3d.json")
+# The refusal is graded as a WHOLE line (M1): only the local file's path at its end is free.
+refusal() { grep -qxE -- "REFUSING: $nm1/$n sampled written keys read back byte-identical \\($2\\); failing sample position\\(s\\) 0; their keys are in a local file, not printed: .+" "$1"; }
+if [ "$rc1" = 1 ] && refusal "$T/sr1.out" "MISMATCH 0, ABSENT 0, READ-ERROR 1: rate exit 1"; then ok SR1; else bad SR1 "exit $rc1, the split line not as registered"; fi
+if [ "$rc2" = 1 ] && refusal "$T/sr2.out" "MISMATCH 1, ABSENT 0, READ-ERROR 0"; then ok SR2; else bad SR2 "exit $rc2, the split line not as registered"; fi
+if [ "$rc3" = 1 ] && refusal "$T/sr3.out" "MISMATCH 0, ABSENT 1, READ-ERROR 0"; then ok SR3; else bad SR3 "exit $rc3, the split line not as registered"; fi
+# SR4: the classes are distinct -- SR1 never says MISMATCH 1, SR2 never says READ-ERROR 1, each names exactly one class.
+v4=$(node -e '
+const fs=require("fs"); const bad=[];
+const split=(f)=>{const m=fs.readFileSync(f,"utf8").match(/\(MISMATCH (\d+), ABSENT (\d+), READ-ERROR (\d+)/); return m?m.slice(1).map(Number):null;};
+const [s1,s2,s3]=process.argv.slice(1).map(split);
+if(!s1||!s2||!s3) bad.push("a split is missing");
+else {
+  if(s1[0]!==0) bad.push("SR1 counted a MISMATCH"); if(s2[2]!==0) bad.push("SR2 counted a READ-ERROR");
+  for(const [i,s] of [s1,s2,s3].entries()) if(s.filter((x)=>x>0).length!==1) bad.push("SR"+(i+1)+" names "+s.filter((x)=>x>0).length+" classes");
+}
+console.log(bad.length?bad.join("; "):"ok");
+' "$T/sr1.out" "$T/sr2.out" "$T/sr3.out")
+if [ "$v4" = ok ]; then ok SR4; else bad SR4 "$v4"; fi
+# SR5: the not-found rule has one home -- the regex appears exactly once in the writer (the meta read's and readPending's
+# behaviour is still graded by their own rows in this file).
+c5=$(grep -cF 'not found|does not exist|key .* not' scripts/ingest-routes.ts)
+if [ "$c5" = 1 ]; then ok SR5; else bad SR5 "the not-found regex appears $c5 times"; fi
+# SR6: each of SR1-SR3 names the failing POSITION and prints no key (routes-refresh-run.sh's masked() keeps callsigns out
+# of the CI log, and this output is cat into it).
+v6=$(K0="$k0" node -e '
+const fs=require("fs"); const k=process.env.K0; const bad=[];
+for (const f of process.argv.slice(1)) { const o=fs.readFileSync(f,"utf8");
+  if (!/failing sample position\(s\) 0;/.test(o)) bad.push("no position");
+  if (k && o.includes(k)) bad.push("a key was printed"); }
+console.log(bad.length?[...new Set(bad)].join("; "):"ok");
+' "$T/sr1.out" "$T/sr2.out" "$T/sr3.out")
+if [ "$v6" = ok ]; then ok SR6; else bad SR6 "$v6"; fi
+# SR7 (A1): after SR1's refusal EXITS, the failing-keys file beside --out-written exists and holds exactly k0 at position
+# 0. SR7-ctl: the clean SR0 leaves no such file.
+v7=$(K0="$k0" node -e '
+const fs=require("fs"); const [f,o]=process.argv.slice(1); let a;
+try { a=JSON.parse(fs.readFileSync(f,"utf8")); } catch { console.log("no file after exit"); process.exit(0); }
+const ok=Array.isArray(a)&&a.length===1&&a[0].pos===0&&a[0].key===process.env.K0;
+const named=fs.readFileSync(o,"utf8").includes("sr1w.json.sample-failing.json");
+console.log(ok&&named?"ok":(ok?"the path is not printed":"the file does not hold exactly position 0"));
+' "$T/sr1w.json.sample-failing.json" "$T/sr1.out")
+if [ "$v7" = ok ]; then ok SR7; else bad SR7 "$v7"; fi
+if [ ! -e "$T/srw.json.sample-failing.json" ]; then ok SR7-ctl; else bad SR7-ctl "a clean run left a sample-failing file"; fi
+
 # ---- TMP1: the tools leave no temp dir behind; TMP1-ctl: the children really used the private temp -----------------
 seen=$(node -e 'process.stdout.write(require("os").tmpdir())')
 case "$(echo "$seen" | tr '\\' '/' | tr 'A-Z' 'a-z')" in *"$(basename "$T" | tr 'A-Z' 'a-z')/tmp"*) ok TMP1-ctl ;; *) bad TMP1-ctl "a child's temp is not the private one" ;; esac

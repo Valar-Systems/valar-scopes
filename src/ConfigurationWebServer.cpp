@@ -3173,6 +3173,15 @@ void ConfigurationWebServer::Initialise() {
         const String autoDimEnabled = HtmlEscape(prefs.isKey("autodim") ? prefs.getString("autodim", "true") : "true");
         const String brightness = HtmlEscape(prefs.getString("brightness", "255"));
         const String theme = prefs.getString("wx-theme", "");   // compared, never emitted (3.5t t5, A12.66)
+        // ENROLLED and REFUSED by the radar's own rules (see its loader above): enrolled means the FACTORY slot
+        // holds a key -- a pasted cloud-key is not enrolled -- and refused is the one bit published by the loop
+        // (SetNeedsReverify), false until Weatherscope publishes it, so a false "refused" can never show.
+        // ONE DELIBERATE DIFFERENCE FROM THE DEVICE (docs/weatherscope-stage4.md S4.36, ruling (a), the pasted-key
+        // row): the device's request key follows the radar's precedence (cloud-key, else cloud-key-fac), so a board
+        // with a pasted cloud-key and an empty cloud-key-fac draws Live while this page says "not enrolled" --
+        // which is true of its factory identity.
+        const bool enrolled = prefs.getString("cloud-key-fac", "").length() > 0;
+        const bool refused = needsReverify;
 #endif
         prefs.end();
 
@@ -3565,7 +3574,7 @@ void ConfigurationWebServer::Initialise() {
         AsyncWebServerResponse* response = request->beginResponse(
             200, "text/html",
             (const uint8_t*)CONFIG_HTML, sizeof(CONFIG_HTML) - 1,
-            [deviceName, deviceIp, wifiRssi, latitude, longitude, autoDimEnabled, brightness, theme]
+            [deviceName, deviceIp, wifiRssi, latitude, longitude, autoDimEnabled, brightness, theme, enrolled, refused]
             (const String& var) -> String {
                 if (var == "LATITUDE")       return latitude;
                 if (var == "LONGITUDE")      return longitude;
@@ -3578,6 +3587,8 @@ void ConfigurationWebServer::Initialise() {
                 // The id the touch-unavailable strip names (A12.119, Q84): the same string, so a customer
                 // can match the two. A free function, like BUILD_ID below -- no capture list change.
                 if (var == "DEVICE_ID")      return DeviceIdentity::LeaderboardId();
+                if (var == "ENROLLED")       return enrolled ? "1" : "0";
+                if (var == "REFUSED")        return refused ? "1" : "0";
                 if (var == "FW_VERSION")     return String(FW_VERSION);
                 // Free function, so no capture list changes -- every edition's
                 // processor answers this identically. See BuildIdentity.h.
@@ -3831,7 +3842,10 @@ void ConfigurationWebServer::Initialise() {
         SaveToggle("fade");
         SaveToggle("triangle");
         SaveToggle("airports");
-        SaveToggle("wx-layer");
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS)
+        SaveToggle("wx-layer");   // only where its box renders (the same condition): a build that never shows the box
+                                  // never counts it as "left unchanged"
+#endif
 #ifdef FEATURE_CLOUD_FEED
         TrySaveParam("wx-look");   // a shipping setting since 2026-10-29 (docs/wx-device.md K1); absent stays absent
 #endif
@@ -4164,7 +4178,9 @@ void ConfigurationWebServer::Initialise() {
 
     // Forget WiFi credentials and reboot into the WiFiManager setup portal. The
     // response is sent first; the restart is deferred a moment so it can flush.
-#if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
+#if (!defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)) || defined(FEATURE_WEATHERSCOPE)
+    // Weatherscope too (its Ask B, docs/weatherscope-stage4.md S4.32): the route is unchanged, and the board
+    // reads the same NVS keys the radar does.
     /* -----------------------------------------------------------------------
      * ENROLLMENT KEY LANDING — the only path that may write "cloud-key-fac".
      *
@@ -4349,6 +4365,24 @@ void ConfigurationWebServer::Initialise() {
         uint32_t tagBefore = 0, tagAfter = 0, seqBefore = 0, seqAfter = 0, clearsBefore = 0, clearsAfter = 0;
         bool finished = false;
         int attempts = 0;
+#if defined(BLIPSCOPE_PUSH_TASK)
+        // M3 (docs/m3-push-task.md, section 5): two backbuffers, so the phase window closes the instant a frame is
+        // handed over. Instead LOCK the last complete buffer for the copy: the loop cannot draw into a buffer it does
+        // not hold, so the copy is a whole, finished frame. Bounded like the window wait; on a timeout, Finished false.
+        {
+            ++attempts;
+            LGFX_Sprite* held = framebuf::AcquireComplete(kWaitBoundUs / 1000);
+            if (held != nullptr) {
+                seqBefore = seqAfter = framebuf::Sequence();
+                tagBefore = tagAfter = framebuf::Tag();
+                phaseBefore = phaseAfter = framebuf::kPhasePushed;
+                clearsBefore = clearsAfter = framebuf::Clears();
+                memcpy(snap, held->getBuffer(), total);
+                framebuf::ReleaseComplete(held);
+                finished = true;
+            }
+        }
+#else
         for (;;) {
             while (!framebuf::PhaseFinished(framebuf::Phase()) && micros() - waitT0 < kWaitBoundUs) vTaskDelay(1);
             ++attempts;
@@ -4365,6 +4399,7 @@ void ConfigurationWebServer::Initialise() {
                        tagBefore == tagAfter && seqBefore == seqAfter && clearsBefore == clearsAfter;
             if (finished || micros() - waitT0 >= kWaitBoundUs) break;
         }
+#endif
         const uint32_t waitUs = micros() - waitT0;
         // Torn now means "not a finished frame": a superset of the old "Sequence moved", so a client that asks again
         // on Torn (the viewer page does, once) keeps working.

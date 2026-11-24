@@ -15,11 +15,31 @@
 //   CF_API_TOKEN when non-empty, else the analytics-read line of BLIPSCOPE_TOKEN_FILE
 //   (proxy/scripts/token-file.ts, the reader every by-hand script shares).
 // The device id is never printed either; the caller passes it and gets times and reasons back.
+// That includes a query error: any 16-hex run in its text is masked as <hex16> before it is printed.
 //
 // Exit 0: rows printed (possibly none). 2: bad arguments. 3: no token / the query failed --
 // UNTRUSTWORTHY, nothing was measured, and the caller must not read "no rows" as "no boots".
+//
+//   node --experimental-strip-types scripts/fba-boot-rows.mjs --check-token
+//
+// The driver's preflight (fix 2, docs/fresh-boot-automation.md Addendum 3): prints exactly
+// "analytics token: present" (exit 0) or "analytics token: absent" (exit 3), from the SAME resolver
+// the query uses, so "present" means the query will have a token. Never the value; on absent, the
+// resolver's reason goes to stderr (it names keys, paths and line numbers, never content).
 import { deviceBoots } from "../dashboard/src/analytics.ts";
 import { resolveToken } from "../proxy/scripts/token-file.ts";
+
+if (process.argv[2] === "--check-token") {
+  try {
+    const t = resolveToken("analytics-read", "CF_API_TOKEN").token;
+    console.log(`analytics token: ${t ? "present" : "absent"}`);
+    process.exit(t ? 0 : 3);
+  } catch (e) {
+    console.log("analytics token: absent");
+    console.error(`  ${e instanceof Error ? e.message : e}`);
+    process.exit(3);
+  }
+}
 
 const [dev, fromS, toS] = process.argv.slice(2);
 const from = Number(fromS), to = Number(toS);
@@ -42,7 +62,10 @@ let rows;
 try {
   rows = await deviceBoots(env, dev);
 } catch (e) {
-  console.error(`UNTRUSTWORTHY: the boot query failed -- ${String(e instanceof Error ? e.message : e).slice(0, 200)}`);
+  // A query error can quote the id: runSql (dashboard/src/analytics.ts) puts the server's body into the message, and
+  // the SQL holds the id verbatim. Mask EVERY 16-hex run, in any case, BEFORE the slice (fb-rowsredact, 2026-11-21).
+  const why = String(e instanceof Error ? e.message : e).replace(/[0-9A-Fa-f]{16}/g, "<hex16>");
+  console.error(`UNTRUSTWORTHY: the boot query failed -- ${why.slice(0, 200)}`);
   process.exit(3);
 }
 // AE returns "YYYY-MM-DD HH:MM:SS" in UTC with no zone marker.

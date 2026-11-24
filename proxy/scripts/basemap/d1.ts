@@ -5,7 +5,6 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CURRENT_KEY, type Region, type StoreIndex, storeKeys } from "../../src/basemap/store";
 import type { StoreBucket, StoreObject } from "./ingest-lib";
@@ -24,6 +23,14 @@ export function assembleStore(cache: string, cachePath: (cache: string, url: str
   const cellsIndex = JSON.parse(readFileSync(join(dir, "index.json"), "utf8")) as { cells: StoreIndex["cells"] };
   const regions = JSON.parse(readFileSync(join(dir, "regions.json"), "utf8")) as Region[];
   if (!Array.isArray(regions) || regions.some((r) => !Array.isArray(r.files))) throw new Error("regions.json is not in index.json's form: re-run `coverage`");
+  // The sea files' regions (Q-W4 part 2): written by the dry run, where the pieces are (each file's box is its pieces' bounding box),
+  // because the coverage step that writes regions.json has no pieces. A manifest with sea files and a sea file in no region is refused:
+  // PROVENANCE would never credit it.
+  const seaUrls = manifest.files.filter((f) => f.layer === "sea").map((f) => f.url);
+  const seaPath = join(dir, "sea-regions.json");
+  const seaRegions = existsSync(seaPath) ? (JSON.parse(readFileSync(seaPath, "utf8")) as Region[]) : [];
+  for (const u of seaUrls) if (!seaRegions.some((r) => Array.isArray(r.files) && r.files.includes(u))) throw new Error(`the sea file ${u} is in no region: re-run the dry run`);
+  regions.push(...seaRegions);
   const listed = new Set(manifest.files.map((f) => f.url));
   for (const r of regions) for (const u of r.files) if (!listed.has(u)) throw new Error(`a region names ${u}, which the manifest does not list`);
   const objects: StoreObject[] = [
@@ -47,17 +54,15 @@ export function assembleStore(cache: string, cachePath: (cache: string, url: str
   return { storeId, objects, current: new TextEncoder().encode(JSON.stringify({ storeId })) };
 }
 
-// Each call logs to its OWN file (ruled, A2.40). Without WRANGLER_LOG_PATH, wrangler appends to wrangler-<ms timestamp>.log,
-// so two of 8 concurrent calls starting in the same millisecond share a file -- which is how D1's first run lost logs.
-const LOG_DIR = join(tmpdir(), `bm-d1-logs-${new Date().toISOString().replace(/[:.]/g, "-")}`);
-let callSeq = 0;
-export const d1LogDir = () => LOG_DIR;
+// Every call goes through proxy/scripts/wrangler-run.mjs (the owner, 2026-11-13 06:01Z; docs/wrangler-run.md). The helper
+// gives each call its OWN temp log dir and removes it after the call. So 8 concurrent calls never share a log file (A2.40's
+// reason: without WRANGLER_LOG_PATH, two calls starting in the same millisecond shared one), and no wrangler debug log is
+// left behind. A failure still carries wrangler's stderr, which the helper passes straight through.
 
-/** One wrangler call: stdout as bytes; a non-zero exit is an error carrying stderr. Never a shell. */
+/** One wrangler call, through the helper: stdout as bytes; a non-zero exit is an error carrying stderr. Never a shell. */
 function wrangler(proxyDir: string, args: string[], stdin?: Uint8Array): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
-    const log = join(LOG_DIR, `d1-${String(++callSeq).padStart(6, "0")}-${args[2] ?? "call"}.log`);
-    const p = spawn(process.execPath, [join(proxyDir, "node_modules", "wrangler", "bin", "wrangler.js"), ...args], { cwd: proxyDir, stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, WRANGLER_LOG_PATH: log } });
+    const p = spawn(process.execPath, [join(proxyDir, "scripts", "wrangler-run.mjs"), ...args], { cwd: proxyDir, stdio: ["pipe", "pipe", "pipe"], env: { ...process.env } });
     const out: Buffer[] = [], err: Buffer[] = [];
     p.stdout.on("data", (d: Buffer) => out.push(d));
     p.stderr.on("data", (d: Buffer) => err.push(d));
