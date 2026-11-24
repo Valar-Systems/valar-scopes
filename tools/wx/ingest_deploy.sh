@@ -10,6 +10,8 @@
 # The claim to hold is the Worker's name without "blipscope-", then ":production" (e.g. wx-ingest-opuk:production). Take
 # it first, and release it after your own read-back.
 # Exit 2 usage (nothing read, nothing run); 1 refused (no claim, or no Python to read it with); otherwise the deploy's own.
+# EXPECT_SHA=<the full sha the deploy plan names> is required, and ALLOW_BEHIND_SHAS=<full sha>,... names any commit behind
+# main that touches proxy/ (docs/deploy-sha-pin.md); a dirty proxy/ or tools/wx/ is refused.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROXY="$(cd "$HERE/../../proxy" && pwd)"
@@ -62,6 +64,61 @@ if ! "$CLAIM_PY" "$CLAIM_TOOL" check deploy --covers "$CLAIM_TARGET"; then
   echo "Take it first:  BLIPSCOPE_SESSION=<name> python scripts/session-claim.py take deploy --covers $CLAIM_TARGET --until +45m" >&2
   exit 1
 fi
+
+# ---- 3b. the commit the plan names, a clean tree, and the behind check by name (docs/deploy-sha-pin.md) --------------
+# The owner's standing rule (2026-11-17), the same as proxy/scripts/deploy.sh's: EXPECT_SHA must be HEAD; ALLOW_BEHIND=1
+# is retired; a tree behind main deploys only past the commits ALLOW_BEHIND_SHAS names, exactly. The blocking set here is
+# the interim one -- every commit behind that touches proxy/, this script or scripts/session-claim.py -- which over-blocks
+# (any proxy change needs naming) until deploy-inputs.mjs has an ingest target. And a dirty tree is refused.
+fatal() { printf '\n\033[31mREFUSING TO DEPLOY\033[0m -- %s\n' "$1" >&2; }
+ROOT="$(git -C "$HERE/../.." rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$ROOT" ]; then
+  fatal "not inside a git checkout, so nothing here can be verified."; exit 1
+fi
+HEAD_SHA="$(git -C "$ROOT" rev-parse HEAD)"
+if [ -z "${EXPECT_SHA:-}" ]; then
+  fatal "EXPECT_SHA is not set: the deploy plan names the commit it ships (docs/deploy-sha-pin.md)."; exit 1
+fi
+if ! [[ "${EXPECT_SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then
+  fatal "EXPECT_SHA must be a full 40-hex sha (got: ${EXPECT_SHA:-})"; exit 1
+fi
+if [ "$HEAD_SHA" != "$EXPECT_SHA" ]; then
+  fatal "HEAD is not EXPECT_SHA: HEAD $HEAD_SHA, the plan names $EXPECT_SHA."; exit 1
+fi
+printf 'pinned: HEAD is EXPECT_SHA (%s)\n' "$HEAD_SHA"
+if [ "${ALLOW_BEHIND:-}" = "1" ]; then
+  fatal "ALLOW_BEHIND=1 is retired: name the commits behind with ALLOW_BEHIND_SHAS=<full sha>,..."; exit 1
+fi
+NAMED=()
+if [ -n "${ALLOW_BEHIND_SHAS:-}" ]; then
+  IFS=',' read -r -a NAMED_RAW <<< "$ALLOW_BEHIND_SHAS"
+  for c in "${NAMED_RAW[@]}"; do
+    if ! [[ "$c" =~ ^[0-9a-f]{40}$ ]]; then
+      fatal "ALLOW_BEHIND_SHAS must list full 40-hex shas (got: $c)"; exit 1
+    fi
+    NAMED+=("$c")
+  done
+fi
+DIRTY="$(git -C "$ROOT" status --porcelain -- proxy/ tools/wx/)"
+if [ -n "$DIRTY" ]; then
+  fatal "uncommitted changes under proxy/ or tools/wx/, and wrangler bundles the working tree."; printf '\n%s\n\n' "$DIRTY" >&2; exit 1
+fi
+git -C "$ROOT" fetch -q origin main 2>/dev/null || true
+BLOCKING="$(git -C "$ROOT" rev-list HEAD..origin/main -- proxy/ tools/wx/ingest_deploy.sh scripts/session-claim.py 2>/dev/null | tr '\n' ' ')"
+inlist() { local x=$1; shift; local y; for y in "$@"; do [ "$x" = "$y" ] && return 0; done; return 1; }
+for c in $BLOCKING; do
+  if ! inlist "$c" "${NAMED[@]}"; then
+    fatal "behind and not named: ${c:0:12} (a merge after the plan; name it in ALLOW_BEHIND_SHAS, or re-plan)"; exit 1
+  fi
+done
+for c in "${NAMED[@]}"; do
+  if ! inlist "$c" $BLOCKING; then
+    fatal "named but not behind: ${c:0:12} (the plan is stale)"; exit 1
+  fi
+done
+for c in $BLOCKING; do
+  echo "named and behind: ${c:0:12} -- named in the plan's ALLOW_BEHIND_SHAS; it is not in this tree, so this deploy does not ship it"
+done
 
 # ---- 4. the deploy, then 5. the read-back ------------------------------------
 EARGS=()
