@@ -3,6 +3,7 @@ import { LEADERBOARD_SALT } from "./devicesalt.generated";
 import { refusesFakeId } from "./fakeids";
 import { isRevoked } from "./revocation";
 import type { Env } from "./types";
+import { labelOf } from "./devlabel";
 
 // Worker-minted provisioning keys. Spec: docs/provisioning-mint.md.
 //
@@ -76,9 +77,12 @@ async function macHash(secret: string, mac: string): Promise<string> {
   return hex(await crypto.subtle.sign("HMAC", k, enc.encode(`mac:${mac}`))).slice(0, 32);
 }
 
-function record(env: Env, evt: "provision_mint" | "provision_refused", f: Record<string, unknown>): void {
-  // The token is never passed in here, so it cannot reach a log line.
-  console.log(JSON.stringify({ evt, operator: OPERATOR, ...f }));
+async function record(env: Env, evt: "provision_mint" | "provision_refused", f: Record<string, unknown>): Promise<void> {
+  // The token is never passed in here, so it cannot reach a log line. The device id goes to the AE point below and
+  // NOT to the log line, which carries its label instead (the owner's "label too", 2026-11-17; src/devlabel.ts).
+  const { device, ...rest } = f;
+  const devl = typeof device === "string" ? await labelOf(device) : undefined;
+  console.log(JSON.stringify({ evt, operator: OPERATOR, ...rest, devl }));
   if (evt !== "provision_mint") return;
   try {
     env.METRICS?.writeDataPoint({
@@ -113,7 +117,7 @@ export async function handleProvision(
   // 1. The token, before anything else is read or revealed -- including the cap.
   const presented = request.headers.get("X-Provision-Token") ?? "";
   if (!(await tokenMatches(presented, env.PROVISION_TOKEN))) {
-    record(env, "provision_refused", { reason: presented ? "bad_token" : "no_token" });
+    await record(env, "provision_refused", { reason: presented ? "bad_token" : "no_token" });
     return json({ error: "forbidden" }, 403);
   }
   const secret = env.DEVICE_KEY_SECRET;
@@ -127,17 +131,17 @@ export async function handleProvision(
   }
   const mac = normalizeMac(body.mac);
   if (!mac) {
-    record(env, "provision_refused", { reason: "bad_mac" });
+    await record(env, "provision_refused", { reason: "bad_mac" });
     return json({ error: "bad_mac" }, 400);
   }
   const [deviceId, mac_hash] = await Promise.all([deviceIdFromMac(mac), macHash(secret, mac)]);
 
   if (isFake(env, deviceId)) {
-    record(env, "provision_refused", { reason: "fake_device_id", mac_hash, device: deviceId });
+    await record(env, "provision_refused", { reason: "fake_device_id", mac_hash, device: deviceId });
     return json({ error: "fake_device_id" }, 403);
   }
   if (await isRevoked(env, deviceId)) {
-    record(env, "provision_refused", { reason: "revoked", mac_hash, device: deviceId });
+    await record(env, "provision_refused", { reason: "revoked", mac_hash, device: deviceId });
     return json({ error: "revoked" }, 403);
   }
 
@@ -147,13 +151,13 @@ export async function handleProvision(
   const day = new Date().toISOString().slice(0, 10);
   const before = Number((await env.ENRICH_KV.get(dayKey(day))) ?? "0");
   if (before >= PROVISION_DAILY_CAP) {
-    record(env, "provision_refused", { reason: "daily_cap", mac_hash, device: deviceId, mints_today: before });
+    await record(env, "provision_refused", { reason: "daily_cap", mac_hash, device: deviceId, mints_today: before });
     const resetsAt = new Date(Date.parse(`${day}T00:00:00Z`) + 86400000).toISOString();
     return json({ error: "daily_cap", cap: PROVISION_DAILY_CAP, resetsAt }, 429);
   }
   const key = await deriveDeviceKey(secret, deviceId);
   const mintsToday = before + 1;
   await env.ENRICH_KV.put(dayKey(day), String(mintsToday), { expirationTtl: 60 * 60 * 24 * 40 });
-  record(env, "provision_mint", { mac_hash, device: deviceId, mints_today: mintsToday });
+  await record(env, "provision_mint", { mac_hash, device: deviceId, mints_today: mintsToday });
   return json({ deviceId, key, mintsToday });
 }

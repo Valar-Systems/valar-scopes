@@ -809,3 +809,8 @@ the file changed, then restored from a byte copy with its sha256 checked; the tr
 ## 9. Record
 
 _Filled in after the slot, below this line, without editing anything above it._
+
+- **Record note, 2026-11-24: the two IP addresses in this document are documentation addresses.** `192.0.2.1` (the
+  (f) plant in section 5, and S-NEWFIELD in section 8) is in RFC 5737's TEST-NET-1 block. `2001:db8::1` (C2 in section
+  5a) is in RFC 3849's documentation prefix. Neither is routable on the internet, and neither belongs to any device or
+  person: they were chosen so that a plant could never be mistaken for a real address.

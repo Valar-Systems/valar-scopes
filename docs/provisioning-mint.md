@@ -63,6 +63,10 @@ not an exact meter.
 - **`mac_hash`** is `HMAC-SHA256(DEVICE_KEY_SECRET, "mac:" + mac)`, first 32 hex. It's
   keyed, because a plain hash of a MAC can be reversed by enumeration.
 - **The token is never logged.**
+- **Correction, 2026-11-17 (the owner's "label too"):** the structured log line no longer carries `device`. It carries
+  `devl`, the device label (`src/devlabel.ts`: the first 8 hex of SHA-256 over the id), when the record has a device.
+  The analytics point is unchanged and still carries the device id. Pinned by `proxy/test/device-label-lines.test.ts`
+  (LL4).
 
 ## The bench side
 
