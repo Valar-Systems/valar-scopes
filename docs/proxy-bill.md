@@ -1926,6 +1926,390 @@ ACCEPTED as text by the orchestrator; the correction above was ACCEPTED as a pur
 - **The re-run names it.** The check was re-run with the pair printed on its first line: "readdiff: read with reader 9b1a1610626f (before) against reader ac94f99a83d0 (after); plant 2039b96cbcb1", 7 of 7 identical (`readdiff-check-2.out`, `35c793efca6e`).
 - **Standing from now on:** every identity run prints the two blob shas it compared on its first line.
 
+CLASSIFY's DIAGNOSTIC RUN on the 14:00Z hour, RESULT (append-only, written 2026-11-24T09:12:14Z from date -u; graded 2026-11-23T18:08:54Z against section 3 of CLASSIFY above) [diagnostic after F1's no-reading; changes no reading]: inside the set, (b).
+
+- **Go:** the orchestrator, relayed 18:07:35Z: the 14:00Z hour on reader `ac94f99a83d0`, through the gate, to end by 18:45Z.
+- **Gate:** bgcheck VOID on the ruled set; PASS at 18:07:58Z.
+- **Read:** 18:08:01Z to 18:08:11Z, exit 0. 4 queries (1 pre-flight count and 3 events pages), each a value on its first attempt at ABR 1. The pre-flight `dev` count read 0. Every printed line carries the label.
+- **Anchor: HOLDS.** req lines 5553, no colo 0, no label 249, equal to reads A and B.
+- **Outputs,** in blipscope-5c's run folder `f1-20261123/`: `classify.out` `cd1e50113690`, `classify.json` `b06592ee4013`.
+
+| source | signature | read | met? |
+|---|---|---|---|
+| (a) the hold lift | 150 or more lines in bucket 0 | 22 | no |
+| (b) a board refused before its key is accepted | `api` with 401/403/429 and model present, plus `enroll` with model present: 150 or more, in 10 or more buckets | `api` 401 with model 247, in 12 of 12 buckets (19 to 22 each); `enroll` 0 | **MET** |
+| (c) the site's calls via `fetch` | one model-absent cell outside `missileer`, steady, 150 or more | the largest such cell is 1 (`notfound` 404) | no |
+| (d) public traffic | `page`, `healthz`, `notfound`, model absent | 1 (`notfound` 404) | no |
+| (e) label digest failed | authPath present | 0 | no |
+| (f) Missileer | `missileer` | 1 | no |
+
+The 249 lines are 247 `api`, 1 `missileer` and 1 `notfound`. `api`'s buckets read 22 20 20 22 20 20 22 19 20 22 20 20.
+
+**Graded:** one class signature met and no other row: inside the set. **Result: (b),** a device sending X-Blip-Model, refused 401 on api-family routes all hour. **F1 stays at NO READING;** this names the source of the excess for D-SITE's future columns and nothing else. It does not say whose device: nothing identifying is read.
+
+CLASSIFY on the 17:00Z hour, on the orchestrator's ruling (18:10:28Z), registered before the run and graded after it. The text of blipscope-5c's `f1r/f1-classify-17z-prediction.md` (sha256 `eb8579aef020`: the prediction `9de4d25bc30b`, stamped 18:10:05Z, plus its appended GRADED line) follows VERBATIM.
+
+F1 CLASSIFY on 2026-11-23T17:00Z, PREDICTION (written 2026-11-23T18:10:05Z from date -u, before the run; the orchestrator's ruling) [diagnostic after F1's no-reading; changes no reading]: reader ac94f99a83d0 through gate.sh, started only after 0edebf88f5ff's CI read settles and only if it can end by 18:45Z, counts only, every line labelled; CONTROL (no known anchor for this hour): exit 0, pre-flight dev 0, every query ABR 1, no BLIND row, family totals summing to the run's own no_label; OUTCOMES on (b) (api 401/403/429 with model present): **(b) MET again** = at least 150 such lines in at least 10 of 12 buckets = the device is STILL refused; **(b) not met** = at most 10 such lines = it STOPPED before 17:00Z; **OUTSIDE** = anything else (11 to 149 lines, or at least 150 in fewer than 10 buckets, i.e. it changed inside the hour; or a control off) = reported as counts with no attribution, stop and decide.
+GRADED (append-only, 2026-11-23T18:29:05Z from date -u) [diagnostic after F1's no-reading; changes no reading]: run 18:28:21Z-18:28:30Z through the gate (extras none: 6768 has closed), exit 0, pre-flight dev 0, 5 queries all ABR 1, no BLIND, 21/21 lines labelled, family totals 2+1+0+218+1+10 = 232 = no_label (req 6701). (b) = api 401 with model 218, in 12 of 12 buckets: **(b) MET again = still refused**, by the rule as frozen. NOT CAPTURED BY THE RULE, reported as counts only: buckets 0-9 read 22 20 20 21 20 20 22 20 20 22 (mean 20.70, var/mean 0.043, the same shape as 14:00Z's 0.065), then buckets 10-11 (17:50-18:00Z) read 6 and 5. So the refusals did not stop by 18:00Z, but their rate fell by about three quarters in the last 10 minutes. The rule set has no outcome for a rate change with the count still above 150; no verdict is improvised for it. (classify17.out e1fc4efd06cb, classify17.json a441b7dbb49b)
+
+POPULATION's RUN, on the orchestrator's word after E0 ended (01:23:52Z). The text of blipscope-5c's `f1r/f1-population-result-1.md` (sha256 `219ce0147f44`) follows VERBATIM; only its `##` headings are demoted to `####` here.
+
+F1 POPULATION: RESULT, graded against the frozen registration (`f1-population-1.md`, sha256 `75213feac918`). Written 2026-11-24T02:20:48Z from date -u, after the run; counts only. Diagnostic after F1's no-reading; changes no reading.
+
+#### The run
+
+- **Go:** blipscope-orchestrator-c0, after E0 ENDED at 01:23:52Z.
+- **Gate:** `gate-population`, bgcheck exit 4 (VOID) on the ruled five only, with no extras. PASS at 01:27:57Z.
+- **Read:** started 01:27:58Z and exited **3** at 02:19:37Z. It was registered as `bg-20261124T012758Z-9ddea229`.
+- **What ran:** reader blob `ac94f99a83d0` at head `0edebf88f5ff`, with a clean tree.
+- **Calls:** 52 (4 anchor calls plus 48 window calls). Every one answered on its first attempt with status 200 at ABR 1, as a value; 0 differ from that shape.
+- **Outputs, in f1-20261123/:**
+  - `population.out`: `718f493db5d6`
+  - `population.json`: `465429ad3af0`
+  - `population.err`: `16803fbd5c80` (only the token file's Windows permissions note)
+- **Ledger at the end:** bgcheck VOID on the same five; neither of my tags is still running.
+
+#### Anchors: both HOLD
+
+| anchor | hour | read | must read |
+|---|---|---|---|
+| ANCHOR-PRE | 2026-11-19T12:00Z | req 3695, no-key 36 | 3695 / 36 |
+| ANCHOR-POST | 2026-11-23T14:00Z | req 5553, no-key 249 | 5553 / 249 |
+
+#### The window: 24 hours read, 0 BLIND, 0 with no req lines
+
+| hour (Z) | req | no-key | share |
+|---|---|---|---|
+| 11-21 22:00 | 5071 | 2 | 0.0004 |
+| 11-21 23:00 | 4266 | 5 | 0.0012 |
+| 11-22 00:00 | 3438 | 2 | 0.0006 |
+| 01:00 | 2777 | 1 | 0.0004 |
+| 02:00 | 2543 | 1 | 0.0004 |
+| 03:00 | 2575 | 2 | 0.0008 |
+| 04:00 | 2154 | 2 | 0.0009 |
+| 05:00 | 2139 | 236 | 0.1103 |
+| 06:00 | 1893 | 255 | 0.1347 |
+| 07:00 | 1975 | 249 | 0.1261 |
+| 08:00 | 2522 | 251 | 0.0995 |
+| 09:00 | 2610 | 248 | 0.0950 |
+| 10:00 (merge hour) | 2367 | 252 | 0.1065 |
+| 11:00 | 3028 | 250 | 0.0826 |
+| 12:00 | 3931 | 251 | 0.0639 |
+| 13:00 | 5364 | 250 | 0.0466 |
+| 14:00 | 5910 | 418 | 0.0707 |
+| 15:00 | 6471 | 295 | 0.0456 |
+| 16:00 | 6349 | 283 | 0.0446 |
+| 17:00 | 6285 | 219 | 0.0348 |
+| 18:00 | 6519 | 74 | 0.0114 |
+| 19:00 | 6803 | 80 | 0.0118 |
+| 20:00 | 6536 | 72 | 0.0110 |
+| 21:00 | 6550 | 170 | 0.0260 |
+
+- **Medians:** no-key median for the 12 hours before 10:00Z is 3.5, and for the 12 from 10:00Z it is 250.0.
+- **Step:** +246.5.
+- **Maximum share:** 0.1347.
+
+#### Graded, row by row, against section 2
+
+| frozen row | met? |
+|---|---|
+| predicted: no step, within +/-150 | **NOT MET** (+246.5) |
+| step of +300 or more | not met |
+| any hour at 10% or more: no C; report that hour | **MET: 4 hours.** 11-22 05:00Z 0.1103, 06:00Z 0.1347, 07:00Z 0.1261 and 10:00Z 0.1065 |
+| 4 or fewer BLIND hours: drop and name them | 0 BLIND; nothing dropped |
+| **none of the above** (for example, a step between +150 and +300) | **MET** (+246.5) |
+
+**VERDICT: OUTSIDE THE SET, as registered. The instrument is unreliable at this scale: stop and decide. No C.** The reader printed the same verdict and exited 3. The 10% row is met as well; under either row there is no C.
+
+#### Observation: counts only, NOT a finding
+
+- **Where the rise is.** No-key rises between 04:00Z (2) and 05:00Z (236) on 11-22. That is five hours BEFORE the merge hour where the registration split the medians. From 06:00Z to 13:00Z it reads 248–255 every hour.
+- **Why the step lands in no row.** The split straddles a rise at another hour. Seven before-hours read 1–5 and five read 236–255, so the before median is 3.5 and the step is +246.5.
+- **A matching magnitude.** The 06:00Z–13:00Z plateau of 248–255 is close to ANCHOR-POST's 249 (11-23 14:00Z) and to classify's 247 api 401s with a model (11-23 14:00Z).
+- **Alternatives, none eliminated:**
+  - (b), the refused device, starting on 11-22 around 05:00Z;
+  - another source at a similar cadence.
+
+  This mode reads counts only (no events, no line contents), so it cannot separate them.
+- **Not interpreted:** 14:00Z reads 418, 18:00Z–20:00Z read 72–80, and 21:00Z reads 170. These are recorded and not interpreted.
+
+RECORDED by the orchestrator (re-read 02:21:28Z: `population.out` `718f493db5d6`, `population.json` `465429ad3af0`, result `219ce0147f44`, registration still `75213feac918`): OUTSIDE THE SET, as registered, with no C. The observation stays an observation, with both alternatives open.
+
+F1 FAMILY COUNT. The orchestrator APPROVED a classify of 11-22 04:00Z-06:00Z as a NEW registration, because it bears on a question the owner holds: whose device is refused, and since when. The text of blipscope-5c's `f1r/f1-famcount-1.md`, lines 1-109 (sha256 `ff8d7f596c0c`, the registration as accepted), follows VERBATIM; only its `##` headings are demoted to `####` here. Its AMENDMENT 1 (lines 111-134; the whole file is now `036e18f087ee`) is copied further down, after the first run's result, in the order things happened.
+
+F1 FAMILY COUNT (registration, append-only, written 2026-11-24T02:26:06Z from date -u, before any code; text only). Approved in principle by blipscope-orchestrator-c0 as "the classify of 11-22 04:00Z-06:00Z". It **runs only on the orchestrator's word, after it has read this text.** The question is the owner's: is the 11-22 05:00Z rise in no-key lines (population, `f1-population-result-1.md` `219ce0147f44`: 04:00Z 2, then 05:00Z 236) the api-401-with-model family seen on 11-23? All output is labelled `[diagnostic after F1's no-reading; changes no reading]`. It is counts only and identifies no device.
+
+#### 0. Why this is not `classify`, and why the guard stays
+
+**`classify` cannot read an 11-22 hour.**
+- It walks an hour through `walk_hour`. `walk_hour`'s pre-flight counts `dev exists` lines and refuses the hour if the count is nonzero: exit 5, with 0 events requests. That is classify's registration line 14 and row C-PRE.
+- Every 11-22 hour is in the `dev` era. At 05:00Z, req is 2139 and no-key is 236, so 1903 lines carry `dev`. As coded, classify would refuse at the pre-flight.
+- **The guard is not relaxed, and I do not propose relaxing it.** It keeps device ids out of the process.
+
+**So this mode makes count queries only (`view: calculations`), never `view: events`.**
+- No line and no `dev` value can enter the process, by construction, not by a filter. It can therefore read a `dev`-era hour, as the population read did.
+- Each plant row asserts 0 events requests.
+
+#### 1. What it adds: `famcount <out.json>`, a new reader mode
+
+**THE SHAPE S** (the api-401-with-model family, written as count leaves):
+- `scope` AND `dev DOES_NOT_EXIST` AND `devl DOES_NOT_EXIST` (population's no-key, unchanged);
+- AND `status` equals 401 (a number leaf);
+- AND `model` exists;
+- AND `ep` starts with P, for each P of the API prefixes.
+
+**How the prefixes are set.**
+- The prefixes are PARSED from `proxy/src/index.ts` by classify's `route_rules()`, never transcribed: today `/api/v1/blipscope/`, `/api/v1/weatherscope/` and `/v1/`.
+- S is the sum of three count queries, one per prefix.
+- The code asserts that no prefix is a prefix of another, nor of Missileer's `/missileer` and `/api/v1/missileer/`, nor of `/healthz` and the two enrol paths; otherwise it is a RIG error with nothing asked. That is what makes the sum equal classify's `api` family. classify places Missileer first, so the api family is exactly "starts with one of the three".
+
+**Where it can differ from classify, and the anchor that would catch it.**
+- `model exists` counts an empty-string model. classify counts a non-empty one only.
+- The API token for starts-with is taken from the API reference at coding time. The plant's fake implements that same token, so **only the live anchor K4 proves production honours it**:
+  - a rejected token is not a value, so the run goes BLIND and stops;
+  - a silently ignored leaf reads 3 x 232 = 696 at K4, so the run goes OFF and stops.
+
+**THE CALLS, in this order.** The hours are fixed in the code, not argv. Calls are 60 s apart (`CALL_GAP_S`). Each is a value only at ABR 1, re-asked as in F1-R-1.
+
+| step | hour | query | must read |
+|---|---|---|---|
+| K1 | 11-23 17:00Z (classify17's hour) | no-key | 232 |
+| K2 | same | no-key AND 401 | 218 |
+| K3 | same | no-key AND model exists | 218 |
+| K4 | same | no-key AND api (3 calls, summed) | 218 |
+| K5 | same | S (3 calls, summed) | 218 |
+| H | 11-23 14:00Z (H0) | S (3 calls, summed) | 247 |
+| E1 | 11-22 05:00Z | `dev exists` AND model exists AND api (3 calls, summed) | at least 1 and at most 1903 |
+| E2 | same | `status` equals 200 | at least 1 and at most 2139 |
+| W | 11-22 04:00Z, 05:00Z, 06:00Z | no-key (must re-read population's 2 / 236 / 255), then S (3 calls) | see section 2 |
+| O | 11-22 05:00Z, in 12 five-minute buckets | no-key | the 12 must sum to 236 |
+
+**Why these are the right anchors.**
+- K1 to K5 come from classify17's own counts: no_label 232, of which api 218, all 401 and all with a model; the other 14 lines had no 401 and no model.
+- So every leaf is load-bearing at 17Z. Dropping the 401 leaf, the model leaf or the api leaf moves its count from 218 to 232, or to 696 for an ignored api leaf.
+- E1 and E2 prove the same leaves read in the `dev` era. A leaf that read 0 on 11-22 would otherwise turn into a false NOT.
+- E1 is a count of keyed lines: a number only, as LC-2 and the scan already made.
+
+**Totals.** 40 calls, about 40 minutes, plus 30 s for each re-ask.
+
+**Stops.**
+- A call that is not a value after its re-asks makes the run BLIND: exit 6, no verdict.
+- Any must-read that is OFF (K1 to K5, H, E1, E2, W's no-key re-read, or O's sum) stops the run at that step, names the step, and queries nothing after it: exit 3.
+- What it prints and writes: counts, hour and bucket stamps, the verdict, and the step it stopped at, if any. Never an `ep`, `model`, colo, `dev` or `devl` value.
+
+#### 2. PREDICTED
+
+These rows are graded on 05:00Z and 06:00Z, with K(h) the hour's no-key re-read.
+
+| row | condition | then |
+|---|---|---|
+| **IS** | S(05Z) is at least 213 **and** S(06Z) is at least 230, i.e. at least 90% of 236 and of 255 | the 05:00Z rise is the api-401-with-model family |
+| **NOT** | S(05Z) is at most 23 **and** S(06Z) is at most 25 (at most 10%), with E1 and E2 holding | it is not that family |
+| **OUTSIDE** | anything else: between the bands, the two hours disagreeing, S(h) above K(h) in any hour, no onset bucket of 10 or more, or any stop | the instrument cannot answer at this scale: **stop and decide** |
+
+**My prediction, stated so it can be wrong: IS.**
+- The reason is a magnitude only: 05:00Z–13:00Z holds 248–255 against 11-23's 249 and 247.
+- S(04Z) is reported, and predicted to be 2 or fewer.
+
+**Onset ("since when").** The first five-minute bucket of 05:00Z with 10 or more no-key lines is reported as the onset, to 5 minutes. It grades nothing else.
+
+**What IS would NOT show, named now so it cannot be improvised later.**
+- WHOSE device. That is by design: nothing identifying is read.
+- That it is the SAME device as 11-23's. The shape matches; the identity is not observed. The alternative, another device refused in the same way, stays open, and only an identity-bearing source could close it. Nothing here reaches one.
+
+#### 3. Red first: rows added to `colo_occupancy_plant.py`
+
+All rows are synthetic and offline. The fake gains the starts-with operation and a synthetic 17Z, H0 and 11-22 window built as events, so the reader's filters are exercised. Every stop row checks its exit, **the step it stopped at, and the number of count requests made**, never the exit alone (the P-BLIND-5 lesson). Every F row checks 0 events requests.
+
+| row | run | predicted |
+|---|---|---|
+| **F-RED** | the reader before this change, given `famcount` | usage, exit 2: **the red** |
+| **F-IS** | anchors as above; S 233 / 252 at 05Z / 06Z | exit 0; "IS"; 40 count requests |
+| **F-NOT** | S 3 / 4; E1 and E2 holding | exit 0; "NOT" |
+| **F-MID** | S 120 / 252 | exit 3; OUTSIDE |
+| **F-ANCHOR** | K4's api leaf ignored by the fake (696) | exit 3; stopped at K4 after 6 count requests; 0 window hours |
+| **F-ERA** | S 3 / 4, but E1 reads 0 | exit 3; stopped at E1; never "NOT" |
+| **F-STABLE** | 05Z no-key re-reads 235 | exit 3; stopped at W 05Z |
+| **F-SUM** | the onset buckets sum to 235 | exit 3; OUTSIDE (O) |
+| **F-BLIND** | one W call at ABR 100 on all three attempts | exit 6; no verdict |
+| **F-SAB** | a COPY of the new reader with the 401 leaf removed from its ONE definition by bytes, asserted exactly once | K2 reads 232 at 17Z, so every F row that reaches K2 stops there and reads OFF: **exactly 8 OFF** (F-IS, F-NOT, F-MID, F-ANCHOR, F-ERA, F-STABLE, F-SUM, F-BLIND). F-RED and all 29 existing rows read as predicted; the harness exits 1 |
+
+**PREDICTED:** with the new reader, all 29 existing rows and these F rows read AS PREDICTED, and the harness exits 0. F-SAB makes the harness exit 1 with exactly the 8 rows named. **Outside the set:** stop and report.
+
+The identity check (readdiff) is re-run for this commit with the pair printed on line 1: `read`'s code must be unchanged.
+
+#### 4. Order and time
+
+1. **Text.** This text, then the orchestrator's acceptance.
+2. **Code.** The red commit, then the green commit, each with its plant output and sha sent.
+3. **Push.** Pushed with its CI prediction first; CI read twice, at least 66 s apart.
+4. **Run.** Only on the orchestrator's word: through the gate (bgcheck first), registered, never in the same hour as another production-logs read of mine (the population ended 02:19:37Z).
+5. **Time.** It must END before 07:00Z, so it does not start after 06:10Z. If it cannot start by then, it waits until FXP's window has closed (after 08:00Z), on the orchestrator's word. The 11-22 hours stay readable until about 11-28.
+6. **Result.** Written to `f1r/` as a separate file; this registration is never edited, only appended to.
+
+ACCEPTED as text by the orchestrator (re-read 02:27:09Z: `ff8d7f596c0c`, 109 lines, written before any code). RESULT of the code (append-only): as registered.
+
+- **Red:** the tally was written down before the run (`f1r/famcount/red-prediction.md`, `da342f2611c0`). Against the reader without famcount (blob `ac94f99a83d0`): 38 rows, 30 as predicted; exactly F-IS, F-NOT, F-MID, F-ANCHOR, F-ERA, F-STABLE, F-SUM and F-BLIND OFF; F-RED and the 29 existing rows as predicted; exit 1.
+- **Green:** against the new reader (blob `a71303d95e6d`), 38 rows, all 38 as predicted, exit 0.
+- **F-SAB:** the 401 leaf removed by bytes from its ONE definition, on a COPY. Exactly the same 8 OFF, each stopped at K2; exit 1. The working reader was never touched.
+- **`read` unchanged:** `read` with reader `ac94f99a83d0` (before) against `a71303d95e6d` (after), the pair printed on line 1: 7 of 7 identical (`readdiff-check.out`, `36d848578d03`).
+- **Commits:** `e80cbf655fc8` (the red rows; plant blob `117cfb9873a6`) and `b58485ef0d55` (the mode).
+- **Outputs:** in blipscope-5c's handoff folder `f1r/famcount/` (red `0442774107b0`, green `689c6790b279`, sabotage `8ca31c7c49ec`).
+- **CI at `b58485ef0d55`:** AS PREDICTED, two reads identical: 36 check-runs, 34 success and 2 skipped, 0 failures. The first read attempt died on a gh network error: an instrument failure with no reading. It was read again after a gh probe answered; CI itself was not re-run.
+
+**The first run,** on the orchestrator's word (start at 03:20:00Z or later). The text of blipscope-5c's `f1r/f1-famcount-result-1.md` (sha256 `33dcc30cc2f9`) follows VERBATIM; only its `##` headings are demoted to `####` here.
+
+F1 FAMILY COUNT: RESULT, graded against the frozen registration (`f1-famcount-1.md`, sha256 `ff8d7f596c0c`). Written 2026-11-24T03:23:34Z from date -u, after the run; counts only. Diagnostic after F1's no-reading; changes no reading.
+
+#### The run
+
+- **Go:** blipscope-orchestrator-c0, on the condition that the clock read 03:20:00Z or later. The registered wait ended at 03:20:02Z, and the chain re-checked 03:20:00Z–06:10:00Z itself.
+- **Gate:** `gate-famcount`, bgcheck exit 4 (VOID) on the ruled five, no extras. PASS at 03:20:31Z.
+- **Read:** started 03:20:31Z, exited **3** at 03:22:33Z, registered as `bg-20261124T032031Z-0b3995fb`. Head `b58485ef0d55`, reader `a71303d95e6d`.
+- **Calls:** 3, every one a value on the first attempt (status 200, ABR 1).
+- **Outputs, in f1-20261123/:**
+  - `famcount.out`: `f1c6572b3ccb`
+  - `famcount.json`: `956cb8341acd`
+- **Ledger at the end:** bgcheck VOID on the same five; neither of my tags is still running.
+
+#### What it read
+
+| step | hour | query | read | must read | |
+|---|---|---|---|---|---|
+| K1 | 11-23 17:00Z | no-key | 232 | 232 | HOLDS |
+| K2 | 11-23 17:00Z | no-key AND 401 | 218 | 218 | HOLDS |
+| K3 | 11-23 17:00Z | no-key AND model exists | **232** | 218 | **OFF: stop** |
+
+Nothing after K3 was queried: no H0, no 11-22 hour, no bucket.
+
+#### Graded
+
+**VERDICT: OUTSIDE (stopped at K3), as registered.** The instrument cannot answer at this scale: stop and decide. Neither IS nor NOT can be read. The reader printed the same verdict and exited 3.
+
+#### Why K3 read 232: the registration's named divergence, with the source behind it
+
+- **Named in advance.** Section 1 of the registration says: "`model exists` counts an empty-string model. classify counts a non-empty one only." K3 is the anchor written to catch exactly this.
+- **The source.** `proxy/src/metrics.ts:9` declares `model: string` (required). `proxy/src/index.ts:452` sets `model: request.headers.get("X-Blip-Model") ?? ""`. So **every** req line carries a `model` key, empty when the header is absent. `model exists` is therefore true for every line, which predicts K3 = K1 = 232: what was read.
+- **The alternative.** The API's `exists` misbehaving is not needed to explain the reading, and this read does not exclude it.
+- **Why the plant did not catch it (my defect).** `fam_set`'s 14 non-api no-key lines carry NO `model` key, where the existing `classify_set` writes `model=""` on such lines, as the source does. The fake was built from the shape I imagined, not from the source. The plant therefore exercised a world production is not in. The live anchor caught it, which is what it was there for.
+
+#### Not done
+
+Nothing was re-run and nothing is amended. Any change waits on the orchestrator's decision.
+
+RECORDED by the orchestrator (re-read 03:24:10Z, registration still `ff8d7f596c0c`): OUTSIDE, stopped at K3, as registered. The live anchor caught a plant that modelled a world production is not in. Option (1) was ACCEPTED as an append-only amendment and counts as the ONE re-run allowed after an instrument failure; options (2) and (3) were declined.
+
+The text of AMENDMENT 1, lines 111-134 of the same file, follows VERBATIM.
+
+AMENDMENT 1 (append-only, written 2026-11-24T03:24:57Z from date -u, before any code; accepted in principle by blipscope-orchestrator-c0 as its option (1) after the first run stopped at K3, f1-famcount-result-1.md 33dcc30cc2f9). Everything above stands except what this changes.
+
+**The one change: the model leaf.**
+- `FC_MODEL` becomes `model neq ""` (string) in place of `model exists`, in its ONE definition. K3, K5, H, E1 and W's S all take it from there.
+- Why this is classify's test: every req line carries `model`, because `proxy/src/index.ts:452` sets it to the X-Blip-Model header or "". So "not the empty string" means non-empty, which is what classify counts. How `neq` treats an absent key does not arise for a req line.
+- Only K3 read LIVE as 218 proves the leaf. The plant cannot.
+
+**The plant's fake now mirrors the source.** `fam_set` writes `model=""` on EVERY line without a model (17Z's 14 others, H0's 2, 04Z's and 05Z's and 06Z's `/credits` lines, and the keyed `/credits` lines), as `classify_set` and the source do. The fake gains `neq`. No other row's data changes.
+
+**PREDICTED, plant:**
+- **RED** (the corrected fake; reader a71303d95e6d, which still says `exists`, as the new reader; ac94f99a83d0 as the pre-famcount reader): 38 rows, 30 as predicted.
+  - **Exactly 8 OFF:** F-IS, F-NOT, F-MID, F-ANCHOR, F-ERA, F-STABLE, F-SUM and F-BLIND. Each one's got-line shows it stopped at K3, with K3 reading 232 against 218: production's failure, reproduced offline.
+  - F-RED and the 29 existing rows read as predicted. The harness exits 1.
+- **GREEN** (the new reader): 38 of 38, exit 0, with every F row's expectation unchanged. K3 reads 218, E1 100, E2 123.
+- **F-SAB** (FC_STATUS emptied on a copy, the same driver): exactly the same 8 OFF, each at K2, exit 1.
+- **readdiff** of a71303d95e6d against the new reader, with the pair on line 1: 7 of 7 identical.
+
+**CI:** pushed with its prediction first, read twice.
+
+**THE RUN:**
+- On the orchestrator's word after CI.
+- Not before 04:22:33Z, which is one hour after the first run ended at 03:22:33Z. Not after 06:10Z.
+- The same 40 calls and rows as above.
+- **This is the ONE re-run allowed after an instrument failure. If it stops at any must-read again, the result goes to the owner, not to a third attempt.**
+
+RESULT of AMENDMENT 1's code (append-only): as amended.
+
+- **Red:** the corrected fake, against the reader that still says `exists` (blob `a71303d95e6d`): 38 rows, 30 as predicted; exactly the same 8 F rows OFF, each stopped at K3 with 232 against 218, production's failure reproduced offline; exit 1.
+- **Green:** against the new reader (blob `ba636810808b`), 38 of 38, exit 0.
+- **F-SAB:** the same driver, on a COPY: the same 8 OFF, each at K2; exit 1.
+- **`read` unchanged:** `read` with reader `a71303d95e6d` (before) against `ba636810808b` (after), the pair printed on line 1: 7 of 7 identical (`readdiff-check-a1.out`, `c7c2e8aa936d`).
+- **Commits:** `9ec91d4f9d27` (the red: `fam_set` writes `model=""` and the fake gains `neq`; plant blob `04897ada1b66`) and `f92023f9874b` (the leaf).
+- **Outputs:** in `f1r/famcount/` (red `9a3c005c1727`, green `9ff5030da3c2`, sabotage `ca0877d42e20`).
+- **CI at `f92023f9874b`:** AS PREDICTED, two reads identical: 36 check-runs, 34 success and 2 skipped, 0 failures.
+
+**The re-run,** on the orchestrator's word (start at 04:22:33Z or later, ONE attempt). The text of blipscope-5c's `f1r/f1-famcount-result-2.md` (sha256 `745d033a083c`) follows VERBATIM; only its `##` headings are demoted to `####` here.
+
+F1 FAMILY COUNT: RESULT 2 (the one re-run, under AMENDMENT 1), graded against the frozen registration (`f1-famcount-1.md`, sha256 `036e18f087ee`; lines 1-109 `ff8d7f596c0c`). Written 2026-11-24T05:03:35Z from date -u, after the run; counts only. Diagnostic after F1's no-reading; changes no reading.
+
+#### The run
+
+- **Go:** blipscope-orchestrator-c0, on the condition that the clock read 04:22:33Z or later. The registered wait ended at 04:22:35Z, and the chain re-checked 04:22:33Z–06:10:00Z itself.
+- **Gate:** `gate-famcount2`, bgcheck exit 4 (VOID) on the ruled five, no extras. PASS at 04:23:20Z.
+- **Read:** started 04:23:20Z, exited **3** at 05:02:48Z, registered as `bg-20261124T042320Z-c590f7f4`. Head `f92023f9874b`, reader `ba636810808b`.
+- **Calls:** all 40, every one a value on the first attempt (status 200, ABR 1).
+- **Outputs, in f1-20261123/:**
+  - `famcount2.out`: `3a609d4a17f0`
+  - `famcount2.json`: `814b42f9359d`
+  - The first run's files (`famcount.out` `f1c6572b3ccb`, `famcount.json` `956cb8341acd`) are untouched.
+- **Ledger at the end:** bgcheck VOID on the same five; neither of my tags is still running.
+
+#### Every must-read HELD
+
+| step | hour | query | read | must read |
+|---|---|---|---|---|
+| K1 | 11-23 17:00Z | no-key | 232 | 232 |
+| K2 | same | no-key AND 401 | 218 | 218 |
+| K3 | same | no-key AND model (`neq ""`) | **218** | 218 |
+| K4 | same | no-key AND api | 218 | 218 |
+| K5 | same | S | 218 | 218 |
+| H | 11-23 14:00Z | S | 247 | 247 |
+| E1 | 11-22 05:00Z | keyed AND model AND api | 1888 | 1..1903 |
+| E2 | same | status 200 | 1929 | 1..2139 |
+| W | 11-22 04:00Z / 05:00Z / 06:00Z | no-key re-read | 2 / 236 / 255 | 2 / 236 / 255 |
+| O | 11-22 05:00Z | 12 buckets, summed | 236 | 236 |
+
+**K3 live read 218: the amended leaf is proven.** E1 shows the leaves read in the `dev` era.
+
+#### The window
+
+| hour (Z) | no-key | S (api AND 401 AND non-empty model) | share |
+|---|---|---|---|
+| 11-22 04:00 | 2 | 0 | |
+| 11-22 05:00 | 236 | **203** | 86.0% |
+| 11-22 06:00 | 255 | **248** | 97.3% |
+
+05:00Z's no-key lines by five-minute bucket, starting 05:00: 0 1 1 0 8 **60 83** 7 12 22 22 20. **Onset (the first bucket with 10 or more): 05:25Z.**
+
+#### Graded against section 2
+
+| row | condition | met? |
+|---|---|---|
+| IS | S(05Z) at least 213 AND S(06Z) at least 230 | **NOT MET**: 203 is under 213 (06Z alone meets it, 248) |
+| NOT | S(05Z) at most 23 AND S(06Z) at most 25 | not met |
+| OUTSIDE | between the bands, or the two hours disagree | **MET** |
+
+**VERDICT: OUTSIDE, as registered. The two hours disagree: stop and decide.** The reader printed the same verdict and exited 3.
+
+**This was not a stop at a must-read.** Every must-read held, and the run reached its verdict. Amendment 1's owner clause names a must-read stop. Whether this result goes to the owner is the orchestrator's decision. No third attempt from me either way.
+
+#### Observation: counts only, NOT a finding
+
+- **The family dominates both hours.** 06:00Z is 97% S. 05:00Z is 86% S, with 33 of its no-key lines outside the family. 04:00Z's baseline is 2 no-key lines.
+- **The rise starts at 05:25Z**, not at 05:00Z. The 05:25Z and 05:30Z buckets hold 60 and 83 lines (143 in ten minutes). From 05:45Z the buckets read 22, 22 and 20, which is about one line per 15 s, the same cadence as 11-23's.
+- **What this read cannot place:** it counts S per HOUR, not per bucket. So it cannot say whether the 33 non-family lines of 05:00Z sit inside the 05:25Z–05:35Z burst or elsewhere, nor what shape they have.
+- **Alternatives, none eliminated:**
+  - the same refused device as 11-23's, starting at about 05:25Z on 11-22;
+  - another device refused in the same way.
+
+  Nothing identifying is read, and IS could not have separated these either.
+
+RULED by the orchestrator (05:04:49Z; re-read 05:04:21Z: result `745d033a083c`, registration `036e18f087ee`): **STOP HERE.** Every must-read held, K3's amended leaf included. The onset, 05:25Z, is a registered output. The observation stays an observation, and no verdict is improvised.
+
+- No per-bucket read, and no further attempt.
+- The onset and the hourly family counts go to the owner as information, under the owner's open question about the refused device: chase it, or leave it.
+- If the answer is chase it, a new registration starts from the offered per-bucket read, after FXP.
+
+**`read`'s READER: NOT RULED.** `read`'s code is the same in `ac94f99a83d0`, `a71303d95e6d` and `ba636810808b` (the two identity runs above, each naming its pair). No ruling names a new blob as `read`'s reader for a future read run. The last ruling named `ac94f99a83d0`, and it stands until the orchestrator rules otherwise.
+
 ## Step 4e: lever (c), what the refresh-data job writes (registered 2026-11-19T00:14:57Z, before its reader exists; read-only, GitHub only)
 
 **Why.** Step 4c showed that production's KV writes are the Worker's request path, plus the refresh-data job at about
