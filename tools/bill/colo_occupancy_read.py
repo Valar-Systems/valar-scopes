@@ -34,6 +34,11 @@ REASK_S apart (chosen on resolution only, never on the count); still not a value
       events request, so it can read a `dev`-era hour that walk_hour's pre-flight refuses (the pre-flight stays). Anchors
       on classify's own hours first; every must-read and hour fixed in this file; every line labelled as classify's.
       Exit 0 = IS or NOT; 3 = OUTSIDE or stopped at a must-read; 6 = BLIND.
+  python -X utf8 -I tools/bill/colo_occupancy_read.py famhours <out.json>   F1 FAMILY HOURS (registration
+      f522149ae7ac): the same family S, per hour, from FH_FIRST to the last closed hour at the start, graded against
+      the owner's lead by class (NIGHT / DAWN / DAY / DUSK, bands fixed in this file). COUNT QUERIES ONLY, as famcount;
+      anchors K1-K4, re-reads M1-M4, C-POP against the population's no-key. Every line labelled as classify's.
+      Exit 0 = FOLLOWS or DOES NOT FOLLOW; 3 = OUTSIDE or stopped; 6 = BLIND at an anchor.
 Every command prints one `attempts <query>:` line per query on every graded exit (0, 3, 5, 6); lc and scan also write
 every attempt to <out.json> on those exits, and read writes them into its own result file (F1-R-1's recording clause;
 ruling (4)). A rig error (exit 2) prints its exception type only, and nothing else.
@@ -759,6 +764,199 @@ def famcount(path):
     return fin(rc)
 
 
+# F1 FAMILY HOURS (registration f522149ae7ac): S, the FAMILY COUNT's family as amended, for EVERY hour from FH_FIRST to
+# the last closed hour at the run's start, graded against the owner's lead (the radar asks every 15 s by day and every
+# 60 s at night; night is the sun at the saved location, 0,0 without one). COUNT QUERIES ONLY, as famcount: no line and
+# no `dev` value can enter the process. famcount's leaves are reused from their ONE definitions; famcount is untouched.
+FH_FIRST = "2026-11-21T00:00:00Z"
+FH_LAST_START = "2026-11-27T00:00:00Z"   # a later start nears the 7-day retention of Workers Logs for FH_FIRST
+FH_LEAD = (("NIGHT", 60), ("DAWN", 110), ("DAY", 240), ("DUSK", 213))   # the owner's numbers, quoted in the registration
+FH_QUIET = 5                             # the population's quiet hours read 1 to 5 no-key lines
+FH_M = (("M1", FC_K, 218), ("M2", FC_H, 247), ("M3", FC_W[1], 203), ("M4", FC_W[2], 248))   # the FAMILY COUNT's S reads
+FH_POP = (2, 5, 2, 1, 1, 2, 2, 236, 255, 249, 251, 248, 252, 250, 251, 250, 418, 295, 283, 219, 74, 80, 72, 170)   # no-key
+FH_MAX_BLIND = 4
+
+
+def fh_band(x):
+    """'about x' (the registration): x minus 12% to x plus 12%, rounded outward to whole lines, in integers."""
+    return (88 * x) // 100, -((-112 * x) // 100)
+
+
+def fh_class(h):
+    return "DAWN" if h.hour == 5 else "DAY" if 6 <= h.hour <= 16 else "DUSK" if h.hour == 17 else "NIGHT"
+
+
+def famhours(path):
+    r = route_rules()                    # before any query: a stale rule is a RIG error with nothing asked
+    ap = fc_prefixes(r)
+    first, last = parse_hour(FH_FIRST), last_closed_hour()
+    hs = lambda t: t.strftime("%Y-%m-%dT%H:00Z")
+    if last + timedelta(hours=1) >= parse_hour(FH_LAST_START):
+        raise Rig("the run starts after %s: the oldest hour nears the logs' retention" % FH_LAST_START)
+    m_hours = [parse_hour(h) for _, h, _ in FH_M]
+    if last < max(m_hours):
+        raise Rig("the window does not contain every must-read hour")
+    n_hours = int((last - first).total_seconds() // 3600) + 1
+    hours = [first + timedelta(hours=i) for i in range(n_hours)]
+    pop0 = parse_hour(POP_FIRST)
+    pop = {pop0 + timedelta(hours=i): v for i, v in enumerate(FH_POP)}
+    band = {c: fh_band(x) for c, x in FH_LEAD}
+    lead = dict(FH_LEAD)
+    tok = TOKEN_FILE.token("observability-read")
+    log, calls = [], [0]
+    rec = {"label": DIAG, "window_first": hs(first), "window_last": hs(last), "hours_n": n_hours, "steps": [],
+           "bands": {c: list(band[c]) for c, _ in FH_LEAD}}
+    fin = lambda rc: done(rc, log, path, "famhours", dict(rec, exit=rc, calls=calls[0]))
+    S = POP_NOKEY + FC_STATUS + (FC_MODEL,)
+    print("window %s to %s: %d hour(s); %d count queries" % (hs(first), hs(last), n_hours, 6 + 3 * n_hours))
+    print("bands (about = the owner's number +/-12%%, rounded outward): %s" % "; ".join(
+        "%s %d %d..%d" % (c, x, band[c][0], band[c][1]) for c, x in FH_LEAD))
+
+    def gap():
+        if calls[0]:
+            time.sleep(CALL_GAP_S)
+        calls[0] += 1
+
+    def cq(h, leaves, label):
+        gap()
+        return count_query(h, params(*leaves), tok, log, label)
+
+    def summed(h, leaves, label):
+        return sum(cq(h, tuple(leaves) + (a,), "%s p%d" % (label, i + 1)) for i, a in enumerate(ap))
+
+    def must(st, h, what, got, ok, want):
+        print("%s %s %s: %d (must read %s) -> %s" % (st, hs(h), what, got, want, "HOLDS" if ok else
+                                                     "OFF: stop; nothing after it is queried"))
+        rec["steps"].append([st, hs(h), what, got, ok])
+        return ok
+
+    def stop(at):
+        rec["stopped_at"] = at
+        v = "verdict: OUTSIDE (stopped at %s)%s" % (at, FC_TAIL)
+        print(v)
+        rec["verdict"] = v
+        return fin(3)
+
+    def cpop_ok(h, n):
+        if h in pop and n > pop[h]:
+            print("C-POP %s: S %d above the population's no-key %d -> OFF: stop; nothing after it is queried" % (hs(h), n, pop[h]))
+            return False
+        return True
+
+    vals, blinds = {}, []
+    try:
+        hk = parse_hour(FC_K)
+        for st, leaves, want in (("K1", (), 232), ("K2", FC_STATUS, 218), ("K3", (FC_MODEL,), 218)):
+            what = {"K1": "no-key", "K2": "no-key AND 401", "K3": "no-key AND model"}[st]
+            n = cq(hk, POP_NOKEY + tuple(leaves), "%s %s %s" % (st, hs(hk), what))
+            if not must(st, hk, what, n, n == want, want):
+                return stop(st)
+        n = summed(hk, POP_NOKEY, "K4 %s no-key AND api" % hs(hk))
+        if not must("K4", hk, "no-key AND api", n, n == 218, 218):
+            return stop("K4")
+        for (st, _, want), h in zip(FH_M, m_hours):
+            n = summed(h, S, "%s %s S" % (st, hs(h)))
+            if not must(st, h, "S", n, n == want, want):
+                return stop(st)
+            if not cpop_ok(h, n):
+                return stop("C-POP " + hs(h))
+            vals[h] = n
+    except Blind as e:
+        return fin(blind(str(e), log))
+    for h in hours:
+        if h in vals:
+            continue
+        try:
+            n = summed(h, S, "hour %s S" % hs(h))
+        except Blind:
+            blinds.append(h)
+            print("hour %s BLIND (dropped)" % hs(h))
+            continue
+        print("hour %s S %d" % (hs(h), n))
+        if not cpop_ok(h, n):
+            return stop("C-POP " + hs(h))
+        vals[h] = n
+    rec["hours"] = [[hs(h), vals[h]] for h in hours if h in vals]
+    rec["blind"] = [hs(h) for h in blinds]
+    print("C-POP: %d hour(s) checked, every S at most the population's no-key -> HOLDS" % sum(1 for h in vals if h in pop))
+    print("dropped (BLIND): %s" % ("%d hour(s): %s" % (len(blinds), " ".join(hs(h) for h in blinds)) if blinds else "none"))
+
+    read = [h for h in hours if h in vals]
+    in_band = lambda c, n: band[c][0] <= n <= band[c][1]
+    start = next((h for h in read if in_band("NIGHT", vals[h]) or in_band("DAY", vals[h])), None)
+    if start is None:
+        print("START: none")
+        v = "verdict: OUTSIDE (no START: no hour inside the NIGHT or DAY band)" + FC_TAIL
+        print(v)
+        rec["verdict"] = v
+        return fin(3)
+    rec["start"] = hs(start)
+    print("START: %s (the first hour inside the NIGHT or DAY band)" % hs(start))
+    onset = start - timedelta(hours=1)
+    pre = [h for h in read if h < start]
+    bad = [h for h in pre if h != onset and vals[h] > FH_QUIET]
+    print("before START: %d hour(s) read; onset hour %s; not QUIET (other than the onset hour): %s" % (
+        len(pre), ("%s S %d" % (hs(onset), vals[onset])) if onset in vals else "none",
+        " ".join("%s S %d" % (hs(h), vals[h]) for h in bad) if bad else "none"))
+
+    graded = [h for h in read if h >= start]
+    mark = lambda h: "IN" if in_band(fh_class(h), vals[h]) else ("HIGH" if vals[h] > band[fh_class(h)][1] else "LOW")
+    classes = [c for c, _ in FH_LEAD]
+
+    def tally(hl):
+        return {c: (sum(1 for h in hl if fh_class(h) == c), sum(1 for h in hl if fh_class(h) == c and mark(h) == "IN"))
+                for c in classes}
+
+    tl = tally(graded)
+    for c in classes:
+        g = [h for h in graded if fh_class(h) == c]
+        print("class %s (about %d, band %d..%d): %d graded, IN %d, HIGH %d, LOW %d" % (
+            c, lead[c], band[c][0], band[c][1], len(g), tl[c][1], sum(1 for h in g if mark(h) == "HIGH"),
+            sum(1 for h in g if mark(h) == "LOW")))
+    fmt = lambda t: ", ".join("%s %d/%d" % (c, t[c][1], t[c][0]) for c in classes) + " IN"
+    for d in sorted({h.date() for h in graded}):
+        print("day %s: %s" % (d.isoformat(), fmt(tally([h for h in graded if h.date() == d]))))
+    known = set(pop) | set(m_hours)
+    print("never read before: %s" % fmt(tally([h for h in graded if h not in known])))
+    off_hours = [h for h in graded if mark(h) != "IN"]
+    if off_hours:
+        for h in off_hours:
+            print("%s %s %s S %d" % (mark(h), hs(h), fh_class(h), vals[h]))
+    else:
+        print("HIGH and LOW hours: none")
+    runs, cur = [], None
+    for h in graded:
+        if vals[h] <= FH_QUIET:
+            if cur and h - cur[-1] == timedelta(hours=1):
+                cur.append(h)
+            else:
+                cur = [h]
+                runs.append(cur)
+        else:
+            cur = None
+    print("QUIET runs after START: %s" % ("; ".join("from %s, %d hour(s)" % (hs(x[0]), len(x)) for x in runs) if runs else "none"))
+    rec["classes"] = {c: list(tl[c]) for c in classes}
+
+    detail = fmt(tl)
+    rc = 3
+    if bad:
+        v = "verdict: OUTSIDE (an hour before START is not QUIET)" + FC_TAIL
+    elif len(blinds) > FH_MAX_BLIND:
+        v = "verdict: OUTSIDE (%d hour(s) BLIND, more than %d)%s" % (len(blinds), FH_MAX_BLIND, FC_TAIL)
+    else:
+        wrong = [c for c in classes if tl[c][0] >= 2 and 2 * tl[c][1] < tl[c][0]]
+        if wrong:
+            v, rc = "verdict: DOES NOT FOLLOW -- the lead is wrong in %s (START %s; %s)" % (" and ".join(wrong), hs(start), detail), 0
+        elif all(tl[c][0] >= 2 and 5 * tl[c][1] >= 4 * tl[c][0] for c in classes):
+            v, rc = "verdict: FOLLOWS -- the hours follow the lead (START %s; %s)" % (hs(start), detail), 0
+        else:
+            v = ("verdict: OUTSIDE (no class under 50%%, but not every class has 2 or more graded hours at 80%% or more; "
+                 "%s)%s" % (detail, FC_TAIL))
+    print(v)
+    rec["verdict"] = v
+    return fin(rc)
+
+
 def labelled(fn):
     """F1 CLASSIFY: every line the diagnostic prints carries DIAG, including RIG errors and the attempts lines."""
     buf = io.StringIO()
@@ -896,7 +1094,7 @@ def grade(p1, p2):
 
 
 def main(argv):
-    if argv[:1] in (["classify"], ["population"], ["famcount"]):
+    if argv[:1] in (["classify"], ["population"], ["famcount"], ["famhours"]):
         return labelled(lambda: dispatch(argv))
     return dispatch(argv)
 
@@ -909,6 +1107,8 @@ def dispatch(argv):
             return population(argv[1])
         if len(argv) == 2 and argv[0] == "famcount":
             return famcount(argv[1])
+        if len(argv) == 2 and argv[0] == "famhours":
+            return famhours(argv[1])
         if argv == ["ctl"]:
             return ctl()
         if len(argv) == 2 and argv[0] == "lc":
