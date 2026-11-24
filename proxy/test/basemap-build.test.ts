@@ -49,6 +49,17 @@ describe("MB, §6's budget", () => {
   it("MB7: B at 838 fits at rung 2: water at ε × 8 collapses ring 1", async () => expect(await mb("B", 838)).toMatchObject({ status: 200, totalBytes: 823, toleranceMm: 201_168, water: rings(2), roads: 9, roadPts: [2, 2, 2, 2, 2, 2, 2, 2, 3], dropped: "0 / 0", eps: "100.584" }));
   it("MB8a: A8 at 1,322 fits: the TERRAIN body is not counted", async () => expect(await mb("A8", 1322)).toMatchObject({ status: 200, totalBytes: 1346, toleranceMm: 100_584, water: rings(1), roads: 7, dropped: "0 / 0", eps: "100.584" }));
   it("MB8b: A8 at 1,321 fits at rung 2: water at ε × 8 collapses ring 1", async () => expect(await mb("A8", 1321)).toMatchObject({ status: 200, totalBytes: 1330, toleranceMm: 201_168, water: rings(2), roads: 7, dropped: "0 / 0", eps: "100.584" }));
+  // MB8c (the S-STRICT PR, docs/basemap-cap-equality.md): MB8a's numbers, as the identity they come from. RD20's cap measures the
+  // package less its TERRAIN bodies, so a build that lands at its cap exactly serves capBytes plus each TERRAIN body, 8 + n * n.
+  // Every figure is read from the package; MB8a's 1,346 = 1,322 + (8 + 4 * 4) is the same fact in numbers.
+  it("MB8c: A8 at 1,322 lands at its cap exactly, so the served total is capBytes plus each TERRAIN body, 8 + n * n", async () => {
+    const cap = 1322, s = await mbStore("A8");
+    const r = ok(await build(s.store, s.query, { commit: COMMIT, capBytes: cap }));
+    const terrain = decode(r.bytes).sections.filter((x) => x.type === 6) as Array<{ n: number; values: Uint8Array }>;
+    expect(terrain.length).toBeGreaterThan(0); // CONTROL: with no TERRAIN section the identity is MB1's, not this row's
+    for (const t of terrain) expect(t.values.length).toBe(t.n * t.n);
+    expect(r.bytes.length).toBe(cap + terrain.reduce((sum, t) => sum + 8 + t.n * t.n, 0));
+  });
   // MB9 (R12, ruled after 03:49:01Z; values frozen from pq4d at 771afd34 before this row): the re-frozen MB3 drops all four secondaries,
   // so this is the row that pins WHICH secondary goes first on the b path (S-ROADORDER's)
   it("MB9: A at 795 fits at rung 3 by dropping only the shortest secondary (3 km)", async () => {
