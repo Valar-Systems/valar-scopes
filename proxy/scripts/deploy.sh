@@ -69,6 +69,36 @@ cd "$ROOT" || exit 1
 
 fatal() { printf '\n\033[31mREFUSING TO DEPLOY\033[0m -- %s\n' "$1" >&2; }
 
+# ---- 0b. the commit the plan names (docs/deploy-sha-pin.md; the owner's standing rule, 2026-11-17) -----------------
+# "Every deploy plan names the exact commit sha it ships. A merge that touches the deployed code after the plan is
+# written forces a re-check, enforced by a check in the deploy script, not by memory." So EXPECT_SHA is required and must
+# be HEAD, after the claim and before anything that deploys. ALLOW_BEHIND=1 is retired: a tree behind main may deploy
+# only past the commits the plan NAMES, in ALLOW_BEHIND_SHAS, and the named set must equal the blocking set (section 3).
+HEAD_SHA="$(git rev-parse HEAD)"
+if [ -z "${EXPECT_SHA:-}" ]; then
+  fatal "EXPECT_SHA is not set: the deploy plan names the commit it ships (docs/deploy-sha-pin.md)."; exit 1
+fi
+if ! [[ "${EXPECT_SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then
+  fatal "EXPECT_SHA must be a full 40-hex sha (got: ${EXPECT_SHA:-})"; exit 1
+fi
+if [ "$HEAD_SHA" != "$EXPECT_SHA" ]; then
+  fatal "HEAD is not EXPECT_SHA: HEAD $HEAD_SHA, the plan names $EXPECT_SHA."; exit 1
+fi
+printf 'pinned: HEAD is EXPECT_SHA (%s)\n' "$HEAD_SHA"
+if [ "${ALLOW_BEHIND:-}" = "1" ]; then
+  fatal "ALLOW_BEHIND=1 is retired: name the commits behind with ALLOW_BEHIND_SHAS=<full sha>,..."; exit 1
+fi
+NAMED=()
+if [ -n "${ALLOW_BEHIND_SHAS:-}" ]; then
+  IFS=',' read -r -a NAMED_RAW <<< "$ALLOW_BEHIND_SHAS"
+  for c in "${NAMED_RAW[@]}"; do
+    if ! [[ "$c" =~ ^[0-9a-f]{40}$ ]]; then
+      fatal "ALLOW_BEHIND_SHAS must list full 40-hex shas (got: $c)"; exit 1
+    fi
+    NAMED+=("$c")
+  done
+fi
+
 # ---- 1. the bundle's own directory must be clean ----------------------------
 # Scoped to proxy/ because that is what `main = src/index.ts` pulls in. Untracked
 # files count: an untracked .ts under src/ is every bit as importable as a tracked
@@ -137,40 +167,43 @@ fi
 # here, so a broken probe costs a refusal, never a revert.
 git fetch -q origin main 2>/dev/null || true
 DI_TARGET=proxy; [ -n "$BUILDER" ] && DI_TARGET=builder
+# deploy-inputs.mjs writes the FULL shas of the commits it blocks on to this file (docs/deploy-sha-pin.md), so the named
+# set below is compared with its own decision, not with a reading of its printed prefixes.
+DEPLOY_INPUTS_BLOCKING_OUT="$(mktemp)"; export DEPLOY_INPUTS_BLOCKING_OUT
 node "$ROOT/proxy/scripts/deploy-inputs.mjs" check "$DI_TARGET" "$ENVIRONMENT"; DI_RC=$?
-if [ "$DI_RC" -eq 1 ]; then
-  if [ "${ALLOW_BEHIND:-}" != "1" ]; then
-    fatal "this tree is behind origin/main in what the $DI_TARGET ships (the commits listed above), and wrangler ships the WORKING TREE."
-    echo "" >&2
-    echo "  git merge origin/main    (then re-run)" >&2
-    echo "  or, knowing exactly what you are reverting:  ALLOW_BEHIND=1 $0 $ENVIRONMENT" >&2
-    exit 1
+BLOCKING=""
+if [ "$DI_RC" -eq 0 ] || [ "$DI_RC" -eq 1 ]; then
+  BLOCKING="$(tr -s ' \n' '  ' < "$DEPLOY_INPUTS_BLOCKING_OUT")"
+  if [ "$DI_RC" -eq 1 ] && [ -z "${BLOCKING// /}" ]; then
+    fatal "deploy-inputs.mjs blocked but wrote no blocking commit, so the named set cannot be checked."; rm -f "$DEPLOY_INPUTS_BLOCKING_OUT"; exit 1
   fi
-  echo "ALLOW_BEHIND=1 -- deploying a tree behind origin/main; the commits listed above are being REVERTED."
-  echo ""
-fi
-BEHIND_ALL="$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)"
-BEHIND_PROXY="$(git rev-list --count HEAD..origin/main -- proxy/ 2>/dev/null || echo 0)"
-[ "$DI_RC" -ne 0 ] && [ "$DI_RC" -ne 1 ] && echo "deploy-inputs.mjs exited $DI_RC: applying today's rule here (all of proxy/)." >&2
-if [ "$DI_RC" -ne 0 ] && [ "$DI_RC" -ne 1 ] && [ "${BEHIND_PROXY:-0}" -gt 0 ]; then
-  if [ "${ALLOW_BEHIND:-}" != "1" ]; then
-    fatal "this tree is $BEHIND_PROXY commit(s) behind origin/main in proxy/, and wrangler ships the WORKING TREE."
-    echo "" >&2
-    echo "Deploying now would REVERT these from production:" >&2
-    git --no-pager log --oneline HEAD..origin/main -- proxy/ >&2
-    echo "" >&2
-    echo "  git merge origin/main    (then re-run)" >&2
-    echo "  or, knowing exactly what you are reverting:  ALLOW_BEHIND=1 $0 $ENVIRONMENT" >&2
-    exit 1
+  if [ "$DI_RC" -eq 0 ] && [ -n "${BLOCKING// /}" ]; then
+    fatal "deploy-inputs.mjs did not block but wrote blocking commits: the two disagree."; rm -f "$DEPLOY_INPUTS_BLOCKING_OUT"; exit 1
   fi
-  echo "ALLOW_BEHIND=1 -- deploying a tree behind origin/main; these are being REVERTED:"
-  git --no-pager log --oneline HEAD..origin/main -- proxy/
-  echo ""
-elif [ "$DI_RC" -ne 0 ] && [ "$DI_RC" -ne 1 ] && [ "${BEHIND_ALL:-0}" -gt 0 ]; then
-  # (today's rule only) Behind main only OUTSIDE proxy/, so it cannot reach the bundle: say it, do not block.
-  echo "note: $BEHIND_ALL commit(s) behind origin/main, none touching proxy/ (not bundled, not blocking)."
-  echo ""
+else
+  # The probe itself failed: today's rule here (all of proxy/, plus scripts/session-claim.py), so a broken probe costs
+  # a refusal unless the plan names exactly those commits, never a silent revert.
+  echo "deploy-inputs.mjs exited $DI_RC: applying today's rule here (all of proxy/, plus scripts/session-claim.py)." >&2
+  BLOCKING="$(git rev-list HEAD..origin/main -- proxy/ scripts/session-claim.py 2>/dev/null | tr '\n' ' ')"
+  BEHIND_ALL="$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)"
+  [ -z "${BLOCKING// /}" ] && [ "${BEHIND_ALL:-0}" -gt 0 ] && echo "note: $BEHIND_ALL commit(s) behind origin/main, none touching proxy/ (not bundled, not blocking)."
 fi
+rm -f "$DEPLOY_INPUTS_BLOCKING_OUT"
+inlist() { local x=$1; shift; local y; for y in "$@"; do [ "$x" = "$y" ] && return 0; done; return 1; }
+for c in $BLOCKING; do
+  if ! inlist "$c" "${NAMED[@]}"; then
+    fatal "behind and not named: ${c:0:12} (a merge after the plan; name it in ALLOW_BEHIND_SHAS, or re-plan)"; exit 1
+  fi
+done
+for c in "${NAMED[@]}"; do
+  if ! inlist "$c" $BLOCKING; then
+    fatal "named but not behind: ${c:0:12} (the plan is stale)"; exit 1
+  fi
+done
+for c in $BLOCKING; do
+  echo "named and behind: ${c:0:12} -- named in the plan's ALLOW_BEHIND_SHAS; it is not in this tree, so this deploy does not ship it"
+done
+[ -n "${BLOCKING// /}" ] && echo ""
 
 # ---- 3. stamp what is actually being shipped --------------------------------
 SHA="$(git rev-parse --short HEAD)"

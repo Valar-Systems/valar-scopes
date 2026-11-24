@@ -85,6 +85,11 @@ jobs:
       # must turn exactly its rows red. IDs-a is the ruled one: without the claim check, the deploy runs without the claim.
       - run: bash tools/wx/check_ingest_deploy.sh
       - run: bash tools/wx/check_ingest_deploy.sh --sabotage
+      # The commit pin (docs/deploy-sha-pin.md): deploy.sh refuses any commit but the plan's (EXPECT_SHA), and deploys past
+      # main only for the commits the plan names (ALLOW_BEHIND_SHAS), in a mirror git repo with a fake wrangler; DC1 proves
+      # the dirty-tree guard still fires; then each plant must turn exactly its row red.
+      - run: bash proxy/scripts/check-deploy-sha.sh
+      - run: bash proxy/scripts/check-deploy-sha.sh --sabotage
       # C1 (docs/ci-concurrency.md): every PR workflow cancels its own superseded runs, and nothing else.
       - run: python3 scripts/check_workflow_concurrency.py
       - run: python3 scripts/check_workflow_concurrency.py --selftest
@@ -99,6 +104,9 @@ jobs:
       - run: python3 tools/token_file_sabotage.py
       - run: python3 scripts/check_token_file_readers.py --selftest
       - run: python3 scripts/check_token_file_readers.py
+      # PD6's fleet instrument (docs/wx-opuk.md, the 2026-11-24 re-grade): its real queries run in SQLite over planted
+      # rows, and one point of each of the seven families in this dataset must leave every fleet count unchanged.
+      - run: python3 tools/wx/pd6_fleet.py --selftest
       # Every in-tree wrangler call goes through proxy/scripts/wrangler-run.mjs (docs/wrangler-run.md): the check, its
       # planted shapes, and the helper's own selftest against a stand-in wrangler (no network, no account).
       - run: python3 scripts/check_wrangler_calls.py --selftest
