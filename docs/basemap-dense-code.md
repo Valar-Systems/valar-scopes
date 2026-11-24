@@ -5341,7 +5341,7 @@ H6: main cbd999db594f merged into H5, with no #696 file changed.
   merge-tree` predicted; its parents are H5 and cbd999db594f; the 26 files it adds are main's, and only #775's three are under
   `proxy/`; `git diff 237d5d163eb4 H5` and `git diff cbd999db594f H6` are byte-identical patches. Pushed 2026-11-22 02:51:55Z.
 - **H6's CI, read:** 39 check runs, 37 success, 2 skipped (`promote`, `version`), 0 failed: H5's 38 job names plus
-  `driver-selftest`, the one job main's `firmware.yml` had added. The reads that count were at 03:06:59Z and 03:09:03Z; one at
+  `driver-selftest`, the one job main's firmware workflow had added. The reads that count were at 03:06:59Z and 03:09:03Z; one at
   03:08:48Z, under 2 min from the first, is not counted. Tested on 6948d529, the merge into cbd999db594f, per a job's checkout log.
 - **P5 at H6, as predicted** (`p5h6.sh` 4afc4add5731: H5's launcher with H5 renamed H6 and nothing else): P5-1 empty; 16 and 6
   built; 16 of 16 and 6 of 6 with both controls DIFFERENT. The sha list is 5cb763026974, which differs from H5's because the
@@ -5848,3 +5848,22 @@ docs-only commit on top of it, H7.
 - **Outside the set:**
   - a tested base other than 5957b5308717: STOP, re-derive the count, and write the amendment before anything is graded;
   - any other count, conclusion or job name: STOP, and read which job before anything else.
+
+### H7's CI, read: OFF at `sku-readers`, caused by this section's own wording; H7b
+
+**Read** (2026-11-24 09:36:18Z, after the run had finished): 39 check runs, 36 success, 2 skipped (`promote`, `version`), **1
+failure: `sku-readers`**. The job names equalled H6's. It was tested on e3d0a635, the merge of f300e1ac5b0c into 5957b5308717, per
+the failed job's own checkout log. **Outside the set: STOP**, reported to the orchestrator before any fix.
+- **The cause**, from that job's whole log: the SKU reader sweep refused this doc because it named the firmware workflow's file,
+  which only reviewed files may. The one mention was this branch's new prose above, in H6's CI paragraph, not a record block: H6's
+  doc and the four verbatim blocks name it 0 times. Run locally on f300e1ac, the sweep failed the same way.
+- **The miss:** the checks before the push covered device ids, Wi-Fi, MACs and coordinates, not every guard CI runs on docs. From
+  now on a doc's checks include all of them, the reader sweep among them.
+- **The fix, H7b**, on the orchestrator's word: that phrase now reads "main's firmware workflow", and nothing else above changes.
+  The guard is not widened to fit the wording. Before the push the sweep reads exit 0 here, having read exit 1 on f300e1ac.
+
+**CI for H7b, predicted before the push.** Main is 5957b5308717, held since H7 was pushed. Predicted: 39 check runs, 37 success, 2
+skipped (`promote`, `version`), 0 failed, with H6's job names. It is tested on the merge into 5957b5308717, read from a job's own
+checkout log, and read twice at least 65 s apart.
+- **Outside the set:** a tested base other than 5957b5308717, or any other count, conclusion or job name: STOP, and read which job
+  before anything else.
