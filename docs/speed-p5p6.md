@@ -5689,3 +5689,119 @@ window on the same board.** This section freezes the registration and its tools 
   original again.
 - The new image records every label the timed runs draw, so a possible measuring fault can be checked for every frame.
 - It is believed only if it reproduces the original's speed-up in the same session.
+
+### 16s. P6 closed: P6-MOVE read, the owner's ship ruling, the PC pixel proof, and #789 merged (2026-11-22 to 2026-11-23)
+
+Every figure here is copied from a recorded output, named with its sha (12 hex) and kept in the bench handoff folder.
+Corrections and readings in those files are appended, never edited.
+
+**P6-MOVE's window ran on E2:08 on Sun 2026-11-22: A1, D6M, then A2, then the v19 restore.**
+
+- **Reading 1 was OUTSIDE THE SET** (`p6m/REG-p6m-i11-diag.md`). The registered reader read D6M as "INSTRUMENT at
+  I-11".
+  - The diagnosis K6 counted a `[m3]` line that the push task prints at boot. That made its prediction "K6 = 0"
+    impossible on any trace that starts at a boot.
+  - The predicted set was incomplete about the instrument, not wrong about the run, and the fault was mine. The
+    OUTSIDE stands.
+- **Reading 2** (labelled post-hoc) found that line in the boot format, and K6' = 0.
+- **Reading 3** was graded after I-11 under p4's separately registered reader, LABELLED. It is STOP at Row 1,
+  STOP-IMAGE (`grade-i11.out` `89cf5b0bef64`):
+  - A1 +0.74 and A2 +0.72 ms in `contacts`, so G6's gap reproduced (spread 0.02, N 0.03);
+  - D6M read +1.20, which is 0.47 from G6's mean +0.73, past T = 0.30;
+  - so D6M's added code moved the very gap it was built to explain. B4 and B1 against B2' were not graded.
+- **The link map** (`p6m/REG-p6m-linkmap.md` `1fca2aaa6088`, Reading 1, tool `b3c0c1876100`): O2, CHANGED, as
+  predicted.
+  - The cache geometry was READ from the build's sdkconfig: 16 KB, 8 ways, 32 B lines.
+  - All 23 hot names common to G6 and D6M moved offset, and 22 moved set. The hot lines grew from 243 to 273, and the
+    most in any one set from 5 to 7; no set held more than 8.
+  - The code-address account stays LIVE. It is NOT shown to be the cause.
+- **The offline B4 read** (`p6m/REG-p6m-b4offline.md` `2d8b42bf5985`, Reading 1): "B4 not convicted on D6M's
+  population (cannot clear)".
+  - REG-p6m's Row 2 rule was taken from its source by sha, with only the verdict words changed, so that a 0 can never
+    read as cleared.
+  - The control and the plant passed (the plant at frame 864).
+  - 6-NEW1, 6-NEW2, 6-X1 and 6-X2 were all covered: 6,550 frames, 40 box calls a frame, 0 mismatches.
+- **Option (c),** a code-address control image on a board, is registered (`p6m/REG-p6m-c.md` `70553db1d108`) and NOT
+  run: the owner chose ship.
+
+**The owner's ruling (2026-11-23 15:20Z), verbatim:** "label cache: ship, on one condition. Before it merges, show on
+the PC that the real build draws exactly the same pixels with the cache as without it over recorded traffic, as was
+done for the blend table. Count it at about 5 ms. The unexplained 0.7 ms is not counted, and the miss stays on the
+record. If any pixel differs, it comes back to me."
+
+**The PC pixel proof** (`p6-pixeq/REG-p6-pixeq.md`):
+- accepted at `42797786dbe0`;
+- Correction 1 `9a7200b5290f`: the controls compare ON with ON planted, so OFF against ON stays sealed until the word;
+- Correction 2 `732193738b19`: masks held 5 polls, cross-poll hits, key-drop plants;
+- Reading 1 `54930097b83f`.
+
+- **What it compares:** main as it ships (`a43719ad9530`, cache off) against the PR's head (`feef75d3d6a9`, cache on).
+  1b's W5c and REG-W's W-EQ are the form: whole canvases, every pixel.
+- **The real code on the PC** (WSL Ubuntu-24.04, g++ 13.3):
+  - LabelLayout, DrawAircraftInfo, AircraftLabelBox, scaleColor and ParseBlips are extracted from each tree's own
+    source by anchors, never retyped;
+  - the real formatters, LabelKey, LabelCache.h and models;
+  - arduino-esp32's own `WString.cpp`;
+  - LovyanGFX 1.2.21's own raster, under its `LGFX_LINUX_FB` platform;
+  - every piece of host glue is named in the harness's MANIFEST (`713ac4b8f627`).
+- **The traffic:** RP5's pinned real-traffic recordings, KSFO `627119bca445` and LAX `91dd7606e906`.
+  - 60 polls each; 3 rungs × (MOVE + RIM) = 6 cases a recording.
+  - 5,760 frames per recording per side, each of 57,600 pixels.
+- **The selftest that found a gap.** The first selftest (`selftest.out` `942b89d7280d`) passed as registered, and it
+  showed refills = polls × contacts. The mask, which is in the key, changed every poll, so no key ever survived a poll,
+  and the device's main path (a held key across polls) was never hit. Correction 2 fixed the harness.
+- **Correction 2's selftest** (`selftest-c2.out` `0282d9e2c1fd`):
+  - C-SELF 0 on all four;
+  - cross-poll hits 221 (SFO) and 230 (LAX) in every case;
+  - C-PLANT exactly 1 px, 1 frame, 1 case;
+  - P-NEVER, P-HITWIDTH and P-KEYDROP-GS red on both recordings;
+  - **P-KEYDROP-ALT red on LAX (2,193 px) and BLIND on SFO (0)**: ruled per recording, so SFO's 0 is BLIND.
+- **THE READING** (`graded.out` `f7165e6f8992`): **EQUAL.** 11,520 frames and 663,552,000 pixels compared, with 0
+  differing pixels, frames, cases and label boxes, on each recording.
+- **The limits, carried with the result:**
+  - altitude-in-key is detectable on LAX only. On SFO, P-KEYDROP-ALT was BLIND, so SFO's equality says nothing about
+    altitude in the key;
+  - 9 of the 15 fields draw from the recordings. type, operator, reg, route, country and squawk are never carried, and
+    for them the host SEQH rows (4j) remain the coverage.
+- **The harness's deviation, recorded:** run.sh grades the plants on the sum of the two recordings, which is narrower
+  than the text's per-recording reading. Its per-recording lines are what showed SFO's BLIND.
+
+**The merge.**
+- #789 (`feef75d3d6a9`): main plus the NEW path, with no FRAME_BENCH and no OLD path.
+- Before the push it read: host `test_p6_labels` 9 ok; all 7 plants red on their sets; the shipping env compiling;
+  the four checks.
+- CI on the PR: 35 success and 3 skipped, read twice, equal.
+- Merged by `scripts/merge-by-rule.sh` at **`5957b5308717`**: parent `a43719ad9530`, tree equal to merge-tree's
+  (`3e16ca6804a1`).
+- main's push CI after it: 5 runs, all success; 35 jobs success and 3 skipped.
+- **P6 is counted at about 5 ms. The 0.7 ms in `contacts` is not counted, and it stays on the record.**
+
+### 16t. The 1BMAP port row: 1b's sweep-blend table on the map path, MEASURED (E2:08, Tue 2026-11-24 12:00-12:31Z)
+
+The row is the first of the two port rows (PORT-SPEC `b8c558fe87b9`; `fp-port/run/window-fp.md` `923dec97fb1a`;
+REG-fp-grade `a8df6d96de66`).
+- **The image:** fp-1bmap from bench/fp-port `b3228b06bf20`, list 10: S-CTRL, then 1bM-OLD1/NEW1/OLD2/NEW2, with
+  the kinds sweep-old and sweep-lut.
+- **T-10:** ALL OK, 47 ok and 0 FAIL. The reader was pinned at `ced5b0c8c632`.
+- **The board steps, on the reviewer's START:**
+  - step 0 at 12:00:12Z: the port by serial, S19 twice, check-tool and selftest;
+  - write `f803de9bd969`, verified;
+  - N-BOOT confirmed the image's own env;
+  - the trace, 26 min, rc 0;
+  - the v19 restore, verified, with S19 read twice;
+  - released 12:30:45Z.
+
+**The reading:**
+- `grade_fp.sh`: READ AS GRADED. The seal was tied before and after; fp_checks read AS FROZEN; the pinned reader's
+  graded rows all PASS; S-CTRL's plant read +1.00 ms.
+- G-ART: PASS.
+- `fp_grade.py --cut 1BMAP`: **(i) MEASURED, exit 0, off none** (`fp-grade.out` `4a84affcad7a`).
+
+| row | reading |
+|---|---|
+| sw_blend gain, OLD − NEW, per pair | **1.98, 1.98 ms**, both in [1.53, 3.06]: branch (i) |
+| mean OLD sw_blend | 5.15 ms (BASE-LO ≥ 3.06 holds; +1.32 over A0a's 3.83, information) |
+| the 13 other phases | each within 0.50 ms per pair |
+| the whole frame, OLD − NEW (reported) | 1.87, 2.03 ms |
+
+**Next:** the W row, Wed 2026-11-25 12:00-14:00Z on E2:08: fp-w v2, list 11, with W-CHECK K = 0 first.
