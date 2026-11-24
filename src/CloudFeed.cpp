@@ -7,6 +7,7 @@
 #include "OtaUpdater.h"       // FW_VERSION for the X-Blip-FW header
 #include "variants/Variant.h" // variant::SLUG for the X-Blip-Model header
 #include "DeviceIdentity.h"  // LeaderboardId() for the X-Blip-Device header
+#include "DeviceHeaders.h"   // devheaders::Build, the one header builder
 
 // X-Blip-Model is the OTA identity, scope followed by board (docs/weatherscope-stage4.md S4.5, Q123 (a)). Every env
 // that compiles this file is the radar, which has no scope, so variant::SLUG below IS that identity, and the radar's
@@ -55,39 +56,9 @@ std::vector<std::pair<String, String>> Headers(const String& key, const String& 
                                                const String& usage,
                                                const String& bootReason)
 {
-    std::vector<std::pair<String, String>> h = {
-        { "X-Blip-Key", key },
-        { "X-Blip-Model", variant::SLUG },
-        { "X-Blip-FW", String(FW_VERSION) },
-        // Device identity, so the proxy can use its PER-DEVICE key path. The server
-        // side has been complete since the deviceauth work but could never fire:
-        // authenticate() only tries it when a request carries this header, and the
-        // firmware never sent it, so every device silently fell back to the shared
-        // BLIP_KEYS. Sending it costs 16 hex chars per request and changes nothing
-        // on its own -- a device still authenticates by its shared key until it is
-        // given a minted one (DEVICE_KEY_SECRET + npm run derive-device-key).
-        //
-        // Safe to send unconditionally: LeaderboardId() is the salted SHA-256 of the
-        // MAC, already published on the leaderboard, and is not a secret. It is NOT
-        // the raw MAC -- that never leaves the device.
-        { "X-Blip-Device", DeviceIdentity::LeaderboardId() },
-    };
-    // One-shot OTA memory report, present only on the first check-in after an
-    // update attempt (see OtaUpdater.h / README "Telemetry"). It rides a request
-    // the device was making anyway: no extra traffic, no endpoint of its own.
-    if (!otaMem.isEmpty())
-        h.push_back({ "X-Blip-OTA-Mem", otaMem });
-    // Anonymous feature-use counts, at most once an hour, on a request the device
-    // was making anyway (README "Telemetry"). Counts only: the value is digits
-    // and commas by construction, asserted in test/host/test_usage_report.cpp.
-    if (!usage.isEmpty())
-        h.push_back({ "X-Blip-Usage", usage });
-    // Why this boot happened, on the first check-in after it and never again.
-    // Rides the same request as the two above; see OtaUpdater.h's
-    // TakeBootReasonReport for why it is not folded into the OTA report.
-    if (!bootReason.isEmpty())
-        h.push_back({ "X-Blip-Boot", bootReason });
-    return h;
+    // ONE builder for every edition (include/DeviceHeaders.h, Weatherscope's Ask A). The radar's model is its bare
+    // slug, which is its OTA identity; the static_assert above keeps a scoped build out of this file.
+    return devheaders::Build(key, variant::SLUG, otaMem, usage, bootReason);
 }
 
 // Edition-namespaced API paths (docs/web-url-convention.md). The domain routes

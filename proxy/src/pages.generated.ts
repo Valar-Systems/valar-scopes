@@ -300,7 +300,7 @@ export const leaderboardHtml = `<!DOCTYPE html>
 
 <footer>
   <div class="wrap">
-    Opt in from your Blipscope’s config page. Counts only — no location or flight data leaves your device.<br>
+    Opt in from your Blipscope’s config page. The leaderboard gets your counts, your spotter name and the aircraft types you have logged. It never gets your location or the flights you saw.<br>
     <a href="https://valarsystems.com/blipscope">About Blipscope</a> · Valar Systems, Bend, Oregon
   </div>
 </footer>
@@ -1003,10 +1003,12 @@ export const supportHtml = `<!DOCTYPE html>
 
   <section class="blk">
     <h2 id="privacy">Privacy</h2>
-    <p><b>Blipscope never reports what you looked at.</b> Not which aircraft you
-       opened, not which one you follow, not where you are. That line does not
-       move.</p>
-    <p><b>It does report anonymous usage counts</b> — how often features are
+    <p><b>Blipscope's reports never say what you looked at.</b> The usage counts
+       never name an aircraft, never say which one you follow, and never carry your
+       location. Serving you does reveal some of it: the radar asks for the aircraft
+       around your location, rounded to about 1 km, and opening a detail card fetches
+       that aircraft's photo, when there is one. Those requests are logged like any other (below).</p>
+    <p><b>It does report usage counts for each device</b> — how often features are
        used, so we know what to improve. How many times a detail card was opened,
        how many times each screen was switched to, how many logbook claims, whether
        Follow is switched on, and how long the device has been running. From
@@ -1014,17 +1016,29 @@ export const supportHtml = `<!DOCTYPE html>
        couldn't open a secure connection, which describes the device and not you.
        Counts only: numbers, never the aircraft or the callsign or the tail number they
        were about. The report is a short line of digits, sent at most once an hour
-       on a connection the device was already using.</p>
+       on a connection the device was already using. Each report is kept against the
+       device's identifier, so the counts belong to a device rather than being
+       anonymous. That identifier is a fixed code made from the device's hardware
+       address (never the address itself), the same one the leaderboard uses.</p>
     <p>This changed in firmware 9. Earlier versions collected none of it and said so
        here; we would rather say plainly that it changed than quietly reword the old
        promise. If you would prefer not to send it, run the device against your own
        receiver — then it never talks to us at all.</p>
-    <p>When a request fails on our side, it is logged with the Cloudflare data centre that
-       served it, and nothing that identifies your device.</p>
+    <p>Our server keeps request logs, so we can tell a network fault from a problem with
+       the service. A logged request may include the identifier of the device that sent
+       it (or a short label derived from it), the network address it came from and
+       Cloudflare's estimate of that address's location, and the request itself, which
+       for the radar includes the area it asked about, rounded to about 1 km. Your
+       browser's visits to these pages are logged too. Cloudflare keeps these logs for
+       up to seven days. Our records that a device checked in, and on which model and
+       firmware, also name the device and are kept for three months. Neither ever holds
+       the device's key.</p>
     <p>What a cloud device also sends is operational: that it checked in, its model and
-       firmware version, and — after a firmware update — whether the update worked and
-       how much free memory it had. No location, no configuration, no serial number,
-       no list of aircraft you watched.</p>
+       firmware version, after a restart the reason it restarted, and after a firmware
+       update whether the update worked and how much free memory it had. These reports
+       carry no location, no configuration, no serial number and no list of aircraft you
+       watched. The radar's own requests carry your location, rounded as described
+       above.</p>
     <p>Run it against your own receiver and the radar never talks to us at all. The
        <a href="/blipscope/leaderboard">spotting leaderboard</a> is separate, opt-in,
        and off until you turn it on. The full detail, including exactly what the

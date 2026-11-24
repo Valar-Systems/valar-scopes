@@ -55,6 +55,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "s1"))
 import s1  # noqa: E402  (outside_list and git, unchanged from step 3.1)
+# git() and the checkout changed 2026-11-22 (the s1.py LF PR): every git call runs LF, and build() checks out via s1.checkout_lf
 
 EPOCH_NOTE = "S1 v2's SOURCE_DATE_EPOCH (A5.6)"
 CWS = "src/ConfigurationWebServer.cpp"
@@ -174,10 +175,7 @@ def sites(clone):
 
 
 def build(clone, ref, label, out, plants, envs, epoch):
-    if s1.git(clone, "status", "--porcelain"):
-        sys.exit("REFUSED: the clone's tree is not clean")
-    s1.git(clone, "checkout", "-q", "--detach", ref)
-    sha = s1.git(clone, "rev-parse", "HEAD")
+    sha = s1.checkout_lf(clone, ref)
     benv = dict(os.environ)
     if epoch is not None:
         benv["SOURCE_DATE_EPOCH"] = str(epoch)

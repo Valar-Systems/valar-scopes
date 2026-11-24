@@ -1170,6 +1170,10 @@ Synthetic features at origin (0, 0), through the layer functions.
 >
 > Then the source bits and the tiles, and announce the bucket with the measured numbers. At $0, it doesn't wait for Daniel's yes.
 
+**One clause above is REPLACED (2026-11-13): "record the mirror URLs as their URLs".** In the Q-W4 sea store's ingest, 8 county files were refused again. A mirror URL would have reindexed 15,880 files. Form (d) records a mirror file under the PRIMARY url, once its bytes and sha256 are proven equal to our record of the primary, and the note carries the mirror. The details are in `docs/basemap-dense-code.md`, "The census files: four rounds refused; the mirror switch in form (d)". The ruling, verbatim:
+
+> Form (d) REPLACES the 10-28 clause 'record the mirror URLs as their URLs' (reviewer chat, 2026-10-28, docs/basemap-route.md ~L1167). The url field names the file's IDENTITY: every reader treats it so (cachePath, verifiedBytes, d1, basemap-check, the regions, PROVENANCE), and only the fetch treats it as a location. A mirror file proven byte- and sha256-equal to our record of the primary IS the primary's file. So the manifest keeps the primary url, and the note states truthfully where it was fetched from. That keeps the clause's PURPOSE ('the manifest then says truthfully where each came from') while avoiding a reindex of 15,880 files and a PROVENANCE change at KBOS and KJAC for a transport detail. Ruled by the orchestrator, 2026-11-13T13:06:16Z.
+
 **What follows from it:**
 - **AQ1:** the attribution file's notice reads "© COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C.", with the note beside it that joerd records a 2014 update to SRTM.
 - **Raised before it can matter: the mirror's "note in the manifest" has no place in MI4's frozen shape.** MI4 fixes each entry to exactly `{bytes, layer, sha256, url, vintage}`, and `writeManifest` refuses anything else.

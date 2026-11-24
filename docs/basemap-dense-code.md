@@ -880,8 +880,9 @@ The NE lake L (Natural Earth 10 m lakes), and U, the US polygon (Natural Earth a
 
 ### The two homes, the view, and what is counted
 
-- **The homes:** Buffalo (42.886, −78.879), on Lake Erie where the border enters it; Rouses Point (44.994, −73.365), at Lake
-  Champlain's north end, where the border crosses it.
+- **The homes:** Buffalo (42.89, −78.88), on Lake Erie where the border enters it; Rouses Point (44.99, −73.36), at Lake
+  Champlain's north end, where the border crosses it (rounded here; the counts were made at the exact test points, held off-repo
+  and named by sha in scratch-record's WITHHELD manifest).
 - **The package:** the client's query (r 162 km, ε 201,168 mm, water, rivers, roads, places and terrain, its three levels), built by
   pq4c with the code PR's knobs (`Q4_LADDER=b`, `Q4_D2=1`, `Q4_TP=1`, `Q4_PROV=1`), terrain included, so the rung and the water set's
   tolerance are the real package's.
@@ -1085,8 +1086,8 @@ Both edited scripts compile. Nothing has been fetched or built.
 **The stop: `lake-render.py BUFFALO b` exited 1, on its own assertion,** before any count was computed. No SEAM or SPILL was read.
 
 **The cause: my renderer.**
-- The route rounds a query's lat and lon to two decimals (`query.ts:62-63`). So the package is centred on **(42.89, −78.88)**, not on
-  the home **(42.886, −78.879)**.
+- The route rounds a query's lat and lon to two decimals (`query.ts:62-63`). So the package is centred on **(42.89, −78.88)**, the home
+  rounded to two decimals, not on the home itself, under 0.5 km away.
 - The device draws a package about its OWN home: WxBasemap's `Mapper::ToScreen` places package units through the package's centre and
   cosine, then into a view centred on `homeLat`/`homeLon`. The client's r includes the 0.8 km margin for exactly this offset.
 - My renderer mapped package units as if the package's centre were the view's. Its assertion that the two coincide caught it.
@@ -3350,6 +3351,27 @@ the sea rings, record 18, and the water and roads the ladder drops to fit them.
 - **Outside the set: STOP.** A slowdown over M at KJFK or KBOS stops the code PR and goes to the owner.
 - **Amendment (the orchestrator, 19:51Z), every load variable pinned:** WEATHER is OFF for both packages, so the row isolates the map.
   THE AIRCRAFT LEVEL is FIXED's default, **40 drawn**, the same for sea and no-sea at every point and rung.
+- **Amendment (the orchestrator's ruling (B), 2026-11-12 ~22:55Z), made BEFORE any reading, on map-client's v19 baseline**
+  (docs/frame-time-bench.md at 3fb9adab3633; reader frame_bench_read_b.py b0dbd4ebc163, output baseline_b.out 29d24028cec9):
+  - **The inputs.** REPEAT NOISE **0.93 ms**: |delta p95(`p2p`)| between S0, CTRL plain ("Bend, 40 fixed, 25 mi"), and S6, FIXED
+    Bend/40/25 mi, the same scene measured twice. **U95 = 1.54 ms**, the bench's stated uncertainty on every single p95 (I-6's excess,
+    +11.54 against its +10.0 plant). U95 comes from ONE CTRL pair, so it is an ESTIMATE.
+  - **M = max(2 x repeat noise, 2 x U95, 2.0 ms) = 3.08 ms,** replacing the formula above. The graded quantity is a difference of two
+    single p95s, each +- 1.54, so this bench cannot resolve less than about 3 ms; a margin inside that turns noise into STOPs, each
+    wrongly going to the owner.
+  - **The cost, named:** a real slowdown under 3.08 ms passes unseen. A pass is recorded as "below this bench's resolution", never as
+    "no slowdown". Resolving under 3 ms would need repeats, registered then. A speed-up never stops.
+  - **The control, KORD,** must read **|delta p95| <= 2 x U95 = 3.08 ms** at every rung, replacing "within the repeat noise" above (0.93
+    sits below one p95's own uncertainty, so the control would fail on noise). Its two packages differ only in 9 secondary roads, which
+    the device does not draw while a primary road is in view (MapLayer's S1, which the bench prints), so the pair draws the same frame:
+    **it is printed beside the graded deltas every run as that run's live noise reading,** and if it ever exceeds 3.08 ms the run is the
+    instrument's: STOP, and nothing in it is graded.
+  - **The A/A's condition (the orchestrator, after 01:32Z):** "S1 draws no secondaries" is a count, and an A/A needs the same FRAME. In
+    FT-SEA's window, each KORD package's frame is grabbed THREE times (finished frames, per the bench's frame-trust test), and the two
+    packages' frame hashes must be EQUAL. Equal: the pair is a true A/A and stands as the live noise reading. Different: it is not an
+    A/A, that reading is INSTRUMENT, and a literal same-bytes pair (KORD's no-sea package twice) runs instead, in the same window. The
+    window is requested when the images are frozen.
+  - FT-HR (docs/basemap-hudson-rule.md, #682) carries the same amendment.
 
 ## #652's CI, predicted (the docs-only shape from main 099f1946, the orchestrator's 19:06:30Z announcement)
 
@@ -3358,3 +3380,2490 @@ d6cd3a3f24d7 at 19:46Z). The tested base is read from the run's own checkout log
 GitHub-side re-run rule applies. Anything else: stop and report.
 - **Re-predicted for the amendment's head** (a new commit, so a new run): the same, **32 = 30 / 2 / 0**, provided main's workflows are
   still those of 099f1946 when the run starts. The run on 101902e5db7b is superseded, and the review reads the new head's finished run.
+
+## The code PR's port: the rulings on the obligations checklist (the orchestrator, 2026-11-13 01:46:35Z), before build.ts
+
+The port reads this registration as an obligations checklist: 175 obligations and 39 conflicts or supersessions, each with its line
+numbers, read from this file at da3d73a07ead (sha256 df0fb3fe942c; the checklist, a scratch file, sha256 9ab06faeedd8). Eleven needed a
+ruling before any code depends on them. **All eleven were ruled as proposed:**
+
+| | the question (checklist ref) | ruled |
+|---|---|---|
+| **R1** | "the code PR separates dropped.sea from dropped.water" (the sea's storage proposal) against d0's SEA-PKG, byte-identical to run 10 with PROVENANCE included (6.1) | **d0 binds.** No separation in this PR: `dropped.sea` stays 0 and the ladder's sea drops stay in `dropped.water`, as run 10's packages have them. They are counted on `bm_build` as `seaDropped`. A separation, if wanted, is its own PR with its own byte prediction |
+| **R2** | `refused`: build-wide, or the drawn set's (6.3) | **the drawn set's** refusals (what the package omits); `refusedBuilt` is build-wide |
+| **R3** | `steps`: a list of radii (T-D2) or an integer (6.4) | **the build result carries `radii`** (D2's radii in order, which T-D2 asserts); **`bm_build`'s `steps` = radii.length** |
+| **R4** | `refusedBuilt`'s scope | **every backstop refusal in every water set of EVERY D2 step of the call,** TIGER's rings and the sea's (step 3's outers and islands), as the prototype's per-process counter counted them. Step 5's refusals are `refused5`'s |
+| **R5** | the new `bm_build` names (6.15, 6.16) | **`seaLost` = `seaRefused` + `seaCollapsed` + `seaDropped`**, the drawn set's; `seaRefused` includes step 5's, with **`refused5`** the step-5 subset; **`islandsDropped`**; **`seaRepairs`** and **`seaRepairVertices`**; **one `sea_repair` log line per repaired piece**, in run 10's observed format |
+| **R6** | the `seaLost` response header (1.41) | **`bm_build` only.** The header is #655's; this PR does not change the response contract |
+| **R7** | control knobs: T-PROV-a's backstop off, S-KB-REPAIRLIMIT's limit of 1, against "carries no plant knob" | **no knob in the shipped builder.** Every control and sabotage is an in-place edit by `proxy/scripts/sabotage-basemap.mjs`: asserted to apply once, the registered red set compared exactly, every file restored from a byte copy and its sha256 checked |
+| **R8** | KB1 in CI (the prototype's FillRing raster was Python) | **a TypeScript port of FillRing's fill rule** in the test helper, its parity with the Python reference shown on the synthetics before the row runs |
+| **R9** | "collapsed.water == drawn at KMSP" and "at most 2 steps at New York" listed under SEA-CI (6.14) | **local RUN rows** (R-KMSP, R-D2); CI keeps the synthetic T-PROV-a and T-D2 |
+| **R10** | rows d0 does not mention: T-PROV-a/b, T-D2, QW4-ID (a)-(c), KB7-b, KB7-c-real (Buffalo, Rouses Point, Zapata), the post-deploy staging rows, the MI-roundtrip sea case, C-BORDER-S (6.34) | **all stand,** carried into the code PR |
+| **R11** | KB3/4/5/8 and the KSEA guard on the code PR's builds | **identity covers only a row whose ENTIRE input is the package's bytes.** A row that also reads anything else runs |
+
+**R11, row by row, from each instrument's inputs in run 10's reader (`p2-read.py` 7ad9bcdbb63a):**
+
+| row | its inputs | covered by SEA-PKG's identity? |
+|---|---|---|
+| **KB5** | the package's water rings, rendered at the home its header names, by the C++ FillRing harness and the Python reference | **yes**: a function of the bytes alone |
+| **KB3** | the sea's bytes, which needs WHICH rings are sea: the builder's own sea set (the package does not tag it) | **no: runs** |
+| **KB4** (and its loss column) | the package against the sea's SOURCE pieces | **no: runs** |
+| **the KSEA guard** | as KB4 | **no: runs** |
+| **KB8** | the package against the unsimplified reference (the source), on the cells' edges | **no: runs** |
+
+So the build result carries, for the run's harness and nothing else, the drawn set's sea rings (their positions in the water section), the
+sea's bytes and every piece's fate, as the prototype's record did. None of it is on `bm_build` beyond R5's fields, and none is in the package.
+
+**The harness's extras and the phase hook (the orchestrator's question, after 01:49:43Z), answered before build.ts lands:**
+- **Always computed, on the production path.** R7 rules out knobs, so the build result's harness-only extras (the drawn set's sea ring
+  positions, the sea's bytes, every piece's fate) are computed on every build, exactly as the prototype computed its sea record whenever
+  the sea was on. They are not logged beyond R5's fields and not in the package, but they ARE in the builder's memory as it ships.
+- **So SEA-MEM and R-D2 measure the builder WITH them,** and that is the shape whose figures they predict: P2-M's recorded sea costs
+  (run 10) were measured on pq4d with its sea record computed on every build, so the extras are inside both the predictions and the
+  measurement.
+- **The phase hook** (QW4's instrument: `buildHooks.phase`, a named phase per build stage) is `null` in production, so each site is an
+  optional call that does nothing. Only the memory harness sets it, and what the hook does (its samples, its GC, its 8 MiB plant control)
+  is the instrument's own cost, as it was P2-M's. The hook changes no byte of any package.
+
+**R5's `sea_repair` line, SUPERSEDED for production (the orchestrator, after 01:50:28Z; a privacy finding raised before worker.ts logs
+it).** Run 10's observed format, `sea_repair 16036/18 rings 0,1 restored 4 rounds 1 island 40.617,-73.417`, carries the source record and
+the island's centroid. The island lies inside the requested square, which is centred near the customer's home, so a 3-decimal point
+there is a location tied to a request: worker.ts's contract (BB1-BB3: "logs nothing about the request"), the telemetry rule and the
+brief's 2-dp limit all exclude it. This narrows what is logged, so it needs no owner's call.
+- **Production logs the repair as COUNTS only:** `seaRepairs` and `seaRepairVertices` on `bm_build` (R5), and per repaired piece one line
+  `sea_repair rings <n> restored <v> rounds <r>`: no record key, no point.
+- **The full line** (record key and island point) lives only in the build result's harness-only report, for local runs. Run 10's records,
+  and the rows that read the full line locally, are unchanged.
+- **The 500 stop** (`sea_repair_failed`, `sea_repair_limit`, `sea_repair_state`): the response carries the error code only (as worker.ts
+  already answers `{ error }`), and its log line carries counts only, in the same format.
+- **T-SEALOG (CI), the assertion that it cannot come back:** every production `sea_repair` line, and every `bm_build` line, the builder
+  emits for a build that repairs (a synthetic store with one repaired piece) and for one that stops (`sea_repair_limit`), contains **no
+  digit-dot-digit** (`/\d\.\d/`) and **no record key** (`/\d+\/\d+/`). **Its control:** the line still says something -- it matches
+  `^sea_repair rings \d+ restored \d+ rounds \d+$`, and the repaired build emits exactly one. Its sabotage (S-HR-LOGPOINT, through
+  sabotage-basemap.mjs): the full harness line logged instead, which must turn T-SEALOG red and nothing else.
+
+## The old ladder's test rows, re-frozen from the prototype before any test is edited (the orchestrator's accepted method, 2026-11-13)
+
+Thirteen existing basemap tests read red on the ported builder, every one a test of behaviour this PR replaces by registration. The
+golden row (MG0/MG0b) was a test assumption, fixed in the test: it walks the layers Bend's manifest holds, with a control pinning
+Bend's seven, since `provenanceLines` writes lines only for layers read and a no-sea package's PROVENANCE is byte-unchanged.
+
+**The method (accepted):** the new values come from the PINNED PROTOTYPE pq4d, under the ruled settings, on the SAME synthetic
+fixtures (the pinned `test/basemap-synth.ts`, unchanged in pq4d) -- never from the code under test. The script and its output are on
+`map-server/scratch-record` at **8c86cab778d6** (`scratch-record/q-w4/`): `pq4d-oldrows.mts` **ff6351759648**, output
+`oldrows-pq4d.json` **a5393eea0e57**. The record regenerates pq4d byte for byte (all 18 files, shown before it was committed).
+**No old row is deleted without a named replacement.**
+
+Notation: `rings(k)` is the fixture's rings k..9 by their first vertex's quantised E, as the test already writes them; every
+package below is `kOk`.
+
+| old row | old assertion | new row: what the ruled ladder does (pq4d's values) | what changed it |
+|---|---|---|---|
+| MB1, MN2 | A at 812 fits as built, rung 0 | **unchanged** (812 B, rung 0, nt []) | -- |
+| MB2 | A at 811: doubles ε, drops ring 1 | A at 811: **rung 2**, water at ε × 8 COLLAPSES ring 1 (collapsed, not dropped): 796 B, ε 201,168 mm, `rings(2)`, 7 roads, dropped "0 / 0", epsilon.m 100.584, steps 1 | the ladder (rung 2 = water at ε × 8) |
+| MN3 | A at 811: rung 2 | **the value stands, its reason changes:** rung 2 is now water at ε × 8 | the ladder |
+| MB3 | A at 667: every ring and the 3 km secondary dropped | A at 667: **rung 4**: every secondary dropped (rung 3 exhausted), then rings 2-7 smallest first: 656 B, ε 201,168, water `rings(8)` ([20268, 21957]), 3 roads = the primaries (ends at 10, 11, 12 km), dropped "6 / 4", steps 1 | the ladder (secondaries before water) |
+| MB4 | A at 623: 422, "primaries are never dropped" | A at 623: **D2: 200 after 4 steps**, radii [97, 77.6, 62.08, 49.664], radius 49,664,000 mm, rung 4, 623 B, ε 201,168, 2 rings ([26391, 29690] in that frame), 0 roads (the primaries lie outside the 49.664 km square), dropped "2 / 0". **"Primaries are never dropped" survives in MB3 and MB5** (3 primaries kept at rung 4) | D2 (Q-DP3) |
+| MB5 | A at 624: only the primaries, rung 3 | A at 624: **rung 4**: 624 B, ε 201,168, water [], 3 roads (the primaries), dropped "8 / 4", steps 1 | the ladder |
+| MN4 | A at 624: rung 3 | A at 624: **rung 4** | the ladder |
+| MB6, MN5 | B at 841 fits at 2ε, rung 1 | **unchanged** | -- |
+| MB7 | B at 838: drops ring 1 at 2ε | B at 838: **rung 2**: 823 B, ε 201,168, `rings(2)` (ring 1 collapsed at ε × 8), 9 roads, roadPts [2,2,2,2,2,2,2,2,3], dropped "0 / 0" | the ladder |
+| MB8a | A8 at 1,322 fits | **unchanged** | -- |
+| MB8b | A8 at 1,321: doubles ε, drops ring 1 | A8 at 1,321: **rung 2**: 1,330 B, ε 201,168, `rings(2)`, 7 roads, dropped "0 / 0" | the ladder |
+| MN1 | A at 623: 422, nt [812, 812, x, 624] | **replaced by A at 100: a 422 after all 7 steps**, radii [97, 77.6, 62.08, 49.664, 39.7312, 31.78496, 25.427968], rung -1, **nt []** (the ruled ladder records no per-rung bytes), its last rung tried's layer bytes: water 0, rivers 0, roads 0, peaks 0, places 0, provenance 511 | the ladder, D2 |
+| MN6 | the sum identity on four packages; the 422's last rung is A at 624's package | **the sum identity stands** on A at 812, 811 and 624 and B at 841 (an encoding property); **the 422 half** becomes A at 100's: its layer bytes are its last rung tried at its last D2 step (provenance 511, all else 0), not a smaller-cap package | D2 |
+| MW13 | capBytes 100: 422 after 5 reads | capBytes 100: **422 after 7 steps and 35 reads** (5 per step: current, manifest, coverage, index, its cell); 1 builder call | D2 |
+| BB3 | a 200's line has its 15 fields, a 422's its 19 (with nt0-nt3) | a 200's line: the 15 **plus** steps, refusedBuilt, refused, seaLost, seaRefused, seaCollapsed, seaDropped, refused5, islandsDropped, seaRepairs, seaRepairVertices; a 422's: the 15 **plus** steps and refusedBuilt, **no nt fields** (nt is always empty); a line without a ladder: its 7. Integers only, nothing of the query | R2-R5 |
+| BB5 | a 422's line carries nt0-nt3 | a 422's line carries steps and refusedBuilt and no nt field; `buildLine`'s nt branch, dead under the ruled ladder, is removed | R3, R4 |
+| MG0, MG0b | every LAYER_ORDER layer read in Bend | the layers Bend's manifest holds, with a control pinning Bend's seven | part 2's "sea" in LAYER_ORDER; PROVENANCE unchanged for no-sea packages |
+
+**The run:** the tests are edited to these values, then the port runs them. A value off is a stop, as everywhere in this file.
+
+## SEA-CI: the code PR's host tests, registered with their values and their sabotages' red sets before any of them is written
+
+**The fixtures** are one module, `proxy/test/basemap-seaci-fixtures.ts` (pure data, no imports): the prototype's eight synthetic cases
+transcribed point for point from its driver (kb1, kb1c, edge2, kb2cross, tsea0 with and without the kb1 piece, bowtie as a sea piece,
+xisland and xisland-tall), QW4-3's bowtie water store (T-PROV-a), and two new fixtures. Every store is built as the prototype's driver
+built it (the water file always declared; the sea and roads files when used; regions the box +-170 km; coverage the origin's degree), at
+origin (0, 0), r 162 km, ε 201,168 mm.
+- **provB (T-PROV-b, KMSP's shape):** the water bowtie A(60,60) D(60,61) C(66,60) B(66,70), an outer part (signed area -27 in (E, -S),
+  QW4-3's sign), whose D sits 1.0 km off the chord A-C: kept at ε and ε × 2, where the ring crosses itself and is refused; dropped by
+  Douglas-Peucker at ε × 8, leaving the valid triangle A-C-B; and a 256-vertex circle. (A first design with equal lobes had zero signed
+  area, was not an outer part and never entered the build; it was replaced before any value was frozen.)
+- **d2 (T-D2):** one water square at the centre and one primary road at E 140..150 km, inside the 162 km square and outside 129.6 km;
+  its control adds a second primary at E 110..120 km, outside 103.68 km.
+
+**Frozen artifacts:** the fixtures module `basemap-seaci-fixtures.ts` **a82e2deba8f9** (committed with this section); on
+`map-server/scratch-record` at **dc4cac947084**: `pq4d-seaci.mts` **7a192acf82cb**, its clean output `seaci/seaci-pq4d.json` **cbf66229187f**,
+the seven plant outputs `seaci/seaci-plant-*.json`, and `pq4d-xchk.mts` (xisland's repair line rings 0,1 restored 2 rounds 2;
+xisland-tall's stop restored 2 rounds 3).
+
+**The values are the PINNED PROTOTYPE's, on these same fixtures** (`pq4d-seaci.mts`, which imports the fixtures module, so the geometry
+is the tests' own; ruled settings only, its refusal counter reset per build), never the code under test's. The caps were found on pq4d
+before freezing: provB's is the size of the package it builds at (rung 0's size - 1) = **458**, landing on rung 2; d2's is one under the
+162 km floor found with D2 off (601) = **600**. Every transcribed case reads its registered values (edge2 {405, 4045} on both pieces;
+kb2cross 0 crossings with 2 bridges; T-SEA0 0 / 0 without and 1 sea ring / 6 sea lines with; the bowtie refused; xisland repaired, 2
+vertices; xisland-tall `sea_repair_failed`; QW4-3's refused 1, refusedBuilt 3, collapsed.water 0, the square-alone package byte-identical).
+
+| test | fixture (cap) | asserts (pq4d's values) |
+|---|---|---|
+| **T-SEA0** | tsea0-without | kOk; 0 sea rings; 0 sea PROVENANCE lines |
+| **T-SEA0c** | tsea0-with | 1 sea ring; 6 sea lines (source, vintage, files, sha256, dropped, collapsed) |
+| **KB2** | kb1, kb1c, kb2cross, edge2, tsea0-with | 0 proper crossings in every water ring of every package |
+| **BRIDGES** | the same five | sea bridges: kb1 3, kb1c 3, kb2cross 2, edge2 0, tsea0-with 3; one drawn sea ring per piece (edge2 2, the others 1) |
+| **EDGE2** | edge2 | the two sea rings' quantised vertices on the meridian: [405, 4045] and [405, 4045], equal |
+| **KB7C** | bowtie; kb1 | bowtie: seaLost 1, seaRefused 1, the piece's fate "refused", 0 rings drawn; kb1: seaLost 0 |
+| **XISLAND** | xisland | 200; seaRepairs 1, seaRepairVertices 2; its one repair's counts rings 2, restored 2, rounds 2; the piece drawn; refused5 0; 0 crossings |
+| **XISLAND-TALL** | xisland-tall | 500 `sea_repair_failed`; the stop's counts restored 2, rounds 3 |
+| **REFUSED5** | kb1, kb1c, edge2, kb2cross, tsea0-with, bowtie | refused5 0 and seaRepairs 0 in each |
+| **T-PROV-a** | provA-both; provA-square | both: rung 0, steps 1, 1 ring, 0 crossings, refused 1, refusedBuilt 3, collapsed.water 0, and `buildLine` carries refused 1; square alone: 1 ring, refused 0, refusedBuilt 0, collapsed.water 0; **the two packages byte-identical** |
+| **T-PROV-b** | provB (458) | rung 2; collapsed.water 0 (the drawn ε × 8 set's); refused 0; refusedBuilt 2. **Its control, in the test, from the ε × 2 and ε × 8 layer sets themselves:** the ε × 2 set's count with its refusal counted as a collapse (the old rule) is 1, and the drawn set's count with that refusal inside is 1 -- both differ from 0 |
+| **T-D2** | d2 (600) | radii [162, 129.6] (steps 2); built at 129,600,000 mm; strictly decreasing from the request; the at-most-2 check holds |
+| **T-D2c** | d2-control (600) | radii [162, 129.6, 103.68] (3 steps): **the at-most-2 check FAILS on it**, as the control must |
+| **T-SEALOG** | xisland; xisland-tall | as registered after 01:50:28Z, with one change: **the stopping build is xisland-tall's `sea_repair_failed`** (the registration said `sea_repair_limit`; no synthetic reaches the 64-vertex limit without a plant, and a stop's line comes from the same counts whatever its code). Each build's production `sea_repair` lines are exactly one, each matches `^sea_repair rings \d+ restored \d+ rounds \d+$`, and neither they nor the build's `bm_build` line contains `/\d\.\d/` or `/\d+\/\d+/` |
+
+**KB1** (FillRing's raster of the bridged ring against the unbridged even-odd reference, 240 x 240, views r, r/2, r/4 x 8 rotations) is
+registered on its own once R8's parity step has run: the TypeScript port of FillRing's fill rule, shown equal to the Python reference on
+the synthetics' views first. Its red-set additions (S-KB-NOBRIDGE on kb1 and kb1c; S-KB-ORDER on kb1c) are registered then.
+
+**The sabotages (`proxy/scripts/sabotage-basemap.mjs`, R7):** each is an in-place edit of the shipped code asserted to apply once; the
+basemap SEA-CI file runs; **the set of RED tests must equal the registered set exactly**; every file is restored from a byte copy and
+its sha256 checked; a crash or an unreadable summary is an instrument failure, never a red. The predicted sets are read from pq4d under
+the matching prototype plant (`pq4d-seaci.mts` in plant mode, every fixture at the caps above):
+
+| sabotage | the edit | pq4d's plant | what pq4d read | **red set** |
+|---|---|---|---|---|
+| S-KB-CROSS | `bridge()` takes the nearest pair with no crossing test, and step 5 is skipped | `cross` | kb2cross 4 crossings | **{KB2}** |
+| S-KB-NOBRIDGE | islands go out as their own rings, unbridged | `nobridge` | ring counts up and 0 bridges at kb1, kb1c, kb2cross, tsea0-with, xisland | **{BRIDGES, T-SEA0c}** |
+| S-KB-ORDER | bridge BEFORE simplifying (no step 4a on that path) | `order` | edge2's sets differ; xisland unrepaired; xisland-tall builds (200, the piece refused) | **{EDGE2, XISLAND, XISLAND-TALL, T-SEALOG}** |
+| S-KB-EDGEUNLOCK | step 3 unlocked (no locked vertex) | `edgeunlock` | edge2's sets [405, 4045] and [405] | **{EDGE2}** |
+| S-KB-REPAIRLIMIT | `SEA_REPAIR_LIMIT` 64 -> 1 | `limit1` | xisland 500 `sea_repair_limit`; xisland-tall `sea_repair_limit` | **{XISLAND, XISLAND-TALL, T-SEALOG}** |
+| S-KB-REPAIROFF | step 4a removed ((C)'s control: the code before (B')) | (none; run 9's (C) read: xisland refused at step 5) | xisland refused at step 5; xisland-tall the same, no stop | **{XISLAND, XISLAND-TALL, T-SEALOG}** |
+| S-BACKSTOP-OFF | `waterQ4`, `waterQ4Locked` and step 5 never refuse | `Q4_BACKSTOP=0` | the sea bowtie drawn with 1 crossing; provA-both 2 rings, 1 crossing, refused 0; provB refusedBuilt 0 | **{KB7C, T-PROV-a, T-PROV-b}** |
+| S-PROV-OLD | the old counting rule: a refusal returns an empty ring (so it counts as collapsed), and rungs 2 and 5 keep the ε × 2 set's `collapsed.water` | `Q4_PROV` unset | the bowtie's fate "collapsed"; provA-both collapsed.water 1, refused 0; provB collapsed.water 1 | **{KB7C, T-PROV-a, T-PROV-b}** |
+| S-SEALOG-POINT | the production lines are the harness's full lines (record key, island point) | (none: the format is the port's) | -- | **{T-SEALOG}** |
+
+**Outside the set: stop.** A test that does not read as registered on the shipped code, a sabotage whose red set differs in either
+direction, an edit that does not apply exactly once, or a restore whose sha256 differs.
+
+**T-SEALOG, amended (the orchestrator, after 02:29:02Z), before its test ran:** the limit's code is covered directly. `seaRepairLines()`
+is the one source of the production lines, and a 500 carrying repair counts takes its one branch, so the limit path is not a second path.
+T-SEALOG also feeds it a synthetic `sea_repair_limit` result whose `why` carries a record key and a point (the harness's full line, as the
+builder makes it) and asserts the same properties: one line, the counts-only format, no `/\d\.\d/`, no `/\d+\/\d+/`. S-SEALOG-POINT's red
+set is unchanged, **{T-SEALOG}**: the same test reads red on all three builds.
+
+## R12: the sabotage driver's existing table on the b path, re-predicted before any run
+
+**Why (ruled ~02:37:38Z, R12 accepted as proposed).** A read-only anchor count over the LF text CI sees:
+- on origin/main 6f657c5f872c, all 81 of `sabotage-basemap.mjs`'s sabotages apply (the driver's blob, 6bf83d64d7dd, is the same at the branch base and at the head);
+- on the branch, 76 apply and 5 do not. All five are in budget.ts's old §6 rungs, which the b path replaced.
+
+The driver's `all` set is a path filter. So the 76 also grade the rows this PR re-froze (MB, MN, MW13, BB3, BB5, MG0/MG0b) and SEA-CI's 14, and their frozen sets had to be predicted again. Driver runs happen in a fresh LF worktree at the PR head, because the working checkout is CRLF.
+
+**(a) SEA-CI's nine** are in the driver at 2b9126702aef. They are graded on the set `sea` (the SEA-CI file alone), exactly as registered above.
+
+**(c) The five whose anchors the b path removed.**
+- **S-LADDER is retired.** The b path has no nt ladder, so the defect has no place to live. Its original (`nt[3] = nt[0]`, set {MN1, MN6}) stays on record here and in the driver at 6bf83d64d7dd. Corroboration from pq4d: its old anchor lands only on pq4d's pre-b ladder, which is dead under the ruled settings, and it turns no graded row red.
+- **The other four are re-anchored to the SAME defect** in the b path's `dropSeq`, which serves rungs 3-4 and 6-7. Each edit lands exactly once in the shipped file:
+
+| sabotage | the defect | the edit |
+|---|---|---|
+| S-DROPORDER | water rings dropped largest first | `dropOrder(rings0.map(ringArea2))` → `dropOrder(rings0.map((r) => -ringArea2(r)))` |
+| S-NOCOUNT | `dropped.water` never counts a drop | `d.water = k` → `d.water = 0`, in the bisection and at the fit |
+| S-ROADORDER | secondary roads dropped longest first | `roadLength(roads0[i]!.pts)` → `-roadLength(roads0[i]!.pts)` in `order0` |
+| S-PRIMARYDROP | primaries droppable after the secondaries and the rings | when the ring drops cannot fit, a third bisection over the primaries (shortest first) before `return null` |
+
+**(b) The method.** For each sabotage that `build()` runs, the predicted set is the frozen set, minus the rows the instrument grades, plus the graded rows that pq4d turns red under the SAME plant.
+- **The instrument.**
+  - `pq4d-sabrows.mts` computes every value that the re-frozen MB, MN and MW13 rows and SEA-CI's 14 assert, with the pinned prototype under the ruled settings. Each fixture runs in its own try/catch. Its computations are pq4d-oldrows.mts's, pq4d-seaci.mts's at plant mode's caps, pq4d-xchk.mts's, and T-PROV-b's in-test control.
+  - `pq4d-sabpredict.mjs` plants pq4d's own files from a byte copy (each edit converted to the file's CRLF), runs the instrument, then restores every file and checks its sha256.
+  - A row grades RED when a field it asserts differs from the clean value, or when its fixture threw. MN6's identity and T-PROV-a's byte equality are relations, graded on the planted output itself.
+- **Its two controls, both passed before any prediction was read:**
+  1. Clean, every frozen object equals cp-out/oldrows-pq4d.json, cp-out/seaci-pq4d.json and the registered xchk values: 28 of 28.
+  2. The grader is checked against an independent answer. Under each of the seven prototype knob plants that SEA-CI's sets were registered from (3bf4b3c2), it reproduces the registered set exactly: **7 of 7**.
+- **The 28 `build()` plants** are frame 9, layers 7, terrain 5, budget 4, build 2 and provenance 1. Each uses the driver's own text, which lands exactly once in pq4d, with one exception. S-RUNG's `return done(2, {` appears twice in pq4d (pre-b and b), so it is planted at the b path's `return done(2, { content: c2,`; the shipped file has only that one. The four from (c) use pq4d's indentation, two spaces deeper.
+- **The other 48 keep their frozen sets, by reasoning.** They are in ingest-lib, format's `validate`, query, handler, the worker's fetch path, metrics, photolicense and the attribution doc.
+  - The rows this PR re-froze or added call `build()`, `buildLine()` and `seaRepairLines()` directly, and never these paths.
+  - Removing a `validate` check cannot turn a valid package's kOk into a refusal, and SEA-CI and `mb()` assert only kOk on valid packages.
+  - MW13's 35 reads are `build()`'s own.
+  - BB3 and BB5 changed only their key lists and literals. BB5 is `buildLine()` on a literal, and only worker.ts's plants reach it; their sets already name the BB rows they reach.
+  - MG0 and MG0b changed only the layers they walk (`BEND_READ`), and S-MREV's set names MG0b as before.
+
+**The finding: S-ROADORDER would grade an EMPTY set.** Its frozen {MB3} was the old MB3, which dropped one secondary and pinned which one. The re-frozen MB3 drops all four, so no graded row sees the order, and the b path's shortest-first secondary drop is untested.
+
+**Proposed, for a ruling: MB9.** It is the old MB3's assertion at the b path's own cap, read from pq4d. The rung-3 scan `pq4d-rung3scan.mts` shows A fitting at rung 3 from 795 down to 762, with 1 to 4 secondaries dropped. The row:
+
+> MB9: A at 795 fits at rung 3 by dropping only the shortest secondary (3 km):
+> `{ status: 200, totalBytes: 785, toleranceMm: 201_168, water: rings(2), roads: 6, dropped: "0 / 1", eps: "100.584" }`, and
+> roadEnds `[10, 11, 12, 4, 5, 6].map(roadEnd)` = [-20268, -19930, -19593, -22295, -21957, -21619].
+
+- **With MB9:** S-ROADORDER's set is **{MB9}**, and S-BTWICE's gains MB9. pq4d shows no other plant reaching it.
+- **Without MB9:** S-ROADORDER's set is {}, a sabotage nothing catches. I recommend against that.
+
+**Predicted baselines.** A static read of every literal test title through the driver's own `caseOf` gives 163 ids. The skipIf row (MD2) is left out. basemap-format.test.ts's one template title, run over its 27 PK cases, adds 26. The same method on the base gives 175, which is the last recorded log's 167 plus S2's 2 and K1's 6 rows, merged after it.
+
+| set | predicted baseline |
+|---|---|
+| `ingest` | 0 failing, 11 cases seen in 1 file (the file is unchanged since that log) |
+| `mv, -t MV` | 0 failing, 31 cases in 1 file (unchanged) |
+| `all` | 0 failing, **189** cases seen in **18** files; **190** with MB9 |
+| `sea` | 0 failing, 14 cases in 1 file |
+
+- **The smoke driver's CONTROL** is the whole proxy suite. CI's workers run 43316826879 at 05746deca023, whose proxy/ tree is the base's byte for byte, read `1076 passed | 1 skipped (1077)`. Plus SEA-CI's 14, that predicts **1090 passed, 1 skipped, of 1091**; 1091 / 1092 with MB9.
+- **The credits driver:** no file it plants and no row it grades is touched by this PR, so the prediction is **ALL AS REGISTERED, exit 0**.
+
+**Outside the set: stop.** Stop on any of these, and every one is an instrument question for the reviewer, never a red:
+- a sabotage whose red set differs in either direction;
+- a baseline or CONTROL count other than predicted;
+- an anchor that does not land exactly once;
+- a restore whose sha256 differs;
+- a Workers runtime failure.
+
+**The artifacts** are on `map-server/scratch-record` at **bdfe76d5d35f**, at `scratch-record/q-w4/sab-pred/`, with these sha256 prefixes:
+
+| file | sha256 |
+|---|---|
+| `pq4d-sabrows.mts` | e4a29db1903d |
+| `pq4d-sabpredict.mjs` | f1df812a0e1c |
+| `c-plants.json` | c7bec0b5e3e7 |
+| `table.mjs` | 5bb4b870741a |
+| `static-count.mjs` | b17ce0489357 |
+| `pq4d-rung3scan.mts` | 67fcc99a6e2d |
+| `predicted.json` | 7b962219005d |
+| the clean instrument output | 4f11a6f1db7b |
+
+**The predicted table.** It covers every sabotage the driver grades. "pq4d" means the set was read from the prototype under the same plant; "reasoned" means the frozen set stands for the reasons above. The 7 sets that change are marked.
+
+| sabotage | set | frozen | **predicted** | from |
+|---|---|---|---|---|
+| S-ISIZE | ingest | MI7, MI9 | MI7, MI9 | reasoned |
+| S-ISEAL | ingest | MI7 | MI7 | reasoned |
+| S-INOTESORT | ingest | MI4b | MI4b | reasoned |
+| S-IKEYS | ingest | MI4, MI4b | MI4, MI4b | reasoned |
+| S-VCRC | mv | MV/PK-crc | MV/PK-crc | reasoned |
+| S-VSWAP | mv | MV/PK-gap, MV/PK-overlap | MV/PK-gap, MV/PK-overlap | reasoned |
+| S-VTERRCOUNT | all | MV/PK-terrain-count | MV/PK-terrain-count | reasoned |
+| S-VPROVCOUNT | all | MV/PK-prov-count | MV/PK-prov-count | reasoned |
+| S-IBUS | ingest | MI1 | MI1 | reasoned |
+| S-RLBRECOMP | all | MR1 | MR1 | pq4d |
+| S-RXCUR | all | MR2 | MR2 | pq4d |
+| S-RORDER | all | MR2 | MR2 | pq4d |
+| S-RNOCLOSE | all | MR3 | MR3 | pq4d |
+| S-RGE | all | MR4 | MR4 | pq4d |
+| S-RHYPOT | all | MR7 | MR7 | pq4d |
+| S-ECLAMP | all | ME4 | ME4 | pq4d |
+| S-RZERO | all | MR5 | MR5 | pq4d |
+| S-R0M | all | MR6 | MR6 | pq4d |
+| S-BUSSUB | all | ML7 | ML7 | pq4d |
+| S-SQUARELEN | all | ML6, MR6 | ML6, MR6 | pq4d |
+| S-DEDUPALL | all | ML11 | ML11 | pq4d |
+| S-DEDUPLT | all | ML11b | ML11b | pq4d |
+| S-PLACESORT | all | ML13 | ML13 | pq4d |
+| S-RIVERTIE | all | ML4 | ML4 | pq4d |
+| S-TALIGN | all | MT-corner, MT-impulse | MT-corner, MT-impulse | pq4d |
+| S-TPAD | all | MT-corner, MT2a, MT2b, MT2c, MT2d, MT2e | MT-corner, MT2a, MT2b, MT2c, MT2d, MT2e | pq4d |
+| S-TROUND | all | MT4 | MT4 | pq4d |
+| S-TCOS | all | MT2e | MT2e | pq4d |
+| S-BTWICE | all | MB2, MB3, MB5, MB6, MB7, MB8b | MB2, MB3, MB4, MB5, MB6, MB7, MB8b, MB9, MN3, T-PROV-b (MB9 with MB9) | pq4d **changed** |
+| S-DROPORDER | all | MB2, MB7, MB8b | MB3, MB4 | pq4d, re-anchored **changed** |
+| S-NOCOUNT | all | MB2, MB3, MB5, MB7, MB8b | MB3, MB4, MB5 | pq4d, re-anchored **changed** |
+| S-ROADORDER | all | MB3 | MB9 (with MB9; {} without) | pq4d, re-anchored **changed** |
+| S-PRIMARYDROP | all | MB4, MN1, MN6 | MB4, T-D2, T-D2c | pq4d, re-anchored **changed** |
+| S-TERRCAP | all | MB8a, MB8b | MB8a, MB8b | pq4d |
+| S-TNOMARGIN | all | MB8a, MB8b, MT3b | MB8a, MB8b, MT3b | pq4d |
+| S-QROUND | all | MQ3 | MQ3 | reasoned |
+| S-QDIGEST | all | MQ10, NK2, NK3 | MQ10, NK2, NK3 | reasoned |
+| S-QSORT | all | MQ8 | MQ8 | reasoned |
+| S-WNOVALIDATE | all | MW15 | MW15 | reasoned |
+| S-W304LATE | all | MK2, MK6, MW10 | MK2, MK6, MW10 | reasoned |
+| S-WNOSTORECHECK | all | MW17 | MW17 | pq4d |
+| S-PLOG | all | MP1, MS8 | MP1, MS8 | reasoned |
+| S-PWRITE | all | MP2 | MP2 | reasoned |
+| S-PETAG | all | MP3, MQ10, MW9, NK1 | MP3, MQ10, MW9, NK1 | reasoned |
+| S-ANOTICE | all | MA1, MA2 | MA1, MA2 | reasoned |
+| S-MREV | all | MA1, MD4, MG0b | MA1, MD4, MG0b | pq4d |
+| S-WSTAMP | all | MW18 | MW18 | reasoned |
+| S-WNOCOMMIT | all | MW19 | MW19 | reasoned |
+| S-HMADEUP | all | MH2 | MH2 | reasoned |
+| S-ACREDIT | all | MA2 | MA2 | reasoned |
+| S-HNOCACHE | all | MH3 | MH3 | reasoned |
+| S-MK304 | all | MK2, MK6 | MK2, MK6 | reasoned |
+| S-MKHIT | all | MK3, MK6, MS2 | MK3, MK6, MS2 | reasoned |
+| S-MKKMISS | all | MK4, MK6, MS10, MS3 | MK4, MK6, MS10, MS3 | reasoned |
+| S-MKUNK | all | MK1, MK6 | MK1, MK6 | reasoned |
+| S-MKPRE | all | MK5 | MK5 | reasoned |
+| S-MKAE | all | MK7 | MK7 | reasoned |
+| S-BB1 | all | BB1, BB2 | BB1, BB2 | reasoned |
+| S-BB2 | all | BB2, BB3 | BB2, BB3 | reasoned |
+| S-BB3 | all | BB3 | BB3 | reasoned |
+| S-LADDER | all | MN1, MN6 | **retired** (R12 (c)) | |
+| S-RUNG | all | MN3 | MN3, T-PROV-b | pq4d **changed** |
+| S-SECSUM | all | BB4, MN6 | BB4, MN1, MN6 | pq4d **changed** |
+| S-MS1 | all | MS1, MS10, MS11, MS2, MS3, MS4, MS6, MS7 | MS1, MS10, MS11, MS2, MS3, MS4, MS6, MS7 | reasoned |
+| S-MS2 | all | MS10, MS11, MS2, MS6 | MS10, MS11, MS2, MS6 | reasoned |
+| S-S2SEQ | all | MS10 | MS10 | reasoned |
+| S-S2NOCATCH | all | MS11 | MS11 | reasoned |
+| S-MS3 | all | MS10, MS3, MS7 | MS10, MS3, MS7 | reasoned |
+| S-MS4 | all | MS4 | MS4 | reasoned |
+| S-MS5 | all | MS5 | MS5 | reasoned |
+| S-MS7 | all | MS7 | MS7 | reasoned |
+| S-MS8 | all | MS3, MS6, MS8, NK1 | MS3, MS6, MS8, NK1 | reasoned |
+| S-MS9 | all | MS9 | MS9 | reasoned |
+| S-NKPLAIN | all | NK1, NK2, NK3 | NK1, NK2, NK3 | reasoned |
+| S-NKETAG | all | NK1, NK3 | NK1, NK3 | reasoned |
+| S-NKOPEN | all | NK4, NK5 | NK4, NK5 | reasoned |
+| S-NKFORMAT | all | NK5, NK6 | NK5, NK6 | reasoned |
+| S-NKHEALTH | all | NK6 | NK6 | reasoned |
+| S-MX1 | all | MX1 | MX1 | pq4d |
+| S-MI9 | ingest | MI9 | MI9 | reasoned |
+| S-KB-CROSS | sea | KB2 | KB2 | SEA-CI, registered |
+| S-KB-NOBRIDGE | sea | BRIDGES, T-SEA0c | BRIDGES, T-SEA0c | SEA-CI, registered |
+| S-KB-ORDER | sea | EDGE2, T-SEALOG, XISLAND, XISLAND-TALL | EDGE2, T-SEALOG, XISLAND, XISLAND-TALL | SEA-CI, registered |
+| S-KB-EDGEUNLOCK | sea | EDGE2 | EDGE2 | SEA-CI, registered |
+| S-KB-REPAIRLIMIT | sea | T-SEALOG, XISLAND, XISLAND-TALL | T-SEALOG, XISLAND, XISLAND-TALL | SEA-CI, registered |
+| S-KB-REPAIROFF | sea | T-SEALOG, XISLAND, XISLAND-TALL | T-SEALOG, XISLAND, XISLAND-TALL | SEA-CI, registered |
+| S-BACKSTOP-OFF | sea | KB7C, T-PROV-a, T-PROV-b | KB7C, T-PROV-a, T-PROV-b | SEA-CI, registered |
+| S-PROV-OLD | sea | KB7C, T-PROV-a, T-PROV-b | KB7C, T-PROV-a, T-PROV-b | SEA-CI, registered |
+| S-SEALOG-POINT | sea | T-SEALOG | T-SEALOG | SEA-CI, registered |
+| C-LOADFAIL | all | BLIND | BLIND | pq4d: fails to load |
+
+No driver runs before MB9 is ruled: it decides S-ROADORDER's and S-BTWICE's sets and the `all` and smoke counts.
+
+**MB9 ruled in (the orchestrator, after 03:49:01Z), frozen here before its test is written and before (d) runs.** Its values are pq4d's,
+from the clean instrument output (`clean.json` on the record at bdfe76d5d35f, object `A@795`), as proposed above:
+
+> **MB9: A at 795 fits at rung 3 by dropping only the shortest secondary (3 km).** `mb("A", 795)` matches
+> `{ status: 200, totalBytes: 785, toleranceMm: 201_168, water: rings(2), roads: 6, dropped: "0 / 1", eps: "100.584" }`, and its
+> roadEnds are `[10, 11, 12, 4, 5, 6].map(roadEnd)` = [-20268, -19930, -19593, -22295, -21957, -21619]: the three primaries and the
+> 4, 5 and 6 km secondaries, the 3 km one dropped.
+
+So: **S-ROADORDER = {MB9}**; **S-BTWICE** = {MB2, MB3, MB4, MB5, MB6, MB7, MB8b, MB9, MN3, T-PROV-b}; no other plant reaches MB9
+(pq4d). The predicted counts are the +MB9 ones: baseline[all] **190** cases seen in 18 files; the smoke CONTROL **1091 passed, 1 skipped,
+of 1092**. The other baselines, sets and the credits prediction are unchanged. Outside the set: stop.
+
+## R8: the TypeScript FillRing port's parity step, registered before it runs
+
+**The port** is `proxy/test/basemap-fillring.ts` (**4cdbe29e956d**), a test helper with no test of its own. It exports `fillRing`, `mapper`, `union` and `kb1Views`. It ports the pinned Python reference: part 2's `p2-render.py` **cca7d5c16db2**, whose `fill_ring` mirrors the device's FillRing at f3fee349061a (#662, the crossing from each edge's lower-y endpoint). It uses the same IEEE double operations in the same order. `math.radians` becomes `x * (Math.PI / 180)`, which is CPython's form.
+
+**The parity step** is scratch, outside every repo:
+- `r8/fill-parity.py` (**9c2c9c5a0c25**) executes only the pinned file's definitions, after checking its sha256.
+- `r8/fill-parity.mts` (**66e1b594e3b1**) runs the port through `kb1Views`, the entry point KB1 will call.
+
+Both print, per view, the differing and island pixel counts and a sha256 prefix of the drawn mask and of the reference mask. The inputs are part 2's six synthetic outputs; each plant is graded against its clean input's `q`, as `p2-read.py` does:
+
+| input | sha256 |
+|---|---|
+| `p2-out/synth-kb1.json` | c45e5f6706ad |
+| `p2-out/synth-kb1c.json` | 845f456ba19f |
+| `synth-kb1-nobridge` (vs kb1) | 294ce8ba2aab |
+| `synth-kb1-order` (vs kb1) | a42774867920 |
+| `synth-kb1c-nobridge` (vs kb1c) | 8e935d49d10d |
+| `synth-kb1c-order` (vs kb1c) | f660732f3746 |
+
+**Predicted:**
+- **P1, parity.** For every input and every view, the port and the reference give the same counts and the same two mask hashes: **144 of 144 view rows equal** (288 masks).
+- **P2, the reference's totals, as runs 3 to 10 read them:**
+
+  | input | total differing pixels |
+  |---|---|
+  | kb1 | 0 |
+  | kb1c | 0 |
+  | kb1-nobridge | 20,818 |
+  | kb1-order | 0 |
+  | kb1c-nobridge | 15,388 |
+  | kb1c-order | 128 (4 at 162 km, 24 at 81 km, 96 at 40.5 km) |
+
+- **C1, the control: the parity can tell the two rules apart.** The port with the pre-#662 crossing (`PLANT=old`: from each edge's first endpoint) is compared with the reference's own old-fill copy, `p2-render-oldfill.py` (**06a74487f91e**; its `mapper` and `union` are identical to the pinned file's, and only the crossing differs):
+  - the two give the same counts and the same mask hashes, **144 of 144** view rows;
+  - **and on kb1 both read 26 differing pixels**, run 2's reading under the old rule: (162 km, 90°) 14, (162 km, 270°) 6, (81 km, 0°) 5 and (40.5 km, 0°) 1;
+  - so the parity check sees a rule change the new rule does not make.
+
+**Outside the set: stop.** Any parity difference, a total other than P2's, or C1 reading otherwise goes to the orchestrator, with the differing input, view, mask and pixel count. A last-ulp difference between CPython's libm `cos` and V8's is one cause this check would surface; it would be reported, not absorbed.
+
+**KB1 itself** is registered after the parity step, from pq4d on the shared fixtures, with its red-set additions:
+- S-KB-NOBRIDGE on kb1 and kb1c;
+- S-KB-ORDER on kb1c.
+
+**R8's parity step, read (04:03:57Z, at ace8fff2c1ab):**
+- **P1: 144 of 144 view rows equal**, AS PREDICTED.
+- **P2: every total AS PREDICTED:** kb1 0, kb1c 0, kb1-nobridge 20,818, kb1-order 0, kb1c-nobridge 15,388, kb1c-order 128. The registration attached run 3's off-bridge breakdown (4 / 24 / 96 = 124) to the total. That was my slip in the text; the total by view radius reads 4 / 24 / 100 = 128.
+- **C1:**
+  - the 26 on kb1 in exactly the registered views, AS PREDICTED;
+  - **OFF: 141 of 144 rows equal, not 144.** The three rows are one event: kb1 at (162 km, 45°), on kb1's three inputs. The reference mask differs by 2 pixels (268 vs 270 island pixels), and the drawn masks are equal.
+- **Ruled (the orchestrator, after 04:04Z):** C1 stays off. KB1 may proceed, because its premises held: P1 under the rule KB1 uses, and the 26. The diagnostic runs as registered.
+
+**The diagnostic (04:06Z; `r8/mapbits.py` 43f84f807353, `r8/mapbits.mts` 704491face8c) reads (a).** It compares the mapper's output, as float64 bits, for kb1's outer and three islands at (162 km, 45°):
+- `cos(45°)` is equal in both languages.
+- **`sin(45°)` is one ulp apart:** CPython's libm (the MSVC CRT here) gives the float64 whose bits end `...667f3bcd`, and V8 gives `...667f3bcc`, the last bit apart.
+- So **9 of 32** vertex coordinates differ in their last bits, and the old rule turns that into a 2-pixel flip at an exact tie.
+
+**What this does and does not show, for any future cross-runtime comparison:** under the pinned rule the two raster masks agreed on every input and view here, despite those ulp differences. These inputs do not show that the lower-endpoint rule is tie-robust in general. An alternative is not excluded: the rule's lower endpoint may simply have been one of the bit-equal coordinates where the old rule's first endpoint was not. So a comparison across runtimes can meet a tie under either rule. KB1 avoids the question by comparing two rasters made by the port in one runtime.
+
+### KB1, registered before its test exists (KB1 ruled to proceed after 04:04Z)
+
+**The row**, the 15th SEA-CI test, in `basemap-sea.test.ts`. For kb1 and kb1c, each built as the other SEA-CI fixtures are:
+- the piece is drawn;
+- its drawn sea rings (`report.sea.ringIdx`) are rasterised by the port's `kb1Views` against the piece's own unbridged `q`, at radius 162 km;
+- **the differing pixels are 0 in all 24 views**;
+- CONTROL, that the reference holds the islands: **the island pixels total 20,818 (kb1) and 15,388 (kb1c)**.
+
+**Where the values come from.** They are pq4d's: the instrument `pq4d-sabrows.mts` (a11faef1ee71, record 8f78ed30744d) runs the port on the prototype's live output. Its control passed before any prediction was read: 31 of 31 objects. That includes KB1 on clean pq4d reading 0 in all 24 views with island totals 20,818 and 15,388, exactly the totals the pinned Python reference read on part 2's stored outputs (R8's P2). So the port on the prototype agrees with the reference on its record.
+
+**Its red-set additions, from pq4d under the same plants (`pq4d-sabpredict.mjs` d80b3c87c2d8; the grader check is still 7 of 7):**
+
+| plant | KB1 | pq4d read |
+|---|---|---|
+| S-KB-NOBRIDGE | **red** | kb1 20,818, kb1c 15,388 differing |
+| S-KB-ORDER | **red** | kb1 0, kb1c 128 differing |
+| S-KB-CROSS, S-KB-EDGEUNLOCK, S-KB-REPAIRLIMIT, S-BACKSTOP-OFF, S-PROV-OLD | green | 0 and 0 |
+| every build() plant (28 + the four re-anchored) | green | 0 and 0 |
+| S-KB-REPAIROFF | green, reasoned | kb1 and kb1c need no repair (REFUSED5: repairs 0) |
+| S-SEALOG-POINT | green, reasoned | worker.ts only; KB1 reads `build()` |
+| the 48 outside `build()` | green, reasoned | as R12 (b) |
+
+So **S-KB-NOBRIDGE = {BRIDGES, T-SEA0c, KB1}** and **S-KB-ORDER = {EDGE2, XISLAND, XISLAND-TALL, T-SEALOG, KB1}**. Every other set is unchanged.
+
+**One plant change, registered here: S-KB-ORDER's piece carries `q`.**
+- As written at 2b9126702aef, the plant pushed its drawn piece with no `q`. KB1 would then go red on a missing field, not on the registered cause, a bridge with width.
+- Part 2 graded the order plant against the clean run's `q` (`p2-read.py`). On kb1c the clean `q` is step 3's rings, because kb1c needs no repair.
+- So the plant now records `q: { outer: simpL(oc), islands simpL(h) for each kept island }`, the same rings. No other test reads `q`, so the plant's other reds are unchanged.
+
+**The counts move by one**, and the `caseOf` list gains KB1:
+- baseline[sea]: **15** cases in 1 file;
+- baseline[all]: **191** in 18 files;
+- the smoke CONTROL: **1092 passed, 1 skipped, of 1093**.
+
+**R12 (d), running now, grades 9008c74dee8f, before KB1.** Once KB1 lands, the driver runs again at the new head. That re-run is the whole basemap driver plus the smoke driver, because the counts move and the "all" set grades KB1 under every plant. Its predictions are R12's table with this section's two set changes and these counts.
+
+**Outside the set: stop.**
+
+### The ingest port: I1-I3 ruled, and its CI rows registered before they are written
+
+**Ruled (the orchestrator, after 04:2xZ):**
+- **I1:** the ocean entry moves from "naturalearth" to "sea"; the lakes zip joins it under "sea"; `tileBitsCmd` finds the ocean under "sea"; admin-0 stays "naturalearth"; "sea" is the eighth package layer key. **Checklist 6.33 is resolved** by L1449 and L1697-1698.
+- **I2:** SEA-PKG stays on the PROTOTYPE store. The real store is checked by SEA-STORE and the runs on it, **plus one row registered before the real-store runs:** at all 16 points, the DRAWN masks from KB5's FillRing render of the real-store package equal the prototype-store package's; else STOP.
+- **I3:** the extent comes from the coverage the same ingest computes, in memory.
+
+**What is ported (3ec5a636, 7cae61ed; nothing run yet):**
+- `rectclip.ts` and `uscontain.ts`: byte-identical bodies to the pinned files.
+- `sea-pieces.ts`: sea-ingest.mts's sections 1-3, with no options.
+- The dry run's `seaStage()`:
+  - one record per piece, numbered store-wide;
+  - attrs `area` and `src` as the prototype store wrote them;
+  - **each sea file's region is its pieces' bounding box**, the prototype's definition. It is written by the dry run as `sea-regions.json` and merged by d1, because the coverage step that writes `regions.json` runs after the dry run and has no pieces. d1 refuses a sea file in no region, since PROVENANCE would never credit it.
+
+**The CI rows, registered with their expected values.** The values are analytic: the geometry is synthetic and the property defines the answer.
+
+| row | file | asserts |
+|---|---|---|
+| **KB7-a** | `basemap-seaingest.test.ts` (new) | Through `seaSources` + `seaPieces`, with a synthetic US (admin-0 `ADM0_A3` USA: the square (-1, -1)..(0.5, 2), clockwise), no ocean, the extent {0/0}, and two lakes: the BORDER lake 0.3..0.7 × 0.3..0.6 (crossing x = 0.5) and the INSIDE lake 0.1..0.2 × 0.1..0.2. **The inside lake is not selected and has no piece** (lakesInsideUs 1). **The border lake is selected, and its pieces in cell 0/0 together equal it:** exactly 1 piece, its outer's area equal to the lake's 0.12 deg² within 1e-9 relative, and the same vertex set. **CONTROL:** design (b)'s geometry, the lake minus the US (the lake clipped to x ≥ 0.5), fails the same equality (0.06 deg²) |
+| **C-BORDER-S** | the same file | as registered at L2714-2721: the test US is the V-notch square (0, 0) (0, 10) (4, 10) (5, 5) (6, 10) (10, 10) (10, 0); the lake is 3..7 × 6.5..7. `whollyInside` in full mode reads **NOT inside**; **CONTROL:** vertices-only reads **inside** |
+| **MI-roundtrip, the sea case** | `basemap-ingest.test.ts` | a kind-6 feature (file 3, record 7, part 1, attrs `area` 1234.5678 and `src` "Lake Erie", 3 vertices) decodes to itself |
+| **MI10 (QW4-ID (a), F1)** | `basemap-ingest.test.ts` | F1's check, extracted unchanged from `d1Cmd` into a pure `f1Refusal()` (the same four conditions, the same message). It **refuses** a dirty tree, a `builder` other than the dry run's `ingestCommit`, a store id other than the dry run's, and an unknown commit. **CONTROL:** the same inputs from a clean tree at a known, matching commit pass (null) |
+
+**Their sabotages (driver, set `all`), each red set exact:**
+
+| sabotage | the edit | red set |
+|---|---|---|
+| S-F1DIRTY | `f1Refusal` never refuses a dirty tree | {MI10} |
+| S-USVERTS | `whollyInside`'s default mode becomes "vertices" (no edge test) | {C-BORDER-S}. KB7-a's lakes read the same in both modes: the border lake has vertices outside the US, and the inside lake is clear of every US edge |
+| S-KB7-NOUS | `seaSources` never asks the US containment, so every lake is selected | {KB7-a}: the inside lake gets a piece |
+
+**No existing sabotage reaches these rows.** `sea-pieces.ts`, `rectclip.ts` and `uscontain.ts` are planted by nothing else, and `f1Refusal` by no `ingest`-set plant: those edit `verifyStore`, `publishStore`, the manifest and the roads predicate.
+
+**The counts move:**
+
+| measure | from | to |
+|---|---|---|
+| `caseOf` exact list | | adds KB7-a and C-BORDER-S |
+| baseline[ingest] | 11 | **12** cases in 1 file |
+| baseline[all] | 191 in 18 | **194** cases in **19** files |
+| baseline[sea] | | 14 + KB1 = **15** (unchanged by these rows) |
+| smoke CONTROL | 1092 passed, 1 skipped, of 1093 | **1095 passed, 1 skipped, of 1096** |
+
+**These counts replace KB1's for the driver re-run at the head that holds these rows.** The re-run covers the basemap and smoke drivers. Credits is not re-run, by the ruling after 04:18:52Z: nothing it touches has changed, and under the owner's scale-to-risk rule its earlier reading stands.
+
+**Outside the set: stop.**
+
+### PARITY-CODE: the shipped sea module on step 2's pinned inputs, registered before it runs
+
+**The question** is whether `scripts/basemap/sea-pieces.ts` at the PR head is the PARITY-proven ingest (`sea-ingest.mts` 45500edf4529). It is the module the dry run's `seaStage()` calls.
+
+**The run:**
+- **The driver** is `parity-code.mts`, scratch. It imports the shipped module and `shapefile.ts` from the PR head, and runs them on step 2's own inputs:
+
+  | input | sha256 |
+  |---|---|
+  | `ne_10m_ocean.zip` | db626fcd5d50 |
+  | `ne_10m_lakes.zip` | 0803a06f9c3c |
+  | `ne_10m_admin_0_countries.zip` | ce1ac7036499 |
+  | the store's `coverage.bin` | 5cf7169484c2 |
+
+- The extent comes from that coverage.bin's bytes through `coverageSegments`. I3's in-memory coverage, computed from the states file, is the dry run's, and is checked in SEA-STORE.
+- It writes the pieces as `JSON.stringify(byCell)`, and the stats in sea-ingest.mts's fields.
+- **Its graders** are step 2's own: `verify2.py` bd3766b3161d (PB-0 to PB-2, then `verify.py` 0951ccd447d1's `compare`) against `sea-pieces.json` 8ad5d92fa7c7 and `sea-extent-cells.json` b47eb8e12f48.
+
+**Predicted:**
+
+| row | predicted |
+|---|---|
+| **PC-1, the bytes** | the pieces file **byte-identical to step 2's real run**, `det-1.json` 09db20fc5a86 |
+| **PC-2, the stats** | every field of `det-1.stats` (afb7c0d2c472) but `ms` and `opts` equal: extent 2,584 cells; ocean 2 outers, 6,820 holes; lakes 1,355 read, 1,168 selected, 149 inside the US, 38 small; 0 holes outside exactly one outer; 1,435 cells with sea; 1,914 pieces; 497 islands kept, 135 dropped; 69,728 vertices; and the same 1,168 selected indices in order |
+| **PC-3, step 2's grader** | **PB-0:** the same 2,584 cells. **PB-1:** 2 / 6,820; 1,355 / 1,168 / 149 / 38. **PB-2:** the same 1,168 records. **PA-1:** 1,435 / 1,914 / 497 / 135. **PA-2 to PA-5: 0 fails** |
+| **PC-C, the control** | **the code PR's own output with one piece altered:** the first cell's first piece scaled by (1 + 1e-5) about its centroid (shapely), then graded by `verify.py`'s `compare` against the reference. **PA-4 and PA-5 fail at exactly that one cell; PA-2 and PA-3 have 0 fails.** So the grader sees a change in the candidate, not only in the reference as step 1's C-AREA showed |
+
+**Outside the set: stop.**
+
+**SEA-STORE needs more than this machine has.** It takes a full dry run, done twice for QW4-ID (c), and the Class A count comes from the ingest's own listing. No ingest cache exists on this machine: there is no `fetch-log.json` under C:\Github, the user's folders, either temp tree, or WSL's home, all read-only. The store's manifest gives what one takes: **16,035 files, 5.57 GB**, against 48 GB free. The re-fetch's go, and what a fresh fetch changes (GNIS updates monthly), are for the orchestrator.
+
+**PARITY-CODE, read (04:51-04:53Z, at 894437c62fff; record a75544bbd2dc):**
+- **PC-1: byte-identical** to step 2's run (09db20fc5a86), AS PREDICTED.
+- **PC-2:** 15 fields, 0 differ, AS PREDICTED.
+- **PC-3:** PB-0 to PB-2 ok, PA-1 true, PA-2 to PA-5 0, AS PREDICTED.
+- **PC-C: OFF, and it stays off.** PA-4 and PA-5 failed at exactly 16/-155 and PA-3 read 0, as predicted, but **PA-2 failed at 7 cells**: exactly C-NAME's.
+  - **The cause is the instrument's:** `pc-control.py` called `compare()` directly and skipped `verify2.py`'s latin-1 → UTF-8 name map of the reference.
+  - **The module is excluded:** PC-1's bytes are det-1.json's, which `verify2.py` graded at PA-2 = 0 with the map on.
+  - This is the control's first failure. A second goes to the orchestrator, a third to the owner (the ruling after 04:5xZ).
+
+**PC-C', a NEW registration (approved after 04:5xZ), written before it runs.** The altered candidate (the code PR's pieces, the first cell's first piece scaled by (1 + 1e-5) about its centroid) is written to a file and graded by `verify2.py` itself, so the name map is on and PB-0 to PB-2 run too. **Predicted:** PB-0, PB-1 and PB-2 ok; PA-1 true; PA-2 0; PA-3 0; **PA-4 and PA-5 fail at exactly 16/-155.** Outside the set: stop.
+
+### SEA-STORE: the code PR's ingest on a fresh full fetch, registered before the fetch starts (approved after 04:5xZ)
+
+**When:** after R12 (d) and its re-run have read, because the fetch's connections would add to the TIME_WAIT count that the vitest drivers gate on.
+
+**Where:**
+- The cache is a new directory outside every repository.
+- The ingest runs from a fresh LF clone at the PR head, from a clean tree, so its manifest's `builder` is that commit (F1).
+- **Nothing uploads:** d1 runs only with `--plan`.
+
+**The fetch's identity and pace.**
+- The ingest's own User-Agent, `BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes)`, as ruled 2026-10-28.
+- **No contact email is added to outbound requests.** That needs the owner's explicit word, and the project is already identified by its URL.
+- The ingest's own pacing and resume.
+
+**The steps and what each must read:**
+
+| step | reads |
+|---|---|
+| **S-0, the pins** (condition 1) | after `fetch` and before anything reads the files, every pinned file's sha256 equals its pin: `ne_10m_ocean` db626fcd5d50, `ne_10m_lakes` 0803a06f9c3c, `ne_10m_admin_0_countries` ce1ac7036499, `ne_10m_land` e547d749445e. **Any other: STOP before the ingest** |
+| **S-1, the drift** (condition 2) | every fetched file's sha256 against the manifest of the store the prototype was built on (`bm-obj/manifest.json`, builder 393e4bcd5176, 16,035 entries; that it is production's current store is not verified here), counted per layer as same, changed, added and removed. **Expected:** TIGER (water, rivers, roads, states, counties), terrain, places and population **0 changed**; peaks (GNIS, monthly) **recorded, any number**. A change in any other layer is recorded, and the rows it can move are named before anything is graded |
+| **S-2, two dry runs** (QW4-ID (c)) | the two store trees **byte-identical**: every file's sha256 equal, `sea-regions.json` included |
+| **S-3, the coverage** (I3) | the dry run's in-memory coverage, encoded, **equal to the coverage step's `coverage.bin`**, and to that store's (5cf7169484c2) when S-1 finds the states file unchanged |
+| **S-4, the pieces** | the store's kind-6 features, decoded and grouped back into pieces (records, parts) per cell, graded by `verify2.py` against `sea-pieces.json`: PB-0 2,584 cells; PB-1 2 / 6,820 / 1,355 / 1,168 / 149 / 38; PB-2 the same 1,168; PA-1 1,435 / 1,914 / 497 / 135; PA-2 to PA-5 0 fails |
+| **S-5, the regions** | `sea-regions.json` holds exactly 2 regions, ocean and lakes, each box the bounding box of that file's stored pieces (recomputed from the decoded pieces) |
+| **S-6, the refusal, with its plant** (the orchestrator's row) | the store's `sea-regions.json` moved aside: `d1 --plan` **refuses**, naming the ocean as in no region. Restored, with its sha256 checked: `d1 --plan` passes |
+| **S-7, the Class A count** | `d1 --plan`'s put count (objects + 1), **stated before any upload**; and the R2 figures the 04:12:32Z ruling asked for, with both orders |
+
+**Which rows can move with the drift (condition 2).**
+- Every row graded on a package built from the store moves only through the files S-1 finds changed.
+- Peaks (GNIS) can move PROVENANCE's `sha256.peaks` and the peaks section. The CM rows on the no-sea store, and the 16 points' package bytes, are therefore re-predicted on the new fetch when S-1 shows a peaks change.
+- **A row predicted from the old store is not graded against the new one without saying which files changed and why the prediction still holds.** The I2 row compares drawn masks (water only), so it moves only with TIGER water or the sea's files, which S-1 and S-0 cover.
+
+**I2's row, registered here before the real store exists.** At each of the 16 points, the package built from the new store and the one built from the prototype store (SEA-PKG's) are rendered by **KB5's FillRing**: the device's C++ extract `kb5` a841b11b5f47, at the closest zoom, north-up, as KB5 renders. **Their DRAWN masks are EQUAL at all 16; else STOP**, and the order question goes to the orchestrator.
+
+**Outside the set: stop.**
+
+### R12 (d), read (03:58-04:58Z, at 9008c74dee8f; record cbc84d6bb92c): 87 of 89, two OFF, stopped before smoke and credits
+
+- **AS PREDICTED:**
+  - baseline[ingest] 11 cases in 1 file, baseline[mv, -t MV] 31 in 1, baseline[all] 190 in 18, baseline[sea] 14 in 1;
+  - 87 of the 89 sabotages, C-LOADFAIL BLIND among them;
+  - 0 runtime failures in 93 runs; the highest TIME_WAIT at a run's start was 7,910 (gate 8,000); porcelain 0 after every restore.
+- **OFF 1, S-BTWICE: it read T-PROV-a red too.**
+  - **A real latent defect, caught by the sabotage.** The shipped builder summed `refusedBuilt` over `Object.values(at)`, a map keyed by tolerance.
+  - With EPS_STEP 4, L2 is built at ε × 4, and `at[4ε] = content(L4)` overwrote its entry. So L2's refusal went uncounted: provA-both read 2, where R4's "every set" makes 3.
+  - pq4d counts once per set built, which is why it predicted green. In the clean state the four keys are distinct, so every earlier reading agreed.
+  - **Ruled (i), after 05:0xZ:** sum over the four built sets, [L1, L2, L4, L8], each once. The reading stays OFF on the record. The re-run grades S-BTWICE against its ORIGINAL registered set (T-PROV-a green under the plant).
+- **OFF 2, S-KB-REPAIRLIMIT: it read {XISLAND, XISLAND-TALL}, so T-SEALOG was missing. My registration error at 3bf4b3c2.**
+  - T-SEALOG asserts only that each build yields exactly one counts-only line. Under limit 1, xisland and xisland-tall both stop with a 500 carrying counts, so each still yields one line, and T-SEALOG stays green.
+  - The reading stays OFF; no re-grade.
+- **The lesson, on the record.** The prototype-side predictor modelled T-SEALOG by xchk's status, with the same error. Its "7 of 7" grader check could not catch it: it was validated against the REGISTERED sets, which held the error. That is a check validated against another prediction, not against an independent answer.
+
+**The new prediction for the re-run, registered here before it runs (ruled after 05:0xZ):**
+- **S-KB-REPAIRLIMIT = {XISLAND, XISLAND-TALL}.** Under limit 1 each build still yields exactly one counts-only line (the 500's), so T-SEALOG stays green.
+- T-SEALOG keeps three catchers: S-SEALOG-POINT (the full line), S-KB-REPAIROFF and S-KB-ORDER (xisland yields no line).
+- A second off reading on this row goes to the owner.
+
+**The re-run, as ruled.** It runs (d) again at the head that carries (i) and this prediction, in a fresh LF clone. Its predictions are R12's table with KB1's two set changes, the ingest rows' three sabotages, and this one:
+- baseline[ingest] **12** in 1 file; baseline[mv, -t MV] **31** in 1; baseline[all] **194** in **19**; baseline[sea] **15** in 1;
+- **92 AS PREDICTED**;
+- then the smoke driver: **CONTROL 1095 passed, 1 skipped, of 1096; ALL AS REGISTERED**;
+- credits only if anything it touches changed. Nothing has, so it does not run.
+
+Outside the set: stop.
+
+### The owner's two rulings (05:01Z, relayed verbatim by the orchestrator at 05:02:35Z), and MN7, registered before it runs
+
+> "The map data download's user agent: yes, add support@valarsystems.com, and keep the repo's web address beside it. This supersedes the
+> Oct 28 ruling."
+
+> "The builder's rejected-pieces count (from the sabotage run): besides the one-line fix, add a permanent host test that forces two tries
+> at the same simplification level and fails on today's code first, so the bug can't come back unnoticed."
+
+**1. The ingest's User-Agent**, from the SEA-STORE fetch on: `BlipscopeBasemapIngest/1 (+https://github.com/Valar-Systems/valar-scopes; support@valarsystems.com)`. This **supersedes the 2026-10-28 ruling**, by the owner's words above.
+
+**2. MN7, red first.** The fix had been applied in the working tree, uncommitted, before the owner's message arrived. It was reversed exactly, and build.ts equals HEAD (git diff), so "today's code" is the code as committed at c3e0faa0.
+- **The seam** (named to the orchestrator before it was written): `refusedBuiltOf(sets)`, exported from build.ts.
+  - It takes the sets as a LIST, each with its tolerance (`tolMm`, `refusedW`, `seaW`). The map is the defect, so a helper taking the map could never be handed two sets at one tolerance.
+  - **Step 1, the extraction, carries today's semantics exactly:** index the list by `tolMm` (a later set replaces an earlier one), then sum over the index's values. build() calls it with L1, L2, L4 and L8 and their tolerances, and the ladder's `at` map is built as now.
+  - The extraction is byte-neutral: every package, the clean state's `refusedBuilt`, and every row are unchanged.
+- **MN7** (basemap-build.test.ts) asserts that two sets at the SAME tolerance (1 refusal each) and one at another (2 sea step-3 refusals) give **4**. **CONTROL:** two sets at distinct tolerances (1 each) give 2.
+- **Predicted:** on today's code (step 1), **MN7 RED: 3 where 4 is asserted**; the control passes. **Step 2, the fix** (sum over the list, each set once): MN7 GREEN.
+- **Its plant**, S-RBMAP: the map-indexed sum put back, red set **{MN7}**. Under EPS_STEP 2 the four tolerances are distinct, so T-PROV-a and the rest stay green. S-BTWICE stays the second catcher (its registered set, T-PROV-a green once fixed).
+
+**The re-run's counts move by MN7:**
+- baseline[all] **195** cases in 19 files;
+- the smoke CONTROL **1096 passed, 1 skipped, of 1097**;
+- **93 sabotages AS PREDICTED**;
+- ingest 12, mv 31 and sea 15 unchanged.
+
+Every other prediction is as registered at c3e0faa0.
+
+Outside the set: stop.
+
+### SEA-STORE's sequence, registered with the fetch's conditions before it starts
+
+**MN7, read:**
+- **RED** on today's semantics, at 05:07:12Z: `AssertionError: expected 3 to be 4`, the control passing first. The red state is committed at 2e816fc3.
+- **GREEN** after the fix, at 05:07:47Z, committed at 4ac195bb6fa1.
+- As the owner worded it.
+
+**The order the ingest's own code imposes.** The dry run deletes `dry-run/`, and the coverage step writes into it; tiles are planned only once the coverage step has run.
+
+| # | command, from a fresh LF clone at the PR head (a clean tree, so F1's `builder` is that commit) | reads |
+|---|---|---|
+| 1 | `plan --cache <C>` | the publishers' listings |
+| 2 | `fetch --cache <C>` | the ingest's own pacing and resume; **the User-Agent the owner ruled** (05:01Z): the repo URL with support@valarsystems.com |
+| 3 | `coverage --cache <C>` | plans the terrain tiles (`tiles.json`) |
+| 4 | `fetch --cache <C>` again | the tiles |
+| 5 | **S-0** (the pins) and **S-1** (the drift), on the fetch log | STOP before step 6 if a pin fails |
+| 6 | `dry-run --cache <C>`, then every store file's sha256 recorded; `dry-run` again, the same | **S-2:** the two trees byte-identical, `sea-regions.json` and `sea-stats.json` included |
+| 7 | `coverage`, then `tile-bits` | **S-3:** the dry run's in-memory coverage (its summary's `coverageSha256`) equals the step's `coverage.bin` |
+| 8 | the store's cells decoded | **S-4** (graded by `verify2.py` with the dry run's `sea-stats.json`) and **S-5** |
+| 9 | `d1 --plan`; then with `sea-regions.json` moved aside; then restored, its sha256 checked | **S-6** and **S-7**. **No `--go`.** Nothing uploads |
+
+**The cache** `<C>` is a new directory outside every repository: `bm-cache-qw4`, beside this session's scratchpad. It is re-fetchable, so it is mine to remove under the disk rule once the code PR's runs are done.
+
+**Disk:** 48 GB free before the fetch; the fetch takes 5.57 GB, and each dry run's store tree is read from the dry run's own summary. **Under 30 GB free, nothing more is built.**
+
+**Outside the set: stop.**
+
+### The code PR's runs after SEA-STORE: the list and its scope (ruled after 05:3xZ), fixed before any of them runs
+
+**In this order, each against its frozen prediction:**
+1. SEA-PKG re-read at the head;
+2. SEA-FIG;
+3. SEA-OWN;
+4. I2's drawn masks;
+5. R-KMSP and R-D2;
+6. KB7-b (from the dry run);
+7. KB7-c-real;
+8. SEA-MEM;
+9. the no-sea store's CM-0 / CM-P / CM-M with the memory rows (5.1-5.5) and the 13 package rows (5.6);
+10. FT-SEA in a bench window.
+
+**The scope rulings:**
+- **(u1) Part 2's KB rows.**
+  - **KB5** is bound by SEA-PKG's byte identity, and this is stated in the run record.
+  - **KB3, KB4 and KB8** are bound by identity ONLY IF their inputs beyond the package bytes are shown identical to run 10's: the harness report's sea set, every piece's fate (hashed and compared), and the same `sea-obj` source. If those are equal, the record says "covered by identity of bytes and inputs", with the hashes. If not, they run.
+  - **The KSEA guard prints on the code PR's KSEA package regardless**, as the owner said: "prints every run". It must not fall below 88.6%.
+- **(u2) SEA-MEM's 8 MiB plant control** is repeated on the code PR's builder: it is the instrument's only blindness check.
+- **(u3) The no-sea memory rows are NOT void.** #639's staging rows read at 15:30Z on 11-12 (`docs/basemap-release.md`: SG-A as predicted at KLGA and KJFK, no SG-B to SG-F). The run record cites that line.
+- **(u4) "Main's builder" is the PR's merge-base, e03e6c4d.** At run time, the run prints `proxy/src/basemap`'s tree hash at e03e6c4d and at main's head (b7e7fdd9 when this was ruled) and shows them equal. **If they differ, stop and report.**
+
+Outside the set: stop.
+
+### R12 (d)'s re-run, read (05:10-06:20Z, at 4ac195bb6fa1; record 67ba2dcfdb20): AS PREDICTED throughout
+
+- **The basemap driver** (exit 0):
+  - baseline[ingest] 12 cases in 1 file; baseline[mv, -t MV] 31 in 1; baseline[all] 195 in 19; baseline[sea] 15 in 1;
+  - **93 of 93 sabotages AS PREDICTED.**
+  - Among them: **S-BTWICE against its ORIGINAL registered set** (T-PROV-a green, as ruled (i) makes it); **S-RBMAP {MN7}**; S-KB-REPAIRLIMIT {XISLAND, XISLAND-TALL} as re-registered at c3e0faa0; S-KB-NOBRIDGE and S-KB-ORDER with KB1; S-F1DIRTY {MI10}; S-USVERTS {C-BORDER-S}; S-KB7-NOUS {KB7-a}; and C-LOADFAIL BLIND.
+  - 97 runs, 0 runtime failures; the highest TIME_WAIT at a run's start was 7,967 (gate 8,000); porcelain 0 after.
+- **The smoke driver** (exit 0): CONTROL 1096 passed, 1 skipped, of 1097; S-SQ and S-SQP as registered; **ALL AS REGISTERED**; every restore byte-identical.
+- **The credits driver** was not run, as ruled: nothing it touches has changed.
+
+R12 is closed. The first run's two OFF readings stay on the record above.
+
+### SEA-STORE, steps 1-5 read (06:23-06:50Z, from c3acc338ad56; cache `bm-cache-qw4`)
+
+- **The fetch.**
+  - Plan: 6,398 files (sea 2).
+  - Fetched: 6,390 of 6,398, 4.856 GB. **8 census county files were refused**: census.gov served HTML rejection pages (AREAWATER 38021, 39167, 44007, 56029; LINEARWATER 17005, 19123, 27081, 54093). `checkBody` refused each one, so none was cached.
+  - These are different counties from 10-28's two (34023, 39077), so it is the census rate shape, not the files. **The 10-28 ruling governs:** the ingest's own `retry`, gently over about 24 h with the User-Agent; if still refused, the Census Bureau's mirror, with a manifest note.
+- **The coverage step:** 4,907 rows; 3,144 counties and 51 states; 9,638 tiles, 0 HEAD failures, 706.6 MB, all Last-Modified 2017.
+- **The tile fetch.**
+  - It crashed three times on the undici parser class the code names ("crashed (log saved): false == true").
+  - Then, by the bounded resume loop ruled after 06:43Z, 9 more such crashes, each adding records, and **FINISHED at the loop's run 10**: 9,638 tiles, 706,629,891 B (the HEAD measurement exactly), 0 failed.
+  - Every resume re-hashed every logged tile.
+- **S-0, the pins: AS PREDICTED.** Ocean db626fcd5d50, lakes 0803a06f9c3c, admin-0 ce1ac7036499, land e547d749445e.
+- **S-1, the drift: AS PREDICTED.** Against the prototype's base store (16,035 entries), 0 changed outside peaks:
+
+  | layer | same | changed | added |
+  |---|---|---|---|
+  | water | 3,140 (+4 refused, pending) | 0 | 0 |
+  | rivers | 3,140 (+4 refused, pending) | 0 | 0 |
+  | roads | 51 | 0 | 0 |
+  | places, population, states, counties | 1 each | 0 | 0 |
+  | naturalearth | 2 | 0 | 0 |
+  | sea | 1 (the ocean, its URL unchanged) | 0 | 1 (the lakes) |
+  | terrain | 9,638 | 0 | 0 |
+  | **peaks (GNIS)** | 0 | **51 (all)** | 0 |
+
+- **What the GNIS drift can move (condition 2).** The peaks section and PROVENANCE's peaks lines of any package built from the new store.
+  - SEA-OWN's "every other section byte-identical" is therefore not graded on peaks without a re-prediction, put to the orchestrator.
+  - I2 (water only) and the S-rows are untouched by it.
+  - The states file is unchanged, so S-3 also compares with 5cf7169484c2.
+- **The dry runs wait** for the 8 census files: the dry run refuses missing files, and `--partial` measures only, never a store.
+
+**SEA-OWN, re-predicted under condition 2 (accepted after 06:52:03Z), before it runs:**
+- **SEA-OWN** is graded as frozen on every section EXCEPT the peaks section and PROVENANCE's peaks lines: the water section's rings equal SEA-PKG's as a multiset, every other section is byte-identical, and PROVENANCE differs only in the store's id, its file references and the peaks lines.
+- **PEAKS-REC (recorded, not graded):** at each of the 16 points, the new store's peaks section against the old store's. Each difference is named by the GNIS feature it comes from (`feature_id`, name).
+- **The guard (GRADED), so the exception cannot hide anything.** All 51 GNIS files changed, so a file-level test would pass trivially. The guard is therefore feature-level:
+  - Every peaks difference must be explained by a summit (`feature_class` Summit) whose STORED record differs between the old store's cells (`bm-obj`) and the new store's cells: added, removed, renamed or moved, within that point's square.
+  - **A difference with no such summit is a STOP.** In particular, a point whose square holds no changed summit must have a byte-identical peaks section.
+
+### The store-independent runs (ruled after 06:52Z): SEA-PKG read; SEA-FIG's grading fixed before it runs
+
+**SEA-PKG re-read at 82113178 (06:53:58-06:54:05Z; `cp-seapkg.py` e3bd13ca7f16, `cp-run.mts` 2eaa14c28661, output f73cfc9b84e6): AS PREDICTED.**
+All 16 packages are byte-identical to run 10's, every sha as frozen in d0's row. KB5 is therefore bound by this identity (scope ruling u1).
+
+**SEA-FIG: what "run 10's figures" are, taken from run 10's own instrument before the code's figures are graded.**
+
+- **Run 10's sea counts are `dr-p2c.mts` (55ab458ce281) line 57's:**
+  - `drawn`, `refused`, `collapsed`, `outside` and `dropped` are COUNTS OF FATES, taken after the ladder has relabelled as "dropped" every drawn piece whose ring the package lost;
+  - `islandsDropped`, `islandsSmall`, `bridges`, `refused5`, `repairs` and `repairVertices` are the sea step's own counts;
+  - `bytes` is the sea rings' bytes, and `rings` is the number of sea rings in the water section.
+- **The code PR's report uses the same names for a different quantity.** Its `sea.drawn` (and `refused`, `collapsed`, `outside`) are `SeaCounts`', counted BEFORE the ladder. So the code's `sea.drawn` is run 10's `drawn` plus `dropped`. SEA-PKG's printout shows this at KJFK: 16 = 14 + 2.
+  - This is a difference between the two harnesses, not between the two builders. Both build the report as `{ ...sw.n, dropped, ... }`, and the code relabels a lost piece "dropped" exactly as the prototype does (`build.ts:261`).
+  - **So SEA-FIG is graded with run 10's definitions,** computed from the code's own `report.sea.fates`, the length of `report.sea.ringIdx`, and the named counts.
+- **Two further GRADED checks, so the mapping above cannot hide anything:**
+  - **Consistency:** the code's `sea.drawn` equals fate-drawn plus fate-dropped; its `sea.dropped` equals fate-dropped; its `refused`, `collapsed` and `outside` each equal their fate counts. **If any fails,** the two definitions do not relate as stated, and the run STOPS.
+  - **Run 10's own pieces:** `p2-out/<home>-sea-p21.json` holds every piece's (file, record, fate) and the sea rings' positions. It was written at 19:31:49-19:32:16Z, inside run 10's 19:30:23-19:34:40Z window. At each point the code's list must equal it exactly, IN ORDER, as must `ringIdx` against its `seaIdx`. **A difference only in order is outside the set: STOP.**
+- **Where each figure comes from:**
+
+  | figure | run 10's figure | points |
+  |---|---|---|
+  | rung, radius, the sea counts, `refused5`, `repairs`, `repairVertices` | the P2-1 rows of `p2-read.run10.out` (fffce461d302), lines 56-71 | all 16 |
+  | non-terrain bytes, `dropped.water`, the water rings | the (B') rows, lines 74-77 | KJFK, KLGA, KEWR, MIDTOWN |
+  | `dropped.water` | VISIBLE COSTS, line 211: 45 | KBOS |
+  | D2's steps (`radii.length`, R3) | the registration itself: 2 at New York, 1 elsewhere. Run 10 printed none | all 16 |
+  | non-terrain bytes and `dropped.water` at the other 11 | **run 10 printed none, so they are not graded separately.** Both are functions of the package bytes, which SEA-PKG proved identical. Printed | 11 |
+
+  `repairLog` is printed beside run 10's and recorded, not graded: the row names `repairs` and the vertices only.
+- **Outside the set: STOP,** and report to the orchestrator. That covers any figure that differs, a missing p21 file, or a grader error.
+
+**SEA-FIG, read (07:02:53-07:03:02Z at 313add48; `sf-run.mts` 51c8bf0fca58, `sf-grade.py` 152e123d4cf4, output 724a193379c4): AS PREDICTED, 413 checks, 0 off.**
+- **At all 16 points, every graded figure equals run 10's:**
+  - rung and radius;
+  - D2's steps, 2 at New York and 1 elsewhere;
+  - the sea counts by run 10's definitions;
+  - `refused5` 0;
+  - `repairs` 1 with 4 vertices at New York, and 0 elsewhere.
+  - At New York, the non-terrain bytes, `dropped.water` and the water rings are 32,752 / 86 / 93 (KJFK), 32,760 / 116 / 58 (KLGA), 32,763 / 141 / 25 (KEWR) and 32,760 / 120 / 53 (MIDTOWN).
+  - KBOS's `dropped.water` is 45.
+- **The consistency check holds at all 16.** In the code's report, SeaCounts' `drawn` equals fate-drawn plus fate-dropped, and its `dropped`, `refused`, `collapsed` and `outside` each equal their fate counts.
+- **Run 10's own pieces:** every point's (file, record, fate) list equals its p21 file in order, and `ringIdx` equals its `seaIdx`.
+- **`repairLog`** (recorded, not graded) is the same as run 10's at all 16.
+- **The grader's control, its predictions written first** (`seafig/control-pred.txt` 9117f6b99e4d, 07:03:28Z). The control replays the saved builds with one planted fault, using the same grader with its plant hooks (2bbabb5d5be9). Both read exactly as predicted:
+  - **`drawn-sc`** (the code's own pre-ladder `drawn` graded as if it were run 10's) is OFF at exactly 5 points, every one `sea.drawn`: KBOS 20 / 17, KJFK 16 / 14, KLGA 16 / 14, KEWR 15 / 11, MIDTOWN 16 / 14;
+  - **`order`** (KBOS's pieces reversed) is OFF at exactly 1 point: KBOS, "ONLY IN ORDER".
+  - The unplanted grade was then re-run on that same grader (07:03:36-07:03:45Z). It read the identical output, 724a193379c4.
+
+**Scope ruling u1, read at the same builds (07:04:58Z; `seafig/u1-ksea.py` 30bdaa902b56):**
+- **KB3, KB4 and KB8 are covered by the identity of their bytes and their inputs.**
+  - Their packages are SEA-PKG's.
+  - Their inputs beyond the bytes are every piece's fate in order plus the sea set, at all 16. Those hash to **01ddfab4ae28 on both sides** (the code's builds against run 10's p21 files), with 0 points differing.
+  - The sources run 10 rendered against are unchanged: `sea-pieces.json` 8ad5d92fa7c7, last written by run 10's step 0 at 19:30:25Z, and `sea-obj`'s `index.json` d6945e124bfa.
+- **KB5** is bound by SEA-PKG's byte identity, as ruled.
+- **The KSEA guard, printed on the code PR's own KSEA package** (9bd5b34d6718: its water rings by `i2/pkg2json.mts`, its sea set from the code's report, rendered by run 10's `p2-render.py` kb4 against `sea-obj`) reads **frac 0.886081: PASS** against 0.886. That equals run 10's value to 6 places (cover 0.9192, 8,190 sea px). Its rings, origin and radius equal run 10's p21.
+
+### The instrument for R-KMSP, R-D2, SEA-MEM and the CM rows, registered before any of them runs
+
+**The predictions are the frozen rows'; nothing here changes one.** This fixes how each row is measured, and every choice the rows' text leaves open.
+
+**The two trees, each taken from its COMMIT** (blobs by `git show`, never a working tree): `cm/mk-cm.mjs` 751201f6d83f, the whole of `proxy/src`.
+- **The code PR's** (fa8ae1f6, `proxy/src/basemap` af4063428381) is byte-identical to its commit (`build.ts` 15c19c728dea). It carries its own phase hook, `buildHooks.phase`: six phase calls and D2's step line, null in production (above, "The harness's extras and the phase hook").
+- **Main's** (e03e6c4d, the merge-base, `proxy/src/basemap` 07649873ad4d) has only `mk-hooks.mjs`'s seven sampling lines added. The hooked `build.ts` is **f60ae55f45d9**: byte-identical to the hooked builder #639's measurement read (`docs/basemap-release.md`: "`f60ae55f45d9` for the PR's").
+- The generator refuses unless:
+  - every anchor matches once;
+  - the hooked file differs from its blob by those seven lines alone;
+  - every other file is byte-identical;
+  - both trees call the same six phases in the same order.
+- **Its refusals, shown:** given the code PR as "main", it refused (an anchor matched 0 times), and it refused a directory that was not fresh.
+
+**The child, `cm/dr-cm.mts` 3a98e065bd05:** `dr-p2m.mts` (7814abed9746, P2-M's) with three changes. The controls C1, C2′ and C3, the settled sampler, the phases and the per-step peaks are unchanged.
+1. **The tree by name** (`cp` or `main`). The same sampling function is set as the code PR's `buildHooks.phase` and as main's `globalThis.__mem`.
+2. **The 8 MiB plant is held by the child,** since the code PR has no knob. It is made after the baseline and before the build. At the first phase call past the cell loop it is read back (first + last byte = 10) and dropped BEFORE that sample. The control requires it made (8,388,608 B), read back (10), and not held to the end.
+3. **Mode `nocap8`** (R-KMSP's comparison build): ε × 8 (1,609,344 mm) with `capBytes` = `Number.MAX_SAFE_INTEGER`.
+
+Its import checks: in both trees it refused an unknown point after its imports resolved (exit 2), and without `--expose-gc` it refused (exit 3).
+
+**The driver, `cm/cm-run.py` 272c0a2b7bf8:** one group per invocation, in the ruled order: `rkmsp`, `rd2`, `seamem`, `cm`. It stops at the first off reading.
+- **Before each group:** TIME_WAIT under 2,000; no vitest or sabotage- process; C: at least 30 GB free; the two trees' `build.ts` re-hashed against the pins above.
+- **Every build STOPS the group** (as the instrument, not a reading) unless:
+  - its controls held;
+  - every sample settled;
+  - every object was local;
+  - it is at most 96 MB (CM-M's stop).
+
+**What each row reads:**
+- **R-KMSP**, on the no-sea store (`bm-obj`; d0 keeps R-KMSP there):
+  - **A** is KMSP at the client's query;
+  - **B** is KMSP at ε × 8 with no cap. B must read rung 0 and one step (an instrument row), or the comparison is not the row's.
+  - **Graded:** PROVENANCE's `collapsed.water`, and the report's `refused`, are equal between A and B.
+  - **The control:** A's `refusedBuilt` is at least 1.
+  - The prototype's QW4-C1 figures (`refused` 0, `refusedBuilt` 2, `collapsed.water` 273) are printed, not graded: the row grades A against B.
+- **R-D2**, at New York's 4 on the no-sea store (d0 keeps it there):
+  - **graded:** at most 2 radii, and step 1's peak is the largest of the steps' peaks;
+  - the instrument requires one step peak per radius.
+- **SEA-MEM:**
+  - **The sea build** is the code PR on `sea-obj`.
+  - **Its no-sea build** is the code PR on the stores with no sea layer: P2-M's "orig" (`bm-obj`, plus `lake-obj` and `zap-obj` at the three lake points).
+  - **The plant control (u2)** is on `sea-obj` at KJFK, first.
+  - **An anchor, added and graded:** each sea build's package equals SEA-PKG's sha. That proves the tree from the commit builds what SEA-PKG built.
+  - **A difference from P2-M's instrument, named before the run.** P2-M's no-sea build was pq4d with its sea knob OFF on `sea-obj` itself: cells that hold kind-6 features, decoded and skipped. The code PR has no knob, so its no-sea build reads cells without them.
+    - The graded phase, the ladder, comes after the cell loop. Each read is handed over as it is consumed, and in P2-M's no-sea build the skipped features never entered a layer set. So at the ladder phase neither no-sea build holds any sea, and the difference should not reach it.
+    - **If SEA-MEM reads off, this is the named alternative:** STOP, to the orchestrator, with no re-measurement without a ruling.
+- **The CM rows**, on the no-sea store, at the 13:
+  - **u4:** `proxy/src/basemap`'s tree at e03e6c4d and at main's head (fetched at run time) are printed, and must be equal.
+  - **CM-0's references** are #639's measurement run, `rv-meas.log` (fc43b98c419e). It is the only record of #639's cell phase per point (`rv-meas.json` holds the peaks only).
+  - **CM-0 also grades main's ANSWERS** against that log: Nov 8's shas at the 9, and #620's ladders at New York. This is an anchor added, the measurement's own.
+  - CM-P is KJFK on the code PR's builder, with the plant above.
+  - The memory rows and their worlds are as frozen ("The three points with two outcomes", point D).
+- **The package rows (5.6)** need QW4-1's references rebuilt by `pq4b`. Their harness is registered separately, before they run.
+
+**Outside the set: STOP and report.**
+
+**ACCEPTED (after 07:23Z), with one addition to SEA-MEM** (recorded, not graded): beside the graded ladder phase, print each no-sea build's cell-loop figure with P2-M's run-10 one. **Run 10 recorded P2-M only as per-phase differences (sea minus no-sea) and each build's peak**, never the no-sea build's absolute cell phase. So the comparison is made on those, the cell loop included.
+
+**A process failure first, mine: the first R-KMSP attempt (07:23:10Z) stopped at its own gate, before any build.**
+- The "no vitest or sabotage- process" query matched its OWN powershell command line, which holds the pattern. It read 1. Every match was shown to be the query itself.
+- **Fixed:** the query excludes its own text. `cm-run.py` 272c0a2b7bf8 → **8a9400a4af7b**; the old file is kept as `cm-run.272c0a2b7bf8.py`.
+- The same edit added a gate-only mode and the orchestrator's SEA-MEM line.
+- **The gate's control** (predictions `cm/gate-control-pred.txt` a597def69d5d, 07:24:18Z):
+  - with a dummy node process carrying "sabotage-gate-control" running, the gate read 1 and STOPPED;
+  - with the dummy killed and shown gone, it read 0 and passed. As predicted.
+
+**R-KMSP (07:24:35-07:24:40Z; output `cm/rkmsp.out`): AS PREDICTED.**
+- The comparison build is the row's: ε × 8 with no cap, rung 0, one step, tolerance 1,609,344 mm.
+- The control: `refusedBuilt` 2.
+- `collapsed.water` 273 = 273, and `refused` 0 = 0. Both equal the prototype's QW4-C1 figures (recorded).
+- KMSP's package: rung 3, 32,745 non-terrain bytes (5.6 predicts 32,745), 0 crossings.
+
+**R-D2 (07:24:47-07:25:15Z; `cm/rd2.out`): AS PREDICTED at New York's 4.** Each takes 2 steps (162 then 129.6 km), and the first step holds the call's largest sample:
+
+| point | step 1 | step 2 (MiB) |
+|---|---|---|
+| KJFK | 71.80 | 61.72 |
+| KLGA | 73.98 | 64.62 |
+| KEWR | 74.09 | 69.55 |
+| MIDTOWN | 71.15 | 63.33 |
+
+KJFK's no-sea package, ee8c834bc81a, is the one FT-SEA pins.
+
+**SEA-MEM (07:25:24-07:27:30Z, 34 builds; `cm/seamem.out` 4b9817bfc216, `cm/seamem-builds.json` 770f80633dbe): AS PREDICTED.**
+- **The plant control (u2), on `sea-obj` at KJFK:** cell +8.00; later phases -0.01 to 0.00; made 8,388,608 B, read back 10, not held to the end.
+- **The anchor:** all 16 sea packages equal SEA-PKG's shas.
+- **The graded row:** at all 16, sea minus no-sea at the ladder phase is inside ± 0.785 of P2-M's.
+- **The orchestrator's recorded comparison** (the code PR's difference [P2-M's]):
+  - **The cell loop differs, the ladder agrees:** KMIA, cell -1.54 [+0.29] and ladder +0.60 [+0.61]. KEWR and MIDTOWN read about 0.2 lower in the cell loop and agree at the ladder within 0.05. There the store difference stops before the graded phase.
+  - **From the tile phase on, and still at the ladder:** KSFO, tile -0.44 [+0.20] and ladder -0.25 [+0.40], with the cell loop agreeing (+0.16 [+0.15]). BUFFALO also, smaller: ladder +0.25 [+0.45].
+  - **Which side moved,** by the peaks (every one at the ladder): the code's SEA builds equal P2-M's sea builds, KSFO 41.15 against 41.16 and BUFFALO 45.14 against 45.14. The code's NO-SEA builds on the stores without a sea layer read **+0.64 at KSFO** (41.40 against 40.76) and +0.18 at BUFFALO, against pq4d's knob-off builds on `sea-obj`.
+  - **So at KSFO the store difference DOES reach the graded phase, by 0.64 MiB,** inside the instrument's ± 0.785.
+  - Also recorded: at KDTW, KMSP and ROUSES, BOTH of the code's builds read about 5 MiB above pq4d's: +5.35, +5.72 and +4.65, the same on both sides. So it cancels in SEA-MEM. It is the class of #639's unnamed KORD/KIND tree effect. The code PR at KMSP on `bm-obj`, 52.39, sits where QW4-1's pq4b did.
+  - Every other point agrees with P2-M's peaks to ± 0.05 on both builds.
+- **Put to the orchestrator (07:29Z), with the CM rows HELD, not started:** is KSFO's 0.64 MiB at the ladder the stop its sentence "if they differ at the ladder too, that's the stop" describes? Or is it a recorded reading on a row that passed? Its cause is not being investigated without a ruling.
+
+**THE ORCHESTRATOR'S RULING (after 07:29Z): SEA-MEM's graded result STANDS.**
+- **The orchestrator records its own miss:** its rule ("if they differ at the ladder too, that's the stop") gave no threshold, so the reading was ambiguous at the moment it was read. It rules on the data instead of re-reading the sentence.
+- **KSFO's deviation is attributed to the NO-SEA BASELINE'S STORE, not to the sea path.**
+  - The code's SEA build equals P2-M's sea build at the ladder: 41.15 against 41.16 at KSFO, and 45.14 against 45.14 at BUFFALO. The sea side did not move.
+  - The no-sea build on `bm-obj` reads +0.64 against pq4d's knob-off build on `sea-obj`. The baseline moved.
+  - **Correcting KSFO's measured sea cost by that shift gives -0.25 + 0.64 = +0.39, against P2-M's +0.40.** So the whole deviation is the baseline.
+- **The alternative, "a sea-path memory change at KSFO", is EXCLUDED by the equal sea peaks.**
+- Recorded and not investigated now:
+  - KMIA's, KEWR's and MIDTOWN's cell-only differences;
+  - the roughly 5 MiB shift on both sides at KDTW, KMSP and ROUSES (it cancels; #639's unnamed tree effect).
+- **The CM rows may run.** They compare the code PR against main, both on `bm-obj`, so the store question does not enter them.
+
+**The CM rows (07:29:41-07:31:21Z, 28 builds; `cm/cm.out` 6f571098aad2, `cm/cm-builds.json` 373bc70b3512): ALL AS PREDICTED.**
+- **u4:** `proxy/src/basemap` is 07649873ad4d at e03e6c4d and at main's head. Main has moved to 4abb65082f5e since the ruling, outside this tree.
+- **CM-0, at all 13:** main's answers equal #639's (Nov 8's shas at the 9, #620's ladders at New York). Its peak and cell phase are within 0.785 of #639's: KBOS is furthest, -0.63 and -0.50; every other point is within 0.06.
+- **CM-P:** cell +8.01, made and read back. **The later phases read -0.71 to -0.73, inside ± 0.785 by 0.055.** That is near the band's edge, so it is stated rather than left to the PASS (SEA-MEM's control on `sea-obj` read -0.01 to 0.00).
+- **The memory rows: the world is O2 at all three:**
+  - KJFK's cell phase is +16.30 (O2 +16.29); KORD's peak +0.86 (O2 +0.89); KIND's peak +0.79 (O2 +0.75).
+  - So the tree effect is PRESENT in the real builder.
+  - KJFK's peak reads +13.27 (+13.24). KBOS's reads +12.73, inside O2's band, 11.285 to 12.855.
+  - The one-value peaks: KLGA +14.01, KEWR +13.24, MIDTOWN +13.03, KMIA +1.63, KSFO +2.19, KSEA +4.00, KDTW +5.67, KMSP +5.12, KJAC +1.78. Each is within 0.06 of its frozen value.
+  - The cell phase is recorded: KBOS +13.30, KLGA +10.52, KEWR +9.79, MIDTOWN +17.32.
+- **CM-M:** none is over 96 MB. **KLGA and KEWR read 77.6 MB against the 77.2 the owner took with B, as on the prototype: a report, not a stop.** The other code PR builds: KBOS 72.1, KJFK 75.3, MIDTOWN 74.6, KMIA 43.0, KSFO 43.4, KSEA 55.7, KORD 49.0, KDTW 55.4, KMSP 54.9, KIND 54.1, KJAC 42.6.
+
+**The 5.6 package rows' harness, registered before it runs:**
+- **The references:** QW4-1's packages, rebuilt by `pq4b` at QW4-1's knobs (`Q4_LADDER=b`, `Q4_D2=1`, `Q4_TP=1`) through QW4-C's own child, `dr-q4c3.mts` b02b5a66d240, unchanged. Each is checked against QW4-1's sha FIRST, along with its old `collapsed.water`; else STOP, since the references have moved.
+- **The code PR's build:** `cm/pk-cp.mts` c9ac9a5c5a4f. It is `dr-q4c3` with the builder from the code PR's tree (`cm/cp`, from its commit), no knobs, and the proper crossings added. Its per-section digest is `dr-q4c3`'s expression, unchanged, so the two compare.
+- **The grade, by `cm/pk-grade.py` 3d5f5c8a62f2, "equal" at every point exactly as frozen:**
+  - every section but PROVENANCE identical;
+  - PROVENANCE has the same line count and differs only in `collapsed.water`, which equals the table's value (at KJAC, no difference at all);
+  - PROVENANCE's byte change and the non-terrain bytes are the table's;
+  - the rung, radius and tolerance are QW4-1's;
+  - the package is `kOk` and at most 32,768 B, with 0 proper crossings.
+- **A cap edge anywhere stops,** as does anything else outside "equal".
+- Import checks: both children refused an unknown point after their imports resolved (exit 2).
+
+**The 5.6 package rows (07:35:35-07:36:23Z, 26 builds; `cm/pk.out` 35be9b1b42a8, `cm/pk-out.json` b90afd99effc): ALL AS PREDICTED, "equal" at all 13.**
+- **Each of QW4-1's 13 references was rebuilt by `pq4b` to its sha**, with its old `collapsed.water`.
+- **Against each reference, the code PR's package:**
+  - has every section but PROVENANCE identical, with no cap edge anywhere;
+  - differs in PROVENANCE in exactly one line, `collapsed.water`, at the frozen value: KBOS 140, KJFK 96, KLGA 98, KEWR 89, MIDTOWN 91, KMIA 80, KSFO 35, KSEA 87, KORD 80, KDTW 66, KMSP 273, KIND 24;
+  - has PROVENANCE's byte change and the non-terrain bytes as frozen, KJFK at 32,768 with 0 to spare;
+  - keeps QW4-1's rung, radius and tolerance;
+  - is `kOk`, with 0 crossings.
+- **KJAC's package is byte-identical to QW4-1's** (a6a475745804), with PROVENANCE unchanged.
+- **The digest comparison's blindness control** (by replay, its prediction written first, `cm/pk-control-pred.txt` cb6757c99dcb): KBOS's code digests against KJFK's reference differ in all 7 digested sections, and against KBOS's own reference in none.
+
+**So every store-independent row of the ruled order has now read: SEA-PKG, SEA-FIG, R-KMSP, R-D2, SEA-MEM, the CM rows and the 5.6 package rows. Every one is AS PREDICTED.** Two things stand on record:
+- SEA-MEM's KSFO baseline, by the orchestrator's ruling;
+- the first R-KMSP attempt's gate, which matched itself (my process failure).
+
+**What waits:**
+- **On SEA-STORE (8 census files on the 10-28 retry path):** SEA-OWN, I2, KB7-b and KB7-c-real.
+- **On the 11-16 bench window:** FT-SEA.
+
+### The code PR opens as a DRAFT (the orchestrator, after 07:39Z): main merged in, and `d1.ts` migrated to `wrangler-run` in this PR
+
+**The merge.** Main 4abb6508, which carries #694's `wrangler-run` and its check, is merged into this branch (1137cdf3).
+- No file was changed on both sides.
+- `proxy/src/basemap` is still af4063428381, the tree every run above read.
+- On the merged tree, #694's `check_wrangler_calls.py` read 0 direct calls and 0 stale allowances: this PR had not touched the allowlisted `d1.ts` line.
+
+**The migration, as ruled** ("migrates after the sea-path PR" becomes "migrates IN the sea-path PR"), predicted before the edit (`wr/pred.txt` 1898498b44b8, 07:41:21Z):
+- **M1:** `d1.ts`'s spawn moved to the helper, with the allowlist row kept. Predicted exit 1, exactly the `d1.ts` row stale. **Read: exit 1, "direct 0, stale allowances 1", the `d1.ts` row.**
+- **M2:** the row dropped. **Read: exit 0, direct 0, stale 0.**
+- **M3:** the check's selftest and the helper's selftest. **Read: both exit 0 (13 PASS / 0 FAIL, 9 / 0).**
+- `npm run typecheck:scripts`: exit 0.
+- **What the migration removes:** `d1.ts`'s own per-call log files (A2.40). The helper gives each call its own temp dir and removes it after, so A2.40's reason still holds (8 concurrent calls never share a file). No log is left behind, and nothing read `d1LogDir()`.
+- `docs/wrangler-run.md`'s migration order is updated to match.
+
+**CI, predicted before the push, from the workflows at the merged head** (main's, since this PR changes none). It covers the pull request to main; its files are `proxy/**`, `docs/**` and `scripts/wrangler-call-allow.txt`.
+
+| workflow | jobs | runs |
+|---|---|---|
+| device-ids | `no-real-device-ids` | 1 |
+| firmware | 20 jobs, plus `build`'s matrix of 11 (`scripts/skus.py --matrix-json`) | 31 |
+| no-traffic-captures | | 1 |
+| workers | `manifest-drift`, plus `test` x 2 | 3 |
+| account-budget, print-cards, provisioner, web-renderer | their paths are not hit | 0 |
+
+- **36 check runs: 34 success, 2 skipped** (firmware's `version` and `promote`, release-only), **0 failures.**
+- **Outside that: STOP, and read which job before anything else.** That means a different count, or any failure.
+
+**CI on that push: AS PREDICTED.** 36 check runs: 34 success, 2 skipped (`version`, `promote`), 0 failures (read 08:02Z; the tested merge was 66fed334, 64813991 into main cd011676). The reading was held for this commit, as agreed: a doc-only push re-runs all 36.
+
+### The census files: four rounds refused; the mirror switch in form (d), registered before it runs
+
+**The retry is untouched** (the 10-28 ruling's path, the ingest's own `retry`).
+- Rounds ran at 06:38, 07:38, 09:38 and 12:38Z, one file a minute.
+- **32 attempts, 32 refused.** Each was a 200 served as `text/html`, the rejection page. 0 files fetched.
+- Still to come: ~18:38Z and 11-14 ~06:38Z. A file any round fetches gets no mirror.
+
+**The first prepared form put the mirror URL in the manifest's url field. It is set aside for what it costs.**
+- A feature names its source by the file's INDEX in the URL-sorted manifest (`store.ts:9`, RD2), and features draw in that order (`layers.ts:25`).
+- `https://ftp2.census.gov/…` sorts before every other URL. So that form reindexes **15,880 of the store's 16,036 files** (`mirror/shift.py` adfe0780ceb9):
+  - all water, sea, peaks, places and terrain;
+  - 3,041 of 3,144 rivers.
+- That rewrites nearly every cell, with no change to any geometry or attribute.
+- **KBOS (44007, Providence RI) and KJAC (56029, Park WY)** are the two of the 16 points whose square meets a mirrored county, by build.ts's own region test on bm-obj's index (`mirror/met.mts` de3ac090e0a7). The closest miss is KJFK: its square's east edge is -71.857, against 44007's west edge at -71.799. At those two points:
+  - PROVENANCE's `source.water` becomes `https://`, 46 B shorter;
+  - `sha256.water` changes;
+  - the 46 B freed could move the ladder's rung.
+- All of that for a transport detail.
+
+**Form (d), the orchestrator's (after 12:53:29Z): fetch from the mirror, prove the file is the primary's, record it under the PRIMARY url.**
+- **The departure, named.** The 10-28 ruling says "record the mirror URLs as their URLs, with a note in the manifest". Form (d) keeps the primary URL and moves the mirror into the note.
+  - The note still says truthfully where each file came from.
+  - **Ruled (the orchestrator, 13:06:16Z), verbatim:**
+
+    > Form (d) REPLACES the 10-28 clause 'record the mirror URLs as their URLs' (reviewer chat, 2026-10-28, docs/basemap-route.md ~L1167). The url field names the file's IDENTITY: every reader treats it so (cachePath, verifiedBytes, d1, basemap-check, the regions, PROVENANCE), and only the fetch treats it as a location. A mirror file proven byte- and sha256-equal to our record of the primary IS the primary's file. So the manifest keeps the primary url, and the note states truthfully where it was fetched from. That keeps the clause's PURPOSE ('the manifest then says truthfully where each came from') while avoiding a reindex of 15,880 files and a PROVENANCE change at KBOS and KJAC for a transport detail. Ruled by the orchestrator, 2026-11-13T13:06:16Z.
+
+    The orchestrator is telling the owner, so that the reviewer whose ruling 10-28 may have been can object. The ruling also stands beside the 10-28 text in `docs/basemap-route.md`.
+- **No code change to this PR.** What the code shows:
+  - **Every reader takes the url as the file's identity:** the cache path (`cachePath`, `verifiedBytes`, d1's tiles, `basemap-check.ts`), the regions, PROVENANCE's `source`/`sha256` lines, and MI4b's notes check.
+  - **Nothing reads it as "where it was fetched",** except the fetch itself (`fetchOne`, `adopt`'s HEAD), and a logged record skips both.
+  - **A plan entry's `note` has one reader,** the manifest (`ingest-basemap.ts` L379).
+  - **The transport survives in one field only:** the retry record's `lastModified`, as ftp2 serves it. It enters no manifest and no store, since TIGER's vintage comes from the path.
+- **The steps** (`mirror/switch_d.py` 361161bdc565), only after the retry's schedule has ended:
+  1. **`apply`:** the 8 plan entries' url becomes the mirror url, so the ingest's own retry can fetch them. The original plan is kept by its bytes, f12d3eb56040. It refuses while any ingest-basemap process runs, and if a round fetched a primary file.
+  2. **The fetch:** the ingest's own `retry --schedule-min 0 --urls <8 mirror urls>`, through `runlog.sh`. One round, one file a minute, with the UA. Its guards (length, `checkBody`) run on every file.
+  3. **`check`,** per file:
+     - the same name as the primary;
+     - a PK zip;
+     - bytes AND sha256 equal to bm-obj's record for the PRIMARY url (store 4c0875738f38, fetched from www2 in October);
+     - vintage 2024.
+  4. **`rekey`:** refuses unless `check` passed. Each file is copied to the primary path, its sha checked again. Each record moves to the primary url. plan.json goes back to its original bytes, plus one `note` per entry. Every write is read back.
+  5. **`final`:** plan = the original + 8 notes; no entry names ftp2; no mirror-url record is left; each primary record, its file and bm-obj's record agree.
+  6. **`m4-strip` / `m4-restore`:** around M-4's control dry run, the original plan bytes go in, then the noted plan comes back, checked by sha.
+- **The note, exactly** (MI4b's form; `mirror/notes_d.mts` 6ba47d942b07):
+
+  `<primary url>: fetched via the Census Bureau's mirror <mirror url> after www2.census.gov's firewall refused it; its bytes and sha256 equal this url's record in store 4c0875738f38`
+  - **Its CONTROL ran first:** the dated wording ("… the record of 2026-10-28") was REFUSED, "a manifest note holds a wall-clock time".
+  - Then this PR's `writeManifest` took the 8 notes: round trip true, every note on a primary url.
+- **Rehearsed** on a copy of the plan, with synthetic mirror files. The predictions were written first (`mirror/rehearse_d.pred` 858bf291f013, `mirror/rehearse_m4.pred` 9a2fdc777c08), and the scripts are `mirror/rehearse_d.sh` f0c1a03a6314 and `mirror/rehearse_m4.sh` 54260e633170. **Every row read AS PREDICTED**, on the final script:
+  - the process guard refused: 9 processes, every one this retry's;
+  - the rehearsal flags refused on the real cache;
+  - `check` read 8 DIFFERS, and `rekey` refused on it with nothing changed;
+  - `rekey`, with identity skipped (a rehearsal-only flag), and `final` passed;
+  - a tampered copy read 1 NOT OK;
+  - `m4-strip` and `m4-restore` round-tripped, and each refused out of order;
+  - the real plan stayed f12d3eb56040.
+
+**The base rate for `check`.** Every census.gov file held both by bm-obj and by this ingest's fetch is byte-identical (`mirror/shift.py`):
+- water 3,140 / 3,140, rivers 3,140 / 3,140, roads 51 / 51;
+- states, counties, places and population 1 / 1 each;
+- terrain 9,638 / 9,638.
+
+Only GNIS differs (51 / 51, recorded at S-1).
+
+**Predictions, registered before the switch:**
+
+| row | expected |
+|---|---|
+| **M-1**, `check` | all 8 SAME as bm-obj's records, in bytes and sha256 |
+| **M-2**, `final` | passes: the plan is f12d3eb56040 + 8 notes |
+| **M-3**, the dry run's manifest | 16,036 entries; the 8 byte-equal to bm-obj's entries; keys `builder,files,notes,predicates`; `notes` exactly the 8 above |
+| **M-4**, the store against a primary-fetched one: one extra dry run, FIRST, on the original plan bytes (`m4-strip`), then `m4-restore`, then S-2's two | the trees are identical except `store/manifest.json` (the notes key) and `dry-run.json` (its `storeId`, `manifestBytes` and `vectorStoreBytes`) |
+| **M-5**, the rows after it | SEA-OWN, I2, KB7-b and KB7-c-real as registered. The switch moves no url, so it moves nothing at KBOS or KJAC |
+
+**Outside this set:**
+
+| reading | then |
+|---|---|
+| any mirror fetch refused, a 404, or another error | nothing is logged: STOP and report. No local copy exists to fall back on (Temp and `C:\Github` searched) |
+| any file fetched but not SAME | STOP before `rekey`. Its record stays under the mirror url, unused without a ruling |
+| M-3 or M-4 not as above | STOP before S-3 |
+| anything else | stop and decide |
+
+**CI for this push, predicted from the workflows at the merged head.**
+- Main moved to b7184243 (#695, #697). Its one workflow change adds a STEP to `workers.yml`, not a job. This PR's files are unchanged.
+- `git merge-tree` with main: clean.
+- #694's wrangler check on the merged tree: direct 0, stale 0.
+- **Predicted: 36 check runs, 34 success, 2 skipped, 0 failures.** Outside that: STOP, and read which job before anything else.
+
+**CI on 95d9cb56: OFF.** 36 check runs: 33 success, 2 skipped, **1 failure** (read 13:21:19Z), where 34 / 2 / 0 was predicted. Stopped as registered: nothing re-run, nothing pushed.
+- **The job:** `test (proxy)` (131902251666), step `node scripts/check-locate-page.mjs --selftest`: "SELFTEST FAILED".
+- **One row failed:** P1, "sendBeacon plant, CSP removed": **exit 2 (want 1)**, which is the check's BLIND, not a leak and not a pass.
+  - The reason was "anchor MISSING". Chrome started (no relaunch line; requests captured) and the click landed (`clicked=true`).
+  - But within the 2.5 s window, the popup still showed its ask, never the "sent" copy, and the opener received no sentinel (`messages=[]`).
+  - P1 is the first browser case, and it took 39 s. Every other row took about 3.4 s.
+- **Every other row passed:** P2, P3, A4, A5, A2, A3, and the designed BLIND row.
+- **(1), a real effect of this PR or of the merge: excluded by the inputs.**
+  - The merged tree is main b7184243 plus this PR's diff only (`proxy/src/basemap`, `proxy/scripts/basemap`, `docs`, the wrangler allowlist). The locate page and its check read none of them.
+  - `embed-pages --check` read "current (4 page(s))" in the same job.
+  - Main's own `test (proxy)` passed this step at b7184243 and at 5b0d27fd, and so did this PR's previous head (the 66fed334 merge).
+- **(2), a cold-start flake on the first row: supported, with one difference.**
+  - P1 has gone BLIND before on unrelated heads: main 0116e138, deploy/wx-live, feat/bend-feed-v2, and feat/wx-server twice (10-20 to 10-22).
+  - Those were "Chrome never opened its debugging port", the startup failure #481 widened to 30 s plus a relaunch.
+  - Today the port opened and the flow stalled after the click: the same row and exit code, at a different stage.
+- **Ruled by the orchestrator (after 13:21:48Z): option (b).** Under the 11-04 rule, a BLIND is an INSTRUMENT failure, never a red against this PR.
+  - This commit, the 13:06:16Z ruling quoted in both docs plus this reading, gives a fresh full run.
+  - No re-run of the job, and no change to the locate check.
+  - The orchestrator queues the flake: P1's 2.5 s post-click window on a cold first browser case.
+
+**CI for this push, predicted:** the same workflows, the same files, and main still b7184243, with the merge clean.
+- **36 check runs: 34 success, 2 skipped, 0 failures.**
+- **P1 BLIND again:** STOP. The orchestrator takes it to the locate check's owner, with both runs' evidence. That would be the instrument's second failure on this PR; a third goes to the project's owner.
+- **Anything else outside 34 / 2 / 0:** STOP, and read which job before anything else.
+
+### 44349515's CI, the census switch's end and the owner's hand fetch, and FT-SEA on step C (2026-11-13 to 11-15)
+
+**This push: main b282699ac091 merged in** (1c8dd093, clean), the records below, and FT-SEA's re-registration copied from #682.
+
+**CI on 44349515: OFF, the instrument's SECOND failure on this PR.** 36 check runs: 33 success, 2 skipped, **1 failure** (read
+13:44Z on 11-13), tested on "Merge 44349515fd0b... into b7184243fc60...".
+- **The job:** `test (proxy)`, `check-locate-page.mjs --selftest`, row P1 BLIND again (30.3 s). This was the pre-registered STOP. It
+  went to the orchestrator for the locate check's owner, 5c.
+- **A correction to my own evidence.** I reported that P1's time separates a pass (4-14 s) from a BLIND (30-39 s). That came from
+  4 runs, and it was WRONG.
+  - 5c's survey of 48 runs (from 11-11 19:09Z) has a 33.5 s PASS (image 360, 11-11 23:24Z).
+  - Both BLINDs were the last two runs on image 370.
+  - P1's cold cost varies from 0 to 35 s.
+- **The fix is in this push's base:** 5c's #698 (aa40aa43, on main 14:22Z on 11-13). It has a 12 s bounded wait, phase timings, and
+  10 selftest rows, including S1 and "P1 again, last".
+
+**The census files.**
+- **The background:** round 6 (06:44/06:45Z on 11-14) fetched 27081 and 54093 linearwater from www2, and S-1 read both byte-SAME
+  as bm-obj's records. Round 7 (06:49-06:55Z) refused the other 6.
+- **The orchestrator's ruling (ii):** the switch at n = 6, registered in `mirror/switch_n6.pred` (below). Step 1 (`apply`) read AS
+  PREDICTED: plan 1cadb9712e03, with the kept copies `plan.original.f12d3eb56040.json` and `retry.before.89475784fe22.json`. Step 2,
+  the mirror fetch, was REFUSED 6/6 (`text/html;charset=ISO-8859-1`): STOP.
+- **Ruling (a): the mirror retried on the ingest's own schedule** (`mirror/sched_n6.pred`). There was one round at each of +60,
+  +180, +360, +720 and +1440 min from 07:26:34Z on 11-14, each its own process.
+  - **All five read REFUSED:** 08:26Z, 10:26Z, 13:27Z, 19:27:30-19:33:35Z, then 07:27:17-07:33:25Z on 11-15. Each read exit 1, 0
+    fetched, 6 refused, 0 other, stderr 0 B.
+  - **Verdict: ALL REFUSED (exit 5).**
+  - **The state is held as registered:** plan.json 1cadb9712e03; `retry-attempts.jsonl` from 60 to 90 lines (6 a round); 0 files
+    under `files/ftp2.census.gov`; the dry-clone at 44349515 unused.
+- **(c) goes to the owner** (the orchestrator, after 07:36:34Z on 11-15):
+  - he fetches the six from his own network, and the hand placement below proves each by bytes and sha256;
+  - the alternatives are (a) re-armed over a longer span and (b) a restore;
+  - building the store without the six is named as NOT registered;
+  - the cache stays untouched until he answers.
+- **What the six are for.** They are 6 of the 16,036 source files of this PR's store: four counties' water areas (38021, 39167,
+  44007, 56029) and two counties' rivers (17005, 19123), 3,449,454 B in all. The build needs every planned file. Until they are in,
+  there is no new store; production keeps today's, and FT-SEA does not wait on it.
+- **Step 8's guard, amended so that #696 may move** (the orchestrator's ACCEPT, after 07:36:34Z). The old rule was "re-read #696's
+  head before step 8, STOP if it moved from 44349515". It is REPLACED by a check that keeps its reason, the dry run testing this PR's
+  proposed code. Immediately before step 8:
+  - `git diff` from 44349515 to this PR's head must be EMPTY over the dry run's import closure, traced at 44349515:
+    `proxy/scripts/ingest-basemap.ts`, `proxy/scripts/basemap/`, `proxy/src/basemap/`, `proxy/src/util.ts`, `proxy/src/wx/crop.ts`,
+    `proxy/src/wx/grid.ts`, `proxy/package.json`, `proxy/package-lock.json` and `proxy/tsconfig.json`.
+  - EMPTY: step 8 reads 44349515 BY SHA, from the dry-clone pinned there. NOT EMPTY: STOP and re-register.
+  - **Read on this push's merge (1c8dd093):** EMPTY (exit 0). Its control, the same diff over all of `proxy/src/wx/` (where main
+    changed `handler.ts` and `ingest.ts`), reads NOT EMPTY (exit 1), so the diff is not blind.
+- **The three registrations, verbatim** (scratch, never run on the cache until ruled):
+
+`mirror/switch_n6.pred` (c4fb80a73ea3, with its step-8 amendment):
+
+```text
+Form (d) at n = 6, re-registered (the orchestrator's ruling (ii), after 06:56:14Z 2026-11-14), before anything is applied.
+Replaces the M rows of docs/basemap-dense-code.md (#696, "Predictions, registered before the switch") for this switch; the doc
+takes this text at #696's next push. NOT run until the orchestrator accepts it AND rehearse_n6.sh has read AS PREDICTED.
+
+WHAT CHANGED, AND WHY
+- Round 6 fetched 27081 and 54093 linearwater from www2 (06:44/06:45Z). S-1 read both byte-SAME as bm-obj's records
+  (1ea420092897, 502372153bb1). Round 7 (06:49-06:55Z) refused the other 6 again.
+- switch_d.py (361161bdc565) refuses outright once any primary file is fetched, and its rows name 8. Its successor is
+  switch_d2.py: the same stages, mirroring only planned_not_fetched (the 6), skipping the 2. Its P1-P3 are rehearsed red-first
+  against the old script in rehearse_n6.sh / rehearse_n6.pred.
+- The store will hold the 2 from the primary (no note) and the 6 via the mirror (each with the note). The note's wording is
+  unchanged (MI4b's form, notes_d.mts 6ba47d942b07):
+  `<primary url>: fetched via the Census Bureau's mirror <mirror url> after www2.census.gov's firewall refused it; its bytes and
+  sha256 equal this url's record in store 4c0875738f38`
+
+THE STEPS, on the real cache, in order (each through runlog.sh; any STOP stops here)
+1. apply: `python -X utf8 -I mirror/switch_d2.py apply` (the process guard needs 0 ingest-basemap processes).
+   Expected: "apply: plan.json f12d3eb56040 -> <P6> (6 urls to the mirror; 2 primary-fetched skipped:
+   tl_2024_27081_linearwater.zip, tl_2024_54093_linearwater.zip); kept plan.original.f12d3eb56040.json and
+   retry.before.89475784fe22.json", exit 0, where <P6> is the value the rehearsal's N0.2 printed (same input bytes).
+2. the mirror fetch: the ingest's own `retry --schedule-min 0 --urls <the 6 ftp2 urls>`, from sab-ingest/proxy (c3acc338,
+   clean), one a minute, with its UA. Expected: 6 "fetched", "retry: all fetched", exit 0, stderr 0 B.
+3. M-1, check: 6 lines "mirror, SAME as bm-obj" and 2 "primary-fetched, SAME as bm-obj"; "identity: ALL 6 mirror + 2
+   primary-fetched SAME", exit 0.
+4. rekey: "rekey: 6 records moved to the primary urls; 6 files copied to the primary paths; 2 primary-fetched skipped,
+   unchanged; plan.json = original f12d3eb56040 + 6 notes -> <P6N>", exit 0, where <P6N> is the rehearsal's N0.7 value.
+5. M-2, final: 8 OK, "final: plan = original + 6 notes; 6 mirrored + 2 primary-fetched records, files and bm-obj records
+   agree", exit 0.
+6. P1 on the real cache: the 2 primary-fetched files (1ea420092897, 502372153bb1) and their records, by sha, printed before
+   step 1 and after steps 1, 4 and 5: all equal.
+7. S-1 (s01.py a3b285ea0a38), all 8 now: water same 3144, rivers same 3144, changed 0; planned_not_fetched 0; everything
+   else as 5-s01.out (r7-primary.pred's S1-8, now reached through the mirror).
+8. M-4 first, then S-2: m4-strip, ONE extra dry run on the original plan bytes, m4-restore, then S-2's two dry runs.
+   M-4 expected as registered: the trees identical except `store/manifest.json` (the notes key) and `dry-run.json` (its
+   `storeId`, `manifestBytes` and `vectorStoreBytes`).
+9. M-3, the dry run's manifest: 16,036 entries; the 8 byte-equal to bm-obj's entries; keys `builder,files,notes,predicates`;
+   `notes` exactly the 6 above, on the 6 primary urls, and NONE on 27081 or 54093.
+10. M-5, the rows after it: SEA-OWN, I2, KB7-b and KB7-c-real as registered. The switch moves no url, so it moves nothing at
+    KBOS or KJAC.
+Then S-3 to S-7 as registered.
+
+OUTSIDE THIS SET
+| reading | then |
+|---|---|
+| any mirror fetch refused, a 404, or another error | nothing is logged: STOP and report |
+| any file fetched but not SAME at M-1 | STOP before rekey. Its record stays under the mirror url, unused without a ruling |
+| a P1 sha differing at any print | STOP: a primary-fetched file or record moved, which P1 forbids |
+| S-1 not as above | STOP before S-2 |
+| M-3 or M-4 not as above | STOP before S-3 |
+| a primary round that fetches any of the 6 meanwhile | none is scheduled (the orchestrator: no more primary rounds unless it schedules one) |
+| anything else | stop and decide |
+
+AMENDMENT to step 8 (the orchestrator's ACCEPT, after 07:36:34Z on 2026-11-15), before any file arrives:
+- "#696's head is re-read before step 8, STOP if it moved from 44349515" is REPLACED by a guard that keeps its reason (the dry run
+  tests #696's proposed code) as a check that runs. Immediately before step 8:
+    git diff --quiet 44349515fd0b <#696 head by ls-remote> -- proxy/scripts/ingest-basemap.ts proxy/scripts/basemap/
+      proxy/src/basemap/ proxy/src/util.ts proxy/src/wx/crop.ts proxy/src/wx/grid.ts proxy/package.json
+      proxy/package-lock.json proxy/tsconfig.json
+  (the dry run's import closure, traced at 44349515). EMPTY (exit 0): step 8 runs in the dry-clone pinned at 44349515.
+  NOT EMPTY (exit 1): STOP and re-register on the new head. Any other exit: STOP and decide.
+- Read 2026-11-15 ~07:36Z: main b282699ac091 (30 commits past #696's base 4abb65082f5e) touches none of those paths, so #696 may
+  take main and docs now.
+- Steps 1-4 are superseded if the owner's hand fetch (c) is used: see mirror/place_n6.pred.
+```
+
+`mirror/sched_n6.pred` (cdbefc6c665d):
+
+```text
+The census MIRROR retry on a schedule: the orchestrator's ruling (a), after 07:22:11Z 2026-11-14. Registered before it runs.
+
+State held throughout: step 1's applied state, consistent and reversible.
+- plan.json 1cadb9712e03; plan.original.f12d3eb56040.json and retry.before.89475784fe22.json kept in mirror/;
+  retry-fetched.json 89475784fe22 (round 6's 2 records); 0 files under files/ftp2.census.gov.
+- Nothing else reads the cache meanwhile. The dry-clone at 44349515 is held, unused. #696's head is re-read before step 8,
+  as ruled.
+
+The schedule (mirror/sched_n6.sh, with mirror/sched_n6_counts.py):
+- one round at each of +60, +180, +360, +720 and +1440 min from the script's start;
+- each round is the ingest's own `retry --schedule-min 0 --urls <the 6 ftp2 urls>` from sab-ingest/proxy (c3acc338, clean),
+  one file a minute, with its UA, through runlog.sh (tag census-mirror-p<min>);
+- each round is its OWN process. The ingest's in-process schedule would go on to the next point after a partial round, and
+  stopping it there would need a kill.
+- Before each round: 0 ingest-basemap processes, and plan.json still 1cadb9712e03.
+
+Each round's verdict, from m = the ftp2 records in retry-fetched.json, the round's attempt lines, its exit and its stderr:
+| reading | verdict | then |
+|---|---|---|
+| m 6; 6 "fetched" lines, 0 other; exit 0; stderr 0 B | ALL | the schedule ends (exit 0); resume at step 3 (check, M-1) as registered in switch_n6.pred |
+| m 1 to 5 | PARTIAL | STOP after that round (exit 4); bring n = 6 - m to the orchestrator |
+| m 0; 6 "not fetched" lines, 0 fetched, 0 other; exit 1; stderr 0 B | REFUSED | the next point |
+| REFUSED at +1440 | ALL REFUSED | STOP (exit 5); (c) goes to the owner then, not before |
+| a guard fails before a round (a process running, or plan.json moved) | OUTSIDE | STOP (exit 3) without running the round |
+| anything else (another exit, a crash, stderr not empty, a line that is neither, m disagreeing with the lines) | OUTSIDE | STOP (exit 3) and decide |
+- CONTROL, before arming: sched_n6_counts.py on step 2's own logs (switch-n6-fetch-20261114T071526Z.out/.err) reads
+  "0 0 6 0 0", which is REFUSED's shape. The script's bash parses (bash -n).
+- Each round adds 6 lines to retry-attempts.jsonl (60 -> 66 after the first round, and so on).
+- A refusal writes no record and no file (as at 07:15-07:20Z).
+
+Amendment, before round +1440 (the orchestrator's ruling, after 02:49:38Z on 2026-11-15; C: read 28.13 GiB free at 02:45:37Z):
+- Round +1440 runs at its booked 07:26Z, unchanged. REFUSED writes nothing, and the scheduler exits 5: (c) goes to Daniel as registered.
+- ALL: the six zips land. THEN, before step 8, take ONE free-space reading, `(Get-PSDrive C).Free / 1GB`, with no sweep.
+  Under 30 GiB: STOP before step 8 and bring the reading to the orchestrator. At or above 30 GiB: proceed as registered.
+- 5c's label window on E2:08 is kept clear of 07:20-07:40Z by the orchestrator.
+```
+
+`mirror/place_n6.pred` (d1535c06906d), the owner's hand fetch, registered before any file arrives:
+
+```text
+The owner's hand fetch, (c): placing the 6 census files into the cache. Registered before any file arrives (the orchestrator's
+ACCEPT, after 07:36:34Z on 2026-11-15). Nothing is applied until the owner has answered (c) AND the tool below has read AS PREDICTED
+in its rehearsal. The cache stays untouched until then.
+
+WHY A STEP OF ITS OWN
+- switch_n6.pred's steps 1-4 expect the ingest's own mirror fetch, and their note says "fetched via the Census Bureau's mirror".
+  For a file the owner downloads by hand that note would be FALSE, so it is never used here.
+- The 6 (primary urls on www2.census.gov, each with bm-obj's record in store 4c0875738f38: bytes, sha256 first 12):
+  .../TIGER2024/AREAWATER/tl_2024_38021_areawater.zip    188,627  129bdf71dcb8
+  .../TIGER2024/AREAWATER/tl_2024_39167_areawater.zip    595,192  a8c5673287f1
+  .../TIGER2024/AREAWATER/tl_2024_44007_areawater.zip  1,239,416  3e4bd9cfe184
+  .../TIGER2024/AREAWATER/tl_2024_56029_areawater.zip    382,297  2839d41c40c0
+  .../TIGER2024/LINEARWATER/tl_2024_17005_linearwater.zip  146,563  0ae92f7a7093
+  .../TIGER2024/LINEARWATER/tl_2024_19123_linearwater.zip  897,359  6150b7eca101
+  (3,449,454 B in all.)
+
+THE SOURCE
+- The owner downloads each file from its www2.census.gov url on a network other than this PC's, and saves it unrenamed in
+  C:\Github\_handoffs\map-server\census-n6\ (a new folder, outside every repo). The note's "from <www2 url>" rests on his word.
+  If he used the mirror (ftp2) instead, the note names ftp2, in the same form; the bytes cannot tell the two hosts apart.
+
+THE NOTE (one per placed url, MI4b's form: no wall-clock time; plan entry `note`, which the manifest prints after the url):
+  fetched by the owner from <www2 url> on another network after www2.census.gov's firewall refused this machine; its bytes and
+  sha256 equal this url's record in store 4c0875738f38
+
+THE TOOL: mirror/place_n6.py, a sibling of switch_d2.py (common.py, the same P1-P3 placement checks before any write; no
+rehearsal flag works on the real cache). Its stages:
+  check-src  read-only, on the source folder. The folder holds EXACTLY the 6 names: a missing name, or any other file, is refused
+             (others are counted, not named). Per file, M-1's four checks on the bytes as they lie:
+               (a) its name equals the primary url's file name (its directory is assigned at placement: the primary's path);
+               (b) a real zip: PK signature, not text/html;
+               (c) byte count AND sha256 equal bm-obj's record for the primary url;
+               (d) vintage 2024 (bm-obj's record, and the name's tl_2024_ prefix).
+             Prints per file "SAME as bm-obj" or the check that failed; then "src: ALL 6 SAME" or "src: n of 6 SAME".
+  place      only after check-src reads ALL 6 SAME, and with P1-P3 holding, every refusal checked before the first write:
+             copies each file to its PRIMARY path under files/; writes its record under the PRIMARY url in retry-fetched.json
+             (bytes, sha256 and vintage from the placed bytes, equal to bm-obj's); plan.json = the kept original f12d3eb56040 + the
+             6 owner notes on exactly the 6, no mirror url anywhere. Every write is read back.
+             Prints "place: 6 files placed at the primary paths; 6 records under the primary urls; 2 primary-fetched skipped,
+             unchanged; plan.json = original f12d3eb56040 + 6 notes -> <P6H>".
+  final      switch_d2.py's final, with the owner note: plan == original + notes on exactly the 6; no mirror url in the plan, the
+             records or files/; the records exactly the 8 under primary urls; the 2 primary-fetched as kept at apply; every file
+             matching its record and bm-obj's.
+  m4-strip / m4-restore   as switch_d2.py's.
+
+PREDICTED, on the owner's 6: check-src "src: ALL 6 SAME" (the base rate: every census.gov file in both bm-obj and November's
+fetch is byte-identical, water 3,140/3,140 and rivers 3,140/3,140); place and final as printed above, exit 0, stderr 0 B.
+
+THEN, on the real cache, switch_n6.pred's steps 6 to 10 as registered, with three changes:
+- step 6's P1 prints are made before check-src, and after place and final;
+- step 8 runs behind the AMENDED guard (switch_n6.pred, after 07:36:34Z): the closure diff from 44349515 to #696's head empty;
+- step 9's M-3: `notes` exactly the 6 OWNER notes above, on the 6 primary urls, and NONE on 27081 or 54093.
+Then S-3 to S-7 as registered.
+
+THE REHEARSAL, red-first, before any real use (rehearse_place.sh, on a copy of the cache in step 1's state, with SYNTHETIC
+source files; real bytes are not available and none are invented):
+- R1 the clean path: 6 synthetic files under the 6 names, --rehearsal-skip-identity (only check (c) skipped, since synthetic bytes
+  cannot match bm-obj): check-src "6 SAME (identity SKIPPED)", place, final, each exit 0.
+- R2 a 7th file in the folder: check-src refuses, exit 1, nothing written.
+- R3 one name missing: refused, exit 1.
+- R4 one file an HTML page under a right name: (b) fails for exactly that file, exit 1.
+- R5 one file renamed (a wrong county): (a) refuses, exit 1.
+- R6 place run before check-src has read ALL SAME: refused, exit 1.
+- R7 --rehearsal-skip-identity on the REAL cache: refused, exit 1, before any read of the source.
+- R8 identity NOT skipped on synthetic bytes: (c) fails for all 6, exit 1 (the check is not blind).
+- After R1, the copy's plan carries exactly the 6 owner notes and no "mirror" string anywhere in plan or records; the 2
+  primary-fetched records and files are byte-equal to the kept copies (P1).
+Each case's exit code and its one-line reason are predicted above; a case that passes when it should refuse means the tool is
+not used.
+
+OUTSIDE THIS SET
+| reading | then |
+|---|---|
+| check-src fewer than 6 SAME on the owner's files | STOP. A file failing (c) is not used without a ruling (base rate 3,140/3,140) |
+| any refusal, error or stderr in place or final | STOP and report; the cache is restored from the kept copies by bytes |
+| a P1 sha differing at any print | STOP: a primary-fetched file or record moved |
+| the closure diff not empty before step 8 | STOP and re-register on the new head |
+| any rehearsal case not as predicted | the tool is not used; report |
+| anything else | stop and decide |
+```
+
+**FT-SEA: the rulings since d0, recorded in this doc.**
+- **Ruling 1 (the orchestrator, 11-14 ~18:00Z), verbatim:**
+
+  > 1. The run order does NOT bind FT-SEA. Its six packages are pinned and staged from the prototype's run-10 builds, independent of
+  > SEA-STORE and the census, so FT-SEA waits only on its window and on map-client's framebench sibling. FT-HR is "after FT-SEA or
+  > with it", as registered.
+
+- **The 11-16 04:00-07:30Z window is VOID** (the orchestrator, 11-14 18:03Z). It was night at every home. The device's night poll
+  (`isNightNow` at the scene's home, AircraftManager.cpp:582-601 on main) sets H4's STATE bit 3, and that makes every frame
+  INSTRUMENT. FT moves to a daylight window from map-client's calendar, with at least 10 min clear of each edge. The sun times are
+  placement data and are never committed.
+- **The guard (ruling Q-FT1):** FT-SEA is held to "THE FT GUARD ROW", kind **FT-MAP**, in map-client's `docs/frame-time-bench.md`
+  (branch `docs/frame-time-bench` at 2cc682d0b4b9).
+  - FT-MAP is STATE bit 2 SET (the map drawn), with bits 1 and 3 CLEAR (no weather crop: FT-SEA's weather is off; no night poll, no
+    night clock).
+  - The kind is read from the record. Any measured frame otherwise makes that scene the INSTRUMENT.
+  - The row's selftest (eleven cases, including the FT-MAP and FT-WX cross-plants) must read as predicted before its reader is used.
+- **The owner's ruling (relayed 11-14 ~22:2xZ), verbatim:** "Tuesday's v20 bench and map-server's two tests start only after the
+  slowdown fix is proven to fire at true size. If the fix won't be ready in time, tell me by Monday, not on Tuesday."
+  - So FT-SEA waits on map-client's proof that the bench's plants fire at true size, as well as on the sibling's build.
+  - The Tuesday 11-17 13:00Z slot was then released, because the sibling is a port of the whole bench. The realistic window is
+    Thursday 11-19 or Friday 11-20, in all homes' daylight.
+- **FT on step C.** Main draws no map. FT runs on the v20 sibling, re-cut as one tree: main + M3 3bc7ec26fe28 + step C 3e9d6ec9f449.
+  This is re-registered in #682's section 5k, which is the authority for both rows until it is copied here. It is copied below
+  BYTE-IDENTICAL:
+  - the block from "### 5k." to the blank line before #682's "## 6." heading, at #682's 3aad28ee3bb2: 15,950 bytes, 185 lines;
+  - **sha256 4d8c7677ee4b in #682's blob, and the same in this doc's blob;**
+  - inside it, "this doc", "this PR" and sections 5a-5j mean #682's (docs/basemap-hudson-rule.md);
+  - FT-SEA's rows are its "FT-SEA alike" text: the steady row reworded, the named reading (KJFK at 50 mi) moved to the rebuild row,
+    the rebuild row, the steady-window rebuild count, and Addition 2's counts for FT-SEA's six packages.
+
+### 5k. FT on step C: re-registered before any FT code (the orchestrator's rulings, 2026-11-15)
+
+**Why.** Main (b282699ac091) draws no map. The draw exists only in map-client's step C (3e9d6ec9f449,
+`feat/map-client-step-c-blend`), read there by this session and confirmed independently by map-client.
+- `mapcompose::Frame` (include/MapCompose.h:322-341) rebuilds only when `Stale` (:313) finds the key changed. `Same` (:119) compares
+  the home, rLat/rLon, the size, the rotation, radiusMi, pkSeq, airportsGen and the fixed label boxes.
+- Every other frame copies the cached 240 x 240 buffer: 115,200 B, whatever the package holds (src/AircraftManager.cpp:3876).
+- `Compose` (:279) and step C's sweep (include/MapSweep.h) do not depend on density either.
+- **So a steady window's p95 cannot see a package, by construction. Density costs time only on a rebuild frame.**
+
+**Where FT runs (ruled):** on the v20 sibling, re-cut as ONE pinned tree: main + M3 3bc7ec26fe28 + step C 3e9d6ec9f449.
+- Every FT reading is labelled "measured on step C at 3e9d6ec9f449, not on main".
+- If the merged step C differs in the draw path, FT is re-read before its numbers are used.
+- A run-time anchor (map-client's Addition 2) makes every FT scene prove the map drew, so a silent no-draw reads INSTRUMENT.
+
+**These rows replace FT-HR's above where they differ, and FT-SEA's (docs/basemap-dense-code.md, #696) alike. Nothing has run.**
+FT-SEA's text is recorded here because #696's head stays at 44349515 until the census switch's step 8 re-reads it. #696's next push
+carries it word for word (ACCEPTED): the copy is byte-identical, with both section texts' sha256 cited. Until then this section is
+the authority for both rows.
+
+1. **The steady row stays, reworded.** It is p95(`p2p`), package minus package, <= M = 3.08 ms, with KORD's A/A, all as above.
+   - **Predicted now: within noise at every point and rung, for any package.**
+   - A pass reads "the steady frame does not see the package". It never reads "the density costs nothing" or "no slowdown".
+2. **The named readings move to the rebuild.** "Expected to differ most" (FT-SEA: KJFK at 50 mi; FT-HR: KEWR at 50 mi) now names
+   row 3's zoom hitch. No direction is predicted, as before.
+3. **The rebuild row (ruled).** Rebuilds are forced by re-accepting the same package (`++mapPkgSeq`), the reviewed path; a key
+   poison would be a second path into the key. Map-client designs the forcing and the split timing, in microseconds. The device's
+   `[map] draw: rebuilt in N ms` (AircraftManager.cpp:3872) is printed beside, but is too coarse for a delta.
+   - **The split.** A pkSeq rebuild runs `mapplaces::Load` (MapCompose.h:296-300) before Build, and a zoom change does not. So each
+     forced rebuild is timed in two parts:
+     - **GRADED, "the zoom/redraw hitch at this rung, same package":** the rebuild's total minus Load, i.e. Build's passes plus the
+       swap and the names. FT-HR adds `Compose` (its weather is on), the same per-pixel loop for every package. BuildInfo's pass times
+       (`usS1` to `usTotal`, filled under MAP_BENCH, which the FT envs compile) are printed beside. `usTotal` covers Build only, so it
+       is not the graded figure.
+     - **REPORTED, "the package-update hitch":** Load alone, and the total. Neither is graded.
+     - **The definition, agreed word for word with map-client's registration (2026-11-15):** "The graded figure is a forced
+       rebuild's microsecond total, measured around the one Frame() call that rebuilds, minus its mapplaces::Load lap: Build's
+       passes, the byte swap and the names, plus Compose when that frame shows the weather (FT-HR); Load and the total are reported,
+       never graded."
+   - **The statistic:** per scene, the median of its N forced rebuilds, with the p95 and N printed beside. N is map-client's, stated
+     before the run. A scene with N under 10 is INSTRUMENT.
+   - **Each margin is DERIVED, not chosen,** from KORD's A/A (the same bytes twice) by M's construction, and frozen before any graded
+     reading. It is `M_part = max(2 x |median_A - median_B|, 2 x U_part)`.
+     - `U_part` is the larger of the two KORD scenes' distribution-free 95% half-width of the median: half the gap between the order
+       statistics at 1-based ranks floor(N/2 - 0.98 sqrt N) and ceil(N/2 + 1 + 0.98 sqrt N).
+     - There is one margin each for the graded part, Load and the total. There is no fixed floor, since a floor would be chosen.
+     - **PER RUNG (the orchestrator's ruling, agreed by map-server, 2026-11-15).** KORD pair 1 runs at 10, 25 and 50 mi, giving
+       9 margins: the graded part, Load and the total at each rung. Pair 2 runs the same three rungs against them. Rebuild noise
+       may differ by rung, and one margin across rungs would assume away what the A/A measures. This costs ~26 min more per row:
+       FT-SEA ~134 min, FT-HR ~212 min. FT-HR runs as ONE window in its six homes' shared daylight.
+   - **The order in the window (ACCEPTED by the orchestrator, 2026-11-15):**
+     1. KORD's A/A pair 1. Its margins are printed and hashed before anything else is read.
+     2. The plant check (below).
+     3. The graded pairs.
+     4. KORD's A/A pair 2, graded against pair 1's frozen margins as that window's live noise reading. A margin that defines itself
+        cannot test itself.
+     - Over a margin on pair 2: INSTRUMENT, and nothing in the window is graded.
+   - **The timer must see a known change first (ACCEPTED: the C1 retake's failure of 2026-11-14, applied).** Map-client implements it:
+     - **The plant:** a bench-only delay of D µs, with D stated by map-client before the run. It sits AFTER Load, inside the
+       Build-swap-names span of the timed rebuild (map-client: inside the swap-and-names lap), on KORD's package for N forced
+       rebuilds.
+       - **D = 20,000 µs**, registered by map-client before any code (docs/frame-time-bench at 57ca03b92f4e). It was 5,000 µs.
+         Separability needs D > 2 x M_zoom, and no rebuild noise has been measured yet: 5,000 covered M_zoom only up to 2.5 ms,
+         while 20,000 covers it up to 10 ms.
+       - **N = 20** forced rebuilds per scene, 2 s apart, after the 120 s steady window. U_part's ranks at N = 20 are 5 and 16. It is read against pair 1's plant-off
+       scene (the same bytes) in the same window.
+     - **Its own flag:** each rebuild's record carries a plant bit, SET on every planted rebuild and CLEAR on every other one.
+     - **Predicted, from medians:**
+       - the graded part's delta is D +- M_zoom;
+       - the total's delta is D +- M_total;
+       - Load's delta is within +- M_load. The plant sits outside Load, so a correct split does not move it.
+     - **Separable:** only if D > 2 x M_zoom, checked once pair 1 freezes the margins. A smaller D cannot tell "ran" from "did not
+       run" at that window's noise: INSTRUMENT.
+     - **Each of these is INSTRUMENT, with nothing graded:**
+       - a delta near 0, meaning the plant did not run (C1's shape);
+       - Load moving, meaning the split misattributes time;
+       - the flag disagreeing with the plan.
+     - Anything else: stop and decide.
+   - **A comparison row, not a product bar.** At each point and rung the graded delta is the option minus the baseline (FT-HR: 2-L at
+     19.4 minus run 10's; FT-SEA: sea minus no-sea), set against M_zoom.
+     - Every delta over its margin goes to the orchestrator with the numbers. The orchestrator decides whether it raises a user-facing
+       question (a visible hitch at a zoom change) for the owner.
+     - The row does not gate this PR's merge. It is read and reported before the merge.
+4. **The rebuild count in the steady window.** Each scene prints the rebuilds inside its 120 s measured window. Expected: 0.
+   - The named exception: an airports-fetch arrival bumping airportsGen (AircraftManager.cpp ~4097, after `Initialise`'s drop at
+     ~1488). It is recorded with that scene's fetch line.
+   - A rebuild with no fetch line is OUTSIDE: stop and decide.
+
+**Outside the set for rows 1-4: stop and report, no reading.**
+- A scene's N under 10.
+- The known delay not moving the timer at its size.
+- The second KORD pair over its margin.
+- A steady-window rebuild with no fetch line.
+- A reading without the step C label.
+- **None of the above:** the instrument is unreliable at this scale. Stop and decide.
+
+**Addition 2's anchor: the host BuildInfo counts (accepted). The method is registered here, before any count is computed.**
+- **What is computed.** For each FT package and rung, the counts `maplayer::BuildInfo` holds after Build: `rings`, `rivers`,
+  `primary`, `secondary`, `primaryInView`, `secondaryInView`, `secondaryDrawn` and `level`. The device's counts must equal them.
+- **The 14 packages, by sha256:**
+  - FT-SEA's six (#696's FT-SEA table).
+  - FT-HR's run-10 KEWR dff28487eaf4, MIDTOWN 20a22bed5510 and KLGA feb6ef3bdf04. Its run-10 KJFK and KBOS are FT-SEA's sea packages,
+    the same bytes.
+  - The five 2-L at 19.4 packages (section 5j).
+  - KORD-A0 cb59bb06a506, which is in both rows.
+- **The cells:** the rungs 10, 25 and 50 mi, so 42 cells.
+- **The tool.** A host harness compiles step C's `include/MapLayer.h` (byte-identical on main b282699ac091). It calls
+  `maplayer::Build` exactly as `mapcompose::Rebuild` does: `kLayersAll`, the dark theme, kSize 240, Scratch sized for the package's
+  maxVertices, no clock. It prints counts only: no coordinate, no place name.
+- **The view comes from the device's side, not chosen:**
+  - the home from the sibling's scene table at its pin, parsed as the device parses it;
+  - radLat/radLon by AircraftManager.cpp:1005-1006 (3e9d6ec9f449), at the zoom ladder's top (f = 1.0, :5887-5890);
+  - north-up (radar-up 0, :1570);
+  - askedMm as `mapReq.rvMm` (include/MapQuery.h:89).
+  - So the counts are computed after the sibling's table is pinned. The sibling printing its view per scene would let a view mismatch
+    be told apart from a draw failure.
+- **The controls, each read before any count is believed:**
+  - (i) ANCHOR: on test_map_layer.cpp's own fixture, the harness reproduces that suite's S1 outcomes (secondary drawn exactly when
+    no primary is in view, its lines ~284-294), with counts above 0.
+  - (ii) PLANT: with the water layer masked off, `rings` reads 0 and every other count is unchanged.
+  - (iii) DETERMINISM: every cell is computed twice, with identical results.
+  - (iv) FLOATING POINT, named in advance: the ESP32-S3's FPU fuses multiply-adds, and GCC contracts a float `a*b+c` by default. So
+    the harness is built twice, with `-ffp-contract=off` and with `=fast`. A cell whose counts differ between the two is BORDERLINE,
+    and its anchor is the pair, not one value.
+  - (v) KORD, from S1: FT-SEA's two KORD packages differ only in 9 secondary roads. So at every rung all counts are equal except
+    `secondaryInView`, and `secondaryDrawn` is false for both. FT-HR's KORD is the same bytes twice, so its counts are identical.
+- **The outcomes:**
+  - All five controls as predicted: the 42 cells are recorded here (counts only), with the harness's sha256 and the sibling's pin.
+  - Any control off: STOP, no counts.
+  - The device's counts differ from the host's at a cell: that scene's anchor reads INSTRUMENT. The printed view separates the two
+    named alternatives: a view that differs from the port (a port defect, not a draw failure), or a BORDERLINE cell.
+  - Anything else: stop and decide.
+- **The build was allowed under the disk floor.** The orchestrator allows an MB-scale host build there (the floor is for the
+  ~0.3 GiB firmware builds), on three conditions: its expected write size is stated first, C: is read before and after, and the
+  build stays under ~100 MB.
+- **The view's inputs, pinned by map-client** on the sibling `bench/frame-bench-v20` at 08e68191f7b7:
+  - `test/fixtures/frame-bench/ft_sea.pins` (6) and `ft_hr.pins` (11). Each full sha256 was read from the staged files' bytes, and
+    its prefix matches this doc.
+  - Each home is its package's own centre: `lat = pk.lat0Micro / 1e6` (AircraftManager.cpp:953-954 at the pin).
+  - radLat/radLon at :1031-1032 there, the same code as step C's :1005-1006.
+- **Registered, then run** (the extra one-ulp test was sent to the orchestrator at 06:51:58Z, before the build):
+  - **The build:** WSL g++ 11.4, against the sibling's own headers. `MapLayer.h`, `BasemapPackage.h` and `WxLayer.h` are
+    byte-identical across the sibling, step C and main. Two binaries: `-ffp-contract=off`, and `-mfma -ffp-contract=fast`.
+  - **The extra test, against libm:** every cell is re-built with rLat and rLon each moved one ulp up and down. The ESP32's newlib
+    `cos` may differ from the host's in the last ulp.
+  - **The disk:** C: read 27.174 GiB free before and 27.172 after. The scratch tree came to 1.6 MB.
+  - **The driver:** `fb_counts.cpp` ba9ee2290eeb, run through `runlog.sh` (stdout 1b7760eb29f3 from both binaries).
+- **ALL AS PREDICTED (06:53:29Z):**
+  - (i) Bend reads CM4's five rows exactly: 5/0/67, 10/0/74, 25/4/173, 50/4/308, 60/4/324. Secondary is drawn (350) exactly where
+    primaryInView is 0.
+  - **The run printed 45 cells: the registered 42, plus 3 more from KORD-A0's own file** (`frame-row-packages-hudson\KORD-A0.bmpk`,
+    cb59bb06a506, the same bytes as KORD-sea), run as a 15th file at 10, 25 and 50 mi so that (v)'s "same bytes, identical counts"
+    is read, not assumed. Those 3 are not new cells; they repeat KORD-sea's 3. Bend's five rows are (i)'s anchor lines, not cells.
+  - (ii) The water plant reads OK at all 45.
+  - (iii) All 45 read SAME when built twice.
+  - Every cell is ok and draws.
+  - (iv) The two binaries print identical lines, and all 45 cells are STABLE under the one-ulp moves: **0 BORDERLINE**, so every
+    anchor below is one value.
+  - (v) KORD: no-sea and sea read equal in everything but secondaryInView (12/38/80 against 10/36/75, a difference of at most 5, with
+    no-sea above). secondaryDrawn is 0 for both. KORD-A0 reads identical to KORD-sea.
+- **The counts:** `secondary` is 0 and `secondaryDrawn` false at every cell, and `level` is 0, 0, 1 at 10, 25 and 50 mi for every
+  package. `rings`, `rivers` and `primary` are the same at all three rungs, since Build counts every feature it walks. The in-view
+  counts are the ones that follow the view.
+
+  | package | rings | rivers | primary | primaryInView 10/25/50 | secondaryInView 10/25/50 |
+  |---|---|---|---|---|---|
+  | KJFK no-sea ee8c834bc81a | 119 | 755 | 1,289 | 81 / 625 / 845 | 0 / 0 / 0 |
+  | KJFK sea = FT-HR's run 10, 52ac9dc39de0 | 93 | 755 | 1,289 | 81 / 625 / 845 | 0 / 0 / 0 |
+  | KBOS no-sea ed5393b4fc0f | 222 | 575 | 721 | 86 / 156 / 394 | 0 / 1 / 1 |
+  | KBOS sea = FT-HR's run 10, f21d705d8b8a | 197 | 575 | 721 | 86 / 156 / 394 | 0 / 0 / 0 |
+  | KORD no-sea 4238243a57a6 | 112 | 84 | 691 | 69 / 208 / 322 | 12 / 38 / 80 |
+  | KORD sea = KORD-A0, cb59bb06a506 | 112 | 84 | 691 | 69 / 208 / 322 | 10 / 36 / 75 |
+  | KEWR run 10 dff28487eaf4 | 25 | 759 | 1,467 | 289 / 683 / 883 | 0 / 0 / 0 |
+  | MIDTOWN run 10 20a22bed5510 | 53 | 762 | 1,397 | 448 / 690 / 862 | 0 / 0 / 0 |
+  | KLGA run 10 feb6ef3bdf04 | 58 | 763 | 1,356 | 396 / 684 / 875 | 0 / 0 / 0 |
+  | KBOS 2-L at 19.4 696c6d00122d | 242 | 575 | 721 | 86 / 156 / 394 | 3 / 21 / 82 |
+  | KJFK 2-L at 19.4 e042d61aa8f1 | 179 | 755 | 1,289 | 81 / 625 / 845 | 0 / 0 / 3 |
+  | MIDTOWN 2-L at 19.4 aaede1785364 | 142 | 762 | 1,397 | 448 / 690 / 862 | 0 / 0 / 0 |
+  | KEWR 2-L at 19.4 c619f4a89f14 | 120 | 759 | 1,467 | 289 / 683 / 883 | 0 / 0 / 0 |
+  | KLGA 2-L at 19.4 6ab44cd8fbea | 151 | 763 | 1,356 | 396 / 684 / 875 | 0 / 0 / 0 |
+
+- **Observed, not predicted:** the five 2-L rings counts (242, 179, 142, 120, 151) equal section 5j's prototype table, and KEWR's
+  run-10 count of 25 equals FT-HR's "25 water rings". Those are two implementations agreeing: the prototype's TypeScript and the
+  device's Build.
+
+**CI for this push, predicted from the workflows at the merged head.**
+- **The base:** main is b282699ac091, merged in at 1c8dd093 (clean). 44349515's run was tested on b7184243fc60.
+- **The workflow changes since then, each read:**
+  - `device-ids.yml` gains STEPS in its existing job: `check_precise_coords.py` (selftest, sabotage and `--diff HEAD^1`), and
+    `check_routes_workflow.py` with its selftest.
+  - `workers.yml` gains four STEPS in `test (proxy)`: the route refresh's selftests, all on a fake KV.
+  - The new `routes-refresh.yml` triggers on `workflow_dispatch` only.
+  - None adds a job.
+- **P1's fix (#698, aa40aa43) is in the base.**
+- **Predicted: 36 check runs, 34 success, 2 skipped (`promote`, `version`), 0 failed,** tested on the merge into main as it then
+  stands, read from the run's own checkout log.
+- **The coordinate gate is new to this PR.** `--diff HEAD^1` sees this PR's whole diff as added lines, code and docs alike. Main's
+  gate, run on this head before the push, must count 0.
+- **A new red from `ship-alert`** reads INSTRUMENT. **P1 BLIND a third time** goes to the project's owner, as registered. Anything
+  else outside 34 / 2 / 0: STOP, and read which job before anything else.
+
+### c9ff04a7's and 6a11b5a2's CI, read, and why this head moves #696 (2026-11-15)
+
+- **Read at c9ff04a75a9b:** 36 = 34 / 2 / 0 as predicted. `promote` and `version` were skipped, and `test (proxy)` succeeded, so
+  P1's fix held. Tested on "Merge c9ff04a75a9b... into b282699ac091...", per a job's own checkout log. All 36 were completed when
+  re-read at 23:45:40Z on 11-15.
+- **Read at 6a11b5a21d0a** (BUILD-25, the code commit): 36 = 34 / 2 / 0 as its registration predicted ("the same workflows as
+  c9ff04a7's run"). `test (proxy)` succeeded. Tested on "Merge 6a11b5a21d0a... into b282699ac091...".
+- **Why this head moves #696 off 6a11b5a21d0a, which step 8 had pinned.** The owner ruled on 2026-11-15 (relayed at 23:31Z) that
+  this doc commit goes BEFORE step 8's re-registration, and the re-registration pins the new head. #696 still HOLDS FROM MERGE until
+  it ships with its store.
+
+**CI for this push, predicted.** This doc only. Main is still b282699ac091 by ls-remote at 23:45:40Z, so the workflows are those of
+6a11b5a2's run.
+- **Predicted: 36 check runs, 34 success, 2 skipped (`promote`, `version`), 0 failed,** tested on the merge into main as it then
+  stands, read from the run's own checkout log.
+- Main's coordinate gate, run on this head before the push, must count 0.
+- **A new red from `ship-alert`** reads INSTRUMENT. **P1 BLIND a third time** goes to the project's owner, as registered. Anything
+  else outside 34 / 2 / 0: STOP, and read which job before anything else.
+
+### e81e7949's and 006da7e1's CI, read; step 8's readings; S4-4's verdict (2026-11-15 to 11-17)
+
+**The two CI reads this doc owed.** Each was re-read for this commit from GitHub's check runs, before 2026-11-17T00:34:55Z, not copied from notes.
+- **Read at e81e794908a6:** 36 = 34 / 2 / 0, as predicted in its own section above. `promote` and `version` were skipped. Tested
+  on "Merge e81e794908a6... into b282699ac091...", per a job's own checkout log (run 43776804052).
+- **Read at 006da7e1b0c3** (main 4e9ee56e6c2b merged in at 5546ed081da4, then the 2-dp fix to the homes paragraph and the
+  rounding sentence): 37 = 35 / 2 / 0, as predicted in that commit's message. It was e81e7949's 36 plus main's new build-only
+  matrix row `build (blipscope-s3-128-mapbench)`, and `photo-drift` is push-only. The run was read twice, at 19:37:06Z and
+  19:38:48Z on 11-16, and the set of job names equalled the predicted set. Tested on "Merge 006da7e1b0c3... into
+  4e9ee56e6c2b..." (2ec45c4), per a job's own checkout log (run 43938080922).
+
+**Step 8 (step8_26): CLOSED 2026-11-16T18:43:58Z.**
+- **Where the record is.** The registration, its amendments and its readings are `step8_26.pred`, sha256
+  `581d4e87a8fafc14c5b703896dad34c8f1028bc26e2817751ce30cf00cd6c8c0`. Its bytes are held off-repo, because they carry the exact test
+  points and the owner's name. `map-server/scratch-record` at 950ceb045d9e carries two files in `scratch-record/q-w4/mirror/`:
+  - `step8_26.pred.public` (af39170a1d20): the same text, with each of the 38 occurrences of the owner's name reading "the owner";
+  - `WITHHELD-step8_26.txt` (a77a8a752ad1): every withheld file, by full sha256 and reason.
+- **At the close, nothing was uploaded.** No `d1 --go` and no `--resume`; the store was not in R2, and no device had it. The upload
+  was the owner's separate decision. Its registration comes after this section.
+- **Every row's verdict, each read from the row's own log:**
+  - Inputs (the dry-clone at e81e794908a6 and the tool shas): OK. S-0 and S-1: AS REGISTERED. M-4: AS PREDICTED. S-2 A and B:
+    the disk watch's verdict OK both times, and S-2 BYTE-IDENTICAL. EV: AS PREDICTED (only the run's identity keys differ;
+    `index.json` and `sea-regions.json` are byte-equal). M-3: AS PREDICTED, with its controls 4 of 4.
+  - The first region test CRASHED: instrument failure 1, below. Its re-run is R5b-5.
+  - R5a-1 reindex: AS PREDICTED (4,333 moved, same layers). R5a-2 S-4 and S-5: AS PREDICTED. R5a-3 KB7-b: AS PREDICTED (KB7-a
+    PASS, and its control fails as it must).
+  - R5b-0, the block's control: BLOCKED (ECONNREFUSED at the proxy), AS PREDICTED. R5b-1 coverage and R5b-2 tile-bits: byte-equal
+    to `bm-obj`, read by R5b-3 S-3, AS PREDICTED. R5b-4 re-base: AS PREDICTED (+4 files, 0 changed). R5b-5 region test: KBOS and
+    KJAC, AS PREDICTED. R5b-6: S-6 refuses and names the lakes file, S-7 plans 12,021 puts, and the restore verified, AS PREDICTED.
+    R5b-7, the R2 figures: inside the 1M bound, AS PREDICTED.
+  - R5c-1, the store adapter's control: 16 of 16 equal to run 10. R5c-2, the adapter on tree B: 16 of 16 ok. R5c-3 I2: 14 of 14
+    EQUAL, AS PREDICTED (control 21 px). R5c-4 SEA-OWN: OFF, 1 of 14, EXPLAINED below. R5c-5 KB7-c-real: 3 of 3, AS PREDICTED.
+  - D1: controls AS PREDICTED. Of `sea-obj`'s 102 sea cells, 85 differ and 17 are identical. The first run of D2 and D3
+    CRASHED: instrument failure 3. D2 (5c.3): the lakes file's region box explains `files.sea` at KBOS, KSFO, KSEA and KJAC. D3:
+    7 of 7. D4: 11 of 11.
+  - R5d-1, the AFTER packages: 6 of 6 ok. The first run of R5d-2 was NOT APPLIED, from a faulty proof: instrument failure 4.
+    R5d-2 again (5d.2): 44007 APPLIED. 17005 was NOT APPLIED, an OFF and not an instrument failure: 0 of 158 river polylines lie
+    inside the county. R5d-2 at 19123 (5d.4): APPLIED, 7 of 176. R5d-3: 318 frames, exit 0. terrain26: 16 of 16. elig26: both
+    control centres >= 1. R5d-4: anchor 6 of 6; S4-3's control 15 at 10 mi, AS PREDICTED; S4-3 as below; S4-3b's control OFF
+    (BREAK 4 -> 4).
+  - R5d-2c, the cut plant: APPLIED (4 crossing polylines, 4 cuts, 176 -> 180 lines). R5d-3c: 9 frames, exit 0. R5d-4c: FLAT at
+    the graded 10 mi rung (4 -> 4), while the count rose at 25 mi (6 -> 7) and 50 mi (8 -> 11). That is outside the
+    pre-registered set, and went to the owner.
+- **The four instrument failures, each closed:**
+  1. The first region test read regions from tree B's `index.json`, which holds only cells. Closed in 5b: coverage is built
+     first, then met26b reads the regions as d1 merges them (R5b-5 AS PREDICTED).
+  2. R5a-1's background check FAILED on the parent shell's own console host. Closed in 5a.1: each row runs in a registered
+     child, and the console-host listing and the background check run in the parent.
+  3. `d2d3_26.mts:37` resolved the cache path one level too high. Closed in 5c.3 on the owner's word (one line, 2a9729a48281),
+     with rule (b): every input path is checked at the freeze, and first by each row.
+  4. The plant proof paired sections by first-of-type, but a package has 3 terrain sections. Closed in 5d.2 by `one()` plus
+     index pairing, with rule (c): `pairing_check.py` lists every `sections.find`.
+- **SEA-OWN's OFF, EXPLAINED (5c.1 to 5c.3).** The two stores' sea pieces differ (D1: 85 of 102 cells). Tree B's sea files also
+  sort first where `sea-obj`'s sort last. The package's byte budget turns both differences into different drops: roads at 7 of
+  7 points (D3) and inland water at 11 of 11 (D4). The lakes file's region box explains `files.sea` at 4 points (D2).
+- **The VOID family: the inventory found exactly one.** `seaown26:41` compared terrain by first-of-type, so R5c-4's terrain claim
+  was VOID. Re-run by position (terrain26), every terrain level is equal at 16 of 16, and the type census holds at 16 of 16.
+- **The inventory** (the owner's "list every earlier check that compared layers against the first of its kind"): 53 files. Apart
+  from that family, every check compared a type that occurs once per package. `format.ts:248` refuses a duplicate, and all 34
+  builder versions share one emission block (a518b9c89ac0), which writes types 1-5 and 7 once each. Those passes stand
+  (ruling (i)).
+- **S4-3, the seam: 0 at 10 of 15 eligible pictures.** Flagged to the owner: 44007 at 10/25/50 mi, 19/4/2; 19123 at 25 mi, 3;
+  38021 at 25 mi, 1. N/A, with no water at the line: 38021, 17005 and 19123 at 10 mi. The control read 15 at 10 mi.
+- **S4-3b, the break: NO READING, by the owner's word** ("census rivers: no reading."). The registered control could not move the
+  finder, and the cut control was flat at the graded 10 mi rung and rose at 25 and 50 mi. Both are recorded above, and nothing is
+  re-graded. The rivers are judged from the pictures.
+- **17005, Bond IL:** none of the 158 river polylines in that package falls inside the county, so its 2025 river change cannot be
+  seen on the device at that location.
+- **The post-v20 item, as ruled:** one investigation, cause first, read-only, with its predictions frozen before any of it runs.
+  Nothing runs on it now.
+  - **Q1, first, in the owner's words, verbatim:** "For the after-v20 look: the 10-mile count was already 4 before the slide, with
+    4 rivers crossing the line, so check first whether the counter counts every crossing as a break at that view."
+    - The hypothesis: at 10 mi the BREAK counter is SATURATED. AFTER-19123's 4 breaks are the 4 crossings, so cutting the same
+      4 rivers cannot raise the count. Flat is what a working counter would show there.
+    - The separator: map each of AFTER-19123's 4 break pixels at 10 mi to the crossing it sits on. If each is one of the 4
+      crossings, saturation is confirmed. Then check the wider rungs the same way: do the 6 breaks at 25 mi include all 4
+      crossings plus 2 others?
+  - **Q2, map-server's reading, which the counts do not exclude:** at 10 mi the 500 m offset is about 3.7 px, and the break test
+    looks only 1-3 px across the line. The pixels the cut makes may be balanced by break pixels the original crossings already
+    made.
+  - **Q3, the loose end:** comparing the cut copy with the original, 6 river runs differ from every original line, where 8 were
+    expected (4 lines cut once each). Yet the plant's own proofs (+4 lines, 172 unchanged in order) all passed. Noted, not
+    explained.
+
+**S4-4, the census pictures: ACCEPTED by the owner 2026-11-16 20:17Z.** The owner's words, verbatim: "Census pictures: accepted.
+The five seams are 1-19 pixels at county lines (Providence 10 mi is about the size of the planted 500 m test), far smaller than
+the water this adds. The upload decision comes later."
+
+**#696 still HOLDS FROM MERGE** (the owner's 11-15 ruling) until it ships with its store. This commit is docs only.
+
+**CI for this push, predicted before the push.**
+- **The base.** Main is 0fc8c1d319cb by ls-remote at 2026-11-17T00:34:55Z. From 4e9ee56e6c2b, which 006da7e1 tested into, to
+  0fc8c1d319cb is 6 commits. The only change among them that shapes CI is the new `.github/workflows/bench-tools.yml` (#735). It
+  was read at 0fc8c1d319cb: it triggers on `push` to main and on `pull_request`, has no path filter, and has one job,
+  `app-only-write`. `skus.yml`, `platformio.ini` and every other workflow are unchanged.
+- **Predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0 failed.** By workflow: `device-ids` 1, firmware 32
+  (the 2 skipped among them), `no-traffic-captures` 1, `workers` 3, `bench-tools` 1. The job-name set is 006da7e1's 37 plus
+  `app-only-write`. It is tested on the merge into 0fc8c1d319cb, read from a job's own checkout log, and read twice.
+- **Main's coordinate gate** (`check_precise_coords.py --diff` against main), run on this head before the push, must count 0 added.
+- **Outside the set:**
+  - a tested base other than 0fc8c1d319cb: STOP, re-derive the count, and write the amendment before anything is graded;
+  - any other count, conclusion or job name: STOP, and read which job before anything else.
+
+### Row 5: the staging reading of #696's code on the census store, registered before its slot (2026-11-17)
+
+**What it reads.** Row 5 of `docs/v20-plan.md`: #696's builder and proxy on staging, reading the census store 33d6dc41c749 that row 4
+writes to R2 (`upload26.pred`). It asks one question: do they produce, byte for byte, what step 8 produced offline from the same
+tree, once the builder's commit stamp is accounted for? It is read at 22 points in two labelled sets, graded separately and never
+pooled:
+- **R5-16:** the 16 homes (`cp-run.mts`'s set), whose step-8 packages are R5c-2's (`tb26-out/b/<H>-tb.bmpk`);
+- **R5-S4:** seam25's six S4 centres, the AFTER packages the owner's S4-4 verdict judged (`s4-pkg-after/<fips>-after.bmpk`).
+All 22 use the one query string both adapters used: r=162, eps=201168, water/rivers/roads/places/terrain, levels
+41239440:246, 81808320:244 and 162275520:242.
+
+**The stamp, which is the reason for this form.** A package's PROVENANCE carries the builder's 40-hex commit (`build.ts:249`,
+`builder: blipscope-basemap <commit>`), and the package's CRC-32 (bytes 28..31, `format.ts` `packageCrc`) covers every byte.
+- R5c-2's 16 packages are stamped with FORTY ZEROS (`tbstore26.mts:65`, read in `KBOS-tb.bmpk`).
+- The 6 AFTER packages are stamped e81e794908a6... (`tbafter26.mts`).
+- Staging's builder stamps the commit it was deployed from.
+So no step-8 package can equal a staging package as it stands. "Exactly 40 bytes differ" is not the test either: the CRC moves
+too, and hex digits the two commits share at the same position do not differ.
+
+**Q-R5a, for the orchestrator: which commit goes to staging.** #696 holds from merge until it ships with its store (the owner,
+11-15), so staging must run #696's head, not main. The proposal is H5: #696's head with main merged in at the time, pushed, and its
+CI read. Main is merged so that staging does not lose main's own proxy changes. Since 4e9ee56e6c2b those are in `chain.ts`,
+`adsbdb.ts`, `types.ts` and `photolicense.ts`, and `TYPE_ADSBDB_ENABLED`.
+- **RULED (the orchestrator, 2026-11-17): YES.** "H5 = #696's head with main merged in, pushed, CI read twice." It is a normal merge
+  commit, with its CI count re-derived, and #696 stays held.
+
+**Before the slot (local, no request to staging):**
+- **P5-1, the closure.** `deploy-inputs.mjs set builder staging` at H5 lists what the builder bundles. `git diff e81e794908a6 H5`
+  over exactly that set must be EMPTY: then H5's builder is the code that built step 8's packages. At 56988fbd it is (proxy/src and
+  the configs read unchanged from e81e794908a6, 2026-11-17). Not empty: STOP and re-register.
+- **P5-2, the references, rebuilt STAMPED H5.** `tbstage26.mts` is tbstore26 with only its commit taken from argv and its homes set
+  chosen by name (16 or s4). It runs over tree B and writes 22 packages and their sha256 list. Predicted: 22 builds ok.
+- **P5-3, the proof that only the stamp moved.** `patch26.py` handles each of the 22 in turn. It takes the step-8 package and asserts
+  its builder line occurs exactly once with the old stamp. It replaces those 40 hex with H5's and recomputes the CRC-32 into bytes
+  28..31, little-endian, over the package with that field zeroed. The result must be **byte-identical (`cmp`) to P5-2's reference**:
+  22 of 22, reported 16 and 6 separately.
+  - CONTROL 1: a COPY of one step-8 package with one byte changed outside PROVENANCE and the CRC field, patched the same way, must
+    DIFFER from its reference.
+  - CONTROL 2: the unmodified package patched with a wrong commit must DIFFER.
+  - Either control reading "equal" means the proof cannot fail: VOID.
+- **P5-4, the reader.** It is `up26_staging.sh`'s form: the pinned launch line with BASE exported, refusing unless the helper names
+  staging, and polling through 202s. It requests each point at the 2-dp origin the route rounds to. It first proves, with the
+  dry-clone's own `parseQuery`, that the exact and the 2-dp strings parse to the identical query, and refuses otherwise, so no exact
+  test point leaves the PC. A 200 is graded on sha256(body) against P5-2's list and on the ETag's store id. CONTROL: the comparator
+  run against a COPY of one reference with one byte changed must read "different".
+
+**The slot (under the deploy lock, booked on its own; nothing else stacked):**
+- **WHEN (the orchestrator's constraint, 2026-11-17):** only AFTER Tuesday's 23:00Z production deploy (uk-data, #736) has CLOSED.
+  That deploy puts MAIN on staging too (its C1 reads staging, then production). Before it, H5 would be overwritten mid-row, or
+  would put #696's code in front of uk-data's D0 reads. The slot is also clear of Wednesday's 10:00Z radar deploy and 16:00Z route
+  run. The orchestrator books it once Tuesday's deploy has closed. Staging then runs main's sha, and that sha is S5-0's rollback
+  target.
+- **S5-0:** the staging proxy's and builder's current version ids are recorded as rollback targets (read-only).
+- **S5-1:** H5 is deployed to staging, builder then proxy, through `deploy.sh`, never a typed `wrangler deploy`. `/healthz` must
+  report H5.
+- **S5-2:** `bm/v1/current` is put to the census store's body: the 26 B in the reference TSV's current row, sha256 from upload26
+  P3. It is read back byte-identical. Then bm:store = 33d6dc41c749 is written in staging's ENRICH_KV and read back twice, at least
+  60 s apart. Current comes first and KV second, the MI8 order.
+- **S5-3:** a wait of at least 60 s, so no isolate's store memory or KV cache still names 4c0875738f38.
+- **S5-4, R5-16:** 16 reads. Predicted for each: 200, ETag store 33d6dc41c749, sha256 == the stamped reference. 16 of 16.
+- **S5-5, R5-S4:** 6 reads, the same. 6 of 6.
+- **S5-6, the stamp:** after the first 200, `/healthz`'s basemap commit must be H5, all 40 hex. Read at the slot, not assumed.
+
+**Outcomes:**
+| reading | meaning | then |
+|---|---|---|
+| P5-1 empty, P5-3 22/22 with both controls differing, R5-16 16/16, R5-S4 6/6, S5-6 = H5 | the store in R2 and #696's code on staging make, byte for byte, what step 8 made offline | row 5 as predicted; D4 next, on the owner's OK |
+| P5-1 not empty | H5's builder is not step 8's code | STOP before the slot; re-register |
+| P5-3 any package not equal, or a control "equal" | the stamp is not the only difference, or the proof cannot fail | STOP before the slot |
+| a 503 or 500 at any point, New York's above all | the build failed on staging, possibly SG-B (Exceeded Memory) on the sea path | STOP; D4 waits on it (this doc, SG-B) |
+| a 404 or a 422 | step 8 built these offline | STOP |
+| a 200 whose sha256 differs | a different package | STOP; the package is kept and diffed section by section offline. A package another commit stored is the first suspect (PROVENANCE's builder line says which) |
+| an ETag store other than 33d6dc41c749 | current or KV is not as written | STOP; roll back |
+| S5-6 not H5 | the references carry the wrong stamp | STOP; references rebuilt only on a ruling |
+| anything else | outside the set | STOP and decide before anything else |
+
+**Rollback, at any STOP in the slot:** `current` is put back to 4c0875738f38's 26 B (upload26's saved file, sha256 a8e96fcf8fae),
+bm:store back to 4c0875738f38, and both Workers back to S5-0's versions. Each is read back.
+
+**This registration was accepted** by the orchestrator on 2026-11-17, at 83bcddbfddd1 plus the two rulings above. Nothing in it has
+run.
+
+**CI for this push, predicted before the push.**
+- **The base.** Main is 5c45a67ca109 by fetch at 2026-11-17T01:04:45Z. Since 0fc8c1d319cb, which 56988fbd tested into, the only
+  commit is #738 (docs). No change shapes CI: `.github/`, `skus.yml`, `scripts/skus.py` and `platformio.ini` are unchanged.
+- **Predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0 failed,** with the same job-name set as 56988fbd's
+  run. It is tested on the merge into 5c45a67ca109, read from a job's own checkout log, and read twice at least 60 s apart.
+- **Outside the set:**
+  - a tested base other than 5c45a67ca109: STOP, re-derive the count, and write the amendment before anything is graded;
+  - any other count, conclusion or job name: STOP, and read which job before anything else.
+
+### 56988fbd's and 1f7c76fc's CI, read; row 5's two added controls (2026-11-17)
+
+**The two CI reads this doc owes.** Each was read from GitHub's check runs at the time, twice and at least 60 s apart.
+- **Read at 56988fbd9d94** (the records section above): 38 = 36 / 2 / 0, as predicted. `promote` and `version` were skipped, and
+  the set of job names equalled the predicted set (006da7e1's 37 plus `app-only-write`). The reads that count were at 00:55:50Z and
+  00:57:06Z; two at 38 s and 49 s fell inside the rule and are not counted. Tested on "Merge 56988fbd9d94... into 0fc8c1d319cb..."
+  (22d70d1), per a job's own checkout log (run 43989228692).
+- **Read at 1f7c76fc19e4** (row 5's registration above): 38 = 36 / 2 / 0, as predicted, with the same job names as 56988fbd's.
+  The reads that count were at 01:21:23Z and 01:22:23Z; one at 39 s is not counted. Tested on "Merge 1f7c76fc19e4... into
+  5c45a67ca109..." (f673888), per run 43993052710's checkout log.
+
+**Row 5: two controls added before P5-2 runs** (the orchestrator's acceptance, 2026-11-17). Without them, each equality in row 5
+could not be told from a reader that always says "equal".
+- **P5-2's adapter control.** `tbstage26.mts` (e703ffba8e4f) is generated by `mk_tbstage26.py` (68486d91a19a) from tbstore26 and
+  tbafter26, by three anchored edits. Before any H5-stamped output is believed, it is run twice over tree B:
+  - with the ZERO stamp on set 16: the output must be byte-identical (`cmp`) to step 8's `tb26-out/b`, 16 of 16;
+  - with e81e794908a6... on set s4: byte-identical to the AFTER packages, 6 of 6.
+  Any package not identical means the generated adapter is not step 8's: STOP before P5-2.
+- **P5-4's can-fail control.** `r5points26.mts` (d5512fb3f829) has proven that all 22 points parse to the identical normalised query
+  at 2 dp (run 01:22:12Z: 22 of 22). That equality must be shown able to fail: before any request, the reader parses each point
+  moved by 0.01 and must get a DIFFERENT query. A moved point that parses equal means the equality is blind: VOID.
+
+**#696 still HOLDS FROM MERGE.** This commit is docs only.
+
+**CI for this push, predicted before the push.**
+- **The base.** Main is 5c45a67ca109 by fetch at 2026-11-17T01:39:47Z, unchanged since 1f7c76fc's run.
+- **Predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0 failed,** with the same job-name set as 1f7c76fc's run.
+  It is tested on the merge into 5c45a67ca109, read from a job's own checkout log, and read twice at least 60 s apart.
+- **Outside the set:**
+  - a tested base other than 5c45a67ca109: STOP, re-derive the count, and write the amendment before anything is graded;
+  - any other count, conclusion or job name: STOP, and read which job before anything else.
+
+### 09cdb962's CI, read; row 5's two added controls, read (2026-11-17)
+
+**Read at 09cdb962ea81** (the section above): 38 = 36 / 2 / 0, as predicted. `promote` and `version` were skipped, and the job names
+equalled 1f7c76fc's. The reads that count were at 01:58:25Z and 01:59:26Z; two at 35 s and 49 s are not counted. Tested on "Merge
+09cdb962ea81... into 5c45a67ca109..." (ff99ada), per run 43997506788's checkout log. The orchestrator's own read at 01:59:45Z
+matched.
+
+**Control (1), P5-2's adapter control: AS PREDICTED** (`mirror/r5ctl26.sh` 6eab261267e1; 01:42:03Z to 01:43:03Z, in the background
+and registered, its check passing with 0 running).
+- `tbstage26.mts` (e703ffba8e4f) with the ZERO stamp on set 16: **16 of 16 byte-identical** (`cmp`) to step 8's `tb26-out/b`.
+- With e81e794908a6... on set s4: **6 of 6 byte-identical** to the AFTER packages.
+- Both builds exited 0 with stderr 0 B, and each summary read storeId 33d6dc41c749 and objects 12,021. The outputs' sha256 list is
+  `run-logs/r5ctl26.shas.txt` (6c1c1efb7da7).
+- So the generated adapter is step 8's. Its H5-stamped output is believed once P5-1 and P5-3 pass.
+
+**Control (2), P5-4's can-fail control: AS PREDICTED** (`mirror/r5canfail26.mts` 535c5c1cb85b, run 01:59:08Z). 22 of 22 points moved
+by 0.01 parse to a DIFFERENT normalised query, with none blind, exit 0 and stderr 0 B. So r5points26's 22-of-22 equality at 2 dp
+(01:22:12Z) is a check that could have failed.
+
+**#696 still HOLDS FROM MERGE.** Row 5's slot comes after Tuesday's 23:00Z production deploy has closed, as ruled.
+
+### Row 4: the census store's upload, read (2026-11-17)
+
+**U1, `d1 --go`: SEALED after one repair round** (`mirror/up26_u1.sh` b690c6686db6, in the background and registered; 00:59:03Z to
+04:22:11Z, exit 0). The closing JSON:
+- sealed true; repairRounds 1; missing 0; mismatched 0;
+- puts 12,023; gets 24,040; putFailures 2; calls 36,063; rateLimited 0.
+
+**One field was OFF the prediction, and the predicted set was at fault.** upload26.pred listed "putFailures 0" beside "repairRounds 0
+or 1 or 2". A repair round that follows a failed put has to report putFailures above 0, so the set could not hold both. The "anything
+else" row stopped the run before anything further, and the orchestrator ruled it recorded as off.
+- In the first pass, two puts failed with wrangler's "Failed to fetch": terrain tiles 9/18/129 and 9/507/170. Neither was a 429
+  (rateLimited is 0, and the pacer retries only 429s).
+- The counters agree with one repair of two keys: puts 12,023 = 12,020 objects + 2 repaired + `current`; gets 24,040 = two full passes
+  of 12,020; calls = puts + gets.
+- **Excluded:** that the failures came in the repair round. Under a fresh prefix they would then have been missing at the second
+  verify, giving a second round or an unsealed store; repairRounds 1 with missing 0 rules that out.
+- **Open:** that a put reported as failed actually landed, so the two repaired keys were others. d1 does not print which keys it
+  repaired. It does not bear on completeness: the second verify read all 12,020 clean, and V1 reads every one independently.
+- The repair round is also why U1 ran past its 03:15Z estimate: one extra full pass.
+
+**The restore, under Q-U1 (B):**
+- **S-mid** (04:22:12Z to 04:22:51Z): a 200 on store 33d6dc41c749, ETag and PROVENANCE agreeing, as the staging test identity. Exit
+  1, the registered PASS: the read sees the switch.
+- **U1b** (04:22:51Z to 04:22:54Z): `bm/v1/current` put back from the saved 26 B; put exit 0, read-back exit 0, byte-identical.
+  Graded on that judge. The pred's wording says `--file`; the accepted launcher does `--pipe` from the same file, the path d1 uses for
+  its own seal. The bytes, the key and the judge are the same.
+- **S-post** (04:24:29Z, 95 s after U1b): a 200 on store 4c0875738f38, ETag and PROVENANCE agreeing. Exit 0, as predicted: staging is
+  back on the old store, end to end.
+- Staging named the new store for about 43 s (the seal to U1b), plus at most 60 s of cache, which S-post shows had cleared.
+- The launcher's background check passed with 0 running. The deploy lock was handed back at 04:26:04Z, right after S-post.
+- Class A: 12,023 puts plus U1b's 1, inside the registered worst case.
+
+**V1, the independent read-back: AS PREDICTED** (`mirror/up26_verify.mts` 66024ac43899, `--full` over `mirror/up26-refs-b.tsv`
+3295403976fc, in the background and registered; 04:28:19Z to 05:36:25Z, exit 0, stderr 0 B; its check passing with 0 running).
+- `up26-refs-b.tsv` is the frozen reference with `current`'s row carrying the saved 26 B, as Q-U1 (B) requires. Its 12,020 object
+  rows are `cmp`-identical to `up26-refs.tsv` (7a166b8b8603).
+- The controls came first: C1 presence PASS (the old store's manifest, by its bytes); C2 absence PASS (a key that cannot exist reads
+  missing, by wrangler's exact text); C3 mismatch PASS.
+- FULL 33d6dc41c749: rows 12,021; ok 12,021; missing 0; mismatched 0; blind 0. Of 245 shards, none is short of all ok. 4,085 s,
+  against about 67 min predicted.
+- Information, not graded:
+  - calls 12,025 = 12,021 rows + 2 retries + C1 + C2 (C3 reuses C1's bytes), with rate-limited 0;
+  - a retry is the tool's registered rule: one more read after a non-429 error, and only a second failure counts as blind. Both
+    retried rows ended ok;
+  - U1's putFailures were also 2. Whether they were the same keys is not known and not graded.
+- **V2, by the pred's own definition.** d1's verify before the seal and V1 after it are two code paths: V1 imports neither `d1.ts`
+  nor `ingest-lib.ts`. Each read every object present with its sha256, about an hour apart for each key.
+
+**V3, R2's own count: AS PREDICTED, two reads agreeing** (`scripts/r2-class-a.ts` fd4a2955f018, its storage line for
+blipscope-basemap; both runs pin-checked first).
+- Read 1 (05:39:22Z, exit 0): 3.523 GB, 23,060 objects.
+- Read 2 (06:09:47Z, 30 min 25 s later, in the background and registered, exit 0): 3.523 GB, 23,060 objects.
+- 23,060 = 11,040 (the old store, unchanged since P1 at 00:48Z) + 12,020. `current` is overwritten, not added.
+- Information, not graded: the bucket's month-to-date Class A reads 12,022 on both reads (0 at P1). U1 and U1b attempted 12,024
+  puts, so R2 counts 2 fewer. That is the count the 2 "Failed to fetch" puts would give if they never reached R2 as operations. A
+  count that did not move in 30 min makes lag an unlikely explanation. A SAMPLED operations count is not excluded, so this fits the
+  open alternative's negation without proving it.
+
+**So row 4 reads, by the pred's table: the store is in R2, complete, and static.** U1 sealed (its putFailures 2 recorded off, as
+ruled), V1 read 12,021 ok, and V3 read 23,060 twice.
+
+**#696 still HOLDS FROM MERGE.**
+
+**CI for this push, predicted before the push.** It carries two docs-only commits: dcb7886c (09cdb962's CI read and row 5's two
+controls) and this section.
+- **The base.** Main is b4f7e511dc8e by ls-remote at 2026-11-17T06:27:09Z. Since 5c45a67ca109, which 09cdb962 tested into, four
+  commits landed: #740 and #741 (docs), #739 (bench-tools: read-only workflow permissions) and #742 (budget).
+- **What changed among the paths that shape CI** (`.github/`, `skus.yml`, `scripts/skus.py`, `platformio.ini`): only
+  `.github/workflows/bench-tools.yml`. #739 adds a top-level `permissions: contents: read` block and one step inside its existing job.
+  No job is added or removed, and the triggers are unchanged. The merge of this branch into b4f7e511dc8e is clean (`git merge-tree`).
+- **Predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0 failed,** with the same job-name set as 09cdb962's run.
+  It is tested on the merge into b4f7e511dc8e, read from a job's own checkout log, and read twice at least 60 s apart.
+- **Outside the set:**
+  - a tested base other than b4f7e511dc8e: STOP, re-derive the count, and write the amendment before anything is graded;
+  - any other count, conclusion or job name: STOP, and read which job before anything else.
+
+### 47bfdfc2's CI, read; main merged in for row 5's head, H5 (2026-11-18)
+
+**47bfdfc2's CI, read.** As predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0 failed, read twice
+(2026-11-17 06:47:29Z and 06:49:10Z). It was tested on the merge into b4f7e511dc8e, read from run 44031729845's `app-only-write`
+checkout log.
+
+**Main merged in.** Row 5's registration names the head staging runs as H5: this branch with main merged in, pushed, and its CI
+read twice. c8beaae17159 merges main 237d5d163eb4. The merge is clean: its tree, fcfc60f0045a, is the tree `git merge-tree`
+predicted before it. No file is changed on both sides. This push makes H5. So row 5's staging deploy also carries main's proxy
+commits since 4e9ee56e6c2b, and its slot is placed after the staging deploys of that code that are already booked.
+
+**#696 still HOLDS FROM MERGE** until it ships with its store.
+
+**CI for this push, predicted before the push.** It carries the merge and this docs-only section.
+- **The base.** Main is 237d5d163eb4 by ls-remote at 2026-11-18T23:02:45Z. Since b4f7e511dc8e, which 47bfdfc2 tested into, 17
+  commits landed.
+- **What changed among the paths that shape CI** (`.github/`, `skus.yml`, `scripts/skus.py`, `platformio.ini`): six workflows,
+  and in them only:
+  - top-level `permissions:` blocks;
+  - job-level `permissions:` on firmware's three release jobs;
+  - firmware's bench-marker `--expect` lists;
+  - steps added inside existing jobs (device-ids: the fresh-boot selftests, the privacy-text check, the workflow-permissions check;
+    workers: the device-label selftest on the proxy leg).
+  No job is added or removed, and no trigger changes. `skus.yml`, `scripts/skus.py`, `platformio.ini` and `bench-tools.yml` are
+  unchanged. None of this branch's 34 files is `README.md`, `proxy/pages/support.html` or a workflow.
+- **Predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0 failed,** with the same job-name set as 47bfdfc2's
+  run. It is tested on the merge into 237d5d163eb4, read from a job's own checkout log, and read twice at least 65 s apart.
+- **Information, not graded:** main's own push CI at 237d5d163eb4 completed with no failure (37 check runs, 34 success, 3
+  skipped; a push-event set, not this PR's).
+- **Main's coordinate gate** (`check_precise_coords.py --diff` against main), run on this head before the push, must count 0 added.
+- **Outside the set:**
+  - a tested base other than 237d5d163eb4: STOP, re-derive the count, and write the amendment before anything is graded;
+  - any other count, conclusion or job name: STOP, and read which job before anything else.
+
+### H5's and H6's CI, read; P5 at both; why row 5 ran at H6 (2026-11-18 to 11-22)
+
+**H5's CI, read** (d8089010fd27, the section above). As predicted: 38 check runs, 36 success, 2 skipped (`promote`, `version`), 0
+failed, with the same job names as 47bfdfc2's. The reads that count were at 2026-11-18 23:20:11Z and 23:21:18Z. It was tested on the
+merge of d8089010fd27 into 237d5d163eb4, read from run 44417721160's `app-only-write` checkout log.
+
+**P5 at H5, as registered** (2026-11-18 23:21:33Z to 23:22:39Z, in the background and registered, its check passing):
+- P5-1: `git diff e81e794908a6 H5` over the builder's set (`deploy-inputs.mjs set builder staging` at H5) is EMPTY.
+- P5-2: the 16 and the 6 references built stamped H5, both builds exiting 0.
+- P5-3: 16 of 16 and 6 of 6 byte-identical after the stamp patch, with CONTROL 1 and CONTROL 2 reading DIFFERENT on both sets. The
+  references' sha256 list is f045891c51e3. The orchestrator acked P5 by that sha.
+
+**Why H6.** After H5, main gained #775 (2761765e, three offline route-ingest files under `proxy/scripts/`). `deploy.sh`'s
+behind-list then named it, and row 5's frozen D0 refused any behind-list line. The orchestrator ruled (2026-11-22 02:47Z) to prepare
+H6: main cbd999db594f merged into H5, with no #696 file changed.
+- **H6 = b23d5ca1a548**, registered before it was made (`h6_26.pred` b559b74368c5). Its tree, 5dacecfd637b, is the tree `git
+  merge-tree` predicted; its parents are H5 and cbd999db594f; the 26 files it adds are main's, and only #775's three are under
+  `proxy/`; `git diff 237d5d163eb4 H5` and `git diff cbd999db594f H6` are byte-identical patches. Pushed 2026-11-22 02:51:55Z.
+- **H6's CI, read:** 39 check runs, 37 success, 2 skipped (`promote`, `version`), 0 failed: H5's 38 job names plus
+  `driver-selftest`, the one job main's firmware workflow had added. The reads that count were at 03:06:59Z and 03:09:03Z; one at
+  03:08:48Z, under 2 min from the first, is not counted. Tested on 6948d529, the merge into cbd999db594f, per a job's checkout log.
+- **P5 at H6, as predicted** (`p5h6.sh` 4afc4add5731: H5's launcher with H5 renamed H6 and nothing else): P5-1 empty; 16 and 6
+  built; 16 of 16 and 6 of 6 with both controls DIFFERENT. The sha list is 5cb763026974, which differs from H5's because the
+  packages carry the head's stamp. The orchestrator acked it at 03:10:56Z.
+- A miscount, recorded: P5-1's "19 paths" at H5 and at H6 counted deploy-inputs' own timing line. The builder's set is 18 paths.
+
+### Row 5's slot terms at H6, as accepted (the slot card, verbatim)
+
+The slot card was frozen before any slot and accepted with each addition in turn; as its own first lines say, it is appended here
+with row 5's reading. Below is `row5_slot26c.pred` 6c0b3bfe4211, byte for byte. Its Sunday booking lapsed (the logs step did not
+deploy that day), and its Monday re-base is the one that ran. The owner's exception of 2026-11-22 03:52Z is quoted in it verbatim.
+
+```text
+ROW 5's SLOT TERMS for SUNDAY 2026-11-22, AT H6 (map-server; PROPOSED, frozen as a proposal; they bind only on the orchestrator's
+acceptance). They REPLACE row5_slot26b.pred 64241f0f9adf's Saturday items 1-6 (that slot lapsed: the logs step was rolled back and
+the owner held row 5). Everything else is row 5's registration in #696's doc, unchanged: S5-0..S5-6, the outcomes, the rollback.
+Appended to #696's doc WITH row 5's reading, as before (a doc commit now would move #696's head off H6).
+
+H6 = b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 (h6_26.pred b559b74368c5): main cbd999db594f merged into H5 d8089010fd27, tree
+5dacecfd637b; #696's patch byte-identical to H5's; CI read twice (03:06:59Z, 03:09:03Z): 39 = 37/2/0, tested as the merge
+6948d529 into cbd999db594f; P5-1..P5-3 at H6 AS PREDICTED (p5h6.sh 4afc4add5731; sha list run-logs/p5h6.shas.txt 5cb763026974).
+READING H5 AS H6: the doc's S5-1 ("H5 is deployed"), S5-6 ("basemap commit must be H5") and its outcome rows name the head under
+test; at this slot that head is H6, all 40 hex as above, and S5-4 / S5-5 grade against the H6 references (refsH6, 5cb763026974).
+The logs step's EXPECT = 4a02123ca992031d60bd9592e3084c9ccf34041f (uk-data's plan, D0-H).
+
+1. WHEN: after uk-data's logs-step PRODUCTION END line (the owner's words release row 5's hold when the logs deploy has passed;
+   the orchestrator relays the line), with staging running EXPECT, AND, read at D0:
+   (a) `git diff --name-only <EXPECT> cbd999db594f -- proxy/` is EXACTLY proxy/scripts/ingest-routes.ts, routes-fakekv.mjs and
+       routes-writer.selftest.sh (#775; read 2026-11-22 03:1xZ: exactly these 3);
+   (b) none of those 3 is a deploy input: they are absent from `node proxy/scripts/deploy-inputs.mjs set proxy staging` and from
+       `... set builder staging` at H6 (the bundler's own answer, printed whole);
+   so H6 adds exactly #696's files to what the logs step deployed. Either fails: NO deploy.
+2. THE BOOKING (PROPOSED): PRIMARY Sunday 2026-11-22, start on the logs END line + the lock (END expected ~08:55Z, worst ~09:10Z,
+   hard end 09:45Z), LATEST START 11:20Z. FALLBACK A: the same day, after KBOS's END line (expected 15:45Z), LATEST START 17:15Z.
+   FALLBACK B: Monday 2026-11-23, on the orchestrator's re-plan. Never inside a PC-QUIET (KBOS from 12:25Z; the L2 re-run's).
+3. START CONDITIONS, all printed before S5-0:
+   (1) uk-data's logs-step production END line;
+   (2) the orchestrator's lock confirmation, by message (the deploy claim held throughout);
+   (3) H6's CI as read twice (39 = 37/2/0, tested into cbd999db594f) AND H6 unmoved at D0;
+   (4) P5 at H6 acked by the orchestrator (5cb763026974);
+   (5) main unmoved under proxy/ since cbd999db594f: `git log cbd999db594f..<main re-read by ls-remote> -- proxy/` EMPTY. (The
+       orchestrator is asked to hold proxy-touching merges to main from the logs END until row 5's END.)
+4. D0, printed before any upload: HEAD == H6 == the remote branch head; cbd999db594f and EXPECT ancestors of H6; deploy.sh's
+   behind-list EMPTY; item 1 (a) and (b); the dirty tree (0). Any mismatch: NO deploy.
+5. TIMES:
+   (a) latest start 11:20Z (Fallback A: 17:15Z);
+   (b) CUTOFF start + 45 min, at latest 12:05Z (Fallback A: 18:00Z): if S5-4 / S5-5 have not all returned, STOP and roll back at once;
+   (c) no rollback step started after 12:18Z (Fallback A: 18:13Z); the rollback ENDS by 12:20Z (Fallback A: 18:15Z), before KBOS's
+       PC-QUIET at 12:25Z (Fallback A: before P6-MOVE's T-10 at 18:20Z, across which no proxy deploy runs);
+   (d) if a rollback step is unfinished at its end time: HOLD; nothing more runs; staging stays as it is; the rollback resumes on
+       the orchestrator's word.
+6. OTHER BOOKINGS: #19 (10:00Z) and its feed (~10:02Z on) are PRODUCTION only (the site's answer, relayed 02:48:43Z); every row 5
+   read is STAGING (S5-4 and S5-5 staging /basemap, S5-6 staging /healthz), so no row 5 read is taken against a production baseline.
+   Map-server touches no board, release, tag or Actions.
+OUTSIDE THE SET: any D0 line other than the above, any start condition missing: NO deploy; report to the orchestrator.
+IF THE OWNER RULES EXCEPTION (i) ("row 5 too") INSTEAD: these terms do not apply; row 5 at H5 needs its own re-based terms first.
+
+ADDED 2026-11-22T03:57:33Z (date -u), BEFORE D0, on the orchestrator's instruction (03:56:12Z): THE OWNER'S WORDS (stamped 03:52Z, relayed by the
+orchestrator), verbatim: "For this deploy and row 5 only, exactly as uk-data proposed: the list is exactly that one commit of
+offline scripts, and the deploy-inputs tool passes on both environments. Anything else, no deploy."
+FOR ROW 5 AT H6 they cover item 1 (a)/(b), read at D0 as:
+   (a) the list is exactly that one commit: `git log --format=%H <EXPECT>..cbd999db594f -- proxy/ scripts/session-claim.py` lists
+       EXACTLY 2761765e (#775), and its files are item 1 (a)'s three proxy/scripts/ files;
+   (b) the deploy-inputs tool passes on both environments: `node proxy/scripts/deploy-inputs.mjs check <proxy|builder>
+       <staging|production>` at H6 exits 0 for all four (predicted: H6 contains main, so nothing is behind it), AND item 1 (b)'s
+       set check holds;
+   anything else: NO deploy. Row 5 still runs at H6: the IF line above (exception (i) at H5) is not used.
+
+ADDED 2026-11-22T03:59:25Z (date -u), the orchestrator's note (03:58:24Z): WHAT CAN FAIL AT D0, AND ITS CONTROL.
+   - The four `deploy-inputs.mjs check` runs in (b) CANNOT fail at H6: `check` judges HEAD..origin/main, and H6 contains main, so the
+     range is empty. They are predicted 0 for that STRUCTURAL reason and are kept only as recorded reads; they prove nothing.
+   - The LOAD-BEARING read is item 1 (b)'s SET check: for each of `deploy-inputs.mjs set proxy staging` and `set builder staging`
+     at H6, saved to a file, each of #775's 3 paths counted by EXACT LINE match (`grep -cx <path> <file>`): 0 each.
+   - ITS CONTROL, read the same way from the same two files: `proxy/scripts/deploy-inputs.mjs`, a known deploy input of both
+     targets (deploy machinery), counts 1 in EACH. Control not 1 in either file: the read cannot see presence: VOID: NO deploy.
+     (Shown possible now: in H6's builder set from P5-1, run-logs/p51h6-set.txt, the control counts 1 and #775's 3 paths 0 each.)
+
+RE-BASED FOR MONDAY 2026-11-23 (2026-11-22T15:26:23Z, date -u; map-server; PROPOSED: binds only on the orchestrator's acceptance). The Sunday
+booking lapsed (no logs deploy on 2026-11-22: stand-down 06:39:15Z). Row 5 now follows the R1 re-run's logs END on Monday (T0
+10:00Z; END expected ~12:55Z, worst ~13:10Z, hard end 13:45Z). Everything above stands except the items below. Row 5 is still at H6
+= b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07; nothing of row 5 before the logs step's production END and the lock.
+R1. READ TODAY (2026-11-22, 15:23:19Z, after `git fetch origin main`): origin/main = 910d8975bdf7 (full sha 910d8975bdf773ba5cc4a5ac4ce6ff6ccaa809bb);
+    cbd999db594f is its ancestor; `git log cbd999db594f..origin/main -- proxy/ scripts/session-claim.py` is EMPTY (start condition 5
+    holds today); H6..origin/main = 3 commits (#786 3cad7724, #785 c96ffb4e, #788 910d8975), 14 files, every one under src/,
+    include/, test/, tools/ or docs/; 0 of the 14 is an exact line of H6's builder set (run-logs/p51h6-set.txt, whose only path
+    outside proxy/ is scripts/session-claim.py). All re-read at D0.
+R2. THE STALE LABEL, FIXED (the 07:13Z note). The "ADDED 03:59:25Z" paragraph says the four `deploy-inputs.mjs check` runs CANNOT
+    fail at H6 because H6 contains main. That was true at 03:59Z and is FALSE now: main is 3 commits past H6, so `check` judges a
+    non-empty HEAD..origin/main and the four runs are LIVE checks. PREDICTED: exit 0 for all four, each printing the line "note: N
+    commit(s) behind origin/main touch nothing under proxy/ or in the machinery (not blocking)", with N = `git rev-list --count
+    H6..origin/main` read at D0 (3 today). Any of the four exiting 1 (a commit behind touches what that target ships): NO deploy.
+    Exit 2 or any other: NO deploy (the instrument). Item 4's "deploy.sh's behind-list EMPTY" is read as: deploy-inputs `check`
+    exits 0 for the target deploy.sh runs (its blocking list empty), with the same note line; deploy.sh does not stop. The SET
+    check and its control (03:59:25Z) are unchanged and stay the load-bearing read.
+R3. THE OWNER'S EXCEPTION (03:52Z, "for this deploy and row 5 only") is read as carried to the re-run AND to row 5 by his 15:17Z
+    ruling (both "this deploy only" rulings carried). The orchestrator confirms that reading; without it, no row 5 Monday.
+R4. EXPECT: if uk-data's re-run deploys an EXPECT other than 4a02123ca992 (its D0-H), item 1 (a)/(b) are re-derived from that
+    EXPECT and re-accepted before row 5; otherwise no row 5.
+R5. TIMES (PROPOSED; the orchestrator fills them from Monday's bookings, which I do not hold): start on uk-data's logs-step
+    production END line + the lock; LATEST START L = 14:30Z unless a booking needs it earlier; CUTOFF L + 45 min at latest (start +
+    45 min): if S5-4 / S5-5 have not all returned, STOP and roll back at once; no rollback step started after start + 58 min; the
+    rollback ENDS by start + 60 min (15:30Z at the latest start). Item 5 (d) unchanged. Never inside any session's PC-QUIET.
+R6. THE MERGE HOLD: the orchestrator is asked to hold proxy-touching merges to main (proxy/ or scripts/session-claim.py) from now
+    through row 5's END (it already holds them until the logs END). Start condition 5 is re-read at D0 by ls-remote.
+R7. UNCHANGED: H6 and its CI (read twice, tested into cbd999db594f) and P5 (5cb763026974); items 3 (1)-(4), 4 and 6; every row 5
+    read is STAGING; no board, release, tag or Actions. OUTSIDE THE SET: any D0 line other than the above: NO deploy; report.
+
+ACCEPTED (the orchestrator, after 15:26:23Z; recorded 2026-11-22T15:27:51Z, date -u): R1-R6 as written; R3 CONFIRMED (the 03:52Z exception
+restored AS GRANTED, "this deploy and row 5 only", by the owner's 15:17Z ruling; at the top of his digest so he can correct it before
+Monday); R5's times accepted (latest start 14:30Z; nothing booked collides); R6 GRANTED (no proxy-touching merge to main through
+row 5's END).
+WHICH LIST ROW 5's D0-B READS (asked by the orchestrator), read 2026-11-22T15:27:37Z:
+   - D0-B reads `git log --format=%H <EXPECT>..cbd999db594f -- proxy/ scripts/session-claim.py`: what H6 carries ON TOP OF what the
+     logs step deployed, apart from #696's own commits. EXPECT 4a02123ca992 is an ancestor of cbd999db594f, and the list is EXACTLY
+     2761765e71bde1e8674f8c58f95dd193e8492293 (#775): proxy/scripts/ingest-routes.ts, routes-fakekv.mjs, routes-writer.selftest.sh.
+     It is NOT empty, so row 5's D0-B passes ONLY under the owner's exception; without the exception: NO row 5.
+   - H6..origin/main (EMPTY under proxy/ and scripts/session-claim.py; 3 commits elsewhere) is a DIFFERENT list: what main has
+     that H6 lacks. It is read by R2's four `check` runs and by start condition 5, never by D0-B. Its being empty does not make
+     the exception unnecessary.
+```
+
+### Row 5 on 2026-11-23: a registered STOP at S5-6, rolled back in full
+
+**The runbook** is `row5_run26.md` fc56f567121d, verbatim below: the accepted runbook (a890ff0d0b12) with three corrections appended
+after the slot, C1 to C3.
+
+**What ran.** S was the deploy claim's stamp, 13:47:08Z; the claim was released at 14:02:31Z.
+- D0 read as predicted, with main at b6af418f0e08 and N = 4.
+- S5-0 read the rollback targets; `current` and bm:store read as predicted.
+- S5-1: the builder and the proxy deployed from H6 through `deploy.sh`, both exiting 0; `/healthz` read commit b23d5ca1.
+- S5-2 and S5-3 as predicted.
+- S5-4/S5-5: the first launch refused before sending anything (C1: the runbook's line lacked the per-shell export). On the
+  orchestrator's ruling the corrected line ran from 13:53:22Z to 14:01:01Z: R5-16 16 of 16 and R5-S4 6 of 6 EQUAL on store
+  33d6dc41c749. All 22 points answered 202 first, then 200: 22 fresh builds on staging, none a 5xx.
+- S5-6: `/healthz`'s basemap block read null, commit and store. **The registered STOP.** The rollback ran in its order, each step
+  read back: `current` to 4c0875738f38's 26 B (byte-identical), bm:store to 4c0875738f38, then the proxy and the builder back to
+  S5-0's versions. Staging's `/healthz` then read commit 4a02123c three times (14:02:18Z to 14:02:19Z).
+- Recorded as it happened: just before those three reads, three GETs of staging's `/healthz` were sent with their bodies discarded
+  (`curl -o /dev/null`, a wrong command). They read nothing and are not counted.
+
+**Why S5-6 could not pass** (C3; accepted by the orchestrator: row 5 stays a STOP and nothing re-grades it). `/healthz`'s basemap
+block is the answering isolate's last builder 200 (`handler.ts`), and an isolate that has only served stored packages has none. The
+same null was already on record twice in other docs, and the registration carried neither. Amendment 1 replaces S5-6.
+
+```text
+ROW 5's RUNBOOK AT H6, MONDAY 2026-11-23 (map-server; PROPOSED; binds only on the orchestrator's acceptance). LOCAL ONLY.
+It turns row 5's accepted registration (#696's doc, "Row 5: the staging reading...", S5-0..S5-6, outcomes, rollback) and its
+slot card (mirror/row5_slot26c.pred 6c0b3bfe4211: items 1-6, R1-R7, the 03:52Z exception, the SET check + control) into the exact
+commands. It adds no step and changes no outcome. Every full sha below was read from git, not typed:
+  H6     b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 (wt-code HEAD)
+  EXPECT 4a02123ca992031d60bd9592e3084c9ccf34041f (uk-data deployed it: staging 10:33Z, production 11:47Z; /healthz commit=4a02123c)
+  MAIN0  cbd999db594fbd5f5659d8505c793922394549e1      #775 2761765e71bde1e8674f8c58f95dd193e8492293
+Paths: SCR = my scratchpad; W = SCR/wt-code (H6, clean; nothing is ever written inside it). Every step goes through runlog.sh, unfiltered,
+stderr to its own file; every command's exit is printed. Staging only. No board, release, tag or Actions. Wrangler only through
+node scripts/wrangler-run.mjs (OAuth login; no token is created or set). Stamps from date -u in the same step.
+
+WHEN: after uk-data's logs-step production END line, the orchestrator's word (lock), latest start L = 14:30Z (card R5). If the
+logs step is ROLLED BACK instead, staging no longer runs EXPECT and item 1 fails: NO row 5 today; it waits for a re-plan.
+
+D0 (read-only; printed whole; any line other than predicted: NO deploy, report):
+ D0-1  git -C W rev-parse HEAD == H6 == git -C W ls-remote origin refs/heads/map-server/dense-code; git -C W status --porcelain: 0 lines.
+ D0-2  git -C W fetch origin main; M = git -C W rev-parse origin/main. merge-base --is-ancestor MAIN0 H6 and EXPECT H6: both 0.
+ D0-3  start condition 5: git -C W log --format=%H MAIN0..M -- proxy/ scripts/session-claim.py: EMPTY.
+ D0-A  item 1 (a): git -C W diff --name-only EXPECT MAIN0 -- proxy/ == exactly proxy/scripts/ingest-routes.ts, routes-fakekv.mjs,
+       routes-writer.selftest.sh.
+ D0-B  the exception's list: git -C W log --format=%H EXPECT..MAIN0 -- proxy/ scripts/session-claim.py == exactly #775 (full sha).
+ D0-C  the SET check (load-bearing), in W/proxy: node scripts/deploy-inputs.mjs set proxy staging > SCR/run-logs/r5d0-set-proxy.txt;
+       the same for builder > r5d0-set-builder.txt. Each of #775's 3 paths: grep -cx = 0 in each file. CONTROL:
+       proxy/scripts/deploy-inputs.mjs: grep -cx = 1 in EACH file (not 1: VOID, NO deploy).
+ D0-D  card R2: node scripts/deploy-inputs.mjs check <proxy|builder> <staging|production>, all four: exit 0, each with the line
+       "note: N commit(s) behind origin/main touch nothing under proxy/ or in the machinery (not blocking)", N = git rev-list
+       --count H6..M. Exit 1, 2 or other: NO deploy.
+ D0-E  staging runs EXPECT: one GET https://scopes-staging.valarsystems.com/healthz, its commit field == EXPECT's first 8 hex.
+ D0-F  r5read26.sh's pre-checks, NOTHING SENT: R5READ_PRECHECK_ONLY=1 BASE=https://scopes-staging.valarsystems.com bash runlog.sh
+       r5pre-mon bash mirror/r5read26.sh refsH6/h16 h16 refsH6/hs4 hs4 run-logs/r5pre-mon 33d6dc41c749: exit 0 (points 22/22
+       identical to mirror/r5-points.tsv; 22 references present; comparator control DIFFERENT / EQUAL). refsH6's 22 shas ==
+       run-logs/p5h6.shas.txt (5cb763026974), by sha256sum -c.
+ D0-G  the new current body: sed 's/4c0875738f38/33d6dc41c749/' mirror/up26-current-before.bin > run-logs/r5-current-33d6.bin;
+       26 B; full sha256 == 544d4b83b35058f16166599346250e832cae920a6d7178881c8e5060c5d49d56 (up26-refs.tsv's current row).
+       The rollback body: mirror/up26-current-before.bin, 26 B, sha256 a8e96fcf8fae (= {"storeId":"4c0875738f38"}).
+
+THE CLAIM (after uk-data releases its claim and the orchestrator's word), from W:
+  BLIPSCOPE_SESSION=map-server python scripts/session-claim.py take deploy --covers proxy:staging,builder:staging --until +75m
+  (then `check deploy --covers proxy:staging` and `... builder:staging`: both 0). Start S = the take's stamp; S <= L.
+
+S5-0 (read-only; the rollback targets), in W/proxy:
+  node scripts/wrangler-run.mjs deployments list --env staging --json                              -> proxy's newest version id P0
+  node scripts/wrangler-run.mjs deployments list -c basemap.wrangler.toml --env staging --json     -> builder's newest version id B0
+  node scripts/wrangler-run.mjs r2 object get blipscope-basemap/bm/v1/current --pipe --remote > run-logs/r5-s50-current.bin
+      PREDICTED byte-identical to mirror/up26-current-before.bin (cmp)
+  node scripts/wrangler-run.mjs kv key get bm:store --namespace-id 8b6e92ed802a4192b6b6c1399fdf96aa --remote
+      PREDICTED exactly 4c0875738f38 (staging's ENRICH_KV id, wrangler.toml line 206; the value shape handler.ts:81 reads: 12 hex)
+  Any other reading: STOP before S5-1 (nothing written; nothing to roll back); report.
+S5-1  in W/proxy: BLIPSCOPE_SESSION=map-server bash scripts/deploy.sh --builder staging, then BLIPSCOPE_SESSION=map-server bash
+      scripts/deploy.sh staging (its confirm step reads /healthz). PREDICTED: both exit 0; proxy /healthz commit == H6's first 8 hex.
+S5-2  current first, then KV (the MI8 order), in W/proxy:
+  node scripts/wrangler-run.mjs r2 object put blipscope-basemap/bm/v1/current --file ../../run-logs/r5-current-33d6.bin --remote
+  then get --pipe into run-logs/r5-s52-readback.bin: cmp-identical to r5-current-33d6.bin.
+  node scripts/wrangler-run.mjs kv key put bm:store 33d6dc41c749 --namespace-id 8b6e92ed802a4192b6b6c1399fdf96aa --remote
+  then kv key get bm:store (same namespace) twice, at least 60 s apart: exactly 33d6dc41c749 both times.
+S5-3  wait at least 60 s after the second KV read (STORE_KV_TTL_S = 60, handler.ts:78).
+S5-4/S5-5  BASE=https://scopes-staging.valarsystems.com bash runlog.sh r5read-mon bash mirror/r5read26.sh refsH6/h16 h16 refsH6/hs4
+      hs4 run-logs/r5read-mon 33d6dc41c749. PREDICTED exit 0: R5-16 16 of 16 and R5-S4 6 of 6 EQUAL on store 33d6dc41c749.
+S5-6  GET staging /healthz after the first 200: basemap.commit == H6, all 40 hex.
+OUTCOMES: exactly the registration's table (#696's doc). Every STOP inside the slot -> THE ROLLBACK.
+
+TIMES (card R5): CUTOFF S+45: S5-4/S5-5 not all returned -> STOP and roll back at once. No rollback step started after S+58;
+the rollback ENDS by S+60 (15:30Z at L). A step unfinished at its end time: HOLD, nothing more runs, report (card item 5 (d)).
+
+THE ROLLBACK (the registration's order; each read back):
+  R-1 r2 object put blipscope-basemap/bm/v1/current --file ../../mirror/up26-current-before.bin --remote; get: cmp-identical.
+  R-2 kv key put bm:store 4c0875738f38 (same namespace); get: exactly 4c0875738f38.
+  R-3 node scripts/wrangler-run.mjs rollback P0 --env staging -y (uk-data's logs1123_rollback.sh form); deployments list: newest P0.
+  R-4 node scripts/wrangler-run.mjs rollback B0 -c basemap.wrangler.toml --env staging -y; deployments list: newest B0.
+  Then staging /healthz commit == EXPECT's first 8 hex. Release the claim, from W:
+  BLIPSCOPE_SESSION=map-server python scripts/session-claim.py release deploy.
+END: the claim released, then one line to the orchestrator and uk-data. The reading is appended to #696's doc with the slot card,
+as registered, in a later commit (not inside the slot: a doc commit moves #696's head off H6).
+
+OUTSIDE THE SET: any reading not named above -> STOP; inside the slot, THE ROLLBACK; before S5-1, nothing to undo; report.
+
+APPENDED CORRECTION (2026-11-23, after the slot; append only; the text above is a890ff0d0b12 as accepted, unchanged).
+The slot ran 13:47:08Z (S) to 14:02:31Z (claim released) and ended in a registered STOP at S5-6, rolled back in full.
+C1  S5-4/S5-5's launch line lacked the per-shell export that r5read26.sh's own header (line 20) requires. The first launch
+    (13:51:23Z, tag r5read-mon) refused, exit 2, "BLIPSCOPE_TOKEN_FILE is not set", nothing sent; D0-F's pre-check-only mode
+    stops before that check, so D0 could not see the gap. By the orchestrator's rulings of 13:52Z and 13:53Z (one re-run of an
+    instrument refusal), the line that ran is:
+      export BLIPSCOPE_TOKEN_FILE="$HOME/.config/blipscope/tokens" && BASE=https://scopes-staging.valarsystems.com bash runlog.sh
+      r5read-mon2 bash mirror/r5read26.sh refsH6/h16 h16 refsH6/hs4 hs4 run-logs/r5read-mon2 33d6dc41c749
+    The out dir and tag moved to r5read-mon2 because r5read26.sh refuses an existing out dir (line 39) and the refused launch
+    had created run-logs/r5read-mon, which is kept untouched as its record. Any future use of this runbook takes this line.
+C2  A breach, recorded as stated: in D0-C the two SET runs were first displayed through `tail -n 3`. Their exits were the
+    processes' own (runlog), and both outputs were printed whole straight after; the rule "every read in this deploy runs
+    unfiltered" was still broken.
+C3  S5-6 as written cannot see the bound builder under A1. /healthz's basemap block is this isolate's last builder 200
+    (handler.ts:52-58, index.ts:96); under A1 a 200 is a "stored" answer with no builder call, and the build runs under
+    waitUntil in the isolate that answered 202. A re-plan replaces S5-6; the replacement is the orchestrator's to accept.
+```
+
+### Row 5's Amendment 1, and the owner's yes to a re-run (2026-11-23)
+
+Amendment 1 is `row5_amend1.md` 01331953f453, verbatim below, accepted by the orchestrator. A second run after an instrument failure
+needs the owner. The owner's answer (2026-11-23 15:20Z), verbatim: "map row 5 re-run: yes. Tue 24 09:00Z, staging only, and my
+03:52Z exception carries to it." Its section 3 (D4-R1 to D4-R4) stands for D4's plan, which is not yet written.
+
+```text
+ROW 5 AMENDMENT 1 (map-server, 2026-11-23; PROPOSED, text only; binds only on the orchestrator's acceptance AND the owner's
+"map row 5 re-run: yes"). LOCAL ONLY. It amends row 5's registration (#696's doc, basemap-dense-code.md 5071-5151, as accepted
+2026-11-17), its card (mirror/row5_slot26c.pred 6c0b3bfe4211) and its runbook (mirror/row5_run26.md fc56f567121d). Frozen before
+any slot; every prediction below is written before the reading it grades.
+
+0. WHAT TODAY ALREADY SHOWS (information beside the registered STOP; it re-grades nothing)
+   - 22 of 22 points answered 202 first, then 200: 22 fresh builds on staging by the builder bound in the slot, none a 5xx,
+     New York's four (KJFK, KLGA, KEWR, MIDTOWN) included. 16 of 16 and 6 of 6 EQUAL to refsH6 on store 33d6dc41c749.
+   - Read offline from those 22 packages: builder line b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 22 of 22, store line 33d6dc41c749
+     22 of 22, with a presence control.
+   - S5-6 read null because /healthz's basemap block is per isolate (handler.ts:52-58, :104; index.ts:96). The same null is already
+     on record twice: docs/basemap-name-key.md:357 ("the isolate that answered had built nothing") and docs/basemap-release.md:698-721
+     (D3 read seven times, then "D3 by one 200" with PASS = at least one read, nulls counted). Row 5's registration carried neither.
+
+1. WHAT A RE-RUN CAN AND CANNOT SHOW (the reason this is section 1, not a footnote)
+   Today's builds left their 22 packages in staging's BASEMAP_PKG under store 33d6dc41c749, and Cache API copies (7 days) in the
+   colos that served them. The registered rollback (current, KV, two Workers) does not remove them, by design. So on a re-run with
+   the same store and the same 22 points:
+   - PREDICTED: every point's attempt 1 is HTTP 200 ("hit" or "stored"), no 202, no build. A 202 on any point is INFORMATION (that
+     package was in neither the cache nor PKG), not a STOP; its 200 is graded the same way.
+   - So S5-4/S5-5 and AM1 below would grade TODAY's builds served back, not builds in the re-run slot. The re-run would show the
+     H6 proxy serving the stored store correctly, plus (AM2) ONE fresh build by the builder bound in the slot. It cannot show SG-B
+     (memory) for the 22 again; that evidence is today's, as information.
+   - Forcing 22 fresh builds is not on offer: deleting 22 PKG objects is possible, but the Cache API copies would still answer
+     first and cannot be removed from outside without a zone purge, which also touches production. Not proposed.
+
+2. THE AMENDMENTS
+AM1. S5-6 REPLACED: THE BUILDER LINE, offline, no request. After S5-4/S5-5 exit 0, over the 22 packages they saved in the out dir:
+     - each has exactly ONE line matching `builder: blipscope-basemap [0-9a-f]{40}`, and its 40 hex == H6
+       b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07; and exactly ONE line `store: [0-9a-f]{12}` == 33d6dc41c749. The commit is
+       EXTRACTED and compared, never matched as a fixed string, so any other commit shows as itself.
+     - CONTROLS, run before the 22 are graded: (c1) presence: on refsH6/h16's first reference the extractor returns H6; (c2) the
+       grader can fail: on a byte copy of that reference in the out dir (synthetic, never sent) with ONE hex digit of the builder
+       commit changed, it returns a commit other than H6 and grades NOT H6. Either control off: VOID, S5-6 cannot grade: STOP.
+     - PREDICTED: c1 H6, c2 NOT H6; builder H6 22 of 22, store 33d6dc41c749 22 of 22.
+     - Meaning, stated narrowly: every served package was built by a builder stamped H6. With section 1, on a re-run that is
+       today's builder; the builder bound in the slot is AM2's.
+AM2. S5-6b, THE BOUND BUILDER, BY ONE FRESH BUILD (the "D3 by one 200" form, basemap-release.md). After AM1, ONE request:
+       export BLIPSCOPE_TOKEN_FILE="$HOME/.config/blipscope/tokens" && BASE=https://scopes-staging.valarsystems.com bash runlog.sh
+       r5probe-<tag> bash sg-request.sh KJAC 43.61 -110.74 run-logs/r5probe-<tag>.bmpk
+     sg-request.sh 6e67ae96ee08 (its sha re-read at D0); ε 201,169, one millimetre off row 5's 201,168, so its key differs from
+     all 22 of today's packages. KJAC fit at ε 201,168 today (200, 208,954 B).
+     - PREDICTED: try 1 HTTP 202, then 200 within its 3 retries; the package's builder line == H6 (40 hex) and store line ==
+       33d6dc41c749, graded as AM1 with AM1's controls.
+     - Try 1 a 200: the package was stored by someone else; the probe cannot show the bound builder: VOID: STOP.
+       A 404/422/5xx, or no 200 after the retries: STOP. Builder or store other than predicted: STOP.
+AM3. /healthz, INFORMATION ONLY. Read four times after AM2's 200. Nulls are counted and are never a pass or a fail. A read whose
+     top-level commit is b23d5ca1 and whose basemap block names any store other than 33d6dc41c749 or any commit other than H6 is
+     positive evidence of a wrong binding: STOP.
+AM4. STANDING LINES (C1 of fc56f567121d, made standing):
+     - every request launch carries `export BLIPSCOPE_TOKEN_FILE="$HOME/.config/blipscope/tokens" &&` in the SAME command line;
+     - every out dir and runlog tag is new: D0 reads `[ ! -e run-logs/<dir> ]` for the pre-check dir, the read dir and the probe
+       file, each printed; tags proposed r5pre-<day>3, r5read-<day>3, r5probe-<day>3;
+     - D0-F adds, booleans and counts only: token file present; key names test-device + test-key-staging 2 of 2;
+       BLIPSCOPE_TOKEN_FILE set in the launch shell. Any other: NO deploy.
+AM5. S5-4/S5-5 PREDICTIONS on a re-run: as registered (200, ETag store 33d6dc41c749, sha256 == reference; 16 of 16, 6 of 6),
+     PLUS section 1's attempt pattern (attempt 1 = 200 on all 22; a 202 is information).
+AM6. HOLDS: R6 (no proxy-touching merge to main) re-granted from acceptance through the re-run's END; D0-3 re-reads it. The
+     owner's 03:52Z exception is re-read at D0 by its own two conditions (D0-B exactly #775; the four checks exit 0), as today.
+AM7. OUTCOMES, added to the registration's table: AM1 or AM2 or AM3 as predicted -> row 5 as predicted (with section 1's
+     narrower meaning recorded beside it); any AM line other than predicted -> STOP and THE ROLLBACK; anything else -> outside
+     the set: STOP and decide. Everything not named here is unchanged, the rollback R-1..R-4 included.
+
+3. THE SAME BLIND SPOT AT D3/D4 (a standing rule for D4's plan, which is not yet written)
+   Docs that use /healthz basemap.commit as PROOF or as a SOURCE: basemap-deploy.md :31, :71, :341, :428 (D2's "real proof is D3",
+   V1); basemap-release.md :231-:242 (also as "the builder's rollback target") and :654; deploy.sh :193 and worker.ts :100,
+   index.ts :97 (comments stating D3's premise).
+   D4-R1. The bound builder is proven ONLY by the builder line of a package from a FRESH build in D4's window (attempt 1 = 202),
+          == the deployed stamp, all 40 hex, graded as AM1 with its controls. Never by /healthz basemap.commit.
+   D4-R2. The builder's ROLLBACK TARGET is read before the deploy from `deployments list -c basemap.wrangler.toml --env
+          production --json` (newest version id, as S5-0 read B0 today). Never from /healthz, which reads null on any isolate
+          that has not built.
+   D4-R3. /healthz's basemap block is information: nulls counted; a non-null store or commit other than expected, on an isolate
+          whose top-level commit is the new proxy, is a STOP.
+   D4-R4. Production has no BASEMAP binding until D4, so its first builds are fresh by construction; the attempt-1 202 is still
+          graded, because a stored or cached answer is exactly the case the rule exists for.
+
+4. SLOT OPTIONS (for the orchestrator to confirm; the owner's yes comes first)
+   - TODAY: R5's envelope is start + 60 min, so finishing before 16:45Z means LATEST START 15:45Z (claim free, uk-data off
+     staging, R6 re-granted). NOTE THE END STATE: on a PASS the registration does NOT roll back; staging stays on H6 with current
+     and bm:store = 33d6dc41c749, and D4 is next. The look's T-5 at 17:40Z would read staging in THAT state, not today's
+     4a02123c + 4c0875738f38. If the look must see today's state, today is out unless the look rules otherwise.
+   - TUESDAY 24: D0 re-derived (main, N, the SET, EXPECT still on staging); the exception's two conditions re-read.
+   - THE 03:52Z EXCEPTION, in my reading: its words are "For this deploy and row 5 only, exactly as uk-data proposed: the list is
+     exactly that one commit of offline scripts, and the deploy-inputs tool passes on both environments. Anything else, no
+     deploy." Its scope is the ROW, not a date, and its conditions are facts re-read at D0. So it covers a re-run of row 5 at H6
+     on either day WHILE D0-B lists exactly #775 and the four checks exit 0; it never covers another commit or another EXPECT (R4).
+     Today is the stronger case: nothing it depends on has moved since 13:45Z. Because "this deploy" was Monday's logs deploy,
+     the cleanest is one clause in the owner's question: "and the 03:52Z exception carries to it".
+
+OUTSIDE THE SET (of this amendment): any reading not named above -> STOP; inside the slot, THE ROLLBACK; before S5-1, nothing to
+undo; report.
+```
+
+### Row 5's re-run on 2026-11-24: AS PREDICTED under Amendment 1; staging stays on H6
+
+**The runbook** is `row5_run27.md` 2943407eff1a, verbatim below: run26's commands with Amendment 1 turned into commands. It adds no
+step and changes no outcome beyond Amendment 1.
+
+**Before START, as the orchestrator ruled (2026-11-23):**
+- T-10 (08:50Z) ran D0's local and GitHub reads only (D0-1, -2, -3, -A, -B, -C, -D, -F, -G and -H), with no request to staging or
+  production. D0-E ran at START, where D0-1, -2, -3 and -D were read again: the START copies are the gate.
+- A gate the orchestrator registered before it could be read: a keyed staging read with the test identity, taken that morning by
+  another session, had to answer 200 for row 5 to start (401: no start; anything else: stop and decide). It answered 200.
+- Staging holds still from row 5's END to D3's END at 16:30Z: no deploy, and no KV or `current` change, by anyone.
+
+**D0, all as predicted** (T-10 from 08:51:13Z to 08:52:35Z; START from 09:00:24Z to 09:00:44Z):
+- HEAD == H6 == the remote branch, with a clean tree. Main was 5957b5308717, six commits past cbd999db594f and none of them under
+  `proxy/` or `scripts/session-claim.py` (R6 held). cbd999db594f and EXPECT 4a02123ca992 are ancestors of H6.
+- D0-A: EXPECT..cbd999db594f under `proxy/` is #775's three paths. D0-B: exactly #775. With D0-D's four exits at 0, the two
+  conditions of the owner's exception held.
+- D0-C: `set proxy staging` lists 69 paths and `set builder staging` 18; #775's three paths count 0 in each, and the control counts
+  1 in each.
+- D0-D: four exits 0, each with "note: 6 commit(s) behind origin/main touch nothing under proxy/ or in the machinery (not
+  blocking)"; N = 6.
+- D0-E, at START (09:00:24Z): staging's `/healthz` read commit 4a02123c.
+- D0-F: the token file present with both key names; the reader's pre-check passed with nothing sent; the 22 references 22 OK. D0-G:
+  the new `current` body is 26 B, sha256 544d4b83b350. D0-H: the pinned shas equal, and the new output names absent.
+
+**The slot.** S was the claim's stamp, 09:00:48Z; the claim was released at 09:06:32Z.
+- S5-0 read the rollback targets; `current` byte-identical to 4c0875738f38's 26 B; bm:store 4c0875738f38.
+- S5-1: the builder and the proxy deployed from H6 through `deploy.sh`, both exiting 0; the confirm step read `/healthz` commit
+  b23d5ca1.
+- S5-2: `current` put to 33d6dc41c749's body and read back byte-identical; bm:store 33d6dc41c749 read twice, 88 s apart (09:02:11Z
+  and 09:03:39Z). S5-3: a registered wait to 09:04:45Z.
+- S5-4/S5-5 (09:05:22Z to 09:05:34Z): **attempt 1 was HTTP 200 on all 22**, each with ETag and PROVENANCE store 33d6dc41c749; R5-16
+  16 of 16 and R5-S4 6 of 6 EQUAL; DIFFERENT 0, other store 0, ungradable 0. There was no 202: as Amendment 1's section 1 predicted,
+  these are 2026-11-23's packages served back.
+- S5-6 (AM1, offline): controls c1 AS EXPECTED and c2 DIFFERENT; builder b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 and store
+  33d6dc41c749 in 22 of 22; different 0; unreadable 0.
+- S5-6b (AM2): KJAC at eps 201169. Try 1 HTTP 202, try 2 HTTP 200, 208,954 B, magic BMPK. Graded as AM1: 1 of 1, builder H6 at all
+  40 hex, store 33d6dc41c749. **The builder bound in the slot is proven by a fresh build.**
+- S5-6c (AM3, information): four reads, every one commit b23d5ca1. Three basemap blocks were null; one named store 33d6dc41c749 and
+  commit H6 at all 40 hex; none named a wrong binding.
+- The slot's 23 requests (22 and 1) were all sent as the test identity (test-device and test-key-staging), as the scripts' own
+  stderr says: the same identity as the gate's read.
+
+**The reading, by the registration's table and AM7: row 5 as predicted.** Amendment 1 section 1's narrower meaning goes beside it:
+the 22 graded packages are the builds of 2026-11-23, served back by #696's proxy on the census store and equal, byte for byte, to
+step 8's once the stamp is accounted for. The builder bound in this slot is shown by the one fresh KJAC build, not by the 22.
+- A pass does not roll back, so **staging stays on H6** (`/healthz` b23d5ca1), with `current` and bm:store at 33d6dc41c749. The KJAC
+  package is one more object in staging's package store under 33d6dc41c749.
+- Next is D4, production's basemap switch-on: on its own plan with D4-R1 to D4-R4, not before D3's END (2026-11-24 16:30Z), and only
+  on the owner's OK.
+
+```text
+ROW 5's RE-RUN RUNBOOK AT H6, TUESDAY 2026-11-24 (map-server; PROPOSED; binds only on the owner's "map row 5 re-run: yes" AND
+the orchestrator's acceptance and START). LOCAL ONLY. It is mirror/row5_run26.md fc56f567121d (its commands and its appended C1)
+with mirror/row5_amend1.md 01331953f453 (AM1-AM7, accepted) turned into commands. It adds no step and changes no outcome beyond
+Amendment 1. D0's day values (M, N, the SET files, P0, B0) are NOT filled in here: they are read on the day.
+Fixed values, read from git (unchanged since Monday):
+  H6     b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 (wt-code HEAD)      EXPECT 4a02123ca992031d60bd9592e3084c9ccf34041f
+  MAIN0  cbd999db594fbd5f5659d8505c793922394549e1                     #775   2761765e71bde1e8674f8c58f95dd193e8492293
+Pinned tools and inputs (sha256, first 12; each re-read at D0-H): r5read26.sh 01c129f036ee; r5builder27.sh c3cef0e496a9 (selftest
+S1-S4 as predicted, 2026-11-23, mirror/r5builder27.selftest.pred 5bd7af9bca81); sg-request.sh 6e67ae96ee08; run-logs/p5h6.shas.txt
+5cb763026974; mirror/r5-points.tsv 54f97f84042a; mirror/up26-current-before.bin a8e96fcf8fae.
+Paths: SCR = my scratchpad; W = SCR/wt-code (H6, clean; nothing written inside it). Every step through runlog.sh, unfiltered, stderr
+to its own file, every exit printed; no pipe or filter on any read. Staging only. No board, release, tag or Actions. Wrangler only
+through node scripts/wrangler-run.mjs. Stamps from date -u in the same step. TAG SUFFIX: -tue for every new name.
+
+WHEN: the orchestrator's START line, after the owner's yes; START 09:00Z, LATEST START L = 10:00Z. CUTOFF S+45 (S5-4..S5-6c not
+all returned: STOP, roll back at once); no rollback step started after S+58; the rollback ENDS by S+60. A step unfinished at its
+end time: HOLD, nothing more runs, report. R6 (no proxy-touching merge to main) holds through this run's END.
+
+D0 (read-only; printed whole; any line other than predicted: NO deploy, report):
+ D0-1  git -C W rev-parse HEAD == H6 == git -C W ls-remote origin refs/heads/map-server/dense-code; git -C W status --porcelain: 0 lines.
+ D0-2  git -C W fetch origin main; M = git -C W rev-parse origin/main, cross-read by ls-remote origin refs/heads/main (equal).
+       merge-base --is-ancestor MAIN0 H6 and EXPECT H6: both 0.
+ D0-3  git -C W log --format=%H MAIN0..M -- proxy/ scripts/session-claim.py: EMPTY (R6).
+ D0-A  git -C W diff --name-only EXPECT MAIN0 -- proxy/ == exactly the three #775 paths.
+ D0-B  git -C W log --format=%H EXPECT..MAIN0 -- proxy/ scripts/session-claim.py == exactly #775 (the 03:52Z exception's list).
+ D0-C  in W/proxy: deploy-inputs.mjs set proxy staging / set builder staging, each through runlog; their .out copied to
+       SCR/run-logs/r5d0-set-proxy-tue.txt and r5d0-set-builder-tue.txt and printed WHOLE. #775's 3 paths grep -cx = 0 in each;
+       CONTROL proxy/scripts/deploy-inputs.mjs = 1 in each (not 1: VOID, NO deploy).
+ D0-D  deploy-inputs.mjs check <proxy|builder> <staging|production>, all four: exit 0, each with "note: N commit(s) behind
+       origin/main touch nothing under proxy/ or in the machinery (not blocking)", N = git rev-list --count H6..M (the
+       exception's second condition). Exit 1, 2 or other: NO deploy.
+ D0-E  one GET of staging /healthz: top-level commit == 4a02123c (EXPECT still on staging; else R4: NO row 5).
+ D0-F  (AM4) booleans and counts only, printed: token file present; key names test-device + test-key-staging 2 of 2. Then, in
+       ONE command line: export BLIPSCOPE_TOKEN_FILE="$HOME/.config/blipscope/tokens" && R5READ_PRECHECK_ONLY=1
+       BASE=https://scopes-staging.valarsystems.com bash runlog.sh r5pre-tue bash mirror/r5read26.sh refsH6/h16 h16 refsH6/hs4
+       hs4 run-logs/r5pre-tue 33d6dc41c749: exit 0 (22/22 points; comparator control DIFFERENT / EQUAL); sha256sum -c
+       run-logs/p5h6.shas.txt: 22 OK.
+ D0-G  sed 's/4c0875738f38/33d6dc41c749/' mirror/up26-current-before.bin > run-logs/r5-current-33d6-tue.bin: 26 B, full sha256 ==
+       544d4b83b35058f16166599346250e832cae920a6d7178881c8e5060c5d49d56. Rollback body mirror/up26-current-before.bin a8e96fcf8fae.
+ D0-H  (AM4) the pinned shas above, each printed and equal; ABSENT before the slot, each printed: run-logs/r5read-tue,
+       run-logs/r5b27-tue.d, run-logs/r5probe-tue.bmpk, run-logs/r5b27-probe-tue.d (r5pre-tue is created by D0-F).
+
+THE CLAIM, from W: BLIPSCOPE_SESSION=map-server python scripts/session-claim.py take deploy --covers proxy:staging,builder:staging
+  --until +75m; then check deploy --covers proxy:staging and builder:staging: both 0. S = the take's stamp; S <= L.
+
+S5-0 (read-only; rollback targets), in W/proxy, each through runlog, printed whole:
+  deployments list --env staging --json -> P0 = the newest deployment's version id (by created_on), written to
+  SCR/run-logs/r5-rollback-targets-tue.txt with B0 and S;
+  deployments list -c basemap.wrangler.toml --env staging --json -> B0, the same way;
+  r2 object get blipscope-basemap/bm/v1/current --pipe --remote: its .out cmp-identical to mirror/up26-current-before.bin;
+  kv key get bm:store --namespace-id 8b6e92ed802a4192b6b6c1399fdf96aa --remote: exactly 4c0875738f38.
+  Any other reading: STOP before S5-1 (nothing written); report.
+S5-1  in W/proxy: BLIPSCOPE_SESSION=map-server bash scripts/deploy.sh --builder staging, then BLIPSCOPE_SESSION=map-server bash
+      scripts/deploy.sh staging. PREDICTED: both exit 0; the proxy's confirm step reads /healthz commit=b23d5ca1.
+S5-2  r2 object put blipscope-basemap/bm/v1/current --file ../../run-logs/r5-current-33d6-tue.bin --remote; get --pipe: its .out
+      cmp-identical to r5-current-33d6-tue.bin. kv key put bm:store 33d6dc41c749 (same namespace) --remote; kv key get twice, at
+      least 60 s apart (a registered background wait between them): exactly 33d6dc41c749 both times.
+S5-3  a registered background wait to at least 60 s after the second KV read.
+S5-4/S5-5 (AM5), from SCR, ONE command line:
+      export BLIPSCOPE_TOKEN_FILE="$HOME/.config/blipscope/tokens" && BASE=https://scopes-staging.valarsystems.com bash runlog.sh
+      r5read-tue bash mirror/r5read26.sh refsH6/h16 h16 refsH6/hs4 hs4 run-logs/r5read-tue 33d6dc41c749
+      PREDICTED: exit 0; R5-16 16 of 16 and R5-S4 6 of 6 EQUAL; every 200 with etag and provenance store 33d6dc41c749; attempt 1
+      HTTP 200 on all 22 (section 1: today's stored packages). A 202 on any point is INFORMATION, not a STOP.
+S5-6 (AM1), from SCR:
+      bash runlog.sh r5b27-tue bash mirror/r5builder27.sh b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 33d6dc41c749
+      refsH6/h16/KBOS-h16.bmpk run-logs/r5b27-tue.d 22 run-logs/r5read-tue/*.bmpk
+      PREDICTED: c1 AS EXPECTED; c2 "1 byte differs", builder 023d5ca1a5488ab05865ab67ffe3cd2979c4ff07 -> DIFFERENT; "22 of 22 as
+      expected; different 0; unreadable 0"; exit 0. Exit 4: VOID: STOP. Exit 1: STOP. Exit 2: the instrument: STOP.
+S5-6b (AM2), from SCR, ONE command line:
+      export BLIPSCOPE_TOKEN_FILE="$HOME/.config/blipscope/tokens" && BASE=https://scopes-staging.valarsystems.com bash runlog.sh
+      r5probe-tue bash sg-request.sh KJAC 43.61 -110.74 run-logs/r5probe-tue.bmpk
+      PREDICTED: "KJAC try 1: HTTP 202", then a 200 within its retries, magic 'BMPK'; exit 0. TRY 1 A 200: VOID (not a fresh
+      build): STOP. A 404/422/5xx, or no 200: STOP. Then:
+      bash runlog.sh r5b27-probe-tue bash mirror/r5builder27.sh b23d5ca1a5488ab05865ab67ffe3cd2979c4ff07 33d6dc41c749
+      refsH6/h16/KBOS-h16.bmpk run-logs/r5b27-probe-tue.d 1 run-logs/r5probe-tue.bmpk
+      PREDICTED: controls as S5-6; "1 of 1 as expected"; exit 0. Any other: STOP.
+S5-6c (AM3): GET staging /healthz four times, each through runlog, printed whole. INFORMATION: nulls counted, never a pass or a
+      fail. A read with top-level commit b23d5ca1 whose basemap block names a store other than 33d6dc41c749 or a commit other
+      than H6: STOP.
+OUTCOMES (registration's table + AM7): S5-4..S5-6c all as predicted -> row 5 as predicted, with Amendment 1 section 1's narrower
+meaning recorded beside it; staging STAYS on H6 with current and bm:store = 33d6dc41c749 (no rollback on a pass); the claim is
+released. Any line other than predicted -> STOP and THE ROLLBACK. Anything else -> outside the set: STOP and decide.
+
+THE ROLLBACK (unchanged; each read back): R-1 current put from ../../mirror/up26-current-before.bin, get cmp-identical; R-2 kv
+bm:store 4c0875738f38, get exact; R-3 rollback P0 --env staging -y, deployments list newest == P0; R-4 rollback B0 -c
+basemap.wrangler.toml --env staging -y, newest == B0. Then staging /healthz commit == 4a02123c, read three times. Release the claim.
+END: the claim released, then one line to the orchestrator and uk-data. The reading is appended to #696's doc later, never inside
+the slot. Background waits: run_in_background only, each registered and its ledger line confirmed; each checked at its end
+(only 0 is PASS); a stopped wait is followed by a ledger check and, if its children remain, a kill of exactly its PGID.
+OUTSIDE THE SET: any reading not named above -> STOP; inside the slot, THE ROLLBACK; before S5-1, nothing to undo; report.
+```
+
+### H7: main merged in after row 5; CI for this push, predicted
+
+**Main merged in.** e9d60e9caa3d merges main 5957b5308717. Its tree, 884a4e360b73, is the tree `git merge-tree` predicted before it,
+and its parents are H6 and 5957b5308717. The 29 files it adds are exactly main's since cbd999db594f, none under `proxy/` and none of
+this branch's. `git diff cbd999db594f H6` and `git diff 5957b5308717 e9d60e9caa3d` are byte-identical patches. This section is the
+docs-only commit on top of it, H7.
+
+**#696 merges next in the declared order:** this head's CI read twice, then the orchestrator's APPROVED naming main, then
+`merge-by-rule.sh`. Merging deploys nothing.
+
+**CI for this push, predicted before the push.** It carries the merge and this docs-only section.
+- **The base.** Main is 5957b5308717 by ls-remote at 2026-11-24T09:10:45Z. Since cbd999db594f, which H6 tested into, six commits
+  landed: #786, #785, #788, #784, #782 and #789.
+- **What changed among the paths that shape CI** (`.github/`, `skus.yml`, `scripts/skus.py`, `platformio.ini`): only
+  `.github/workflows/bench-tools.yml`, where one step is added inside its existing job (`board-port.py --selftest`). No job is added
+  or removed, and no trigger changes.
+- **Predicted: 39 check runs, 37 success, 2 skipped (`promote`, `version`), 0 failed,** with the same job-name set as H6's run. It
+  is tested on the merge into 5957b5308717, read from a job's own checkout log, and read twice at least 65 s apart.
+- **Main's coordinate gate** (`check_precise_coords.py --diff` against main), run on this head before the push, must count 0 added.
+- **Outside the set:**
+  - a tested base other than 5957b5308717: STOP, re-derive the count, and write the amendment before anything is graded;
+  - any other count, conclusion or job name: STOP, and read which job before anything else.
+
+### H7's CI, read: OFF at `sku-readers`, caused by this section's own wording; H7b
+
+**Read** (2026-11-24 09:36:18Z, after the run had finished): 39 check runs, 36 success, 2 skipped (`promote`, `version`), **1
+failure: `sku-readers`**. The job names equalled H6's. It was tested on e3d0a635, the merge of f300e1ac5b0c into 5957b5308717, per
+the failed job's own checkout log. **Outside the set: STOP**, reported to the orchestrator before any fix.
+- **The cause**, from that job's whole log: the SKU reader sweep refused this doc because it named the firmware workflow's file,
+  which only reviewed files may. The one mention was this branch's new prose above, in H6's CI paragraph, not a record block: H6's
+  doc and the four verbatim blocks name it 0 times. Run locally on f300e1ac, the sweep failed the same way.
+- **The miss:** the checks before the push covered device ids, Wi-Fi, MACs and coordinates, not every guard CI runs on docs. From
+  now on a doc's checks include all of them, the reader sweep among them.
+- **The fix, H7b**, on the orchestrator's word: that phrase now reads "main's firmware workflow", and nothing else above changes.
+  The guard is not widened to fit the wording. Before the push the sweep reads exit 0 here, having read exit 1 on f300e1ac.
+
+**CI for H7b, predicted before the push.** Main is 5957b5308717, held since H7 was pushed. Predicted: 39 check runs, 37 success, 2
+skipped (`promote`, `version`), 0 failed, with H6's job names. It is tested on the merge into 5957b5308717, read from a job's own
+checkout log, and read twice at least 65 s apart.
+- **Outside the set:** a tested base other than 5957b5308717, or any other count, conclusion or job name: STOP, and read which job
+  before anything else.

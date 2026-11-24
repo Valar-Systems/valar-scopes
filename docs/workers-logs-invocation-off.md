@@ -316,6 +316,416 @@ If one fails or rolls back, the LATER ones wait for him.**
 Each deploy goes through `proxy/scripts/deploy.sh`, under the deploy claim, with the deployer lock confirmed with the
 reviewer first.
 
+### 7a. Amendment before the slot: #736 rides this deploy, its checks kept separate (2026-11-17, appended below 7)
+
+Sections 1-7 above are frozen and are not edited. This section changes four things: what this deploy SHIPS, what it
+CARRIES, the D0 that proves both, and the timeline. It adds #736's own checks, apart from (a)-(g). Every prediction in
+sections 5 and 5a stands.
+
+**The owner's words, 2026-11-17 18:53Z (relayed by the reviewer), verbatim, the parts that govern this deploy:** "#736:
+Wednesday. Keep its checks separate from the logs checks in the plan, so a failure can be traced to one change. rule: by
+procedure Wed. [...] name each of Wednesday's three commits in the plans."
+
+#### 7a.1 The commit this deploy ships
+
+**EXPECT = `4a02123ca992031d60bd9592e3084c9ccf34041f`**, #747's merge commit. Both environments deploy exactly this
+commit, from one detached LF checkout of it (`-c core.autocrlf=false -c core.eol=lf`), and no branch is created or moved.
+
+#### 7a.2 What it carries: every commit from `074863fc` (both environments' `/healthz` stamp) to EXPECT
+
+Read 2026-11-17 19:46Z with `git log --first-parent 074863fc..EXPECT`. Each commit's files under `proxy/`:
+
+| commit | PR | under `proxy/` | in the proxy's input set? | its checks |
+|---|---|---|---|---|
+| `4a02123c` | #747 | `pages/support.html`, `src/pages.generated.ts` | **yes** (the served page) | 7a.5, P-S |
+| `13a6dab8` | #746 | none | no | none |
+| `6beb4310` | #745 | none | no | none |
+| `c7f73d10` | #744 | `wrangler.toml`, `src/devlabel.ts`, `src/index.ts`, `src/metrics.ts`, two scripts, one test | **yes** (this plan's change) | sections 5, 5a, 6 |
+| `1695645d` | #743 | none | no | none |
+| `b4f7e511` | #742 | none | no | none |
+| `4dcf2be3` | #739 | none | no | none |
+| `6164ac93` | #741 | none | no | none |
+| `97c96b4c` | #740 | none | no | none |
+| `5c45a67c` | #738 | none | no | none |
+| `0fc8c1d3` | #735 | none | no | none |
+| `8ffe6641` | #737 (#736's plan) | none | no | none |
+| `00fc75d1` | #736 | `wrangler.toml`, `src/types.ts`, `src/upstreams/adsbdb.ts`, `src/upstreams/chain.ts`, `README.md`, four tests | **yes** | 7a.4 |
+| `3815844f` | #734 | `FEED-SOURCING.md`, one script, one test | no (#736's plan's bundle check: none is an input) | none (C5 below) |
+| `3741501b`, `8e83ec83`, `4e9ee56e`, `e152fd30`, `425468f1` | #731, #733, #732, #730, #729 | none | no | none |
+
+**Three changes are in the bundle:** #744 (the logs), #736 (adsbdb off) and #747 (the support page's words).
+Production's behaviour is predicted unchanged by #736 (its plan's own premise). #747 changes the page's text only.
+
+#### 7a.3 D0, by procedure: printed, and any mismatch means no deploy
+
+The owner ruled "by procedure" for Wednesday: until the deploy scripts check it themselves (the commit-pin change, not
+merged before this chain closes), the deployer PRINTS each of these, in the slot, before the first upload:
+
+| D0 | prints | predicted | on a mismatch |
+|---|---|---|---|
+| D0-H | `git rev-parse HEAD` in the deploy checkout | EXPECT, in full | no deploy |
+| D0-A | `git ls-remote` for main = M; `git merge-base --is-ancestor EXPECT M` | exit 0 | no deploy |
+| D0-B | `git log --format='%h %s' EXPECT..M -- proxy/ scripts/session-claim.py` (the proxy's inputs and machinery, read wide) | empty. A later commit touching only docs or other paths outside these is a NOTE and is printed as one | any commit listed here: no deploy until this plan names it (a merge after the plan) |
+| D0-D | `git status --porcelain -- proxy/` in the deploy checkout | empty | no deploy |
+| D0-S | `/healthz` `commit` on staging and production, each read twice at least 60 s apart | `074863fc` on both | another stamp means someone deployed since: no deploy; re-list 7a.2 from that stamp |
+
+`deploy.sh`'s own behind check reads `EXPECT..origin/main` too, so D0-B and the script agree. A deploy is never run with
+`ALLOW_BEHIND=1`.
+
+#### 7a.4 #736's checks, kept apart from (a)-(g)
+
+These are #736's own plan's checks (`docs/proxy-deploy-2026-11-17.md`, section 3), unchanged in what they grade. That
+plan's Tuesday slot was not used: the owner chose Wednesday. Its drafted override (#749) was closed unmerged, and
+nothing in it applies here.
+
+| step | when | what | predicted |
+|---|---|---|---|
+| **#736-B** (the before-read) | 12:10-12:25Z, before the BEFORE windows | `/healthz` on both environments, twice, at least 60 s apart: `upstreams` by id, order, `enabled`, `state` and key set; the routes block; the OPERA products' `source` values | 7 `upstreams` entries, `adsbdb_ac` absent; written down as the comparison |
+| **#736-S0** (the smoke baseline) | 12:00-12:28Z, before the BEFORE windows | `smoke-prod.sh` against production, and with `BASE=<staging>` against staging, as the test identity; whole output to a file | each run's verdicts saved by name |
+| **#736-C2** | after each environment's C1, BEFORE that environment's next logs window opens | `/healthz` `upstreams`, read twice | 8 entries; entries 1-7 equal to #736-B; entry 8 exactly `{"id":"adsbdb_ac","enabled":false,"state":"closed","reason":"licence"}` |
+| **#736-C3** | each deploy's own output | the two variables | `ROUTE_ADSBDB_ENABLED` and `TYPE_ADSBDB_ENABLED` both `"false"`, or "not observable" (never passed) |
+| **#736-C5** | with #736-C2 | `ok`, the routes block, the OPERA values | equal to #736-B (`ageDays` not compared) |
+| **#736-C4** (the smoke) | staging: after W2's second read; production: after P's second read. Never inside A, W2 or P | `smoke-prod.sh`, whole | every verdict equal to #736-S0 by name |
+
+**Why the smoke stays outside the windows.** It runs as the test identity, so inside a window it would add
+device-authenticated request lines and enter (e)'s and W2's counts. The `/healthz` reads add no device line, but they
+are kept out of the windows too, so that every count in a window comes from that window's own triggering requests.
+
+**#747's one check, P-S:** after each environment's C1 and before its next window, one anonymous `GET /blipscope/support`.
+It must hold "Cloudflare keeps these logs for up to seven days" and must not hold "nothing that identifies your device".
+
+#### 7a.5 Outcomes: each failure names the change it implicates
+
+One deploy carries all three changes, so **a rollback reverts all three**. The row says which change the evidence
+points at, so that the report, and any re-plan, separate them.
+
+| reading | implicates | action |
+|---|---|---|
+| any of section 6's rows | **#744** (the logs) | as section 6 says |
+| #736-C2 reads 7 entries, or no `adsbdb_ac` | the build is not EXPECT's: C1 fails too | roll back that environment |
+| #736-C2's `adsbdb_ac` reads `enabled: true`, or has no `reason` | **#736**: the licence switch is on in that environment | **roll back at once**; report to the reviewer and the owner |
+| #736-C2's entries 1-7 differ in `id`, `enabled`, order or keys | **#736** (a change nobody predicted in the upstream chain) | roll back; report |
+| #736-C3 "not observable" | none (the output's format) | the deploy stands on C1, #736-C2, #736-C4 and #736-C5; report |
+| #736-C4: a smoke verdict passed in #736-S0 and fails now | **the deploy**. The report names the verdict, and its check's subject says which change it touches: routes or enrichment point at #736; nothing in #744 or #747 changes a smoke-graded behaviour | roll back that environment; report |
+| #736-C5: the routes block or the OPERA values moved | **none predicted** (#734's check: no change may move them) | roll back; report |
+| P-S: the old sentence is served, or the new one is absent | **#747** (the page did not ship, or the wrong build did) | roll back that environment; report |
+| anything else | outside the set | stop and decide; nothing is improvised |
+
+#### 7a.6 The timeline, with #736 and #747 added (section 7's table stands except as written here)
+
+| time (Z) | step |
+|---|---|
+| by 12:00 | the deploy checkout at EXPECT (LF, detached); D0-H, D0-D printed |
+| 12:00-12:28 | #736-S0 (smoke, both environments); #736-B (`/healthz`, both, twice) |
+| 12:30-12:40 | the BEFORE windows, both environments, as section 7. Reads 12:50 and 13:00 |
+| 13:00 | the deployer lock confirmed; D0-A, D0-B and D0-S printed; the staging deploy; C1 |
+| after C1 | #736-C2/C3/C5 and P-S on staging (about 3 min). **Window A then opens 2 minutes after the last of them**, not 2 minutes after C1 |
+| about 13:08-13:40 | window A and its two reads; then W2 and its two reads, as section 7 |
+| after W2's second read | #736-C4 on staging (smoke) |
+| not before 14:00, about 14:15 | only if staging read as predicted, on (a)-(g) AND #736-C2-C5 AND P-S: the production deploy; C1; #736-C2/C3/C5 and P-S on production; window P opens 2 minutes after the last of them |
+| after P's second read | #736-C4 on production (smoke) |
+| by about 14:55 | the deploy claim released; the record (section 9) names each change's checks separately |
+
+**If the slot cannot fit** (the 15:00Z end is reached with production not started), production does not start. The owner's
+same-day rule for #747 then applies: its page gets its own slot the same day.
+
+#### 7a.7 Wednesday's three commits, named
+
+- the 10:00Z radar step: the commit its own checklist's amendment names (`docs/wx-opera-fallback-deploy.md`);
+- this step: **`4a02123ca992031d60bd9592e3084c9ccf34041f`**;
+- the 16:00Z route run: the commit of the tool it runs, named in its own checklist (`docs/route-weekly-code.md`).
+
+### 7b-7f. Rulings and re-reads after Wednesday, for Thursday's step (2026-11-18, appended below 7a)
+
+Sections 1-7a stand except as written here. **Wednesday's step did not run.**
+- The radar step's C-R2 held the chain, under the owner's chain rule: if one step fails or rolls back, the later ones
+  wait for the owner.
+- No owner answer came by 12:30Z. The owner then moved this step to **Thursday 2026-11-19, 12:30-15:00Z, with Friday as
+  the fallback**. 7a.6's clock times stand, one day later.
+- **#747's page shipped alone on Wednesday**, under the owner's same-day rule (7a.6's last paragraph). Section 7e says
+  what that changes here.
+
+Each subsection below was ruled by the reviewer before the reading it governs, and each names when.
+
+#### 7b. #736-C4's comparison rule (ruled about 11:12Z, before any S0; widened at 15:27Z)
+
+**Why.** #736-C4 grades "every verdict equal to #736-S0 by name". But some of the smoke's checks are named after the
+aircraft over its test tile:
+- an empty tile prints SKIPPED names;
+- an aircraft present prints per-aircraft PASS names.
+
+That made the radar step's C-R2 read OFF on Wednesday with nothing wrong. Enrichment is #736's subject, so the text as
+written has two failures:
+- **a false OFF**, when traffic changes between S0 and C4;
+- **worse, a hidden failure**: a PASS at S0 against a traffic SKIP at C4 means the enrich check is simply not compared,
+  and a broken enrichment can hide behind the SKIP.
+
+**The rule.**
+1. A FAIL anywhere is graded as 7a.5 says.
+2. A name in the traffic-dependent family (7f's T1-T3) that differs between S0 and C4 is **NOT COMPARABLE**. It is
+   printed as information and is never a pass. This covers two cases:
+   - a SKIPPED name on one side and its per-aircraft counterpart on the other;
+   - one aircraft's per-aircraft PASS against another aircraft's per-aircraft PASS. This case was widened at 15:27Z, from
+     the page-only deploy's C4 below. The reviewer declined to widen the normaliser instead, because that would choose
+     the rule after the reading.
+3. If the family is NOT COMPARABLE at C4, the smoke is re-run ONCE, at most 10 minutes later and still outside every
+   window, and graded on that run.
+4. If it is still NOT COMPARABLE, #736-C4's enrichment half is recorded **BLIND**, and **#736's verdict is NOT PROVEN:
+   stop and report.** Nothing is rolled back by reflex; the owner decides whether to keep or roll back. The other names
+   are graded as written. But "the other names graded" never adds up to "#736 passed" while its subject is blind.
+5. **A supplementary row exists only if an existing tool gives one:** a probe that does not depend on traffic (a fixed
+   public aircraft hex, through the same test identity, no new tool, no token on a command line). Read at about 11:13Z:
+   **none exists**, so none is added. The smoke takes its enrich hex only from the live `/v1/blips` response, with no
+   override. The other callers of `/v1/enrich` are an Analytics Engine aggregate, a callsign lookup inside the route
+   ingest, and a local replay, and using any of them would be a new tool.
+
+The owner's terms are unchanged: #736's checks stay separate from the logs checks.
+
+#### 7c. #736-C2's grading of breaker state (ruled about 12:03Z, before C2)
+
+- C2 grades entries 1-7 on **id, enabled, order and key set**, which is 7a.5's own list.
+- Their **state is printed as information, never graded**. A breaker's state is live upstream health, not something
+  #736 changes. On Wednesday, two of production's breakers went from open to closed between two reads 85 s apart.
+- Entry 8 (`adsbdb_ac`) is graded exactly as written, **state included**:
+  `{"id":"adsbdb_ac","enabled":false,"state":"closed","reason":"licence"}`.
+
+#### 7d. P-S, as it is read (ruled about 12:37Z)
+
+- **The defect.** P-S requires the page to hold "Cloudflare keeps these logs for up to seven days". That sentence is
+  wrapped across two lines in the HTML source of `proxy/pages/support.html`. So a literal match on the raw HTML reads it
+  ABSENT on a correct page; a raw grep of `4a02123c`'s page counts it 0 times. As written, P-S would implicate #747 and
+  roll back a good deploy.
+- **The reading:** every run of whitespace in the served HTML is collapsed to one space before matching. The old
+  sentence ("nothing that identifies your device") is matched the same way.
+- **Its control, PS-L, before the step:** the same matcher, run on the deploy checkout's own
+  `proxy/pages/support.html`, must read the new sentence present and the old one absent.
+  - On `4a02123c`'s page it reads exactly that, while the raw match reads the new sentence absent.
+  - On `074863fc`'s page it reads new absent, old present.
+  - P-S is graded only after PS-L reads as required in that day's checkout.
+
+#### 7e. The "before" commit and the rollback targets, re-read after Wednesday's page-only deploy
+
+**What moved.** At 15:24Z (staging) and 15:29Z (production) on Wednesday, the page-only deploy shipped
+**`fcc33692a8ba98fd0dd53a8629303e8b8e25a213`** to both environments. That is `074863fc` plus #747's two files under
+`proxy/`, taken byte-identical from `4a02123c`. It is on the branch `deploy/page747-on-074863fc`, and is not an ancestor
+of main.
+- Its checks: C1, the page check and the `/healthz` comparison read as predicted on both environments. The smoke had 0
+  FAIL, and its photo-pointer half was NOT COMPARABLE after one re-run (7b rule 2), so it was recorded BLIND, which is
+  not a stop for a page-only deploy.
+
+| env | `/healthz` commit now | version now | the version before (serves the OLD sentence) |
+|---|---|---|---|
+| production | `fcc33692` | `e663ea72-676b-4f53-90b7-f4135f7c45dc` | `2b92e9f1-73c8-4cb3-b2b0-b0090f6102a2` |
+| staging | `fcc33692` | `e6de3d81-68e8-4858-b8a2-e59a03858441` | `4464d8ab-15e8-4970-9c7d-97e26bcda9bd` |
+
+**What changes for Thursday:**
+1. **D0-S predicts `fcc33692`** on both environments, not `074863fc`. 7a.3's rule for another stamp says to re-list 7a.2
+   from it.
+   - `git log --first-parent fcc33692..EXPECT` lists the same 19 commits as from `074863fc`, because fcc33692's only
+     parent is `074863fc`. So 7a.2's table stands.
+   - #747's row is the one difference: its content is already live, so on Thursday P-S checks that the page STAYS right.
+2. **The rollback targets are the versions D0 reads on Thursday**, read fresh and never copied from the table above.
+   They are predicted to be `e663ea72` (production) and `e6de3d81` (staging) unless something else deploys first.
+   - **`2b92e9f1` and `4464d8ab` are never a rollback target:** they serve "nothing that identifies your device".
+   - A rollback target is acceptable only if it is the version serving the new page. PS-0, read before the step, must
+     show the new sentence present and the old one absent on both environments.
+3. **P-S after the step** is graded as "the new sentence stays present and the old one stays absent". PS-L still runs
+   first, as 7d says.
+4. **D0-B**, read at about 15:45Z on Wednesday over `EXPECT..main` (`f9e66b14`), is **empty**. The five commits since
+   EXPECT touch neither `proxy/` nor `scripts/session-claim.py`: three plan amendments (#751, #752, #753), #756 and
+   #690. They are on main, outside the input set.
+5. **The scheduled photo-drift run is named in every main-CI read.**
+   - photo-drift's daily `schedule` run (cron 06:17) fires 7-9 h late, between about 13:29Z and 15:57Z. Thursday's slot
+     is inside that band.
+   - It attaches to main's head and adds 2 check-runs (drift, photo-drift).
+   - So any prediction of main's check-run count, and any "main's CI finished or idle" gate, names it: in the
+     prediction if it has landed, as information if it is in progress.
+   - It is identified by workflow and event, never by count alone. It is never read as off, and never as an
+     unfinished run of this step's.
+
+#### 7f. The smoke checks whose name or verdict follows live traffic (the owner's condition, 2026-11-18 15:02Z)
+
+**Source.** Read from `proxy/scripts/smoke-prod.sh` at main `f9e66b14`; its blob is the same as fcc33692's, i.e. what is
+deployed now. It is re-read at Thursday's EXPECT, and if the blob differs, this list is re-derived before S0.
+- The list comes from the script, not from Wednesday's outputs, because a check that happened to read the same twice
+  would not show up in a diff.
+- Exactly these four checks read a `/v1/blips` response:
+
+| # | name(s) as printed | input | what follows traffic |
+|---|---|---|---|
+| T1 | `/v1/enrich/<hex> (live hex from the blips response)` PASS, or `/v1/enrich` SKIPPED | the first row of the test tile's `/v1/blips` | the NAME (the hex), and PASS against SKIPPED (an empty tile, or `/v1/blips` not 200) |
+| T2 | `/v1/photo (via enrich pointer <photo key>)` PASS, or `/v1/photo` SKIPPED | the photo pointer from T1's enrich answer | the NAME (the aircraft type's photo key), and PASS against SKIPPED (no hex, or a type with no stock photo). On Wednesday the page-only deploy's six smoke runs (S0, C4 and one re-run, on each environment) printed three different types (C152, R22, B39M), all PASS |
+| T3 | `/v1/enrich photo variant gate (FW 6 vs FW 7)` and its `#2`, or `photo variant gate` SKIPPED, or `photo variant gate (FW 7 square)` SKIPPED | the first of the test tile's first 12 hexes that resolves a photo | whether it runs, which SKIP prints, and whether the FW 7 half runs (that depends on the TYPE having a square ingested). When it runs, its verdict is graded on that type's library row |
+| T4 | `upstream chain (freshness + both relays serving)`, plus a second result under the same header when its empty-sky branch fires | `/v1/blips` over six fixed probe tiles, NOT the test tile | the VERDICT: FAIL "EMPTY SKY" when the probes see fewer than 10 aircraft in all, or fewer than 2 non-empty tiles. Its name is fixed |
+
+The test tile's own `/v1/blips` check grades the status only (an empty tile still answers 200), and its name is built
+from constants, so it does not follow traffic. No other check reads `/v1/blips`.
+
+**Grading (ruled by the reviewer at about 16:00Z, before Thursday's S0):**
+- **T1-T3 are the name family of 7b rule 2.** A name that differs between S0 and C4 is NOT COMPARABLE, never a pass. A
+  FAIL inside them is still a FAIL (rule 1), whatever the aircraft.
+- **T4 is named as traffic-dependent in its VERDICT, and graded as written, outside the name family.** Its FAIL is the
+  alarm for a throttled upstream, which answers 200 with an empty array and a current clock, and catching that is what
+  T4 exists for. Rule 1 applies, and its second result appears only with that FAIL.
+  - Beside T4's verdict, at S0 and at C4, the report prints the aircraft count and the non-empty-tile count T4 saw.
+
+#### 7g. Corrections C5-C14: how the rows are read with the fixed stored-log reader (ruled 2026-11-19; appended below 7b-7f)
+
+**Why.** On Thursday 2026-11-19 the BEFORE windows were read twice. The first read's controls all read as
+predicted. The second returned estimated counts (`sampleInterval` above 1) and HTTP 500s, so the two reads disagreed,
+controls included, and the step stopped before any deploy. A third read, which saved the API's statistics, showed the
+query-time ABR level varying from one query to the next. The reader has since been fixed, and its design was accepted
+by the reviewer. These corrections say how each touched row of sections 5, 5a and 6 is read under it.
+
+- **No frozen line is edited.** Every correction is appended here.
+- **No predicted value changes.** C13 changes one check's status.
+- C1-C4 are 5a's, so these continue the numbering.
+- The reader's change M4 touches no line of this plan.
+- C15 is written only if the reader's A/B probe of its OR-group queries (PAB26) reads B, and before the new slot.
+
+Line numbers are this file's at sha256 328e83431c52. Everything they cite sits above this section.
+
+**C5. A count is a reading only at full resolution, per query.** This governs section 5's counts:
+- L131-132;
+- the "0" and "> 0" predictions at L142 (a), L145 (d), L146 (e) and L147 (f);
+- the predicted list at L208-217.
+
+A count is certified only by a query that returned HTTP 200 with a statistics block whose `abr_level` is PRESENT and
+equal to 1, and with every `sampleInterval` equal to 0 or 1. A zero-count row at full resolution carries 0 (the
+reader design's Amendment 1, ruled before its A/B probe ran). An absent `abr_level` is not taken as 1. A "= 0" is exact only
+from such a query, and one query's resolution proves nothing about another's.
+
+**C6. Section 6 gains a cause of BLIND.** It sits beside L281's "any control = 0". A control, or a graded row, that is
+not a value under C5 after C7's re-asks is **BLIND: no verdict; stop.** Before this correction, such a graded row fell
+under L282's "outside the set".
+
+**C7. A bounded re-ask; the read times are unchanged.** The reads stay at window close +10 and +20 minutes (L131).
+- A query that is not a value under C5 is asked up to twice more, 30 s apart.
+- The re-ask is chosen by the query's resolution only, never by its count. The first attempt that is a value is taken,
+  and every attempt is recorded.
+- A read can therefore take up to about a minute longer per row.
+
+**C8. The plants are read as arrivals, each half on its own.** This replaces two controls: (f)'s `ep` IP-shaped count
+>= 1 (L199, L201-202) and 5a C2's IPv6 control (L248-251). They are read as two exact-match counts in every window, each
+a value under C5:
+- the IPv4 plant: `evt:"req"` lines with `ep` equal to `"/192.0.2.1"`, at least 1;
+- the IPv6 plant: `evt:"req"` lines with `ep` equal to `"/2001:db8::1"`, at least 1.
+
+A plant that reads 0, or is not a value, makes **its own half of (f)** BLIND: the IPv4 half or the IPv6 half, not the
+whole of (f). These counts prove the planted requests arrived. That 5a C1's patterns match those values is proven
+offline, by the reader's own selftest, and on the day by C10's local match over `ep`'s values.
+
+**C9. (e)'s (B) by presence; the shape is checked locally.** 5a C4's (B) (L257-263: "a `devl` matching
+`^[0-9a-f]{8}$`") becomes the device-authenticated `evt:"req"` lines on which `devl` EXISTS, with no server-side
+pattern. A - B = 0 is still graded, with A > 0 (L146). The shape, exactly 8 lowercase hex, is checked by C10's local
+match over `devl`'s values.
+
+**C10. (f) is read from the values endpoint and matched locally.** (f)'s mechanism (L147, L171-175; 5a C1 L225-234;
+section 6 L278) changes:
+- **Before:** a server-side regex count.
+- **After:** the API's list of unique values for each of the eight graded fields over the window. 5a C1's two patterns,
+  and C9's 8-hex shape for `devl`, are applied locally and in memory, counts only. No value is printed or saved.
+
+Its gates, each required:
+1. the plants' `ep` values appear in `ep`'s list (the positive control);
+2. each list is shorter than the endpoint's limit, or absence is not proven;
+3. the endpoint is shown complete by its own registered probe first.
+
+If any gate fails, (f) is **UNPROVEN**, and that is not a pass. **Section 6 gains a row:** "(f) UNPROVEN: no verdict
+on (f); stop and report."
+
+**C11. `model` is not read.** This replaces 5a's line "`ep` and `model` stay information" (L234). `model` is no longer
+read at all; `ep` is read by C8 and C10. The finding recorded at L236-246, the frozen lookaround patterns failing
+silently, stands as written. No graded row changes.
+
+**C12. Two reads: "not comparable" is BLIND; "disagree" is outside the set.** This is how L132 ("a count still moving
+between them is not a reading") and L282 ("the two reads disagree": outside the set) are read:
+- Every control must be a value under C5 in BOTH reads. Otherwise it is BLIND: stop, never graded OFF or as predicted.
+- The comparison runs only over rows that are values in both reads. A disagreement among those rows is outside the set.
+
+**C13. (d)(ii) is UNPROVEN unless the keys endpoint is shown complete.** (Changed by the reviewer from the reader's
+mapping, which proposed "information".)
+- The keys endpoint returns no statistics block, and on 2026-11-19 production's keys count moved between two reads of
+  the same closed window. So (d)(ii) (L168-170, with its future-window control in 5a C3, L253-256) cannot be certified under C5.
+- It is **UNPROVEN**: neither passed nor information. That holds unless the keys endpoint is shown complete by its own
+  registered probe, with a positive control (a planted key name that must appear) and repeat-stability frozen first.
+- An UNPROVEN (d)(ii) is named in the step's verdict line. (d)(i) carries (d)'s grade.
+- **Why it is not demoted to information:** (d)(ii) is the only check that catches an envelope field name NOT on the
+  reader's list.
+- If (d)(ii) is still UNPROVEN when the new slot is proposed, the owner is told in that same question: the step would
+  prove the listed names gone, not unknown ones.
+
+**C14. (g) needs the W2 line found at full resolution.** (g) (L148; section 6 L279-280) reads the W2 request's
+`devl` from the W2 line, which is found by an events query. Under sampling that query can return no line. So (g) is
+read only when the events query that finds the W2 line is a value under C5. Otherwise (g) is BLIND, never "not equal".
+If the events query returns no `abr_level`, (g) cannot be certified under C5 and is BLIND by construction. Whether it
+does is to be shown before the new slot.
+
+#### 7h. The gates as read before the new slot (2026-11-19; appended below 7g, which stays the rules)
+
+7g says how each row is read. This section records what the fixed reader's own registered probes found on 2026-11-19,
+before any new slot was proposed. Each line names the correction it applies to.
+
+- **C14: MET on both services.** The events query that finds the W2 line returns `abr_level` on staging and on
+  production. So (g) is read under C5, with C7's re-ask, and is not BLIND by construction. The events query samples too:
+  one repeat came back below full resolution. So C5 and C7 apply to it exactly as written.
+- **C10's gate 3: NOT MET.** The values endpoint was incomplete on both services. Under this reader, (f) is
+  **UNPROVEN**, and the step's verdict line names it.
+- **C9, (e)'s shape: UNPROVEN.** C9 checks the 8-hex shape by C10's local match over `devl`'s values, which rides the
+  same values endpoint. (e)'s presence half, A - B = 0 with `devl` existing and read at full resolution, is still
+  certifiable.
+- **C13, production: (d)(ii) UNPROVEN.** The keys endpoint was not shown complete for production.
+- **C13, staging: (d)(ii) UNPROVEN** (the keys probe read INCOMPLETE). The keys endpoint, asked three times about the
+  same closed staging window, listed a planted name twice, then returned a much shorter list without it. So a keys "0"
+  cannot be trusted.
+
+**For the step's verdict line under this reader, as the gates read on 2026-11-19:**
+- **certifiable:** (a), (b)/(c), (d)(i), (e)'s presence, (g), and both plants by exact match;
+- **UNPROVEN:** (d)(ii) on both services, (f), and (e)'s shape.
+
+#### 7i. Moved by a later registered probe (EVP26b, 2026-11-19; appended below 7h, which stays as read)
+
+7h records the gates as they first read. A later registered probe of the reader, EVP26b, read as predicted on
+2026-11-19, and it moves the three items 7h left UNPROVEN. Neither 7g's rules nor 7h's record is edited; this section
+records the move.
+
+**The method: the events view, behind a completeness gate.**
+- The window's events are fetched from the API's events view by cursor pages. Every page must be a value under C5
+  (`abr_level` present and equal to 1).
+- **The gate.** Both legs are required:
+  - every page is at full resolution;
+  - the number of events fetched equals the number of unique event ids, which equals the calculations count of the same
+    filter. That count is itself a value under C5, and independent of the paging.
+- An earlier events-view probe was not taken as a gate: its count proved to be per page rather than for the whole
+  window. EVP26b's count is the independent one.
+- Everything else is done locally, in memory, counts only. No event, field value or key value is printed or saved.
+
+**The three items, GRADED through it on both services:**
+- **(f):** our own `evt:"req"` lines in the window are fetched behind the gate, and their own fields are tested
+  locally against 5a C1's IP patterns. The plants' lines must be among those fetched; that is the positive control.
+  - (f)'s fetch carries the same server-side exclusions (`dev`, `x-blip-device`, `x-blip-key`), so no device value is
+    fetched. The completeness count uses the same filter.
+- **(e)'s shape:** the 8-lowercase-hex shape of `devl` is tested locally on the same fetched lines, so it inherits (f)'s
+  exclusions. (e)'s presence half is read as C9 says.
+- **(d)(ii):** every event of any type in the window is fetched behind the same gate, and its key NAMES are checked
+  locally against the five envelope prefixes. The probe's control showed that a fetched event carries its envelope
+  field names when they exist (seen on staging).
+  - **One exclusion, made on the server:** the fetch leaves out any event that carries a `dev` field or the device-id or
+    device-key header name (`x-blip-device`, `x-blip-key`). So no device value is ever fetched.
+  - No coverage is lost. Both header names are on (d)(i)'s listed names, so an event carrying either is still counted
+    by (d)(i). W2 and P also count each name directly. (Read from the reader's pinned name list three times: by its
+    owner, by the reviewer and by this plan's owner, each with a control.)
+- If the gate fails at the slot, each of the three falls back to UNPROVEN as C10 and C13 say, and is named in the
+  step's verdict line.
+
+**Scope.** An event type the events view never returns is outside this check. The calculations count is the guard
+against a short fetch.
+
+**For the step's verdict line under this reader, after EVP26b (2026-11-19):**
+- **certifiable behind the gate:** (a), (b)/(c), (d)(i), (d)(ii), (e)'s presence and shape, (f), (g), and both plants by
+  exact match;
+- **UNPROVEN:** none, unless the gate fails at the slot.
+
 ## 8. The label code, red first
 
 **Registration (this commit): the tests and a STUB `src/devlabel.ts`, both of whose functions throw.**
@@ -399,3 +809,8 @@ the file changed, then restored from a byte copy with its sha256 checked; the tr
 ## 9. Record
 
 _Filled in after the slot, below this line, without editing anything above it._
+
+- **Record note, 2026-11-24: the two IP addresses in this document are documentation addresses.** `192.0.2.1` (the
+  (f) plant in section 5, and S-NEWFIELD in section 8) is in RFC 5737's TEST-NET-1 block. `2001:db8::1` (C2 in section
+  5a) is in RFC 3849's documentation prefix. Neither is routable on the internet, and neither belongs to any device or
+  person: they were chosen so that a plant could never be mistaken for a real address.

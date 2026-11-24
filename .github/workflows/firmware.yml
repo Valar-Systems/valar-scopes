@@ -186,6 +186,40 @@ jobs:
       - name: The fresh-boot acceptance's assertions fail where they should
         run: bash scripts/fresh-boot-acceptance.sh --selftest
 
+  # The fresh-boot DRIVER's own selftest (scripts/fresh-boot-auto.sh --selftest), which ran only on the bench PC until
+  # here: its dry-run preflight rows, the hand-back flags, the token presence check, the boot-row reader's redaction
+  # (R1-R2), the step-5 guard (G1-G5) and the seams' --dry-run guard (C1, S1, S2). Its own job: it needs Node 22
+  # (--experimental-strip-types; the card-gestures job above is on 20) and a `python` by that name. The cadence check is
+  # answered by its selftest seam in these rows; the check's own --selftest runs in device-ids.yml, and every real run
+  # still calls the real check. W3 needs cmd.exe, so on Linux it SKIPs -- and it must be the ONLY skip: the step prints
+  # PASS/FAIL/SKIP and fails unless the driver exited 0, no row FAILed, it said SELFTEST PASSED, and the skip set is {W3}.
+  # Counting is safe under the runner's `bash -e`: no pipefail, the exit status captured, the count printed first.
+  driver-selftest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: The fresh-boot driver's own selftest (W3 is Windows-only and must be the only skip)
+        run: |
+          set +e
+          bash scripts/fresh-boot-auto.sh --selftest > "$RUNNER_TEMP/driver.out" 2>&1
+          rc=$?
+          cat "$RUNNER_TEMP/driver.out"
+          read -r p f s names < <(awk '/^PASS /{p++} /^FAIL /{f++} /^SKIP /{s++; n=n $2 ","} END{print p+0, f+0, s+0, (n==""?"-":n)}' "$RUNNER_TEMP/driver.out")
+          echo "driver selftest: exit $rc, PASS $p, FAIL $f, SKIP $s (skipped: $names)"
+          ok=1
+          [ "$rc" -eq 0 ] || { echo "CHECK: the driver selftest exited $rc"; ok=0; }
+          [ "$f" -eq 0 ] || { echo "CHECK: $f FAIL row(s)"; ok=0; }
+          grep -qx 'SELFTEST PASSED' "$RUNNER_TEMP/driver.out" || { echo "CHECK: no 'SELFTEST PASSED' line"; ok=0; }
+          [ "$s" -eq 1 ] && [ "$(grep '^SKIP ' "$RUNNER_TEMP/driver.out")" = "SKIP W3 (no cmd.exe)" ] || { echo "CHECK: the skip set is not exactly {W3}"; ok=0; }
+          [ "$ok" -eq 1 ]
+
   release-envs:
     runs-on: ubuntu-24.04
     steps:
@@ -433,16 +467,19 @@ jobs:
             none)   echo "${{ matrix.env }}: no photo-mode role (slug-ful images are scanned below)" ;;
             *)      echo "::error::check_photo_mode.mjs --role answered '$role'"; exit 1 ;;
           esac
-      # WEATHER LOOK A/B, THE POSITIVE CONTROL (docs/wx-device.md, WD4e). The bench env's image must CARRY its marker,
-      # with no other bench marker, so the marker's absence from every slug-ful image (scanned below) means something.
+      # WEATHER LOOK A/B, THE POSITIVE CONTROL (docs/wx-device.md, WD4e). The bench env's image must CARRY its markers,
+      # with no other bench marker, so their absence from every slug-ful image (scanned below) means something. Its
+      # WX_LOOK_AB region also prints the generic "[bench]", so this is the real image that proves "[bench]" survives
+      # into firmware before its absence from a shipping image is believed.
       - name: Weather-look bench marker in its own image
         if: matrix.env == 'blipscope-s3-128-wxlook'
-        run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
+        run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench],[bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
       # THE MAP BENCH, THE SAME POSITIVE CONTROL (docs/blipscope-map-client-steps.md, Q-MB13): built on the weather bench, so
-      # its image must carry BOTH markers and no other, so their absence from every slug-ful image means something.
+      # its image must carry its markers and the weather bench's ("[wx-bench]" and "[bench]") and no other, so their absence
+      # from every slug-ful image means something.
       - name: Map bench markers in their own image
         if: matrix.env == 'blipscope-s3-128-mapbench'
-        run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench],[map-bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
+        run: bash scripts/check-no-bench-hooks.sh --expect "[wx-bench],[map-bench],[bench]" ".pio/build/${{ matrix.env }}/firmware.bin"
       # THE CARD BENCH, THE SAME POSITIVE CONTROL (docs/card-nophoto-fix.md, section 5a): its image carries
       # "[card-bench]" and no other bench marker, so that marker's absence from every slug-ful image means something.
       - name: Card bench marker in its own image
