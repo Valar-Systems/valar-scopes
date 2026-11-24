@@ -620,7 +620,8 @@ def population(path):
 # events walk, stays exactly as it is. The hours and every must-read are fixed HERE.
 FC_STATUS = ({"key": "status", "operation": "eq", "type": "number", "value": 401},)   # the 401 leaf's ONE definition
 FC_200 = {"key": "status", "operation": "eq", "type": "number", "value": 200}
-FC_MODEL = {"key": "model", "operation": "exists", "type": "string"}
+FC_MODEL = {"key": "model", "operation": "neq", "type": "string", "value": ""}   # AMENDMENT 1: every req line carries
+# `model` ("" without the X-Blip-Model header, proxy/src/index.ts:452), so `exists` counted all; non-empty is classify's test
 FC_K = "2026-11-23T17:00:00Z"            # classify17's hour: no_label 232; api 218, all 401, all with a model
 FC_H = "2026-11-23T14:00:00Z"            # H0: classify's api 247, all 401, all with a model
 FC_W = ("2026-11-22T04:00:00Z", "2026-11-22T05:00:00Z", "2026-11-22T06:00:00Z")
