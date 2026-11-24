@@ -2310,6 +2310,12 @@ RULED by the orchestrator (05:04:49Z; re-read 05:04:21Z: result `745d033a083c`, 
 
 **`read`'s READER: NOT RULED.** `read`'s code is the same in `ac94f99a83d0`, `a71303d95e6d` and `ba636810808b` (the two identity runs above, each naming its pair). No ruling names a new blob as `read`'s reader for a future read run. The last ruling named `ac94f99a83d0`, and it stands until the orchestrator rules otherwise.
 
+**`read`'s READER: RULED, `ba636810808b`** (the orchestrator, 2026-11-24, in its RECORDED of `8db32bf2c7b2`). Added append-only: the NOT RULED paragraph above stays as it was written, and this one supersedes it. The reader for a future read run is `ba636810808b`, proven by the CHAIN of identity runs, each naming its pair on line 1:
+- `ac94f99a83d0` to `a71303d95e6d`, 7 of 7 (`36d848578d03`);
+- `a71303d95e6d` to `ba636810808b`, 7 of 7 (`c7c2e8aa936d`).
+
+`read`'s code is unchanged at each step, so the newest blob carries it. **Since the ruling,** the file moved to `21a83381b247` (FAMILY HOURS adds the `famhours` mode). Its readdiff against `ba636810808b` read 7 of 7 identical (`dd53ab4bbf84`), so `read`'s code is unchanged there too. The ruling does not name that blob: the ruled reader stays `ba636810808b` until the orchestrator rules otherwise.
+
 ## Step 4e: lever (c), what the refresh-data job writes (registered 2026-11-19T00:14:57Z, before its reader exists; read-only, GitHub only)
 
 **Why.** Step 4c showed that production's KV writes are the Worker's request path, plus the refresh-data job at about
