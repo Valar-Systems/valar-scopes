@@ -740,6 +740,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         <option value="nmi" %RADIUS_UNIT_NMI%>nmi</option>
                     </select>
                 </label>
+                %MAPCOVERS%
 
                 </div><!-- /sec -->
 
@@ -3286,8 +3287,13 @@ void ConfigurationWebServer::Initialise() {
                 if (var == "MAPSECTION")
                     return String(mapsettingshtml::Html(mapLayerStored.c_str(), mapNamesStored.c_str(),
                                                         mapTerrainStored.c_str()).c_str());
+                // D4, "clamp: map only" (the owner, 2026-11-25): one line by the radius setting. The saved radius is
+                // never shrunk; above 100 mi the ring stays and the map stops at 100 mi (MapQuery.h, MapLayer.h).
+                if (var == "MAPCOVERS")
+                    return "<span class=\"hint\">The map covers up to 100 miles.</span>";
 #else
                 if (var == "MAPSECTION")     return "";   // no map in this build, so no section
+                if (var == "MAPCOVERS")      return "";   // no map in this build, so no line about it
 #endif
                 if (var == "AIRPORTS")       return airportsEnabled == "true" ? "checked" : "";
                 if (var == "TRAIL")          return trailEnabled == "true" ? "checked" : "";
