@@ -204,10 +204,9 @@ jobs:
         run: node scripts/screen-deploy-check.mjs --selftest-until && node scripts/screen-deploy-check.mjs --selftest-bundles
       # deploy.sh's argument rules (map-server's F2-F6 on #811): on every path but --screen NOTHING may follow the
       # environment, refused as usage, never silently dropped (`staging --dry-run` would otherwise deploy for real);
-      # --screen alone takes --until. DA1-DA13 with an empty claims folder (nothing past the claim runs), then three
-      # sabotages on copies: S-EXTRA (the refusal removed), S-OVERREACH (it reaches --screen) and S-ABOVE-SHIFT (it is
-      # moved above the --builder/--screen shift), each turning exactly its registered rows red.
-      - name: deploy.sh refuses anything after the environment off --screen (DA1-DA13, then three sabotages)
+      # --screen alone takes --until. check-deploy-args.sh's rows run with an empty claims folder (nothing past the
+      # claim runs); then its sabotages, each on a copy of deploy.sh, must turn exactly their registered rows red.
+      - name: deploy.sh refuses anything after the environment off --screen (check-deploy-args.sh's rows, then its sabotages)
         if: matrix.worker == 'proxy'
         run: bash scripts/check-deploy-args.sh && bash scripts/check-deploy-args.sh --sabotage
 

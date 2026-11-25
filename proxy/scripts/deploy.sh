@@ -63,7 +63,7 @@ esac
 # ... and on every other path NOTHING follows the environment: any further argument is refused as usage, never silently
 # dropped (map-server's F2 and F3 on #811), because an ignored flag on a deploy is a statement the operator believes took
 # effect: `staging --dry-run` would deploy for real, `production --screen` would deploy the proxy. After the shift above,
-# so `--builder staging` counts one. scripts/check-deploy-args.sh (DA1-DA13) and its two sabotages hold this.
+# so `--builder staging` counts one. scripts/check-deploy-args.sh's rows and sabotages hold this.
 [ -n "$SCREEN" ] || [ $# -le 1 ] || usage
 
 # ---- 0. the deploy claim (docs/session-claims.md) -----------------------------
