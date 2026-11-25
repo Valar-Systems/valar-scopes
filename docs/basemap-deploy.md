@@ -11,7 +11,7 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 | **D0** (production) | the proxy with the route and **no binding**; `/healthz` gains `basemap: "not_configured"`; `smoke-prod.sh` gains a `/basemap` check passing on exactly `503 not_configured`, or `200` with BMPK magic, an ETag and `validate()` → kOk | the `/healthz` field and the smoke check, both |
 | **D2** | the builder Worker `blipscope-basemap`, staging then production, **no route**, stamped by a script as `deploy.sh` stamps the proxy; dry runs show the R2 binding in both envs | a wrangler config for the builder; its deploy step; see Q1 and Q2 for two things that would go wrong as written |
 | **D3** (staging) | the proxy's `BASEMAP` binding; V1 `/healthz` `basemap` = `{store, rev, commit}` "with the builder's commit"; V2-V5 | the binding; **the builder does not return its commit**, so V1 cannot be met (Q4); `/credits` gains the attribution block, and the smoke its `/credits` half |
-| **D4** (production) | the same binding in production; V1-V4, then V6 on the fleet's traffic | the binding |
+| **D4** (production) | **both** bindings in production: `[[env.production.services]] BASEMAP = "blipscope-basemap"` and `[[env.production.r2_buckets]] BASEMAP_PKG = "blipscope-basemap-pkg"`; before them, the secret `BASEMAP_NAME_KEY` (K1, `docs/basemap-name-key.md`) and the bucket with its lifecycle rule `bm-pkg-30d` (30 days from upload, checked by `check-pkg-lifecycle.mjs`); V1-V4, then V6 on the fleet's traffic | the bindings (the D4 PR), the secret, the bucket |
 
 ## Five questions, each with a recommendation
 
