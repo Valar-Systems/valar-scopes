@@ -96,9 +96,14 @@ reported; a set changes only by ruling.
   is the driver's own A1.7 rule: MD4 compares against the committed outputs, so it fires on any change to builder output, and it
   is set aside unless an entry names it.
 
-So the driver carried no drift on main at e59c8fca. Main has since moved (#794, #795, #755, #790, #791). None of their 15 files
-is one the driver plants in or grades (no `proxy/src/basemap`, no `proxy/test/basemap-*`, not the driver, its scripts, its
-attribution doc, the vitest config or the lockfile), so RUN 1 and the runs below stand for this PR's base.
+So the driver carried no drift on main at e59c8fca. Main has since moved by nine PRs (#794, #795, #755, #790, #791, #792, #793,
+#796, #798). The driver's reach, taken from the driver itself: it plants in `proxy/src/basemap/`, three files in
+`proxy/scripts/basemap/` (ingest-lib, sea-pieces, uscontain), the attribution doc, `src/photolicense.ts` and `src/metrics.ts`
+(S-MKAE), and its set "all" also runs through `src/index.ts` and `src/metrics.ts`, because `basemap-endpoint.test.ts` calls the
+proxy's own dispatch (`test/helpers.ts`). Two of the nine reach it: #792 changed code in `src/metrics.ts` (its route labels), and
+#798 changed one comment each in `src/metrics.ts` and `src/index.ts`. An earlier version of this paragraph listed the reach
+without those three files; it held for the first five PRs only because none of them touched those files. So the whole driver ran
+again on this branch with main merged in: RUN 3, below.
 
 ### RUN 2, the change pass (2026-11-24, 17:55:46-18:57:42Z): one entry OFF
 
@@ -130,6 +135,20 @@ attribution doc, the vitest config or the lockfile), so RUN 1 and the runs below
 - 98 vitest runs; runtime failures 0; exit 0; afterwards the tree held exactly the three changed files.
 - Against RUN 2, every line is equal except S-PRIMARYDROP's.
 
-**RUN 2's ME2 failure is recorded as a one-off: unexplained, and not reproduced in the 8 runs after it. It is not recorded as a
+**RUN 2's ME2 failure is recorded as a one-off: unexplained, and not reproduced in the 9 runs after it. It is not recorded as a
 pass.** Its cause is unreadable only because the driver throws each run's report away. Keeping the report of any run that reads
 OFF or BLIND is accepted as a separate change, after this one.
+
+### RUN 3, on this branch with main 80d77cea merged in (2026-11-24 23:14:20Z to 2026-11-25 00:20:00Z): AS PREDICTED, with one re-run
+
+- Ruled after the reach finding above: the whole driver on the merged tree, with RUN 2b's predictions line for line.
+- The baselines, each 0 failing: [ingest] 12 cases in 1 file; [mv, -t MV] 31 in 1; [all] **203 in 20**; [sea] 15 in 1.
+- 93 of the 94 entries AS PREDICTED, among them S-STRICT, S-TERRCAP, S-TNOMARGIN, S-PRIMARYDROP (ME2 passed under its plant
+  again) and S-MKAE {MK7}, the entry that plants in `src/metrics.ts`; C-LOADFAIL BLIND (115 baseline cases not run).
+- **One instrument failure:** S-RBMAP read "BLIND (the Workers runtime failed partway (2 baseline cases not run))", and the
+  tally "1 partway". By the rule in force for these runs, a runtime failure is no verdict and not an OFF, and one re-run is
+  allowed. Its cause cannot be read, for the same reason as RUN 2's ME2: the driver deletes each run's report.
+- **The re-run**, ruled as the narrow one: the driver's single-entry mode for S-RBMAP on the same tree. baseline[all] 0 failing,
+  203 in 20; S-RBMAP AS PREDICTED {MN7}; 2 runs, no runtime failure; exit 0.
+- So all 94 entries are graded on the merged tree: 93 in RUN 3 and S-RBMAP in its re-run. Against RUN 2b, every other line of
+  RUN 3 is equal once the port-gate figures are set aside.
