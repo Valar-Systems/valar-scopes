@@ -3081,6 +3081,8 @@ RECORDED by the orchestrator (2026-11-25 03:26Z; result `3925a774f9e8`): THE FLE
 
 **`read`'s code since the ruling.** The reader moved twice more: to `0d5dc4ffde7c` (popgap) and `90c5a0d5529e` (popday). Each readdiff against `ba636810808b` read 7 of 7 identical (`e1684806b15d`, `0e7c3be3a760`), so `read`'s code is unchanged. The ruling names neither blob: the ruled reader stays `ba636810808b` until the orchestrator rules otherwise.
 
+CLOSED (append-only, 2026-11-25T07:26:34Z from date -u; the orchestrator's ruling): the refused device was a bench board, the photo Missileer (E7:94). The owner's account matched map-client's check of its flash and boot times, and its own console shows the 401s at the day rate, then night. No further population reads; the record above stands as written.
+
 ## Step 4e: lever (c), what the refresh-data job writes (registered 2026-11-19T00:14:57Z, before its reader exists; read-only, GitHub only)
 
 **Why.** Step 4c showed that production's KV writes are the Worker's request path, plus the refresh-data job at about

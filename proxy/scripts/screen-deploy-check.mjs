@@ -7,14 +7,18 @@
 //         write site itself is the marker: a separate marker constant would survive the write's removal.
 //   P-U   the full-logs day's end: production-fulllogs REQUIRES --until, an ISO UTC time with now < until <= now + 24 h;
 //         every other env REFUSES --until.
+//   P-S   the end survives into the bundle: production-fulllogs's dry-run is built WITH the deploy's own
+//         FULL_LOGS_UNTIL stamp, and must hold the quoted time (wrangler's --define is KEY:VALUE, and the time has colons).
 //
 //   node scripts/screen-deploy-check.mjs <staging|production|production-fulllogs> [--until <ISO UTC>]
 //        exit 0 pass, 1 refuse (each reason printed), 2 usage or BLIND (the bundle could not be built or read)
 //   node scripts/screen-deploy-check.mjs --selftest-until     P-U's 7 cases on a fixed clock; then Us (a COPY with the 24 h
 //                                                             cap removed) must flip exactly the +25 h case
 //   node scripts/screen-deploy-check.mjs --selftest-bundles   P-M2 on each env's REAL dry-run bundle (through
-//                                                             wrangler-run.mjs; no credentials); then Ms (a copy of the
-//                                                             production bundle with the write site stripped) must refuse
+//                                                             wrangler-run.mjs; no credentials), P-S on production-fulllogs's
+//                                                             (stamped with a fixed end); then Ss (P-S on production's
+//                                                             unstamped bundle) and Ms (a copy of the production bundle with
+//                                                             the write site stripped) must each refuse
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -32,8 +36,16 @@ const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?Z$/;
 
 /** P-U: { ok, why } for deploying `env` with `untilArg` (a string or null) at time `now` (ms). */
 export function checkUntil(env, untilArg, now) {
-  /* STUB (red): the rules are not written yet. */
-  return { ok: true, why: "stub" };
+  if (env !== "production-fulllogs") {
+    return untilArg === null ? { ok: true, why: `${env} takes no --until` } : { ok: false, why: `--until is for production-fulllogs only, not ${env}` };
+  }
+  if (untilArg === null) return { ok: false, why: "production-fulllogs needs --until <ISO UTC>: a full-logs day has an end" };
+  if (!ISO_UTC.test(untilArg)) return { ok: false, why: "--until is not an ISO UTC time (YYYY-MM-DDTHH:MM[:SS]Z)" };
+  const t = Date.parse(untilArg);
+  if (!Number.isFinite(t)) return { ok: false, why: "--until does not parse as a time" };
+  if (t <= now) return { ok: false, why: "--until is not in the future" };
+  if (/*P-U*/ t > now + DAY_MS) return { ok: false, why: "--until is more than 24 h ahead" };
+  return { ok: true, why: `full logs until ${new Date(t).toISOString()}` };
 }
 
 /** P-M2: { ok, why } for one bundle's text. */
@@ -42,11 +54,20 @@ export function checkWriteSite(bundleJs) {
   return n === 1 ? { ok: true, why: "the counter's write site is in the bundle once" } : { ok: false, why: `the bundle holds the counter's write site ${n} time(s), want exactly 1` };
 }
 
-/** The env's own dry-run bundle text, or null (BLIND). */
-function dryRunBundle(env) {
+/** P-S: { ok, why } -- the deploy's FULL_LOGS_UNTIL stamp reached the bundle as the quoted literal (at least once: the
+ *  guarded read in worker.ts names the define twice). wrangler splits `--define KEY:VALUE` at the first colon only, and
+ *  the time is full of colons, so this reads the built bundle rather than trusting that. */
+export function checkStamp(bundleJs, until) {
+  const lit = JSON.stringify(until);
+  return bundleJs.includes(lit) ? { ok: true, why: "FULL_LOGS_UNTIL stamped" } : { ok: false, why: `the bundle does not hold the stamped end ${lit}` };
+}
+
+/** The env's own dry-run bundle text, or null (BLIND). With `until`, built with the deploy's own FULL_LOGS_UNTIL stamp. */
+function dryRunBundle(env, until = null) {
   const out = mkdtempSync(join(tmpdir(), "screen-deploy-check-"));
   try {
-    const r = spawnSync(process.execPath, [WRANGLER_RUN, "deploy", "--dry-run", "--outdir", out, "-c", SCREEN_TOML, "-e", env], { cwd: PROXY, encoding: "utf8" });
+    const stamp = until === null ? [] : ["--define", `FULL_LOGS_UNTIL:${JSON.stringify(until)}`];
+    const r = spawnSync(process.execPath, [WRANGLER_RUN, "deploy", "--dry-run", "--outdir", out, "-c", SCREEN_TOML, "-e", env, ...stamp], { cwd: PROXY, encoding: "utf8" });
     if (r.status !== 0) return null;
     const js = readdirSync(out).filter((f) => f.endsWith(".js")).map((f) => readFileSync(join(out, f), "utf8")).join("\n");
     return js || null;
@@ -96,19 +117,27 @@ async function selftestUntil() {
   }
 }
 
+const UNTIL_FIXED = "2026-12-02T13:00:00Z";
 function selftestBundles() {
   const sites = sourceWriteSites();
   if (sites !== 1) { console.log(`BLIND: src/screen/metrics.ts holds the write site ${sites} time(s), want exactly 1`); return 2; }
   let bad = 0;
   let prodJs = null;
   for (const env of ENVS) {
-    const js = dryRunBundle(env);
+    const until = env === "production-fulllogs" ? UNTIL_FIXED : null;
+    const js = dryRunBundle(env, until);
     if (js === null) { console.log(`${env}: BLIND (the dry-run did not build a bundle)`); return 2; }
     if (env === "production") prodJs = js;
     const r = checkWriteSite(js);
-    console.log(`${env}: ${r.ok ? "pass" : "REFUSE"} (${r.why}) -> ${r.ok ? "AS PREDICTED" : "NOT AS PREDICTED"}`);
-    if (!r.ok) bad++;
+    const s = until === null ? { ok: true, why: "" } : checkStamp(js, until);
+    const ok = r.ok && s.ok;
+    console.log(`${env}: ${ok ? "pass" : "REFUSE"} (${r.why}${s.why ? `; ${s.why}` : ""}) -> ${ok ? "AS PREDICTED" : "NOT AS PREDICTED"}`);
+    if (!ok) bad++;
   }
+  // Ss, the CONTROL: P-S on production's bundle, which nothing stamped, must refuse -- the stamp check can fail.
+  const ss = checkStamp(prodJs, UNTIL_FIXED);
+  console.log(`Ss (control): ${ss.ok ? "pass" : "REFUSE"} (${ss.why}) -> ${ss.ok ? "NOT AS PREDICTED" : "AS PREDICTED"}`);
+  if (ss.ok) bad++;
   // Ms: the write site stripped from a copy of production's bundle must refuse.
   const stripped = prodJs.split(WRITE_SITE).join(".SCREEN_METRICS_STRIPPED(");
   if (stripped === prodJs) { console.log("Ms: the edit did not apply"); return 1; }
@@ -130,11 +159,13 @@ async function main(argv) {
   if (!u.ok) { console.log(`REFUSE (P-U): ${u.why}`); return 1; }
   const sites = sourceWriteSites();
   if (sites !== 1) { console.log(`BLIND (P-M2): src/screen/metrics.ts holds the write site ${sites} time(s), want exactly 1`); return 2; }
-  const js = dryRunBundle(env);
+  const js = dryRunBundle(env, untilArg);
   if (js === null) { console.log(`BLIND (P-M2): the ${env} dry-run did not build a bundle`); return 2; }
   const m = checkWriteSite(js);
   if (!m.ok) { console.log(`REFUSE (P-M2): ${m.why}`); return 1; }
-  console.log(`PASS: ${env}: ${u.why}; ${m.why}`);
+  const s = untilArg === null ? null : checkStamp(js, untilArg);
+  if (s && !s.ok) { console.log(`REFUSE (P-S): ${s.why}`); return 1; }
+  console.log(`PASS: ${env}: ${u.why}; ${m.why}${s ? `; ${s.why}` : ""}`);
   return 0;
 }
 

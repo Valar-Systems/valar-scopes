@@ -22,8 +22,19 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 /** The verdict for one /health body at time `now` (ms): { code: 0 | 1 | 2, line }. */
 export function verdict(body, now) {
-  /* STUB (red): the verdict is not written yet. */
-  return { code: 0, line: "GREEN (stub)" };
+  const logs = body !== null && typeof body === "object" ? body.logs : undefined;
+  if (logs === null || typeof logs !== "object") return { code: 2, line: "BLIND: the /health body has no logs field" };
+  const { rate, until } = logs;
+  if (typeof rate !== "number") return { code: 2, line: "BLIND: logs.rate is not stamped (a bundle nothing stamped)" };
+  if (rate === 0.1 && until === null) return { code: 0, line: "GREEN: sampled at 0.1, no full-logs day on" };
+  if (rate === 1) {
+    if (until === null) return { code: 1, line: "RED: full logs with no until (a bundle the deploy script did not build)" };
+    const t = typeof until === "string" ? Date.parse(until) : Number.NaN;
+    if (!Number.isFinite(t)) return { code: 2, line: "BLIND: logs.until is not a time" };
+    if (/*P-V*/ t > now) return { code: 0, line: `GREEN: a full-logs day in progress, ending ${new Date(t).toISOString()}` };
+    return { code: 1, line: `RED: full logs past their day (until ${new Date(t).toISOString()})` };
+  }
+  return { code: 2, line: `BLIND: logs.rate ${rate} with until ${until === null ? "null" : "set"} is a shape the table does not name` };
 }
 
 const HOUR = 3_600_000;

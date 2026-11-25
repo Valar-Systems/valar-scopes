@@ -1,0 +1,59 @@
+# The screen service's full-logs watch (docs/screen-logs-runbook.md, "Why full logs cannot silently stay on").
+#
+# One anonymous GET of the service's public /health, graded by proxy/scripts/screen-logs-verdict.mjs:
+#   GREEN  sampled at 0.1, or a full-logs day still inside its end   -> the run passes
+#   RED    full logs past their day, or full logs with no end        -> the run fails
+#   BLIND  unreachable, not 200, no `logs`, or a shape it cannot name -> the run fails, with its own message
+#
+# DISPATCH ONLY, for now (the screen service's phase-1 registration, R6, ruled 2026-11-25). The service has no route
+# yet, so a scheduled run would fail every time at the owner. The PR that gives production its custom domain adds the
+# `schedule` trigger in the same diff, and proxy/scripts/check-screen.ts's P-W refuses that PR without it: a route with
+# no schedule, or a schedule with no route, is red in workers.yml.
+#
+# `body` grades a given /health body with no network (the proof-run: a stub answering "an hour ago" must read RED).
+# No concurrency block: C1 (scripts/check_workflow_concurrency.py) forbids one on a workflow with no pull_request trigger.
+name: screen-logs-watch
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "The service's /health URL (https)"
+        required: false
+        type: string
+      body:
+        description: "A /health body to grade instead of fetching one (the proof-run; no network)"
+        required: false
+        type: string
+
+# Read only, to check out the one script; on a public repo this grants nothing the public does not already have.
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: proxy/scripts/screen-logs-verdict.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # The inputs reach the script through the environment, never spliced into the command line.
+      - name: Grade /health's logs field
+        env:
+          HEALTH_URL: ${{ inputs.url }}
+          HEALTH_BODY: ${{ inputs.body }}
+        run: |
+          if [ -n "$HEALTH_BODY" ]; then
+            node proxy/scripts/screen-logs-verdict.mjs --body "$HEALTH_BODY"
+          elif [ -n "$HEALTH_URL" ]; then
+            node proxy/scripts/screen-logs-verdict.mjs "$HEALTH_URL"
+          else
+            echo "BLIND: give url (the service's /health) or body (a /health body to grade)"
+            exit 2
+          fi

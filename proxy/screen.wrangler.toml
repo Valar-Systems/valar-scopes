@@ -3,10 +3,12 @@
 # (src/screen/worker.ts). It never deploys with the boards' Worker, and nothing of it rides their bundle
 # (scripts/check-screen-bundle.mjs reads both dry-run bundles: P-B2).
 #
-# PHASE 0: its shape and its checks only. No bindings, no route and no workers.dev address. The custom domain the
-# Cache API needs, the read-only KV wrapper, the weather bucket and the two service bindings arrive with phases 1-3.
-# Not deployed: staging waits for the hold to lift and a booking; production needs the owner's OK and is the map
-# server's to run.
+# PHASE 1, THE LOGS PART: the unsampled counter's binding (SCREEN_METRICS, every deployed env: check-screen.ts P-O4), the
+# LOGS_RATE / FULL_LOGS_UNTIL defines /health reports (P-O2), and the full-logs env (P-O3). Still no route and no
+# workers.dev address: the custom domain the Cache API needs arrives in its own PR, which must also schedule the logs
+# watch (P-W). Deployed ONLY by `scripts/deploy.sh --screen <staging|production|production-fulllogs>`, which runs the
+# proxy's guards and refuses a bundle without the counter's write (scripts/screen-deploy-check.mjs). Not deployed yet:
+# staging waits for the hold to lift and a booking; production needs the owner's OK and is the map server's to run.
 name = "blipscope-screen"
 main = "src/screen/worker.ts"
 compatibility_date = "2025-12-01"
@@ -14,6 +16,7 @@ account_id = "48822e896bb10c45aa6bfe139bcff3d1"
 workers_dev = false
 
 # The nested quotes are required: the value is substituted into the bundle verbatim, as a JS string literal.
+# LOGS_RATE is a bare number and FULL_LOGS_UNTIL a bare null on purpose: /health reports them as a number and a null.
 define = { BUILD_COMMIT = "\"UNSTAMPED\"" }
 
 [env.staging]
@@ -22,6 +25,12 @@ workers_dev = false
 
 [env.staging.define]
 BUILD_COMMIT = "\"UNSTAMPED\""
+LOGS_RATE = "1"
+FULL_LOGS_UNTIL = "null"
+
+[[env.staging.analytics_engine_datasets]]
+binding = "SCREEN_METRICS"
+dataset = "blipscope_screen_staging"
 
 [env.staging.observability]
 enabled = true
@@ -36,13 +45,45 @@ workers_dev = false
 
 [env.production.define]
 BUILD_COMMIT = "\"UNSTAMPED\""
+LOGS_RATE = "0.1"
+FULL_LOGS_UNTIL = "null"
+
+# Every request and every error, counted unsampled (src/screen/metrics.ts): the owner's condition on sampling logs.
+[[env.production.analytics_engine_datasets]]
+binding = "SCREEN_METRICS"
+dataset = "blipscope_screen"
 
 # Workers Logs in production: "screen service logs: sample 10%" (the owner, 2026-11-25). Every request and every error
-# is still counted unsampled in the metrics store (phase 1), and a full-logs day is a separate deploy with its own end
+# is still counted unsampled in the metrics store above, and a full-logs day is a separate deploy with its own end
 # (docs/screen-logs-runbook.md). scripts/check-screen.ts's P-O1 holds this at exactly 0.1. Invocation logs stay OFF.
 [env.production.observability]
 enabled = true
 head_sampling_rate = 0.1
 
 [env.production.observability.logs]
+invocation_logs = false
+
+# THE FULL-LOGS DAY (docs/screen-logs-runbook.md): the SAME script as production, sampled at 1.0, for one bounded day.
+# Deployed only by `deploy.sh --screen production-fulllogs --until <ISO UTC>`, which refuses an end more than 24 h ahead
+# or already past (P-U) and stamps it as FULL_LOGS_UNTIL. /health reports it, and the watch reads RED once it has
+# passed. A plain `deploy.sh --screen production` ends the day. FULL_LOGS_UNTIL is null here on purpose: a bundle the
+# deploy script did not stamp reads RED ("full logs with no until"), never GREEN. Same dataset as production (R3).
+[env.production-fulllogs]
+name = "blipscope-screen"
+workers_dev = false
+
+[env.production-fulllogs.define]
+BUILD_COMMIT = "\"UNSTAMPED\""
+LOGS_RATE = "1.0"
+FULL_LOGS_UNTIL = "null"
+
+[[env.production-fulllogs.analytics_engine_datasets]]
+binding = "SCREEN_METRICS"
+dataset = "blipscope_screen"
+
+[env.production-fulllogs.observability]
+enabled = true
+head_sampling_rate = 1.0
+
+[env.production-fulllogs.observability.logs]
 invocation_logs = false
