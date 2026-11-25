@@ -273,6 +273,14 @@ jobs:
 
       - run: npm test
 
+      # The basemap sabotage driver's kept-evidence rule (docs/basemap-sabotage-keep.md): a run it cannot grade as
+      # predicted keeps its vitest JSON, stdout and stderr and names the dir on its line; a run graded as predicted keeps
+      # nothing. Both directions on the real Workers pool: S-VCRC against a wrong expect must keep, against its true
+      # expect must not. The whole driver stays local (about an hour); this is the part that must not silently regress.
+      - name: the sabotage driver keeps a failed run's evidence (selftest)
+        if: matrix.worker == 'proxy'
+        run: node scripts/sabotage-basemap.mjs --selftest-keep
+
       # Every SQL statement the dashboard can issue, run against the LIVE Analytics
       # Engine endpoint. vitest never executes the SQL, and two defects reached the
       # browser through a green suite on 2026-09-24 (IF() branch types, and a

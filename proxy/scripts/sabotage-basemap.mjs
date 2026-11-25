@@ -3,14 +3,19 @@
 //   node scripts/sabotage-basemap.mjs            # every sabotage
 //   node scripts/sabotage-basemap.mjs S-IBUS     # one
 //   node scripts/sabotage-basemap.mjs --set=sea  # every sabotage graded on one set
+//   node scripts/sabotage-basemap.mjs --selftest-keep  # the kept-evidence rule, both directions (CI runs it)
 //
 // For each: assert every anchor occurs EXACTLY once and that the file changed (a plant that did not take
 // proves nothing); run the basemap tests; grade the set of failing CASES (the id each test name begins with)
 // against the frozen set EXACTLY; restore the file from a byte copy and check its sha256. A clean baseline
 // run comes first: with nothing planted, nothing may fail. Exit 0 only when every sabotage lands exactly.
+//
+// A run whose line is NOT as predicted (OFF-PREDICTION, BLIND, UNREADABLE, or a baseline that failed) keeps its
+// evidence -- the vitest JSON, stdout and stderr -- under <os tmpdir>/bm-sab-kept-<UTC stamp>/<name>/, and its line
+// ends " [kept: <dir>]" (docs/basemap-sabotage-keep.md). Every other run's evidence is removed.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdtempSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -259,13 +264,23 @@ const SABOTAGES = {
   "S-TERRCAP": {
     file: BUDGET, set: "all",
     edits: [["  for (const s of sections) if (s.type !== TYPE.TERRAIN) n += sectionSize(s);\n", "  for (const s of sections) n += sectionSize(s); // SABOTAGE S-TERRCAP: the TERRAIN body counted\n"]],
-    expect: ["MB8a", "MB8b"],
+    // The S-STRICT PR (docs/basemap-cap-equality.md), re-registered before any run: MB8c builds what MB8a builds, so it is red with it
+    expect: ["MB8a", "MB8b", "MB8c"],
+  },
+  // The budget's bound is <= (docs/basemap-cap-equality.md): the ladder fills to the byte, and 1 of 22 references landed exactly AT
+  // its device's cap. A strict bound must turn every test that builds at its cap exactly red. The set was read on a copy of H6 (MB4
+  // and T-PROV-b were that prediction's misses, kept on record there), plus MB8c, the identity row this PR adds.
+  "S-STRICT": {
+    file: BUDGET, set: "all",
+    edits: [["return lastBytes <= capBytes ? s : null;", "return lastBytes < capBytes ? s : null; /* SABOTAGE S-STRICT */"]],
+    expect: ["MB1", "MB4", "MB5", "MB8a", "MB8c", "MN2", "T-PROV-b"],
   },
   "S-TNOMARGIN": {
     file: TERRAIN, set: "all",
     edits: [["  return [Math.floor(x0 / 256) - 1, Math.floor(y0 / 256) - 1, Math.floor(x1 / 256) + 1, Math.floor(y1 / 256) + 1];\n",
              "  return [Math.floor(x0 / 256), Math.floor(y0 / 256), Math.floor(x1 / 256), Math.floor(y1 / 256)]; // SABOTAGE S-TNOMARGIN\n"]],
-    expect: ["MT3b", "MB8a", "MB8b"],
+    // The S-STRICT PR (docs/basemap-cap-equality.md), re-registered before any run: MB8c builds what MB8a builds, so it is red with it
+    expect: ["MT3b", "MB8a", "MB8b", "MB8c"],
   },
   // A1.7's MQ sabotages (A2.28).
   "S-QROUND": {
@@ -764,11 +779,13 @@ function runTests(setName) {
   const at = tw === null ? "" : ` [TIME_WAIT ${tw} at start]`;
   let json;
   try { json = JSON.parse(readFileSync(out, "utf8")); } catch { json = null; }
-  rmSync(dir, { recursive: true, force: true });
+  // The run's evidence stays on disk until its line is graded: settle() keeps it for a line that is not as predicted.
+  writeFileSync(join(dir, "stdout.txt"), r.stdout ?? "");
+  writeFileSync(join(dir, "stderr.txt"), r.stderr ?? "");
   const ran = json ? (json.testResults ?? []).length : 0;
   if (runtime) { if (ran) tally.runtimePartial++; else tally.runtimeAll++; }
-  if (!json) return { blind: true, runtime, at, why: runtime ? "the Workers runtime failed" : (r.stderr || r.stdout || "").slice(-800) };
-  if (runtime && !ran) return { blind: true, runtime, at, why: "the Workers runtime failed (0 test files ran)" };
+  if (!json) return { dir, blind: true, runtime, at, why: runtime ? "the Workers runtime failed" : (r.stderr || r.stdout || "").slice(-800) };
+  if (runtime && !ran) return { dir, blind: true, runtime, at, why: "the Workers runtime failed (0 test files ran)" };
   const failed = new Set(), seen = new Set();
   for (const f of json.testResults ?? []) for (const a of f.assertionResults ?? []) {
     if (a.status === "skipped" || a.status === "pending") continue; // outside the set's filter
@@ -776,9 +793,28 @@ function runTests(setName) {
     if (a.status !== "passed") failed.add(id);
   }
   // A suite that failed to load has no assertion results: that is BLIND, never "nothing failed".
-  if (seen.size === 0) return { blind: true, runtime, at, why: "no test results" };
-  return { failed: [...failed].sort(), seen, files: ran, runtime, at };
+  if (seen.size === 0) return { dir, blind: true, runtime, at, why: "no test results" };
+  return { dir, failed: [...failed].sort(), seen, files: ran, runtime, at };
 }
+
+// THE KEPT-EVIDENCE RULE (docs/basemap-sabotage-keep.md). Two results in #797 could not be explained -- RUN 2's
+// S-PRIMARYDROP OFF with ME2, and RUN 3's S-RBMAP with the runtime failing partway -- because runTests() removed each
+// run's dir before its line was graded. The caller now settles the dir AFTER grading: a line that is not as predicted
+// keeps it (r.json, stdout.txt, stderr.txt), moved under ONE bm-sab-kept-<UTC stamp> root in the OS temp dir (outside
+// the tree, so a pass leaves the tree as it found it), and the line names it, where anyone reading the failure already
+// is. Every other run's dir is removed, as before.
+let keptRoot = null;
+function settle(dir, keep, label) {
+  if (!keep) { rmSync(dir, { recursive: true, force: true }); return null; }
+  if (!keptRoot) {
+    keptRoot = join(tmpdir(), `bm-sab-kept-${new Date().toISOString().slice(0, 19).replace(/[-:]/g, "")}Z`);
+    mkdirSync(keptRoot, { recursive: true });
+  }
+  const to = join(keptRoot, label.replace(/[^A-Za-z0-9._-]/g, "_"));
+  renameSync(dir, to);
+  return to;
+}
+const keptNote = (path) => (path ? ` [kept: ${path}]` : "");
 
 function plant(name, src, edits) {
   let out = src;
@@ -800,42 +836,93 @@ const baselines = {};
 function baseline(setName) {
   if (baselines[setName]) return;
   const base = runTests(setName);
-  if (base.blind || base.failed.length) { console.log(`BASELINE[${setName}] ${base.blind ? "BLIND: " + base.why : "FAILED: " + base.failed.join(",")}`); printTally(); process.exit(2); }
+  const bad = base.blind || base.failed.length > 0, kept = settle(base.dir, bad, `baseline-${setName}`);
+  if (bad) { console.log(`BASELINE[${setName}] ${base.blind ? "BLIND: " + base.why : "FAILED: " + base.failed.join(",")}${keptNote(kept)}`); printTally(); process.exit(2); }
   const f = SETS[setName].filter;
   console.log(`baseline[${setName}${f ? `, -t ${f}` : ""}]: 0 failing cases (${base.seen.size} cases seen in ${base.files} files)${base.at}`);
   baselines[setName] = base.seen;
 }
-for (const [name, s] of Object.entries(SABOTAGES)) {
-  const setName = s.set ?? "ingest";
-  if (onlySet !== null ? setName !== onlySet : only && only !== name) continue;
-  baseline(setName);
+/** One entry: plant it, run its set, grade the line, settle the run's evidence, restore. Returns the line to print. */
+function gradeOne(name, s, setName, label = name) {
   // Every file of the plant: its byte copy and sha256 first; all are planted (each anchor exactly once) before the run
   const plants = (s.files ?? [[s.file, s.edits]]).map(([file, edits]) => { const orig = readFileSync(join(PROXY, file)); return { file, edits, path: join(PROXY, file), orig, before: sha(orig) }; });
+  let r = null, line = null, good = false, keptPath = null;
   try {
     for (const p of plants) writeFileSync(p.path, plant(name, p.orig.toString("utf8"), p.edits));
-    const r = runTests(setName);
+    r = runTests(setName);
     // Every case the baseline saw must be seen again: a file that failed to load drops its cases from `seen`
     // WITHOUT adding them to `failed`, and would otherwise grade as "nothing else failed".
     const missing = r.blind ? [] : [...baselines[setName]].filter((id) => !r.seen.has(id));
     const why = r.blind ? r.why : r.runtime ? `the Workers runtime failed partway (${missing.length} baseline cases not run)` : missing.length ? `${missing.length} baseline cases not run: ${missing.slice(0, 6).join(", ")}${missing.length > 6 ? ", ..." : ""}` : null;
     if (s.expect === "BLIND") {
       // A control's BLIND must come from its OWN plant: one the runtime also failed on cannot tell the two apart.
-      if (r.runtime) { ok = false; console.log(`${name}: UNREADABLE, the runtime also failed (${why})${r.at}`); }
-      else if (why) console.log(`${name}: AS PREDICTED, BLIND (${why})${r.at}`);
-      else { ok = false; console.log(`${name}: OFF-PREDICTION, graded {${r.failed.join(", ")}} where BLIND was required${r.at}`); }
-      continue;
+      if (r.runtime) line = `${name}: UNREADABLE, the runtime also failed (${why})${r.at}`;
+      else if (why) { good = true; line = `${name}: AS PREDICTED, BLIND (${why})${r.at}`; }
+      else line = `${name}: OFF-PREDICTION, graded {${r.failed.join(", ")}} where BLIND was required${r.at}`;
+    } else {
+      const want = [...s.expect].sort();
+      const setAside = r.failed.filter((id) => COMMITTED_OUTPUT.has(id) && !want.includes(id));
+      r.failed = r.failed.filter((id) => !setAside.includes(id));
+      if (setAside.length) r.at += ` [set aside, A1.7: ${setAside.join(", ")}]`;
+      if (why) line = `${name}: BLIND (${why})${r.at}`;
+      else if (r.failed.join(",") === want.join(",")) { good = true; line = `${name}: AS PREDICTED, failing {${r.failed.join(", ")}}${r.at}`; }
+      else line = `${name}: OFF-PREDICTION, failing {${r.failed.join(", ")}} against {${want.join(", ")}}${r.at}`;
     }
-    const want = [...s.expect].sort();
-    const setAside = r.failed.filter((id) => COMMITTED_OUTPUT.has(id) && !want.includes(id));
-    r.failed = r.failed.filter((id) => !setAside.includes(id));
-    if (setAside.length) r.at += ` [set aside, A1.7: ${setAside.join(", ")}]`;
-    if (why) { ok = false; console.log(`${name}: BLIND (${why})${r.at}`); }
-    else if (r.failed.join(",") === want.join(",")) console.log(`${name}: AS PREDICTED, failing {${r.failed.join(", ")}}${r.at}`);
-    else { ok = false; console.log(`${name}: OFF-PREDICTION, failing {${r.failed.join(", ")}} against {${want.join(", ")}}${r.at}`); }
+    keptPath = settle(r.dir, !good, label);
+    line += keptNote(keptPath);
   } finally {
     for (const p of plants) writeFileSync(p.path, p.orig);
-    for (const p of plants) if (sha(readFileSync(p.path)) !== p.before) { console.log(`${name}: RESTORE FAILED for ${p.file}`); process.exit(3); }
+    for (const p of plants) if (sha(readFileSync(p.path)) !== p.before) { if (line) console.log(line); console.log(`${name}: RESTORE FAILED for ${p.file}`); process.exit(3); }
   }
+  return { line, good, keptPath, dir: r.dir };
+}
+
+if (only === "--selftest-keep") {
+  // THE KEPT-EVIDENCE RULE'S SELFTEST (docs/basemap-sabotage-keep.md): both directions on the real machinery and the cheap
+  // "mv" set. RED: S-VCRC graded against a deliberately WRONG expect must read OFF and KEEP its evidence, whole and readable.
+  // CONTROL: the same plant against its true expect must read AS PREDICTED and keep NOTHING. RED's kept root is then removed,
+  // and its absence checked, so the selftest leaves the machine as it found it. Exit 0 only if every check passes.
+  const sv = SABOTAGES["S-VCRC"];
+  if (!sv || sv.set !== "mv" || JSON.stringify(sv.expect) !== JSON.stringify(["MV/PK-crc"])) { console.log("RIG: S-VCRC is not the mv entry this selftest was written for"); process.exit(2); }
+  const roots = () => readdirSync(tmpdir()).filter((n) => n.startsWith("bm-sab-kept-")).sort();
+  const before = roots();
+  let pass = 0, ran = 0;
+  const check = (c, what) => { ran++; if (c) pass++; console.log(`${c ? "PASS" : "FAIL"} keep: ${what}`); };
+  baseline("mv");
+  const red = gradeOne("S-VCRC", { ...sv, expect: [] }, "mv", "S-VCRC-red");
+  console.log(red.line);
+  const kp = red.keptPath;
+  check(!red.good && red.line.startsWith("S-VCRC: OFF-PREDICTION, failing {MV/PK-crc} against {}"), "RED reads OFF-PREDICTION against the wrong expect");
+  check(kp !== null && red.line.endsWith(` [kept: ${kp}]`) && ["r.json", "stdout.txt", "stderr.txt"].every((f) => existsSync(join(kp, f))),
+    "RED's line names a kept dir holding r.json, stdout.txt and stderr.txt");
+  let ids = null;
+  try {
+    const j = JSON.parse(readFileSync(join(kp, "r.json"), "utf8")), bad = new Set();
+    for (const f of j.testResults ?? []) for (const a of f.assertionResults ?? []) if (!["passed", "skipped", "pending"].includes(a.status)) bad.add(caseOf(a.title));
+    ids = [...bad].sort();
+  } catch { ids = null; }
+  check(ids !== null && JSON.stringify(ids) === JSON.stringify(["MV/PK-crc"]), "RED's kept r.json parses, and its failing cases are exactly {MV/PK-crc}");
+  const ctl = gradeOne("S-VCRC", sv, "mv", "S-VCRC-control");
+  console.log(ctl.line);
+  check(ctl.good && ctl.line.startsWith("S-VCRC: AS PREDICTED, failing {MV/PK-crc}") && !ctl.line.includes(" [kept: ") && ctl.keptPath === null,
+    "CONTROL reads AS PREDICTED and keeps nothing");
+  check(!existsSync(ctl.dir), "CONTROL's run dir is removed");
+  const added = roots().filter((n) => !before.includes(n));
+  check(kp !== null && added.length === 1 && join(tmpdir(), added[0]) === dirname(kp), "exactly one new kept root, RED's");
+  if (kp !== null) rmSync(dirname(kp), { recursive: true, force: true });
+  check(roots().filter((n) => !before.includes(n)).length === 0, "RED's kept root is removed afterwards");
+  printTally();
+  console.log(`keep selftest: ${pass} of ${ran}`);
+  process.exit(pass === ran ? 0 : 1);
+}
+
+for (const [name, s] of Object.entries(SABOTAGES)) {
+  const setName = s.set ?? "ingest";
+  if (onlySet !== null ? setName !== onlySet : only && only !== name) continue;
+  baseline(setName);
+  const g = gradeOne(name, s, setName);
+  console.log(g.line);
+  if (!g.good) ok = false;
 }
 printTally();
 process.exit(ok ? 0 : 1);
