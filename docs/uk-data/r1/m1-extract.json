@@ -1,0 +1,47 @@
+{
+ "dbf_encoding": "cp1252, from every DBF's language-driver byte 0x03 (Windows ANSI)",
+ "names": {
+  "hills": 37025,
+  "name_rule_counts": {
+   "name1 eng or untagged": 38328,
+   "name2 eng": 123
+  },
+  "places_city_town": 1426,
+  "rows_read": 3050396
+ },
+ "rivers": {
+  "forms": {
+   "canal": 1520,
+   "inlandRiver": 156209,
+   "lake": 24265,
+   "tidalRiver": 11728
+  },
+  "kept_polylines": 98628,
+  "links_read": 193722,
+  "name_rule": "name2 (English alternative) if present, else name1",
+  "with_two_names": 5256
+ },
+ "roads": {
+  "by_class": {
+   "A Road": 292299,
+   "B Road": 165014,
+   "Classified Unnumbered": 353959,
+   "Motorway": 7248,
+   "Not Classified": 412344,
+   "Unclassified": 1857810,
+   "Unknown": 898814
+  },
+  "kept_class1": 3842,
+  "kept_class2": 283225,
+  "kept_class2_primary": 102537,
+  "kept_polylines": 287067,
+  "links_read": 3987488,
+  "slip_dropped": "formOfWay == Slip Road"
+ },
+ "water": {
+  "features_kept": 207,
+  "features_read": 517282,
+  "outer_rings_kept": 207,
+  "rule": "feature area (outer - holes, BNG m2) >= 1,500,000; holes dropped"
+ }
+}
