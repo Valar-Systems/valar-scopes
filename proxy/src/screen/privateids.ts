@@ -66,8 +66,8 @@ export class PrivateIds {
     /*P-P2*/
     for (let i = 0; i < size; i++) {
       const n = PRIVATE_BLOCK.lo + ((start + i) % size);
-      // A public row may itself be a "~" non-ICAO relay: an ID must not equal either spelling (the site checks only
-      // the bare one).
+      // A public row may itself be a "~" non-ICAO relay: an ID must not equal either spelling. (The site gets the same
+      // result by stripping "~" as it builds its public set, live.ts:341 at ff958d54; here both spellings are checked.)
       if (this.taken.has(n) || publicHexes.has(hex6(n)) || publicHexes.has(`~${hex6(n)}`)) continue;
       this.taken.add(n);
       return `~${hex6(n)}`;
