@@ -672,13 +672,58 @@ def e3(root):
     return why
 
 
+# D4C (D4, "clamp: map only", the owner 2026-11-25): the line by the radius setting. (a) The literal is held by
+# src/ConfigurationWebServer.cpp alone, once, inside the map's gate (D5's rule, gated()); (b) the page's %MAPCOVERS%
+# placeholder appears once, within 12 lines after the radius field; (c) a MAPCOVERS branch OUTSIDE the gate returns "",
+# so a build without the map shows no line about it.
+COVERS = "The map covers up to 100 miles."
+
+
+def d4c(root):
+    rel = "src/ConfigurationWebServer.cpp"
+    why = []
+    holders = sorted(r for r in src_files(root) if COVERS in read(root, r))
+    if holders != [rel]:
+        why.append(f"the line is held by {holders}, not by {rel} alone")
+    t = read(root, rel)
+    lines = t.split("\n")
+    g = gated(t, rel)
+    hits = [i for i, ln in enumerate(lines) if COVERS in ln]
+    if len(hits) != 1:
+        why.append(f"{rel} holds the line {len(hits)} time(s), not once")
+    why += [f"{rel}:{i + 1} holds the line outside the map's gate" for i in hits if not g[i]]
+    ph = [i for i, ln in enumerate(lines) if "%MAPCOVERS%" in ln]
+    rad = [i for i, ln in enumerate(lines) if 'name="radius"' in ln]
+    if len(ph) != 1 or len(rad) != 1 or not 0 < ph[0] - rad[0] <= 12:
+        why.append(f"%MAPCOVERS% {len(ph)} time(s) and the radius field {len(rad)}: not once each, the placeholder "
+                   "within 12 lines after the field")
+    off = [i for i, ln in enumerate(lines) if 'var == "MAPCOVERS"' in ln and not g[i]]
+    if not any('return ""' in lines[i] for i in off):
+        why.append('no MAPCOVERS branch outside the map\'s gate returns ""')
+    return why
+
+
+# D4B (D4 FORM B): the draw gate is wired. DrawMapBase's body calls mapquery::MapDrawsInView( exactly once, on its early
+# return line, with the view's N-S radius in km (viewRadLat * 111.0, KM_PER_DEGREE's value).
+def d4b(root):
+    rel = "src/AircraftManager.cpp"
+    body = body_of(read(root, rel), "bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)", rel)
+    calls = [ln for ln in body.split("\n") if "mapquery::MapDrawsInView(" in ln]
+    if len(calls) != 1:
+        return [f"DrawMapBase calls mapquery::MapDrawsInView( {len(calls)} time(s), not once"]
+    if "return false" not in calls[0] or "viewRadLat * 111.0" not in calls[0]:
+        return ["the call is not on DrawMapBase's early-return line with viewRadLat * 111.0"]
+    return []
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     try:
         rows = [("CD4",) + cd4(root), ("CB8", cb8(root), None), ("CB8b", cb8b(root), None), ("CD1",) + cd1(root),
                 ("CD2", cd2(root), None), ("CD3", cd3(root), None), ("CD5", cd5(root), None), ("CD6",) + cd6(root),
                 ("CD6b",) + cd6b(root), ("CD7",) + cd7(root), ("CB-B1",) + cbb1(root), ("CB-B2", cbb2(root), None), ("CD8", cd8(root), None),
-                ("DW1",) + dw1(root), ("DH1", dh1(root), None), ("D5", d5(root), None), ("E3", e3(root), None)]
+                ("DW1",) + dw1(root), ("DH1", dh1(root), None), ("D5", d5(root), None), ("E3", e3(root), None),
+                ("D4C", d4c(root), None), ("D4B", d4b(root), None)]
     except Exception as e:   # ANY exception, the stripper's own Rig and a decode error included: the rig, never a red
         print(f"RIG: {type(e).__name__}: {e}")
         return 2
@@ -725,6 +770,10 @@ def main():
                   "only there")
         elif name == "E3":
             print(f"  ok   {name}: MapEnabled() reads the resolved map-layer")
+        elif name == "D4B":
+            print(f"  ok   {name}: DrawMapBase gates the map on mapquery::MapDrawsInView(viewRadLat * 111.0), once, on its early return")
+        elif name == "D4C":
+            print(f"  ok   {name}: the 100-mile line is the page's, once, inside the map's gate, by the radius field; none without the map")
         else:
             print(f"  ok   {name}: step C's gate: the blend only in DrawSweepOverMap, behind DrawMapBase's "
                   "flags, set after the copy and cleared at every frame; wxPixels only behind mapFrameWx")

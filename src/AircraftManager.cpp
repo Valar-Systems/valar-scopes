@@ -3854,7 +3854,9 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
     if (mapHeldLen == 0 && mapBench.which >= 0) MapBenchAccept(mapBench.which);   // built in, never fetched
 #endif
     // THE MAP BENCH END
-    if (!MapEnabled() || !IsRadarView() || !hasLocation || NightClockActive() || mapHeldLen == 0) return false;
+    // D4 FORM B: no map in a view over 100 mi (the ring and its label stay; the sweep then draws today's opaque wedge).
+    if (!MapEnabled() || !IsRadarView() || !hasLocation || NightClockActive() || mapHeldLen == 0 ||
+        !mapquery::MapDrawsInView(viewRadLat * 111.0)) return false;
     LGFX_Sprite& sp = canvas.sprite();
     uint8_t* const dst = (uint8_t*)sp.getBuffer();
     if (canvas.offsetY() != 0 || sp.width() != SCREEN_SIZE || sp.height() != SCREEN_SIZE || sp.getColorDepth() != 16 ||

@@ -9,6 +9,7 @@
 // contract, never typed here. Exit 0 all pass, 1 any fail, 2 the rig (a file or constant unreadable, or a case count
 // other than 42). Prints no coordinate, no id, no hash and no spread delay: the synthetic ids are made at run time.
 
+#include <algorithm>
 #include <cmath>
 #include <cstdarg>
 #include <cstdint>
@@ -25,7 +26,7 @@
 
 namespace {
 
-constexpr int kCases = 42;
+constexpr int kCases = 44;
 constexpr uint32_t T0 = 1000000;   // a fixed boot clock, ms
 
 int cases = 0, failures = 0;
@@ -172,8 +173,9 @@ void Ca1()
           "r=42&eps=50292&layers=water,rivers,roads,places,terrain&levels=8851392:264,16898112:252,41239440:246",
           226508 },
         { "CA1d", 5, &kMi, "r=9&eps=10058&layers=water,rivers,roads,places,terrain&levels=8851392:264", 102472 },
+        // D4 (the owner, 2026-11-25: "clamp: map only"): 222 km asks what 100 mi asks at the top (r, eps, the top level)
         { "CA1e", 222, &kKm,
-          "r=222&eps=277500&layers=water,rivers,roads,places,terrain&levels=25833333:248,50833333:244,223850000:242",
+          "r=162&eps=201168&layers=water,rivers,roads,places,terrain&levels=25833333:248,50833333:244,162275520:242",
           212396 },
         { "CA1f", 0.1, &kMi, "r=1&eps=1000&layers=water,rivers,roads,places", 32768 },
     };
@@ -183,6 +185,63 @@ void Ca1()
         check(r.name, ok, ok ? fmt("%g %s, cap %u", r.d, r.u->name, (unsigned)q.capBytes)
                              : fmt("got %s cap %u", q.params, (unsigned)q.capBytes));
     }
+}
+
+// D4: the map covers up to 100 mi. The test's own value (100 x 1.609344, exact), so a plant in the header cannot move it.
+constexpr double kRefMapCapKm = 160.9344;
+
+// CA-D4a: every miles radius over 100 asks EXACTLY what a 100-mi owner asks (CA1's string, written out again here); every
+// km and nmi radius over 100 mi asks r=162, eps=201168 and the 100-mi top level 162275520:242 (its lower levels are its
+// own unit's ladder steps, which no cap touches). map-server's ask (2026-11-25): one request shape, the one it measured.
+void CaD4a()
+{
+    const char* const kMi100 =
+        "r=162&eps=201168&layers=water,rivers,roads,places,terrain&levels=41239440:246,81808320:244,162275520:242";
+    const std::string top = "162275520:242";
+    int n = 0, bad = 0;
+    std::string first;
+    for (int i = 1001; i <= 2220; ++i) {
+        const double d = i / 10.0;
+        const mapquery::Request q = Req(d, kMi);
+        ++n;
+        if (std::strcmp(q.params, kMi100) != 0 && ++bad == 1) first = fmt("%g mi: %s", d, q.params);
+    }
+    for (const Unit* u : { &kKm, &kNmi })
+        for (int i = 1; i <= 2220; ++i) {
+            const double d = i / 10.0;
+            if (d * u->factor <= kRefMapCapKm) continue;
+            const mapquery::Request q = Req(d, *u);
+            const std::string p = q.params;
+            ++n;
+            const bool ok = p.compare(0, 17, "r=162&eps=201168&") == 0 && p.size() > top.size() &&
+                            p.compare(p.size() - top.size(), top.size(), top) == 0;
+            if (!ok && ++bad == 1) first = fmt("%g %s: %s", d, u->name, q.params);
+        }
+    check("CA-D4a", bad == 0, bad ? fmt("%d of %d radii over 100 mi ask another shape; first %s", bad, n, first.c_str())
+                                  : fmt("%d radii over 100 mi (mi, km, nmi) ask the 100-mi shape", n));
+}
+
+// CA-D4b (D4 FORM B, the owner's fallback: "no map above 100 miles, ring kept"): the map draws only in a view of 100 mi
+// or less. The view's radius as the firmware builds it is viewRadLat x 111 km (KM_PER_DEGREE), so 100 mi arrives as
+// (160.9344 / 111) x 111 and must still read as 100 mi.
+void CaD4b()
+{
+    struct V {
+        const char* what;
+        double km;
+        bool draws;
+    };
+    const V views[] = {
+        { "100 mi", kRefMapCapKm, true }, { "100 mi via radLat", (kRefMapCapKm / 111.0) * 111.0, true },
+        { "5 mi", 5 * 1.609344, true }, { "50 mi", 50 * 1.609344, true },
+        { "100.01 mi", 100.01 * 1.609344, false }, { "150 mi", 150 * 1.609344, false }, { "222 km", 222.0, false },
+    };
+    int bad = 0;
+    std::string first;
+    for (const V& v : views)
+        if (mapquery::MapDrawsInView(v.km) != v.draws && ++bad == 1) first = v.what;
+    check("CA-D4b", bad == 0, bad ? fmt("%d of 7 views wrong; first %s", bad, first.c_str())
+                                  : fmt("7 views: the map draws at 100 mi and under, not above"));
 }
 
 uint32_t RefMm(double km)   // the test's own mm, so a plant in the header's cannot move the expectation
@@ -215,14 +274,15 @@ void Ca2(const Route& rt)
             ok = ok && terrain <= rt.terrainMax;
             ok = ok && ((std::strstr(q.params, "terrain") != nullptr) == (q.nLevels > 0));
             if (!ok && ++badBounds == 1) firstBounds = fmt("%g %s: %s", d, u->name, q.params);
-            // r covers the view plus the 2-dp offset, unless 222 caps it
-            if (q.rKm < 222 && q.rKm < q.rvMm / 1e6 + 0.555 && ++badCover == 1)
+            // r covers the view plus the 2-dp offset, the view capped at 100 mi (D4), unless 222 caps it
+            const double viewCapKm = std::min(d * u->factor, kRefMapCapKm);
+            if (q.rKm < 222 && q.rKm < viewCapKm + 0.555 && ++badCover == 1)
                 firstCover = fmt("%g %s: r %d", d, u->name, q.rKm);
             // the radar's top three steps: each with its own level (pixel within 1 % of step/120), covering step + 0.785
             const int top3 = l.n < 3 ? l.n : 3;
             below += l.n - top3;
             for (int s = l.n - top3; s < l.n; ++s) {
-                const double sKm = (double)l.step[s] * u->factor;
+                const double sKm = std::min((double)l.step[s] * u->factor, kRefMapCapKm);   // D4: over 100 mi, 100 mi's level
                 const double px = RefMm(sKm) / 120.0;
                 const double nOwn = 240 + 2 * std::ceil(800000.0 / px);
                 const double rOwn = std::floor(nOwn * px / 2 + 0.5);
@@ -249,7 +309,7 @@ void Ca2(const Route& rt)
                     : fmt("%d configs within the route's bounds", configs));
     check("CA2-rcover", badCover == 0,
           badCover ? fmt("%d configs short; first %s", badCover, firstCover.c_str())
-                   : fmt("%d configs: r covers the view + 0.555 km, or is 222", configs));
+                   : fmt("%d configs: r covers min(view, 100 mi) + 0.555 km, or is 222", configs));
     check("CA2-levels", badLevels == 0,
           fmt("%d configs; %d steps with their own level; %d with none; %d below the top three%s", configs, own, none,
               below, badLevels ? fmt("; %d short, first %s", badLevels, firstLevels.c_str()).c_str() : ""));
@@ -632,6 +692,10 @@ int main(int argc, char** argv)
                 rt.maxRKm, rt.epsMin, rt.epsMax, rt.lrMin, rt.lrMax, rt.nMax, rt.levelsMax, rt.terrainMax, rt.cap);
     std::printf("CA1 the default and five more\n");
     Ca1();
+    std::printf("CA-D4a every radius over 100 mi asks the 100-mi shape\n");
+    CaD4a();
+    std::printf("CA-D4b the map draws only in a view of 100 mi or less\n");
+    CaD4b();
     std::printf("CA2 every configured radius, 0.1-222 by 0.1, in km, mi and nmi\n");
     Ca2(rt);
     std::printf("CA3 the cap\n");

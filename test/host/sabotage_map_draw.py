@@ -74,7 +74,7 @@ PLACES = os.path.join("include", "MapPlaces.h")
 LOGBOOK = os.path.join("src", "Logbook.cpp")
 CWS = os.path.join("src", "ConfigurationWebServer.cpp")
 MAP_GATE_LINE = "#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)"
-SOURCE_CHECKS = 17   # CD4, CB8, CB8b, CD1-CD3, CD5, CD6, CD6b, CD7, CB-B1, CB-B2, CD8, step D's DW1, DH1, D5, E3: the one
+SOURCE_CHECKS = 19   # CD4, CB8, CB8b, CD1-CD3, CD5, CD6, CD6b, CD7, CB-B1, CB-B2, CD8, step D's DW1, DH1, D5, E3, D4's D4C, D4B: the one
                      # place the count lives
 ARRIVAL_BUMP_AT = ("                if (mapairports::Changed(mapAirportsHeld, apHash)) ++mapAirportsGen;   // CD6, CD6b: only "
                    "on a change\n")
@@ -138,6 +138,13 @@ SABOTAGES = {
                    ('        TrySaveParam("wx-look");', '        TrySaveParam("map-terrain");\n        TrySaveParam("wx-look");')],
              {"D5"}),
     "S-E3": (AMCPP, [("    return mapLayerOn && useCloudSource", "    return useCloudSource")], {"E3"}),
+    # D4 (the owner, 2026-11-25, "clamp: map only"): a build WITHOUT the map would show the 100-mile line.
+    # D4 FORM B: the gate dropped from DrawMapBase's early return
+    "S-D4B-WIRE": (AMCPP, [("        !mapquery::MapDrawsInView(viewRadLat * 111.0)) return false;\n",
+                            "        false) return false;   // SABOTAGE S-D4B-WIRE\n")], {"D4B"}),
+    "S-D4C": (CWS, [('                if (var == "MAPCOVERS")      return "";   // no map in this build, so no line about it\n',
+                    '                if (var == "MAPCOVERS")      return "The map covers up to 100 miles.";   // SABOTAGE S-D4C\n')],
+              {"D4C"}),
     # D5's header exemption (ruled 2026-11-19 ~02:08Z): the exempt header #included OUTSIDE its own gate.
     "S-D5-INC": (CWS, [(MAP_GATE_LINE + '\n#include "MapSettingsHtml.h"', '#include "MapSettingsHtml.h"\n' + MAP_GATE_LINE)],
                  {"D5"}),
@@ -193,7 +200,7 @@ def run_check(tree):
     m = sc.COUNT.search(c.stdout)
     if c.returncode not in (0, 1) or not m or int(m.group(1)) != SOURCE_CHECKS:
         return None, f"the check did not run as {SOURCE_CHECKS} row(s) (exit {c.returncode})\n" + c.stdout + c.stderr
-    return {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CD\d+b?|CB-B\d+|CB\d+b?|DW1|DH1|D5|E3)\b", c.stdout, re.M)}, None
+    return {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+([A-Za-z][\w-]*):", c.stdout, re.M)}, None
 
 
 def control_tree(td, tag, spec):
