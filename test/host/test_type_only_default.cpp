@@ -13,10 +13,12 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <initializer_list>
 #include <sstream>
 #include <string>
 #include <vector>
 #include "../../include/ConfigMigration.h"
+#include "../../include/LabelCache.h"
 #include "../../include/LabelLines.h"
 
 static int failures = 0;
@@ -85,20 +87,51 @@ static std::vector<std::string> parsePresets(const std::string& src)
     return out;
 }
 
-// The lines a board draws, given each field's enabled state (every enabled field is assumed to format to something).
-static std::vector<std::string> linesFor(const std::vector<Field>& t, const std::vector<bool>& enabled)
+// A field set for labelcache::Decide -- the REAL helper both radar layouts call -- with the shipping keys, which of
+// them are ticked, and what each formats to for one aircraft.
+struct FakeText {
+    std::string s;
+    bool isEmpty() const { return s.empty(); }
+};
+struct FakeFields {
+    const std::vector<Field>* t;
+    std::vector<bool> on;
+    std::vector<std::string> text;
+    const char* FieldKey(int i) const { return (*t)[(size_t)i].key.c_str(); }
+    bool On(int i) const { return on[(size_t)i]; }
+    FakeText Format(int i) const { FakeText x; x.s = text[(size_t)i]; return x; }
+};
+
+// The lines a board draws for one aircraft: `on[i]` is field i ticked; the type and the callsign format to `type` and
+// `callsign` ("" = not known); every other field formats to something.
+static std::vector<std::string> linesFor(const std::vector<Field>& t, const std::vector<bool>& on,
+                                         const std::string& type = "B738", const std::string& callsign = "UAL123")
 {
-    std::vector<const char*> keys;
-    bool willDraw[64] = {};
-    for (size_t i = 0; i < t.size(); ++i) {
-        keys.push_back(t[i].key.c_str());
-        willDraw[i] = enabled[i];
-    }
-    int out[labellines::MAX_LINES];
-    const int n = labellines::Select(keys.data(), willDraw, (int)t.size(), out);
+    FakeFields f;
+    f.t = &t;
+    f.on = on;
+    for (size_t i = 0; i < t.size(); ++i)
+        f.text.push_back(t[i].key == "info-type" ? type : t[i].key == "info-callsign" ? callsign : "x");
+    const char* keys[labelcache::kMaxFields] = {};
+    bool willDraw[labelcache::kMaxFields] = {};
+    labelcache::Decide(f, (int)t.size(), keys, willDraw);
+    int out[labellines::MAX_LINES] = {};
+    const int n = labellines::Select(keys, willDraw, (int)t.size(), out);
     std::vector<std::string> lines;
-    for (int i = 0; i < n; ++i) lines.push_back(t[out[i]].key);
+    for (int i = 0; i < n; ++i) lines.push_back(t[(size_t)out[i]].key);
     return lines;
+}
+
+static std::vector<bool> ticked(const std::vector<Field>& t, std::initializer_list<const char*> keys)
+{
+    std::vector<bool> on;
+    for (size_t i = 0; i < t.size(); ++i) {
+        bool hit = false;
+        for (const char* k : keys)
+            if (t[i].key == k) hit = true;
+        on.push_back(hit);
+    }
+    return on;
 }
 
 static std::string join(const std::vector<std::string>& v)
@@ -170,6 +203,32 @@ int main(int argc, char** argv)
         printf("T4 presets: \"%s\" | \"%s\" | \"%s\"\n", presets[0].c_str(), presets[1].c_str(), presets[2].c_str());
         check(presets[0] == "none" && presets[1] == "info-type" && presets[2] == "info-type info-callsign", "T4",
               "the presets are unchanged");
+    }
+
+    // T5-T10 THE CALLSIGN FALLBACK (the owner, 2026-11-25: "never a bare dot while the callsign is known"; REG-type-only
+    // Amendment 9). It applies only when the type field is ticked and the type is unknown.
+    struct Case {
+        const char* id;
+        std::vector<bool> on;
+        const char* type;
+        const char* callsign;
+        std::vector<std::string> want;
+        const char* what;
+    };
+    const Case cases[] = {
+        {"T5", ticked(t, {"info-type"}), "", "UAL123", {"info-callsign"}, "Basic, type unknown: the callsign shows"},
+        {"T6", ticked(t, {"info-type"}), "B738", "UAL123", {"info-type"}, "Basic, type known: the type, no callsign"},
+        {"T7", ticked(t, {"info-type"}), "", "", {}, "Basic, neither known: nothing"},
+        {"T8", ticked(t, {}), "", "UAL123", {}, "None ticked: nothing, the owner's choice"},
+        {"T9", ticked(t, {"info-type", "info-baroalt"}), "", "UAL123", {"info-callsign", "info-baroalt"},
+         "type + baro alt, type unknown: callsign, then alt"},
+        {"T10", ticked(t, {"info-type", "info-callsign"}), "", "UAL123", {"info-callsign"},
+         "Spotter, type unknown: the callsign once"},
+    };
+    for (const Case& c : cases) {
+        const std::vector<std::string> lines = linesFor(t, c.on, c.type, c.callsign);
+        printf("%s draws: %s\n", c.id, join(lines).c_str());
+        check(lines == c.want, c.id, c.what);
     }
 
     printf(failures ? "\ntype-only default: %d FAILURE(S)\n" : "\ntype-only default: all good\n", failures);
