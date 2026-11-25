@@ -12,6 +12,8 @@
 #
 # `body` grades a given /health body with no network (the proof-run: a stub answering "an hour ago" must read RED).
 # No concurrency block: C1 (scripts/check_workflow_concurrency.py) forbids one on a workflow with no pull_request trigger.
+# Its job names its image, never the floating label (docs/ci-runners.md; scripts/check_runners.py), and its one
+# permission is registered in scripts/check_workflow_permissions.py.
 name: screen-logs-watch
 
 on:
@@ -32,7 +34,7 @@ permissions:
 
 jobs:
   watch:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4

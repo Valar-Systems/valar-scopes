@@ -202,6 +202,12 @@ jobs:
       - name: The screen service's pre-deploy check (selftests)
         if: matrix.worker == 'proxy'
         run: node scripts/screen-deploy-check.mjs --selftest-until && node scripts/screen-deploy-check.mjs --selftest-bundles
+      # deploy.sh's argument rules (map-server's F2 on #811): --until belongs to --screen alone and is refused as usage
+      # on every other path, never silently dropped. DA1-DA7 with an empty claims folder (nothing past the claim runs),
+      # then the sabotage: a copy without the refusal must turn exactly DA1-DA4 red.
+      - name: deploy.sh refuses --until off --screen (DA1-DA7, then the sabotage)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/check-deploy-args.sh && bash scripts/check-deploy-args.sh --sabotage
 
       # The test identity (docs/test-identity.md), which replaced the blip-creds wrapper. The mint script against a
       # local stub of the provision route (TM1, TM1s, TM-R, and S-TMPRINT, a copy that prints the key, which the output

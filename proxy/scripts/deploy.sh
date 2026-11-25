@@ -60,6 +60,9 @@ case "${SCREEN}:${2:-}" in
   1:) ;;
   1:*) usage ;;
 esac
+# ... and on every other path it is REFUSED, never silently dropped (map-server's F2 on #811): an ignored flag on a deploy
+# is a statement the operator believes took effect. scripts/check-deploy-args.sh (DA1-DA4) and its sabotage hold this.
+if [ -z "$SCREEN" ]; then for a in "$@"; do case "$a" in --until|--until=*) usage ;; esac; done; fi
 
 # ---- 0. the deploy claim (docs/session-claims.md) -----------------------------
 # Before any other work: one deployer at a time, across every session on this

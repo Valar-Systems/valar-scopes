@@ -218,7 +218,10 @@ function selftest(rawInputs) {
   const missB = calls.builder === null ? ["(the builder's exit 0 was not found)"] : calls.builder.filter((p) => !MACHINERY.builder.includes(p));
   const missS = calls.screen === null ? ["(the screen block's if, or its exit 0, was not found exactly once)"] : calls.screen.filter((p) => !MACHINERY.screen.includes(p));
   const missP = calls.proxy.filter((p) => !MACHINERY.proxy.includes(p));
-  ok("DB17", missB.length === 0 && missS.length === 0 && missP.length === 0, `builder path (to l.${calls.builderExitLine}): ${JSON.stringify(calls.builder)}; screen path (to l.${calls.screenExitLine}): ${JSON.stringify(calls.screen)}; proxy: ${JSON.stringify(calls.proxy)}; missing ${JSON.stringify([...missB, ...missS, ...missP])}`);
+  // One row PER PATH (map-server's F1 on #811): an OR of the three could not say which path saw a planted call.
+  ok("DB17-B", missB.length === 0, `builder path (to l.${calls.builderExitLine}): ${JSON.stringify(calls.builder)}; missing ${JSON.stringify(missB)}`);
+  ok("DB17-S", missS.length === 0, `screen path (to l.${calls.screenExitLine}): ${JSON.stringify(calls.screen)}; missing ${JSON.stringify(missS)}`);
+  ok("DB17-P", missP.length === 0, `proxy path (the file less the screen block): ${JSON.stringify(calls.proxy)}; missing ${JSON.stringify(missP)}`);
   const g = db18(); ok("DB18", g.good, g.why);
   return { rows, detail, raw, sets: Object.fromEntries(TARGETS.map((t) => [t, { set: sets[t].set.length, bundle: sets[t].bundle.length, ms: sets[t].ms }])) };
 }
@@ -246,13 +249,17 @@ const PLANTS = [
   ["P-NOPKG", "    const set = [...bundle, `proxy/${CONFIG[target]}`, ...PACKAGE_FILES];\n", "    const set = [...bundle, `proxy/${CONFIG[target]}`]; // PLANT P-NOPKG\n", ["DB6"]],
   ["P-NOGUARD", "  if (!argv.includes(\"--dry-run\") || !argv.includes(\"--outdir\") || argv.some((a) => a.startsWith(\"--dry-run=\"))) {\n",
     "  if (false) { // PLANT P-NOGUARD\n", ["DB18"]],
-  ["P-CALLEE", null, null, ["DB17"]], // a copy of deploy.sh calling one more script, not in any list
-  ["P-CALLEE-S", null, null, ["DB17"]], // the same, INSIDE the screen block only: no path but the screen's can see it
+  // The deploy.sh plants, one per region (map-server's F1 on #811): graded on the EXACT set, so a plant one path too
+  // many or too few reads OFF. Together they prove each path's bounds, which one OR'd row could not.
+  ["P-CALLEE", null, null, ["DB17-B", "DB17-P", "DB17-S"]], // the SHARED region, before both blocks: every path sees it
+  ["P-CALLEE-S", null, null, ["DB17-S"]], // INSIDE the screen block: the proxy path must exclude the block
+  ["P-CALLEE-P", null, null, ["DB17-P"]], // the first proxy-only line after the screen block: builder and screen stop above
 ];
 // The deploy.sh plants (a null anchor above): [the anchor in deploy.sh, exactly once; the planted call; after or before it].
 const DSH_PLANTS = {
   "P-CALLEE": ['node "$ROOT/proxy/scripts/deploy-inputs.mjs" check "$DI_TARGET" "$ENVIRONMENT"; DI_RC=$?\n', 'bash "$ROOT/proxy/scripts/planted-extra.sh"\n', "after"],
   "P-CALLEE-S": ['  node scripts/screen-deploy-check.mjs "${CHECK_ARGS[@]}"', "  bash scripts/planted-screen-extra.sh\n", "before"],
+  "P-CALLEE-P": ["# ---- 3b. DEVICE_KEY_SECRET must exist in the target environment -------------\n", "bash scripts/planted-proxy-extra.sh\n", "before"],
 };
 function selftestPlants() {
   const self = readFileSync(fileURLToPath(import.meta.url), "utf8");
