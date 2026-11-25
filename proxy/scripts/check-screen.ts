@@ -10,10 +10,12 @@
 //         else, and releasedVersion's 1 h memo fails CLOSED (null) once it expires onto an error.
 //   P-F2  releaseAllows: a released row always passes; waitsFor n needs a read version >= n; unscheduled never.
 //   P-T2  tierAllows: fail-closed; "cloud" allows free and cloud, "plus" and "business" allow all; anything else none.
+//   P-O1  The owner's "screen service logs: sample 10%" (2026-11-25), read from screen.wrangler.toml: production
+//         observability enabled at exactly 0.1, invocation logs off in every env, and no env above 0.1 but the exempt.
 //
 //   npx tsx scripts/check-screen.ts              exit 0 PASS, 1 FAIL, 2 BLIND (an input the check cannot read)
 //   npx tsx scripts/check-screen.ts --selftest   the real check must PASS; then each sabotage, on a TEMP COPY that
-//        is asserted to differ from its source, must FAIL exactly as predicted (F1s, F3s, F2s, T2s, P3s).
+//        is asserted to differ from its source, must FAIL exactly as predicted (F1s, F3s, F2s, T2s, P3s, O1s).
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -25,6 +27,7 @@ const INDEX = join(PROXY, "src", "index.ts");
 const OTA = join(REPO, "src", "OtaUpdater.cpp");
 const GATE = join(PROXY, "src", "screen", "gate.ts");
 const RELEASE = join(PROXY, "src", "screen", "release.ts");
+const TOML = join(PROXY, "screen.wrangler.toml");
 
 type Tier = "free" | "cloud" | "plus";
 type Firmware = { released: number } | { waitsFor: number | "unscheduled" };
@@ -136,7 +139,55 @@ function checkTierGate(g: GateMod): Result {
   return { verdict: failures.length ? "FAIL" : "PASS", lines: [`P-T2: ${CTXS.length * TIERS.length - failures.length} of ${CTXS.length * TIERS.length} cases`], failures };
 }
 
-interface Inputs { indexSrc: string; otaSrc: string; gatePath: string; releasePath: string }
+/**
+ * P-O1, read from screen.wrangler.toml as TEXT, section by section: (a) production observability enabled;
+ * (b) production head_sampling_rate exactly 0.1; (c) invocation_logs = false in every env with an observability
+ * section; (d) no env above 0.1 except staging, production (pinned by b) and production-fulllogs (the full-logs day,
+ * docs/screen-logs-runbook.md).
+ */
+const RATE_EXEMPT = new Set(["staging", "production", "production-fulllogs"]);
+interface ObsEnv { enabled?: string; rate?: string; invocationLogs?: string }
+function observabilityEnvs(tomlSrc: string): Map<string, ObsEnv> {
+  const envs = new Map<string, ObsEnv>();
+  let cur: { env: string; part: "obs" | "logs" } | null = null;
+  for (const raw of tomlSrc.split("\n")) {
+    const line = raw.replace(/#.*$/, "").trim();
+    const head = /^\[(?:env\.([a-z0-9-]+)\.)?observability(\.logs)?\]$/.exec(line);
+    if (head) {
+      cur = { env: head[1] ?? "top", part: head[2] ? "logs" : "obs" };
+      if (!envs.has(cur.env)) envs.set(cur.env, {});
+      continue;
+    }
+    if (line.startsWith("[")) { cur = null; continue; }
+    const kv = /^([a-z_]+)\s*=\s*(.+)$/.exec(line);
+    if (!cur || !kv) continue;
+    const e = envs.get(cur.env)!;
+    if (cur.part === "obs" && kv[1] === "enabled") e.enabled = kv[2];
+    if (cur.part === "obs" && kv[1] === "head_sampling_rate") e.rate = kv[2];
+    if (cur.part === "logs" && kv[1] === "invocation_logs") e.invocationLogs = kv[2];
+  }
+  return envs;
+}
+function checkObservability(tomlSrc: string): Result {
+  const envs = observabilityEnvs(tomlSrc);
+  const prod = envs.get("production");
+  if (!prod) return { verdict: "BLIND", lines: ["P-O1: no [env.production.observability] section read"], failures: ["P-O1 blind"] };
+  const failures: string[] = [];
+  if (prod.enabled !== "true") failures.push("P-O1: production observability is not enabled");
+  if (Number(prod.rate) !== 0.1) failures.push(`P-O1: production head_sampling_rate is ${Number(prod.rate)}, want 0.1`);
+  for (const [env, e] of envs) {
+    if (e.invocationLogs !== "false") failures.push(`P-O1: ${env} does not set invocation_logs = false`);
+    if (!RATE_EXEMPT.has(env) && Number(e.rate ?? "0") > 0.1) failures.push(`P-O1: ${env} head_sampling_rate is ${Number(e.rate)}, above 0.1`);
+  }
+  const off = [...envs.values()].filter((e) => e.invocationLogs === "false").length;
+  return {
+    verdict: failures.length ? "FAIL" : "PASS",
+    lines: [`P-O1: production sampling ${Number(prod.rate)}, enabled ${prod.enabled}; invocation logs off in ${off} of ${envs.size} env(s)`],
+    failures,
+  };
+}
+
+interface Inputs { indexSrc: string; otaSrc: string; gatePath: string; releasePath: string; tomlSrc: string }
 async function runAll(inp: Inputs): Promise<Result> {
   const mapMod = await import(pathToFileURL(join(PROXY, "src", "screen", "map.ts")).href) as { SCREEN_MAP: readonly Row[]; RELEASE_URL: string };
   const gate = await import(pathToFileURL(inp.gatePath).href) as GateMod;
@@ -148,12 +199,13 @@ async function runAll(inp: Inputs): Promise<Result> {
     checkReleaseGate(gate),
     checkTierGate(gate),
     await checkMemo(rel),
+    checkObservability(inp.tomlSrc),
   ];
   const verdict = parts.some((p) => p.verdict === "BLIND") ? "BLIND" : parts.some((p) => p.verdict === "FAIL") ? "FAIL" : "PASS";
   return { verdict, lines: parts.flatMap((p) => p.lines), failures: parts.flatMap((p) => p.failures) };
 }
 
-const real = (): Inputs => ({ indexSrc: readFileSync(INDEX, "utf8"), otaSrc: readFileSync(OTA, "utf8"), gatePath: GATE, releasePath: RELEASE });
+const real = (): Inputs => ({ indexSrc: readFileSync(INDEX, "utf8"), otaSrc: readFileSync(OTA, "utf8"), gatePath: GATE, releasePath: RELEASE, tomlSrc: readFileSync(TOML, "utf8") });
 
 /** A sabotaged copy of one source file, written to a temp dir; refuses if the edit did not change the text. */
 function sabotagedCopy(dir: string, src: string, name: string, edit: (s: string) => string): string {
@@ -202,6 +254,11 @@ async function selftest(): Promise<number> {
     // P3s: a parser that accepts a trailing letter, in a copy of release.ts.
     const r3 = sabotagedCopy(dir, RELEASE, "release-p3s.ts", (s) => s.replace("/*P-F3*/", "/*P-F3*/ text = text.replace(/[a-z]$/, \"\");"));
     expect("P3s", await runAll({ ...real(), releasePath: r3 }), [`P-F3 parse "20x"`]);
+    // O1s: production's sampling put back to 1.0 in a copy of screen.wrangler.toml.
+    const toml = readFileSync(TOML, "utf8");
+    const tomlSab = toml.replace(/(\[env\.production\.observability\]\n(?:[^[\n].*\n)*?head_sampling_rate = )[0-9.]+/, "$11.0");
+    if (tomlSab === toml) throw new Error("sabotage O1s: the edit did not apply");
+    expect("O1s", await runAll({ ...real(), tomlSrc: tomlSab }), ["P-O1: production head_sampling_rate is 1, want 0.1"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -216,7 +273,7 @@ async function main(): Promise<number> {
   r.failures.forEach((f) => console.log(`FAIL ${f}`));
   const routes = routesFromIndex(readFileSync(INDEX, "utf8")).length;
   console.log(r.verdict === "PASS"
-    ? `PASS (P-F1 ${routes} routes; P-F3 URL + ${PARSE_CASES.length} parser cases; P-F2 ${FW_ROWS.length * READS.length}; P-T2 ${CTXS.length * TIERS.length}; memo 3)`
+    ? `PASS (P-F1 ${routes} routes; P-F3 URL + ${PARSE_CASES.length} parser cases; P-F2 ${FW_ROWS.length * READS.length}; P-T2 ${CTXS.length * TIERS.length}; memo 3; P-O1 ${observabilityEnvs(readFileSync(TOML, "utf8")).size} envs)`
     : r.verdict);
   return r.verdict === "PASS" ? 0 : r.verdict === "BLIND" ? 2 : 1;
 }
