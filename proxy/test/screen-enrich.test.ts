@@ -17,8 +17,8 @@
 //          never the site feed's own -- A1); the upstreams, through fetchMock, each counted; the per-location
 //          shield; the clock (an injected seam).
 // Every hex below is SYNTHETIC (a repeating pattern), outside the non-ICAO block icaoalloc.ts short-circuits. None is
-// a real aircraft's. The military fixture sits inside the FIRMWARE's MIL_RANGES (src/SpecialAircraft.cpp, US block
-// 0xADF7C8-0xAFFFFF); scripts/check-screen.ts's P-E3 proves the runtime table equals that file.
+// a real aircraft's. MILR and MILPIA sit in the US military block (0xADF7C8-0xAFFFFF); under the owner's 2026-11-25
+// rule military no longer decides anything (it shows in full unless flagged), so no military table is consulted.
 //
 // EVERY HEX THE SNAPSHOT CAN RESOLVE IS MOCKED ONCE, in beforeAll. A background resolution of an unmocked hex would
 // fail upstream and could open the adsb.lol breaker for the rest of the file; the breakers are also reset per test.
@@ -67,6 +67,7 @@ const H = {
   ABSENT: "a4a4a4", COLD: "a5a5a5", C1: "a6a6a6", R1: "a7a7a1", R2: "a7a7a2", R3: "a7a7a3", MILR: "ae0f00", PRIV: "c0ffee",
   V1: "a8a8a1", GAP: "a9a9a1", GAP2: "a9a9a2", S3: "a0a0a3", E: "a0a0ae", T1: "a0a0a1",
   INBLOCK: "210000", // a PUBLIC hex inside the private-ID block (0x210000-0x22ffff): G1 must never hand it out
+  MILPIA: "ae0f01", // military (US block, db 1) AND flagged PIA (db 4): the flag decides -- hidden
 } as const;
 const PRIVATE_ID = /^~2[12][0-9a-f]{4}$/;
 
@@ -84,7 +85,7 @@ const FIXTURE = [
   ac(H.FLAG8, "TST108", { dbFlags: 8 }), ac(H.MILD, "TOPCAT2", { dbFlags: 1 }), ac(H.BLK, "TST103"), ac(H.COLD, "TST106"),
   ac(H.C1, "TST107"), ac(H.R1, "TST111"), ac(H.R2, "TST112"), ac(H.R3, "TST113"), ac(H.MILR, "TOPCAT1"), ac(H.PRIV, "TOPCAT3"),
   ac(H.V1, "TST121"), ac(H.GAP, "TST122", { t: "ZZ9Z", desc: null }), ac(H.GAP2, "TST126", { t: "ZZ9Z", desc: null }),
-  ac(H.S3, "TST123", { lat: 51.53, lon: -0.31, track_deg: 270 }), ac(H.E, "TST124"),
+  ac(H.S3, "TST123", { lat: 51.53, lon: -0.31, track_deg: 270 }), ac(H.E, "TST124"), ac(H.MILPIA, "TOPCAT4", { dbFlags: 1 | 4 }),
 ];
 const T1_AC = ac(H.T1, "TST125"); // P-T1's own: its upstream answer is delayed, so it is in no other test's snapshot
 const TILDE_BLK = ac(`~${H.BLK}`, "TST131"); // G2: the blocked airframe relayed under a non-ICAO "~" id
@@ -92,9 +93,12 @@ const INBLOCK_AC = ac(H.INBLOCK, "TST132"); // G1: a public aircraft whose hex t
 /** A served row's fixture hex, by its unique altitude: a redacted private row has no hex of its own (G1). */
 const ALT_HEX = new Map([...FIXTURE, T1_AC, TILDE_BLK, INBLOCK_AC].map((a) => [a.alt_ft as number, a.hex as string]));
 const fixtureHexByAlt = (row: Record<string, unknown>) => ALT_HEX.get(row.alt_ft as number) ?? "?";
+// THE OWNER'S 2026-11-25 RULE: hidden ("private") ⇔ flagged PIA (4) or LADD (8), the bits as the site feed's SiteAircraft
+// type names them; the callsign and military clauses are retired, so a non-airline callsign and a military aircraft both
+// show in full. (A v1 snapshot's null dbFlags is G3's, P-V2.)
 const CLASS_WANT: Record<string, "public" | "private"> = {
   [H.PUB]: "public", [H.NULLDB]: "public", [H.MILR]: "public", [H.MILD]: "public",
-  [H.PRIV]: "private", [H.GA]: "private", [H.FLAG4]: "private", [H.FLAG8]: "private",
+  [H.PRIV]: "public", [H.GA]: "public", [H.FLAG4]: "private", [H.FLAG8]: "private", [H.MILPIA]: "private",
 };
 // What each hex's upstream answers with, beyond the defaults: ZZ9Z is a type no name table knows (an enrichment gap).
 const MOCK_EXTRA: Record<string, Record<string, unknown>> = { [H.GAP]: { t: "ZZ9Z" }, [H.GAP2]: { t: "ZZ9Z" } };
@@ -280,6 +284,15 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
     tally(h);
   });
 
+  it("P-E1m: a military aircraft with a non-airline callsign shows in full (the owner's rule: only LADD/PIA hide)", async () => {
+    const h = harness();
+    const a = await site(h.loc, "enrich", { hex: H.MILD }); // db 1, "TOPCAT2"
+    expect(a.ok).toBe(true);
+    expect((a as { value: { r?: string } }).value.r).toBe("X-SYNTH"); // its registration, as for any public aircraft
+    expect(hexFetches[H.MILD]).toBe(1);
+    tally(h);
+  });
+
   it("P-E2: the PRIVATE rule, row by row, as snapshot() classes each aircraft", async () => {
     const h = harness();
     const s = await site(h.loc, "snapshot");
@@ -367,10 +380,10 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
     const h = harness();
     await site(h.loc, "enrich", { hex: H.BLK });
     await site(h.loc, "enrich", { hex: H.ABSENT });
-    await site(h.loc, "enrich", { hex: H.PRIV });
+    await site(h.loc, "enrich", { hex: H.FLAG4 }); // a hidden aircraft's refusal (the owner's rule)
     const texts = [...lines, ...h.counter.points.map((p) => JSON.stringify(p))];
     expect(h.counter.points.length).toBe(3); // CONTROL: there is something to search
-    for (const hex of [H.BLK, H.ABSENT, H.PRIV]) for (const t of texts) expect(t.toLowerCase()).not.toContain(hex);
+    for (const hex of [H.BLK, H.ABSENT, H.FLAG4]) for (const t of texts) expect(t.toLowerCase()).not.toContain(hex);
     tally(h);
   });
 
@@ -412,7 +425,7 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
     const s = await site(h.loc, "snapshot");
     expect(s.ok).toBe(true);
     const text = JSON.stringify(s);
-    expect(PRIVATE_HEXES.length).toBe(4); // CONTROL: the four private fixtures are in the snapshot to be redacted
+    expect(PRIVATE_HEXES.length).toBe(3); // CONTROL: the three hidden fixtures (FLAG4, FLAG8, MILPIA) are there to redact
     for (const x of PRIVATE_HEXES) expect(text.toLowerCase(), x).not.toContain(x);
     for (const cs of PRIVATE_CS) expect(text, cs).not.toContain(cs);
     let privates = 0;
@@ -425,7 +438,7 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
       expect(a.cs).toBe("");
       expect(a.lat).toBe(51.5); // positions stay, as the site serves them
     }
-    expect(privates).toBe(4);
+    expect(privates).toBe(3);
     const pub = aircraftOf(s).find((a) => fixtureHexByAlt(a) === H.PUB)!;
     expect([pub.hex, pub.cs]).toEqual([H.PUB, "TST101"]); // public rows keep their identity
     await h.settle();
@@ -436,28 +449,28 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
     const h = harness();
     const at = async (t: number) => { clock = t; return site(h.loc, "snapshot"); };
     const d1a = await at(T0), d1b = await at(T0 + 3_600_000), d2 = await at(T0 + 86_400_000);
-    expect(idOf(d1a, H.PRIV)).toMatch(PRIVATE_ID);
-    expect(idOf(d1b, H.PRIV)).toBe(idOf(d1a, H.PRIV));
-    expect(idOf(d2, H.PRIV)).not.toBe(idOf(d1a, H.PRIV));
-    expect(idOf(d1a, H.GA)).not.toBe(idOf(d1a, H.PRIV));
+    expect(idOf(d1a, H.FLAG4)).toMatch(PRIVATE_ID);
+    expect(idOf(d1b, H.FLAG4)).toBe(idOf(d1a, H.FLAG4));
+    expect(idOf(d2, H.FLAG4)).not.toBe(idOf(d1a, H.FLAG4));
+    expect(idOf(d1a, H.FLAG8)).not.toBe(idOf(d1a, H.FLAG4));
     await h.settle();
     tally(h);
     // A block of TWO slots, the first of which is a PUBLIC aircraft's hex: the private aircraft can only get the second.
     X.__setPrivateBlockSizeForTests!(2);
-    const g = harness({ feed: feedAnswer([INBLOCK_AC, FIXTURE.find((a) => a.hex === H.PRIV)!]) });
+    const g = harness({ feed: feedAnswer([INBLOCK_AC, FIXTURE.find((a) => a.hex === H.FLAG4)!]) });
     const s = await site(g.loc, "snapshot");
     expect(idOf(s, H.INBLOCK)).toBe(H.INBLOCK); // CONTROL: the public aircraft is served under its own hex
-    expect(idOf(s, H.PRIV)).toBe("~210001");
+    expect(idOf(s, H.FLAG4)).toBe("~210001");
     await g.settle();
     tally(g);
   });
 
   it("P-P3 (G1): the block exhausted -> snapshot() answers error, and no private row is served raw", async () => {
     X.__setPrivateBlockSizeForTests!(1);
-    const h = harness({ feed: feedAnswer(FIXTURE.filter((a) => a.hex === H.PRIV || a.hex === H.GA)) });
+    const h = harness({ feed: feedAnswer(FIXTURE.filter((a) => a.hex === H.FLAG4 || a.hex === H.FLAG8)) });
     const s = await site(h.loc, "snapshot");
     expect(s).toEqual({ ok: false, reason: "error" });
-    for (const x of [H.PRIV, H.GA]) expect(JSON.stringify(s).toLowerCase()).not.toContain(x);
+    for (const x of [H.FLAG4, H.FLAG8]) expect(JSON.stringify(s).toLowerCase()).not.toContain(x);
     expect(outcomes(h.counter)).toEqual(["error"]);
     await h.settle();
     tally(h);
@@ -474,11 +487,26 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
       vi.spyOn(console, m).mockImplementation((...a: unknown[]) => { lines.push(a.map(String).join(" ")); });
     }
     const h = harness();
-    const answers = [await site(h.loc, "snapshot"), await site(h.loc, "enrich", { hex: H.PRIV })];
+    const answers = [await site(h.loc, "snapshot"), await site(h.loc, "enrich", { hex: H.FLAG4 })];
     await h.settle();
     expect(keys.length).toBe(3); // CONTROL: one key was made, seen in three spellings
     const texts = [...lines, ...answers.map((a) => JSON.stringify(a)), ...h.counter.points.map((p) => JSON.stringify(p))];
     for (const k of keys) for (const t of texts) expect(t.includes(k)).toBe(false);
+    tally(h);
+  });
+
+  it("P-P5: a hidden row carries no dbFlags (\"type only\": the value would name the program); a public row keeps it", async () => {
+    const h = harness();
+    const s = await site(h.loc, "snapshot");
+    const hidden = aircraftOf(s).filter((a) => a.class === "private");
+    expect(hidden.length).toBe(3); // CONTROL: FLAG4, FLAG8, MILPIA
+    for (const a of hidden) {
+      expect(Object.keys(a)).not.toContain("dbFlags");
+      expect([a.t, a.desc]).toEqual(["A320", "AIRBUS A-320"]); // the type stays
+    }
+    const pub = aircraftOf(s).find((a) => fixtureHexByAlt(a) === H.MILD)!;
+    expect(Object.keys(pub)).toContain("dbFlags"); // CONTROL: the key exists to be dropped
+    await h.settle();
     tally(h);
   });
 
@@ -584,7 +612,7 @@ describe("the limits (P-L1 strict, P-L1b, P-T1)", () => {
     const timers: Array<ReturnType<typeof setTimeout>> = [];
     const within = <T>(p: Promise<T>, ms: number) =>
       Promise.race([p.then(() => "done" as const), new Promise<"waited">((r) => { timers.push(setTimeout(() => r("waited"), ms)); })]);
-    const h = harness({ feed: feedAnswer([T1_AC, ...FIXTURE.filter((a) => a.hex === H.PRIV)]) });
+    const h = harness({ feed: feedAnswer([T1_AC, ...FIXTURE.filter((a) => a.hex === H.FLAG4)]) });
     let coldDone = false;
     const cold = site(h.loc, "enrich", { hex: H.T1 }).then((a) => { coldDone = true; return a; });
     let othersP: Promise<Answer[]> | undefined;
@@ -594,7 +622,7 @@ describe("the limits (P-L1 strict, P-L1b, P-T1)", () => {
       othersP = Promise.all([
         ...Array.from({ length: 10 }, () => site(h.loc, "snapshot")),
         ...Array.from({ length: 5 }, () => site(h.loc, "enrich", { hex: H.ABSENT })),
-        ...Array.from({ length: 5 }, () => site(h.loc, "enrich", { hex: H.PRIV })),
+        ...Array.from({ length: 5 }, () => site(h.loc, "enrich", { hex: H.FLAG4 })),
       ]);
       // The 20 get 2 s. A code that made them wait for the held resolution would wait forever: the bound turns that
       // into a fast, legible failure, and the finally releases it either way so nothing outlives the test.
@@ -698,7 +726,7 @@ describe("the counter and what is exposed (P-M1, P-H3)", () => {
     const h = harness({ vars: { SCREEN_LIMIT_APP_PER_MIN: "1" } });
     const calls: Array<[string, () => Promise<Answer>]> = [
       ["not_in_snapshot", () => site(h.loc, "enrich", { hex: H.ABSENT })],
-      ["private", () => site(h.loc, "enrich", { hex: H.PRIV })],
+      ["private", () => site(h.loc, "enrich", { hex: H.FLAG4 })],
       ["blocked", () => site(h.loc, "enrich", { hex: H.BLK })],
       ["place_not_allowed", () => site(h.loc, "snapshot", { place: { lat: 51.52, lon: -0.45, r: RADIUS_KM } })],
       ["bad_model", () => site(h.loc, "enrich", { hex: H.PUB, model: "s3-999" })],
