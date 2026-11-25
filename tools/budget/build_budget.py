@@ -94,6 +94,9 @@ PRODUCTS = {
                       "'built-no-list' is the weather lever", "states": ["absent", "built", "built-no-list"]},
     "basemap-staging": {"label": "basemap builder, staging (blipscope-basemap-staging; its pkg bucket)", "states": ["now"]},
     "basemap-bucket": {"label": "blipscope-basemap bucket (reader not separable)", "states": ["now"]},
+    "basemap-production": {"label": "basemap production (D4): the builder blipscope-basemap and its package bucket "
+                                    "blipscope-basemap-pkg (docs/account-budget.md section 12); 'off' until D4",
+                           "states": ["off", "on-before-v20", "on-v20"]},
     "wx-dev": {"label": "dev ingest, parked (blipscope-wx-ingest-dev; blipscope-wx-dev)", "states": ["now"]},
     "kiosk": {"label": "kiosk site and app (valarscopes-app, valarscopes-site)", "states": ["now"]},
     "account-level": {"label": "account-level R2 operations (no bucket)", "states": ["now"]},
@@ -147,6 +150,8 @@ def scenarios():
                     ml = "cut" if lever == "Missileer" else "now"
                 name = f"{tag} {'fallback' if fb else 'none'}" + (f" + {lever}" if lever else "")
                 s[name] = {"month": m, "opera-ten": ten, "shsr": shsr, "missileer-live": ml}
+    for v in s.values():
+        v["basemap-production"] = "off"   # registered with no rows (the D4 PR); section 12's reads add its "on" scenarios
     return s
 
 
