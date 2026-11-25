@@ -29,8 +29,10 @@ std::map<std::string, std::string>& settings()
         {"lb-enabled", "false"},
         {"mqtt", "false"},
         {"ntfy-topic", ""},
-        {"wx-layer", "false"},       // in writing: the firmware reads ABSENT as ON, and this renderer has no pixels
-                                     // for the layer (docs/wx-device.md, (A)). check_wx_off.mjs refuses its removal.
+        {"wx-layer", "false"},       // in writing: the firmware reads ABSENT as ON. The renderer carries the layer's
+                                     // plane now (REG-web-weather D1), and weather reaches the website only with its own
+                                     // re-attach after the release that ships it (parity). check_wx_off.mjs refuses
+                                     // removing this, and its --pairing refuses "true" without the plane.
     };
     return m;
 }

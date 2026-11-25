@@ -12,11 +12,17 @@
 // wraps its caller's buffer, and once it has run the frame holds a real plane. So "no pixels" is no longer why the
 // layer is off. What keeps it off is parity: weather reaches the website only in a set attached after the release that
 // ships it, by its own re-attach registration (D5). Until then the rule is the same as before: "wx-layer" is "false"
-// in writing. This check's own premise is replaced on Day 3 (D5); until then it reads the new getBuffer() line whole,
-// and refuses any other, #799's included.
+// in writing. It reads the getBuffer() line whole, and refuses any other, #799's included.
 //
-//   node tools/web-renderer/check_wx_off.mjs [<web-renderer dir>]   exit 0 off; 1 turned on; 2 cannot tell
-//   node tools/web-renderer/check_wx_off.mjs --selftest              its control and its plant, each in a copy
+// D5 (REG-web-weather, A9.3): the premise "no pixels" is RETIRED by name. In its place, a second rule, PAIRING: the map
+// may say "true" only where the shim carries the plane -- (a) getBuffer() is the line below, (b) setBuffer wraps its
+// caller's buffer (web/web_photo.cpp), and (c) handOut creates the frame's plane. #799's getBuffer() means no plane.
+// It is the rule weather's re-attach will lean on when it flips the map; until then PARITY above keeps it "false".
+//
+//   node tools/web-renderer/check_wx_off.mjs [<web-renderer dir>]             PARITY: exit 0 off; 1 on; 2 cannot tell
+//   node tools/web-renderer/check_wx_off.mjs --pairing [<web-renderer dir>]   PAIRING: exit 0 paired or off; 1 on
+//                                                                             without a plane; 2 cannot tell
+//   node tools/web-renderer/check_wx_off.mjs --selftest              its controls and its plants, each in a copy
 //
 // Read, not guessed: any getBuffer() other than the token below, or a web config whose settings map cannot be
 // found, is refused (exit 2). "Off" is exactly one map entry {"wx-layer", "false"}. An ABSENT entry is ON: since v19 the
@@ -64,10 +70,40 @@ export function check(dir) {
                          "getBuffer() is the form this check reads" };
 }
 
+// PAIRING's two lines in web/web_photo.cpp, each compared whole (trimmed), each required exactly once.
+const WRAPS = "ext_ = static_cast<uint16_t*>(buffer);";   // (b): setBuffer makes the sprite its caller's buffer
+const PLANES = "self->plane_ = true;";                     // (c): handOut makes the frame's plane
+
+export function pairing(dir) {
+  let shim, config, photo;
+  try {
+    shim = fs.readFileSync(path.join(dir, "shim", "LovyanGFX.hpp"), "utf8");
+    config = fs.readFileSync(path.join(dir, "web", "web_config.cpp"), "utf8");
+    photo = fs.readFileSync(path.join(dir, "web", "web_photo.cpp"), "utf8");
+  } catch (e) {
+    return { code: 2, why: `cannot read the sources: ${e.message}` };
+  }
+  const map = config.match(/static std::map<std::string, std::string> m = \{([\s\S]*?)\n\s*\};/);
+  if (!map) return { code: 2, why: "the web config's settings map was not found: re-derive" };
+  const wx = [...map[1].matchAll(/\{\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\}/g)].filter((m) => m[1] === "wx-layer").map((m) => m[2]);
+  if (wx.length === 1 && wx[0] === "false") return { code: 0, why: "wx-layer \"false\": nothing to pair" };
+  const said = wx.length ? `wx-layer ${JSON.stringify(wx.join(","))}` : "no wx-layer entry (the firmware reads it as ON)";
+  const getBuffers = shim.split(/\r?\n/).map((l) => l.replace(/\/\/.*$/, "").trim()).filter((l) => /\bgetBuffer\s*\(/.test(l));
+  if (getBuffers.length === 1 && getBuffers[0] === PHOTO_ONLY)
+    return { code: 1, why: `${said}, and getBuffer() is #799's form: the shim has no plane` };
+  if (getBuffers.length !== 1 || getBuffers[0] !== STAND_IN)
+    return { code: 2, why: `the shim's getBuffer() is not a form this check reads (${JSON.stringify(getBuffers)}): re-derive` };
+  const lines = photo.split(/\r?\n/).map((l) => l.replace(/\/\/.*$/, "").trim());
+  const count = (s) => lines.filter((l) => l === s).length;
+  const missing = [[WRAPS, "(b) setBuffer wraps"], [PLANES, "(c) handOut planes"]].filter(([s]) => count(s) !== 1).map(([, n]) => n);
+  if (missing.length) return { code: 1, why: `${said}, but web_photo.cpp lacks ${missing.join(" and ")}: no plane` };
+  return { code: 0, why: `${said}, paired with the plane: (a) getBuffer, (b) setBuffer wraps, (c) handOut planes` };
+}
+
 function sha(p) { return crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex"); }
 
 function selftest() {
-  const files = [["shim", "LovyanGFX.hpp"], ["web", "web_config.cpp"]];
+  const files = [["shim", "LovyanGFX.hpp"], ["web", "web_config.cpp"], ["web", "web_photo.cpp"]];
   const before = files.map((f) => sha(path.join(HERE, ...f)));
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "check-wx-off-"));
   let bad = 0;
@@ -106,8 +142,38 @@ function selftest() {
     fs.writeFileSync(shimO, srcO.replace(STAND_IN, `${PHOTO_ONLY}   // PLANT`));
     if (fs.readFileSync(shimO, "utf8") === srcO) { console.log("RIG: the plant did not apply"); return 2; }
     cases.push(["plant: the getBuffer() line replaced (the form before the weather plane) in a copy of the shim", other, 2]);
+
+    // PAIRING (REG-web-weather A9.3). A plant edits one file of a copy, asserting its anchor occurs once and the file
+    // changed; the map is planted "true" in each, since a "false" map pairs trivially.
+    const edit = (dir, rel, from, to) => {
+      const f = path.join(dir, ...rel);
+      const s = fs.readFileSync(f, "utf8");
+      if (s.split(from).length !== 2) throw new Error(`RIG: ${rel.join("/")}'s anchor occurs ${s.split(from).length - 1} times, need 1`);
+      fs.writeFileSync(f, s.replace(from, to));
+      if (fs.readFileSync(f, "utf8") === s) throw new Error(`RIG: ${rel.join("/")}'s plant did not apply`);
+    };
+    const mapTrue = (dir) => edit(dir, ["web", "web_config.cpp"], anchor, `${anchor} {"wx-layer", "true"},   // PLANT`);
+    const pairCases = [];
+    pairCases.push(["pairing control: the real copy (map \"false\")", copy("pair-off"), 0]);
+    pairCases.push(["pairing CONTROL: map \"true\" with the real shim (parity says 1 for it, above)", planted, 0]);
+    const p1 = copy("pair-getbuffer"); mapTrue(p1);
+    edit(p1, ["shim", "LovyanGFX.hpp"], STAND_IN, `${PHOTO_ONLY}   // PLANT`);
+    pairCases.push(["pairing plant: map \"true\" with #799's getBuffer()", p1, 1]);
+    const p2 = copy("pair-wraps"); mapTrue(p2);
+    edit(p2, ["web", "web_photo.cpp"], `    ${WRAPS}\n`, "    /* PLANT: the wrap removed */\n");
+    pairCases.push(["pairing plant: map \"true\", (b) setBuffer's wrap removed", p2, 1]);
+    const p3 = copy("pair-planes"); mapTrue(p3);
+    edit(p3, ["web", "web_photo.cpp"], `        ${PLANES}\n`, "        /* PLANT: the plane removed */\n");
+    pairCases.push(["pairing plant: map \"true\", (c) handOut's plane removed", p3, 1]);
+
     for (const [label, dir, want] of cases) {
       const r = check(dir);
+      const ok = r.code === want;
+      bad += ok ? 0 : 1;
+      console.log(`  ${ok ? "ok  " : "FAIL"} ${label}: exit ${r.code} (want ${want}) -- ${r.why}`);
+    }
+    for (const [label, dir, want] of pairCases) {
+      const r = pairing(dir);
       const ok = r.code === want;
       bad += ok ? 0 : 1;
       console.log(`  ${ok ? "ok  " : "FAIL"} ${label}: exit ${r.code} (want ${want}) -- ${r.why}`);
@@ -125,7 +191,16 @@ function selftest() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
-  if (args[0] === "--selftest") process.exit(selftest());
+  if (args[0] === "--selftest") {
+    let rc;
+    try { rc = selftest(); } catch (e) { console.log(String(e && e.message || e)); rc = 2; }
+    process.exit(rc);
+  }
+  if (args[0] === "--pairing") {
+    const r = pairing(path.resolve(args[1] || HERE));
+    console.log(`check_wx_off --pairing: ${r.code === 0 ? "PAIRED OR OFF" : r.code === 1 ? "ON WITHOUT A PLANE" : "CANNOT TELL"} -- ${r.why}`);
+    process.exit(r.code);
+  }
   const r = check(path.resolve(args[0] || HERE));
   console.log(`check_wx_off: ${r.code === 0 ? "OFF" : r.code === 1 ? "ON" : "CANNOT TELL"} -- ${r.why}`);
   process.exit(r.code);
