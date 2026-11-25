@@ -25,10 +25,13 @@ define = { BUILD_COMMIT = "\"UNSTAMPED\"" }
 #   ENRICH_KV       the boards' SAME namespace, used only through a read-only view (src/screen/rokv.ts, P-K1)
 #   SCREEN_DETAILS  the one details object (D3'): the strict call limit, the store, the resolution cap
 #   RL_SCREEN       the per-location shield, keyed by the caller's class (approximate; the strict limit is the DO's)
-# and vars: the three limits (PROVISIONAL -- the owner's "screen limits: 150 | 60" decides them before any deploy of
-# this phase), and the boards' upstream vars, held EQUAL to proxy/wrangler.toml's per env by check-screen.ts's P-K2.
-# No METRICS binding, on purpose: the service writes no enrich_gap points (P-G1). Secrets (RELAY_KEY,
-# ADSB_LOL_API_KEY) are set at the deploy, by whoever deploys.
+# and vars: the three limits, FINAL (the owner, 2026-11-25 15:11Z: "screen limits: 150. Come back with 60 once the site
+# has its own caching." -- 150/min in total, 75 website / 75 app, the shield at those values, 6 resolutions/min; the
+# lower set is a future change, triggered by the site's caching), and the boards' upstream vars, held EQUAL to
+# proxy/wrangler.toml's per env by check-screen.ts's P-K2. No METRICS binding, on purpose: the service writes no
+# enrich_gap points (P-G1). Secrets (RELAY_KEY, ADSB_LOL_API_KEY) are set at the deploy, by whoever deploys. There is
+# NO secret for the private rows' daily IDs: their key is random per UTC day and lives only in the details object's
+# memory (src/screen/privateids.ts, G1).
 
 # A Durable Object class is created by a migration, and removed by one (deleted_classes) -- never by deleting lines.
 [[migrations]]
