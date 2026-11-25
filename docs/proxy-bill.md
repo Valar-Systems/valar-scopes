@@ -2316,6 +2316,771 @@ RULED by the orchestrator (05:04:49Z; re-read 05:04:21Z: result `745d033a083c`, 
 
 `read`'s code is unchanged at each step, so the newest blob carries it. **Since the ruling,** the file moved to `21a83381b247` (FAMILY HOURS adds the `famhours` mode). Its readdiff against `ba636810808b` read 7 of 7 identical (`dd53ab4bbf84`), so `read`'s code is unchanged there too. The ruling does not name that blob: the ruled reader stays `ba636810808b` until the orchestrator rules otherwise.
 
+F1 FAMILY HOURS. The owner ruled on the refused device: "chase it, cheapest check first, counts only, no ids." The cheapest check is his own lead from the firmware: do the family's hourly counts follow the radar's day and night cadences, and since when is it refused? The text of blipscope-5c's `f1r/f1-famhours-1.md` (sha256 `f522149ae7ac`, 185 lines, the registration as accepted) follows VERBATIM; only its `##` headings are demoted to `####` here.
+
+F1 FAMILY HOURS (registration, append-only, written 2026-11-24T18:29:33Z from date -u, before any code and before any read of these hours as S; text only). Asked for by blipscope-orchestrator-c0 on the owner's ruling, quoted: "chase it, cheapest check first, counts only, no ids." It **runs only on the orchestrator's word, after it has read this text.** The question is the owner's: do the refused device's hourly counts follow his lead from the firmware, and since when is it refused? All output is labelled `[diagnostic after F1's no-reading; changes no reading]`. It is counts only and identifies no device: no device id, label, address, `ep`, `model` or colo value is printed or written anywhere.
+
+#### 0. The lead and the family
+
+**The owner's lead**, from v19 and main (`src/AircraftManager.cpp` `isNightNow` and the `src/CloudFeed.h` defaults), relayed by the orchestrator:
+- the radar asks every 15 s when idle, and every 60 s at night;
+- night is the sun at the board's saved location, and no location means 0,0;
+- night at 0,0 ran 17:51Z-05:43Z on Nov 22 and 23.
+
+**Sun times at 0,0,** computed here (NOAA low precision, zenith 90.833 deg): sunrise 05:43Z on 11-21 to 11-23 and 05:44Z on 11-24; sunset 17:50Z on 11-21 to 11-23 and 17:51Z on 11-24. Every transition in the window stays inside the 05:00Z or the 17:00Z hour.
+
+**The family S** is unchanged from the FAMILY COUNT as amended (AMENDMENT 1):
+- no key (`dev` and `devl` both absent);
+- AND `status` 401;
+- AND `model` not "";
+- AND `ep` starting with one of the three API prefixes parsed from `proxy/src/index.ts`, one count query per prefix, summed.
+
+The reader keeps ONE definition of each: `POP_NOKEY`, `FC_STATUS`, `FC_MODEL` and `fc_prefixes()`.
+
+#### 1. PREDICTED: the owner's numbers, frozen before any read
+
+Quoted: refusals per hour "about 60 in the 18:00Z to 04:00Z hours, about 240 in the 06:00Z to 16:00Z hours, about 110 in the 05:00Z hour and about 213 in the 17:00Z hour, every day. If the hours don't follow that, the lead is wrong; say so."
+
+Each hour takes a CLASS from its start hour (UTC), the same every day:
+
+| class | hours (Z) | the owner's number | "about" (the band, mine) |
+|---|---|---|---|
+| NIGHT | 18:00 to 04:00 (11 hours) | 60 | 52 to 68 |
+| DAWN | 05:00 | 110 | 96 to 124 |
+| DAY | 06:00 to 16:00 (11 hours) | 240 | 211 to 269 |
+| DUSK | 17:00 | 213 | 187 to 239 |
+
+**The band, proposed by me before any read: "about X" means X minus 12% to X plus 12%, rounded outward to whole lines.** Why 12%:
+- **It must hold the excess already seen.** The family's known hours sit 2.3% to 3.3% above the owner's numbers: 248 (11-22 06:00Z) and 247 (11-23 14:00Z) against 240, and 218 (11-23 17:00Z) against 213.
+  - If that excess is a constant 7 or 8 lines an hour rather than a percentage, it is 12% to 13% of 60.
+  - 60 + 8 = 68 is the NIGHT band's edge. At 10%, 60 + 7 = 67 would fall outside.
+- **It must exclude the alternatives named in section 3, and it does:**
+  - NIGHT (52-68) excludes 0 (the device does not ask at night) and 240 (no night mode);
+  - DAY (211-269) excludes 60, and 480 (two devices at 15 s);
+  - DAWN (96-124) excludes 60 and 240 (no sunrise inside the 05:00Z hour);
+  - DUSK (187-239) excludes 60 and 240 (no sunset inside the 17:00Z hour). 239 is one line under 240, and the day rate actually seen is 247-248.
+- **In sun-time terms:** each minute moved from night to day adds 3 lines (4 by day, 1 by night). So DAWN's band of plus or minus 14 lines is about plus or minus 5 minutes of sunrise, and DUSK's plus or minus 26 lines about plus or minus 9 minutes of sunset.
+
+**Each hour reads as one of:**
+- **QUIET:** S is 5 or fewer. The population's quiet hours read 1 to 5 no-key lines.
+- **IN:** S is inside its class's band.
+- **HIGH:** above the band.
+- **LOW:** below the band. A QUIET hour is LOW as well.
+
+#### 2. The real start (the orchestrator's (a))
+
+- **START is the first hour in the window whose S is inside the NIGHT band or the DAY band** (about 60 or about 240), whatever that hour's class. It may be before 11-22 05:00Z, which is why the window reaches back to 11-21 00:00Z.
+- **Before START,** every hour must read QUIET, except the ONE hour directly before START, its onset hour, which can read anything. Any other hour before START that is not QUIET puts the run OUTSIDE.
+- **Graded hours** are START and every hour after it to the window's end, less any BLIND hour dropped under section 4.
+- **A known limit:** one hour landing in a band by chance (a short burst before a quiet spell) would be taken as START. It would show as QUIET hours after START, and those are printed.
+
+#### 3. The verdict
+
+For each class: the share of its graded hours that read IN.
+
+| row | condition | then |
+|---|---|---|
+| **FOLLOWS** | every class has at least 2 graded hours, and in every class at least 80% of them read IN | the hours follow the lead |
+| **DOES NOT FOLLOW** | in some class with at least 2 graded hours, fewer than 50% read IN | **the lead is wrong**: said so, with the class named |
+| **OUTSIDE** | anything else: no START; an hour before START, other than the onset hour, that is not QUIET; more than 4 BLIND hours; a class with fewer than 2 graded hours and none under 50%; a class between 50% and 80% and none under 50%; any stop in section 4 | the instrument cannot answer at this scale: **stop and decide** |
+
+**The order of the tests:**
+1. A stop (section 4).
+2. No START, an hour before START that is not QUIET, or more than 4 BLIND hours: OUTSIDE.
+3. DOES NOT FOLLOW.
+4. FOLLOWS.
+5. Whatever is left: OUTSIDE.
+
+**Printed for information, grading nothing:**
+- the tallies per day and per class;
+- every HIGH and LOW hour, by hour stamp, with its count;
+- runs of QUIET hours after START;
+- the same per-class shares on the hours never read before (section 5).
+
+**What FOLLOWS would NOT show, named now so it cannot be improvised later:**
+- WHOSE device. By design, nothing identifying is read.
+- That the board has NO saved location. The counts see only sun times, and any place whose sunrise and sunset fall within minutes of 0,0's reads the same.
+- That it is ONE device. The counts are a sum.
+- WHICH firmware. Any build with the same cadences reads the same.
+
+**What DOES NOT FOLLOW would NOT show:** why. The tallies say where the hours miss (night, dawn, day or dusk) and in which direction (HIGH or LOW), not the cause.
+
+**My own prediction, stated so it can be wrong. It grades nothing.**
+- **START is 11-22 06:00Z,** with 11-22 05:00Z (S 203, already read) as its onset hour, and every 11-21 hour QUIET. The reason: the seven hours before the 05:25Z onset read 1 to 5 no-key lines.
+- **The verdict is FOLLOWS.** The reason is a magnitude only: 11-22 07:00Z to 13:00Z read 248 to 252 no-key lines, and 18:00Z to 20:00Z read 72 to 80.
+- **The risk, named:** 11-22 14:00Z read 418 no-key lines and 21:00Z read 170. Both would be HIGH if S holds most of them.
+
+#### 4. What it adds: `famhours <out.json>`, a new reader mode
+
+**Count queries only (`view: calculations`), never `view: events`,** as in the FAMILY COUNT. No line and no `dev` value can enter the process, by construction, so a `dev`-era hour can be read. walk_hour's pre-flight is untouched. `read`, `classify`, `population` and `famcount` do not change.
+
+**The window** is every hour from 11-21 00:00Z to the last closed hour when the run starts (`last_closed_hour()`): N hours, printed on the first line before any query. Nothing is asked, and it is a RIG error, if:
+- the window does not contain 11-23 17:00Z; or
+- the run starts after 11-27 00:00Z, when the oldest hour nears the 7-day retention of Workers Logs.
+
+**THE CALLS, in this order.** Calls are 60 s apart (`CALL_GAP_S`). Each is a value only at ABR 1, re-asked as in F1-R-1.
+
+| step | hour | query | must read |
+|---|---|---|---|
+| K1 | 11-23 17:00Z | no-key | 232 |
+| K2 | same | no-key AND 401 | 218 |
+| K3 | same | no-key AND model | 218 |
+| K4 | same | no-key AND api (3 calls, summed) | 218 |
+| M1 | 11-23 17:00Z | S (3 calls, summed) | 218, the FAMILY COUNT's K5 |
+| M2 | 11-23 14:00Z | S | 247, its H |
+| M3 | 11-22 05:00Z | S | 203, its W |
+| M4 | 11-22 06:00Z | S | 248, its W |
+| the window | every other hour, oldest first | S (3 calls each) | C-POP on 24 of them (below) |
+
+M1 to M4 are window hours, read first. Their reads are also their window values.
+
+**Why these anchors:**
+- **K1 to K4** are the FAMILY COUNT's. Each leaf moves 17:00Z's count from 218 to 232, or to 696 for an ignored api leaf.
+- **M1 to M4** re-read four counts already made. Workers Logs do not change, so a different number means the instrument moved.
+- **C-POP** costs no call. In each of the population's 24 hours, 11-21 22:00Z to 11-22 21:00Z, S must be at most that hour's no-key read (`f1-population-result-1.md`): 2, 5, 2, 1, 1, 2, 2, 236, 255, 249, 251, 248, 252, 250, 251, 250, 418, 295, 283, 219, 74, 80, 72 and 170. S above no-key would mean the server ignored a leaf.
+
+**Totals.** 6 + 3N calls, 60 s apart.
+- If the run starts between 19:00Z and 20:00Z on 11-24, N is 91 (to 11-24 18:00Z): 279 calls, about 4 h 40 min, plus 30 s for each re-ask.
+- That is long. The cost is the three API prefixes, each its own query.
+- **A cheaper shape I considered and do not propose:** a day-long count per prefix, to skip a prefix that reads 0 all day. No count over 24 hours has been shown to answer at ABR 1, so it would need its own anchor and a new BLIND fallback.
+- `CALL_GAP_S` is unchanged. Shortening it would be the orchestrator's ruling, not mine.
+
+**Stops and exits:**
+- **A K or M call** that is not a value after its re-asks makes the run BLIND: exit 6, no verdict.
+- **K1 to K4 or M1 to M4 OFF, or C-POP failed:** the run stops at that step, names it, and queries nothing after it: exit 3.
+- **A window hour** whose call is not a value after its re-asks: that HOUR is dropped and named, and the run goes on (the population's rule). More than 4 dropped hours: OUTSIDE.
+- **FOLLOWS and DOES NOT FOLLOW** exit 0. OUTSIDE exits 3.
+- **What it prints and writes:** counts, hour stamps, classes, the verdict and the step it stopped at, if any. Never an `ep`, `model`, colo, `dev` or `devl` value.
+
+#### 5. What is already known, so nobody grades it as a blind prediction
+
+- **S itself** is already read for four hours: 11-22 05:00Z 203, 06:00Z 248, 11-23 14:00Z 247 and 17:00Z 218 (`f1-famcount-result-2.md`).
+- **No-key,** an upper bound on S, is already read for the population's 24 hours (above). Those counts went to the owner as information before this text.
+- **So the hours never read before** are 11-21 00:00Z to 21:00Z, and 11-22 22:00Z to the window's end, less 11-23 14:00Z and 17:00Z.
+- **The verdict is graded on all graded hours,** as registered. The per-class shares on the never-read hours alone are printed beside it, for information.
+
+#### 6. Red first: rows added to `colo_occupancy_plant.py`
+
+All rows are synthetic and offline. The fake builds the window as events: one per S line, plus the other no-key lines K1 to K4 need. The clock is pinned so the window ends at 11-24 18:00Z (N = 91). Every row checks:
+- its exit;
+- the verdict line;
+- the step it stopped at, if any;
+- the number of count requests;
+- 0 events requests.
+
+Never the exit alone.
+
+| row | run | predicted |
+|---|---|---|
+| **Q-RED** | the reader before this change (blob `ba636810808b`), given `famhours` | usage, exit 2: **the red** |
+| **Q-FOLLOWS** | the lead exactly: 11-21 QUIET; 11-22 05:00Z 203; then NIGHT 62, DAWN 113, DAY 247 and DUSK 218 (11-22 06:00Z 248) | exit 0; FOLLOWS; START 11-22 06:00Z; 279 count requests |
+| **Q-WRONG** | as Q-FOLLOWS, but every NIGHT hour from 11-22 22:00Z reads 247 | exit 0; DOES NOT FOLLOW, naming NIGHT |
+| **Q-MID** | as Q-FOLLOWS, but every third NIGHT hour from 11-22 22:00Z reads 120 | exit 3; OUTSIDE (NIGHT between 50% and 80%) |
+| **Q-ANCHOR** | K4's api leaf ignored by the fake (696) | exit 3; stopped at K4 after 6 count requests |
+| **Q-STABLE** | 11-22 05:00Z re-reads 202 | exit 3; stopped at M3 after 15 count requests |
+| **Q-POP** | 11-22 01:00Z reads S 3 (its population no-key: 1) | exit 3; stopped at C-POP 11-22 01:00Z after 96 count requests |
+| **Q-PRE** | 11-21 10:00Z reads 30, inside no band | exit 3; OUTSIDE (an hour before START not QUIET) |
+| **Q-BLIND-1** | one window hour at ABR 100 on all three attempts | exit 0; FOLLOWS; that hour dropped and named; 279 count requests |
+| **Q-BLIND-5** | five window hours so | exit 3; OUTSIDE (more than 4 BLIND) |
+| **Q-BLIND-K** | K1 at ABR 100 on all three attempts | exit 6; no verdict; 3 count requests |
+
+**Q-SAB:** a COPY of the new reader with `FC_STATUS` emptied by bytes, asserted to match exactly once (the F-SAB driver). K2 then reads 232, so every row that reaches K2 stops there.
+- **Exactly 17 rows OFF:** the 8 F rows that F-SAB names, and 9 Q rows (all but Q-RED and Q-BLIND-K).
+- The harness exits 1.
+
+**PREDICTED, plant:**
+- **RED** (the new rows on blob `ba636810808b`): 49 rows, 39 as predicted. The 10 Q rows after Q-RED read OFF (each a usage exit 2). The harness exits 1.
+- **GREEN** (the new reader): 49 of 49, exit 0.
+- **Q-SAB:** as above.
+- **readdiff** of `ba636810808b` against the new reader, with the pair printed on line 1: 7 of 7 identical, so `read`'s code is unchanged.
+- **Outside the set:** stop and report.
+
+#### 7. Order and time
+
+1. **Text.** This text, then the orchestrator's acceptance.
+2. **Code.** The red commit, then the green commit, each sent with its plant output and sha. Then Q-SAB and readdiff.
+3. **Push.** With its CI prediction first; CI read twice, at least 66 s apart.
+4. **Run.** Only on the orchestrator's word: through the gate (bgcheck first) and registered. Never in the same hour as another production-logs read of mine (the last ended at 05:02:48Z on 11-24).
+5. **Time.** About 4 h 40 min, starting before 11-27 00:00Z, and outside any window the orchestrator names.
+6. **Result.** Written to `f1r/` as a separate file. This registration is never edited, only appended to.
+
+ACCEPTED as registered by the orchestrator (2026-11-24 18:30Z, `f522149ae7ac`). Its cost was accepted as is: 279 calls at the unchanged 60 s gap, about 4 h 40 min. RESULT of the code (append-only): as registered.
+
+- **Red:** the tally was written down before the run (`f1r/famhours/red-prediction.md`, `0031e4be7fba`). Against blob `ba636810808b`, which has no famhours mode: 49 rows, 39 as predicted; exactly the 10 Q rows after Q-RED OFF; exit 1.
+- **Green:** against the new reader (blob `21a83381b247`), 49 of 49, exit 0.
+- **Q-SAB:** `FC_STATUS` emptied by bytes on a COPY: exactly 17 OFF, the 8 F rows and 9 Q rows, every Q row stopped at K2; exit 1.
+- **`read` unchanged:** `read` with reader `ba636810808b` (before) against `21a83381b247` (after), the pair printed on line 1: 7 of 7 identical (`readdiff-check.out`, `dd53ab4bbf84`).
+- **Commits:** `5de2a9fcf106` (the 11 Q rows; plant blob `030856864f3e`) and `32a9f89294f8` (the mode).
+- **Outputs:** in `f1r/famhours/` (red `95ccaf0642f3`, green `26079ded5d13`, sabotage `28ef0a2d582c`).
+- **The push was refused once, by its own guard.** Main moved (#755 merged) between the CI prediction's read of it and the push, so nothing was pushed. The prediction was amended append-only, the guards were re-run on the new merge view, and the push went as a fast-forward of 2.
+- **CI at `32a9f89294f8`:** AS PREDICTED, two reads identical: 36 check-runs, 34 success and 2 skipped, 0 failures.
+
+**The run,** on the orchestrator's START (19:00:00Z or later; head `32a9f89294f8`, reader `21a83381b247`). The text of blipscope-5c's `f1r/f1-famhours-result-1.md` (sha256 `177ca75f7eaa`) follows VERBATIM; its `#` title is a plain line here, and its `##` headings are demoted to `####`.
+
+F1 FAMILY HOURS: result 1 (stamped 2026-11-24T23:44:43Z from date -u; counts only, no ids)
+
+**For:** the orchestrator. **By:** blipscope-5c. **Registration:** f1r/f1-famhours-1.md (f522149ae7ac), accepted, graded exactly as registered. This file is append-only: any correction goes below it.
+
+#### The run
+
+- **Started** 19:00:32Z on the orchestrator's START (date -u ≥ 19:00:00Z). The gate passed VOID on the ruled five. Tag bg-20261124T190031Z-768c175e.
+- **Exited 0** at 23:43:00Z, after 279 count queries over the window 11-21 00:00Z to 11-24 18:00Z (91 hours).
+- **Reader** `tools/bill/colo_occupancy_read.py` at 32a9f89294f8 (blob 21a83381b247), mode `famhours`.
+- **Outputs** in f1-20261123/:
+  - `famhours.out` 69ca09c085cb, 418 lines;
+  - `famhours.json` c820dd4e69bc;
+  - `famhours.err` 16803fbd5c80, which holds only the token file's "permissions are not checked on Windows" note.
+- **End check:** bgcheck exit 4 at 23:44:40Z, VOID on exactly the ruled five (13848, 13932, 16340, 20184, 59348), nothing else.
+
+#### Anchors and controls: all held
+
+| check | read | must read | |
+|---|---|---|---|
+| K1 11-23 17Z no-key | 232 | 232 | HOLDS |
+| K2 no-key AND 401 | 218 | 218 | HOLDS |
+| K3 no-key AND model | 218 | 218 | HOLDS |
+| K4 no-key AND api (summed) | 218 | 218 | HOLDS |
+| M1 11-23 17Z S | 218 | 218 | HOLDS |
+| M2 11-23 14Z S | 247 | 247 | HOLDS |
+| M3 11-22 05Z S | 203 | 203 | HOLDS |
+| M4 11-22 06Z S | 248 | 248 | HOLDS |
+| C-POP (24 hours) | every S ≤ the population's no-key | | HOLDS |
+| BLIND hours | none dropped | ≤ 4 | |
+
+#### START and the hours before it
+
+- **START: 11-22 06:00Z**, the first hour inside the NIGHT or DAY band.
+- **Before START:** 30 hours were read. The onset hour, 11-22 05:00Z, read S 203. **No hour before START other than the onset was not QUIET** (all 11-21 hours and 11-22 00-04Z read 0).
+
+#### The tallies (graded hours: 61 = 91 − 30 before START)
+
+| class | about | band | graded | IN | HIGH | LOW | share IN |
+|---|---|---|---|---|---|---|---|
+| NIGHT | 60 | 52..68 | 23 | 10 | 10 | 3 | **43%** |
+| DAWN | 110 | 96..124 | 2 | 1 | 0 | 1 | 50% |
+| DAY | 240 | 211..269 | 33 | 20 | 2 | 11 | 61% |
+| DUSK | 213 | 187..239 | 3 | 2 | 0 | 1 | 67% |
+
+#### GRADED, as registered
+
+**VERDICT: DOES NOT FOLLOW. The lead is wrong in NIGHT** (START 11-22 06:00Z; NIGHT 10/23, DAWN 1/2, DAY 20/33, DUSK 2/3 IN).
+- The order of the tests ran as registered: no stop; START exists; no pre-START hour other than the onset is not QUIET; 0 BLIND.
+- Then DOES NOT FOLLOW: NIGHT has at least 2 graded hours, and fewer than 50% of them read IN.
+- The reader printed the same verdict and exited 0.
+
+**What DOES NOT FOLLOW does not show (registered):** why. The tallies say where the hours miss and in which direction, not the cause.
+
+**My own prediction (it graded nothing):**
+- START 11-22 06:00Z: **right.**
+- The verdict FOLLOWS: **wrong.**
+- The named risk at 11-22 14:00Z (418 no-key) read S 247, IN. The HIGH hours of that day came at 15Z and 16Z instead (293 and 282).
+
+#### Observations: counts only, NOT findings
+
+**O1. The family STOPS inside the window.**
+- 11-24 03:00Z read S 8. From **04:00Z to 18:00Z, all 15 hours read 0**. Every one of those 45 calls answered status 200, ABR 1, count 0.
+- **Alternatives, none eliminated by this read:**
+  - (a) the device stopped asking (power, network);
+  - (b) it left the family's filter (a key, a re-enrolment, another firmware);
+  - (c) production's answer to it changed, so the `status = 401` leaf no longer matches (for example, a deploy);
+  - (d) the log pipeline is incomplete for those hours. ABR 1 rules out sampling, not a gap, and every anchor sits on 11-22 or 11-23, so **no anchor stands inside the stop.**
+- A control that could separate (d) from the rest is the population's own no-key or total count over the same 15 hours. It was not registered and has not been read.
+
+**O2. The stop carries the NIGHT result. This is arithmetic on the printed lines, not a second verdict.**
+- NIGHT's 13 hours that were not IN include 11-24 03Z (8), 04Z (0) and 18Z (0) as LOW, and 11-24 00Z (231) and 01Z (178) as HIGH.
+- On 11-22 and 11-23 alone, NIGHT reads 9/17 (53%), DAY 20/22, DAWN 1/1 and DUSK 2/2. Under the registered table that set would be neither DOES NOT FOLLOW nor FOLLOWS, but OUTSIDE.
+- The registered verdict counts every graded hour, the stop included, and it stands as printed.
+
+**O3. NIGHT hours at the DAY rate.**
+- 11-23 18Z read 68, then 19Z through 11-24 01Z read **328, 248, 247, 248, 248, 231, 178**, about the DAY band's 240, at hours the lead calls night (sunset at 0,0 is about 17:50Z).
+- Earlier, 11-22 21Z read 169 and 11-23 03Z read 177.
+- **Alternatives, none eliminated:**
+  - the board's saved location changed on 11-23, moving its night;
+  - a second device with the same signature adding its lines (the counts are a sum);
+  - a reboot into another cadence.
+- The step at 11-23 19Z (68 → 328) is the sharpest edge in the window.
+
+**O4. The rest of the pattern is as the lead says.**
+- 11-22 07-13Z and 11-23 06-16Z read 247-248 an hour (DAY, IN).
+- 11-22 18-20Z, 23Z and 11-23 00-02Z and 04Z read 67-68 (NIGHT, IN).
+- 11-23 05Z read 119 (DAWN, IN).
+
+#### What happens next
+
+Nothing from me. **Per the registration: no re-run, no new read, no third attempt without the orchestrator's word.**
+- O1's control (the population over the 15 stopped hours) is the cheapest read that would separate "the device stopped" from "the logs stopped". It is offered, not run.
+- Whether the result goes to the owner, under his "chase it, counts only, no ids", is the orchestrator's decision.
+
+RECORDED by the orchestrator (2026-11-24 23:46Z; result `177ca75f7eaa`, registration `f522149ae7ac`): DOES NOT FOLLOW, graded exactly as registered. NIGHT reads 10 of 23 IN (43%). There was no instrument failure: K1-K4, M1-M4 and C-POP hold, and 0 hours were BLIND. The prediction had START right and FOLLOWS wrong. O1-O4 stay OBSERVATIONS, each with its alternatives open. O2's 53% is arithmetic, not a second verdict, and the registered verdict stands.
+
+- **GO** on the one read offered under O1: the population over the same 15 hours, with control hours on each side, its meaning registered first (POP-GAP, below).
+- **Asked beside it,** read-only: did a production proxy deploy run on 11-24 between 03Z and 07Z?
+
+F1 POP-GAP. The text of blipscope-5c's `f1r/f1-popgap-1.md` (sha256 `7ee3a7a57822`, 96 lines, the registration as accepted) follows VERBATIM; its `#` title is a plain line here, and its `##` headings are demoted to `####`.
+
+F1 POP-GAP: the population across family hours' 15-hour stop (registration 1; stamped 2026-11-24T23:50:12Z from date -u, before any reader or read)
+
+**For:** the orchestrator. **By:** blipscope-5c. **On:** its GO of 23:46Z ("the one read you offered, to separate O1's (a)-(c) from (d), counts only, predictions first"). Nothing is built or run before the orchestrator accepts this. This file is frozen: corrections go below it, append-only.
+
+#### 0. Why
+
+FAMILY HOURS (result 177ca75f7eaa) read **S = 0 for all 15 hours, 11-24 04:00Z to 18:00Z**, after 03:00Z read 8. Its O1 names four explanations, none eliminated:
+- (a) the device stopped asking;
+- (b) it left the family's filter (a key, a re-enrolment, another firmware);
+- (c) production's answer to it changed (the 401 leaf no longer matches);
+- (d) the log pipeline is incomplete for those hours.
+
+No family-hours anchor sat inside the stop. **This read asks the one question that separates (d) from the rest: did the WHOLE population keep logging through the stop?**
+
+#### 1. The population, defined in the reader's own leaves (one definition each)
+
+| name | the filter (`params()`, scope on) | what it is |
+|---|---|---|
+| **T** | `$metadata.service` = the production proxy AND `evt` = `req` | every request line the Worker logs, refused or served, any status: the universe the family filter subsets |
+| **N** | T AND `dev` absent AND `devl` absent (`POP_NOKEY`) | the no-key lines; the family is a subset of these |
+| **K** | **T − N**, computed | the device-attributed lines. **Independent of the family by construction:** the family is no-key |
+| **S** | the family, exactly as FAMILY HOURS reads it (`POP_NOKEY` AND `FC_STATUS` AND `FC_MODEL` AND each of the 3 API prefixes, summed) | read only at the 4 control hours |
+
+Count queries only: no event is read, so no line and no `dev` value is ever seen.
+
+#### 2. The window and the calls (fixed here)
+
+- **The window: 11-24 02:00Z to 20:00Z, 19 closed hours.**
+  - **Controls before:** 02Z, 03Z (the family read 68 and 8).
+  - **The stop:** 04Z to 18Z (15 hours).
+  - **Controls after:** 19Z, 20Z (the family not yet read).
+- **Anchors first, each a re-read of a value already read:**
+  - **ANCHOR-PRE** 11-19 12:00Z: T must read **3695** and N **36** (the population mode's own `POP_ANCHORS`);
+  - **ANCHOR-POST** 11-23 14:00Z: T must read **5553** and N **249**;
+  - **S-02** 11-24 02:00Z: S must read **68**;
+  - **S-03** 11-24 03:00Z: S must read **8** (both from FAMILY HOURS' printed lines).
+- **Then, per window hour:** T and N (2 calls), and S at 19Z and 20Z (3 calls each), which are new and grade nothing.
+- **Calls:** 4 (POP anchors) + 6 (S-02, S-03) + 6 (S at 19Z and 20Z) + 38 (T and N × 19) = **54**, at `CALL_GAP_S` 60 s: **about 55 minutes**. ABR 1 required on every call, as in every F1 read.
+
+#### 3. THE VERDICT (registered before any read)
+
+**The order of the tests:**
+1. **A STOP:**
+   - any anchor not equal to its must-read → **stop, exit 3** ("the instrument does not read what it read before");
+   - any BLIND anchor → **exit 6**;
+   - any BLIND window hour → **stop, exit 3**. No hour is dropped here: this read IS about missing hours.
+2. **LOG GAP, (d):** T reads **0 in all 15 stopped hours**, and T > 0 in all 4 controls.
+3. **THE FAMILY'S OWN CHANGE, (a)-(c):** in **every** stopped hour, T > 0 AND **K ≥ 50% of the median K of the 4 control hours**.
+4. **OUTSIDE:** anything else. That includes:
+   - some stopped hours at T = 0 and others not;
+   - K under the 50% floor in any stopped hour while T > 0;
+   - any control hour with T = 0.
+   - → **stop and decide**; nothing is improvised.
+
+**Why K and not T:** T contains the family itself, so a 248-an-hour device leaving would move it. K cannot move with the family, so it measures the logs' health and nothing else. **Why 50% of the control median:** device traffic varies across the day (the population anchors read 3,695 and 5,553 total at two different hours), so the floor is set to catch a collapse, not a dip.
+
+**Registered SUB-READING, printed and graded ONLY under (a)-(c).** It uses N over the stopped hours, against the family's own rates (about 240 an hour by day, about 60 by night, under the lead) and the non-family no-key baseline (14 at 11-23 17Z = K1 − K2; 36 at ANCHOR-PRE, before the family existed).
+- **N-HIGH:** N ≥ 150 in **every** DAY-class stopped hour (06Z to 16Z, 11 hours). **Meaning:** the device still asks with NO key, but no longer matches the family filter. That is (c), a changed answer, or (b) through a firmware or path change; (a) is excluded.
+- **N-LOW:** N ≤ 50 in **every** stopped hour. **Meaning:** keyless asking stopped. That is (a) stopped, or (b) now keyed; (c) is excluded.
+- **NOT SEPARATED:** anything else, printed as such.
+
+**Printed for information, grading nothing:**
+- T, N and K per hour;
+- the control median K and the floor;
+- S at 19Z and 20Z (does the family come back?).
+
+#### 4. What it CANNOT show
+
+- **Under (a)-(c) with N-LOW:** whether the device stopped or got a key. A newly keyed device adds about 250 an hour to K, inside K's normal variation. Separating those needs an identifying read, which this read never makes.
+- **Under N-HIGH:** whether production's answer changed (c), or the firmware's path or model changed (b). The status of those N lines would separate them, and is NOT read here.
+- **Nothing identifying:** no `dev`, no label, no line, no address.
+
+#### 5. My own prediction, stated so it can be wrong (it grades nothing)
+
+- **(a)-(c), not (d).** A 15-hour total gap in the production Worker's logs would have blinded every F1 read in that range. FAMILY HOURS' calls for those hours all answered status 200, ABR 1. That is not proof of logs, only of a working query, which is why this read exists.
+- **Sub-reading: N-LOW,** weakly held: the device stopped asking keyless. It rests on nothing but the stop's sharpness (03Z read 8, then 0).
+
+#### 6. The deploy records (asked beside this read; records only, no Workers Logs read)
+
+- **Asked:** did a production proxy deploy run on 11-24 between 03Z and 07Z? The owner's 03:52Z words booked one for 06:00Z.
+- **Answered SEPARATELY, from the deploy records.** A deploy after the 04Z onset cannot explain the onset; it would be named, not graded.
+
+#### 7. The build, once accepted
+
+A new mode, `popgap`, in `tools/bill/colo_occupancy_read.py`, plus plant rows in `colo_occupancy_plant.py`, **red first**:
+- Q-GAP (all stopped T 0 → LOG GAP);
+- Q-OWN-NLOW;
+- Q-OWN-NHIGH;
+- Q-OWN-NSPLIT (→ NOT SEPARATED);
+- Q-PARTIAL (some stopped hours 0 → OUTSIDE);
+- Q-COLLAPSE (K under the floor → OUTSIDE);
+- Q-CTL0 (a control hour T 0 → OUTSIDE);
+- Q-ANCHOR (a wrong anchor → stop 3);
+- Q-BLIND-A (exit 6) and Q-BLIND-W (stop 3).
+
+`read`'s code is proven unchanged by readdiff against the ruled reader ba636810808b, as before. Then the push (prediction first), the CI read through the gate, and the run through the gate. **About 1.5-2 hours of build, then about 55 minutes of run.**
+
+ACCEPTED by the orchestrator (2026-11-24 23:51Z, `7ee3a7a57822`, 96 lines). It accepted K as the separator, because K is independent of the family by construction: a device asking 248 times an hour cannot move it. That acceptance is half of the miss recorded below.
+
+**The deploy records** (section 6), RECORDED by the orchestrator:
+- production `/healthz` reports `4a02123ca992` (11-17), and no newer proxy commit is deployed, so no new code reached production 03Z-07Z;
+- that does not exclude a same-commit redeploy, so the `wrangler deployments list` read went to map-server, the deployer with the helper. Its answer is P5 in the result below.
+
+RESULT of the code (append-only): as registered, with one naming change.
+
+- **The naming change,** stated in the red prediction before the code (`f1r/popgap/red-prediction.md`, `81e12fe9aa98` with its READ lines). `Q-ANCHOR` already existed (FAMILY HOURS' row), so the ten rows are PG-GAP to PG-BLIND-W, one-to-one. PG-RED is added, as each mode has had one.
+- **Red:** against the reader without popgap (blob `21a83381b247`): 60 rows, 50 as predicted; exactly the 10 PG rows after PG-RED OFF; exit 1.
+- **Green:** against the new reader (blob `0d5dc4ffde7c`), 60 of 60, exit 0.
+- **P-SAB:** the floor test replaced by `False`, once, on a COPY: exactly PG-COLLAPSE OFF, reading THE FAMILY'S OWN CHANGE; exit 1.
+- **`read` unchanged:** `read` with reader `ba636810808b` (before) against `0d5dc4ffde7c` (after), the pair printed on line 1: 7 of 7 identical (`readdiff-check.out`, `e1684806b15d`).
+- **Commits:** `e4a2649d7cf2` (the 11 PG rows; plant blob `ee1d98ec2996`) and `fa7145e06f8b` (the mode).
+- **Outputs:** in `f1r/popgap/` (red `b2621f07f6cf`, green `dbfd3d92ee82`, sabotage `70ae90580efe`).
+- **CI at `fa7145e06f8b`:** AS PREDICTED, two reads identical: 39 check-runs, 37 success and 2 skipped, 0 failures.
+
+**The run,** on the orchestrator's GO, through the gate (head `fa7145e06f8b`, reader `0d5dc4ffde7c`). The text of blipscope-5c's `f1r/f1-popgap-result-1.md` (sha256 `d1f75abdda52`) follows VERBATIM; its `#` title is a plain line here, and its `##` headings are demoted to `####`.
+
+F1 POP-GAP: result 1 (stamped 2026-11-25T01:16:43Z from date -u; counts only, no ids)
+
+**For:** the orchestrator. **By:** blipscope-5c. **Registration:** f1r/f1-popgap-1.md (7ee3a7a57822), accepted, graded exactly as registered. This file is append-only: any correction goes below it.
+
+#### The run
+
+- **Started** 00:21:51Z through the gate (PASS, VOID on the ruled five). Tag bg-20261125T002151Z-18dda469.
+- **Preconditions held** at 00:21:31Z: head fa7145e06f8b, reader blob 0d5dc4ffde7c, porcelain 0, before 11-26 06:00Z.
+- **Exited 3** at 01:15:25Z after 54 count queries. **Every query answered status 200 at ABR 1:** 0 not-a-value.
+- **Outputs** in f1-20261123/:
+  - `popgap.out` 7210ac34bc83, 82 lines;
+  - `popgap.json` 8c14214cb38a;
+  - `popgap.err` holds only the token file's Windows-permissions note.
+- **End check:** bgcheck exit 4 at 01:16:43Z, VOID on exactly the ruled five, nothing else.
+
+#### Anchors: all held, no stop
+
+| check | read | must read | |
+|---|---|---|---|
+| ANCHOR-PRE 11-19 12Z | T 3695, N 36 | 3695 / 36 | HOLDS |
+| ANCHOR-POST 11-23 14Z | T 5553, N 249 | 5553 / 249 | HOLDS |
+| S-02 11-24 02Z | S 68 | 68 | HOLDS |
+| S-03 11-24 03Z | S 8 | 8 | HOLDS |
+
+No window hour was BLIND, and no hour read N above T.
+
+#### The hours (T = every req line, N = no key, K = T − N)
+
+| hour | role | T | N | K |
+|---|---|---|---|---|
+| 02Z | control | 2728 | 84 | 2644 |
+| 03Z | control | 3097 | 13 | 3084 |
+| 04Z | stop | 2292 | 7 | 2285 |
+| 05Z | stop | 1780 | 2 | 1778 |
+| 06Z | stop | 1673 | 15 | 1658 |
+| 07Z | stop | 1703 | 4 | 1699 |
+| 08Z | stop | 2001 | 2 | 1999 |
+| 09Z | stop | 2653 | **337** | 2316 |
+| 10Z | stop | 2161 | 8 | 2153 |
+| 11Z | stop | 2677 | 4 | 2673 |
+| 12Z | stop | 3532 | 0 | 3532 |
+| 13Z | stop | 4731 | 9 | 4722 |
+| 14Z | stop | 5152 | 8 | 5144 |
+| 15Z | stop | 5978 | 4 | 5974 |
+| 16Z | stop | 6260 | 6 | 6254 |
+| 17Z | stop | 6589 | 9 | 6580 |
+| 18Z | stop | 6212 | 4 | 6208 |
+| 19Z | control | 6529 | 1 | 6528 (S 0) |
+| 20Z | control | 6451 | 4 | 6447 (S 0) |
+
+- **Controls:** K 2644, 3084, 6528, 6447; median K 4765.5; floor (50%) 2382.8.
+
+#### GRADED, as registered
+
+**VERDICT: OUTSIDE. K was under the floor in 7 stopped hours (04Z, 05Z, 06Z, 07Z, 08Z, 09Z, 10Z). The instrument cannot answer at this scale: stop and decide.**
+- **Not LOG GAP:** T read above 0 in every stopped hour.
+- **Not THE FAMILY'S OWN CHANGE:** the floor failed in 7 hours.
+- The reader printed the same verdict and exited 3.
+- **The N sub-reading is NOT graded**, because it applies only under (a)-(c).
+
+**My own prediction (it graded nothing):** "(a)-(c), not (d)" did not happen as registered, because the verdict is OUTSIDE. N-LOW is not graded.
+
+#### THE REGISTRATION'S MISS, named as mine
+
+The floor compared each stopped hour's K with **half the median of four controls that mix two night-rate hours (02Z, 03Z: K about 2.6k-3.1k) with two day-rate hours (19Z, 20Z: K about 6.5k).** That median, 4765.5, is pulled up by the daytime pair, so the stop's own night-rate hours fall under it.
+- The registration's own words ("the floor is set to catch a collapse, not a dip") named the intent. **The controls I chose did not deliver it.**
+- A same-hour comparison, the day before, was considered while drafting and not taken. It would have separated time of day from a loss.
+- **This is the escape hatch working as written:** a predicted set too narrow for the data. **No reading is improvised from it.**
+
+#### Observations: counts only, NOT findings
+
+**P1. T is above 0 in every one of the 15 stopped hours (1,673 to 6,589), and every query was a value at ABR 1.**
+- So the registered LOG GAP condition (T = 0 in all 15) did not occur, and no single stopped hour read 0.
+- **What it does NOT show:** whether the logs were COMPLETE. A partial loss reads as a lower T, which is exactly the dip the floor caught.
+
+**P2. K's shape across the window is smooth:**
+- it falls from 3,084 (03Z) to a minimum of 1,658 (06Z);
+- then it rises steadily to about 6,500 (16Z-20Z), with no step at 04Z or at 19Z, where the family's stop begins and ends.
+- **Alternatives, none eliminated:**
+  - (i) the keyed fleet's own daily cycle (night-rate polling, fewer boards on at night);
+  - (ii) a partial log loss that happens to follow a smooth curve.
+- **What would separate them:** the same hours on another day (for example K for 11-23 04Z-18Z). Under (i) the curve repeats; under (ii) 11-24 sits below it. That is a new read, needing its own registration. It is offered, not run.
+
+**P3. N during the stop:**
+- 0 to 15 in 14 of the 15 hours. That is the non-family baseline: 14 at 11-23 17Z, 36 at ANCHOR-PRE.
+- **The exception is 09Z: N 337**, while FAMILY HOURS read S = 0 there. So 337 keyless lines in that hour are not the family's filter (401, a model, an API prefix).
+- **Alternatives, none eliminated:**
+  - another keyless client (a crawler, or a page fetched many times);
+  - the device asking keyless in a way the family filter does not match (another status, path or model).
+- This read cannot place them.
+
+**P4. The family did not return:** S read 0 at 19Z and at 20Z.
+
+**P5. Deploys (map-server's deployments list, through the helper, with its coverage control; relayed by the orchestrator):**
+- 0 deployments on 11-24 between 03:00Z and 07:00Z;
+- version 80c524ea (deployed 11-23 11:47:30Z) served the whole window.
+- So O1's (c) **as a deploy, redeploys included, is EXCLUDED.**
+- **Not covered:** a config change made outside a deploy, such as a KV-held list (for example `cfg:` keys) that changes how a request is answered. It bears on (c) only if the device still asks keyless and is answered differently. P3's 09Z burst is the only stopped hour where keyless lines rose, and this read cannot say whose they were.
+
+#### What happens next
+
+Nothing from me. **No re-run and no new read without the orchestrator's word.**
+- The offered next read is **P2's same-hours-another-day comparison**, registered first, with controls of matching time of day. It is the cheapest read that would separate "the logs were whole" from "a partial loss".
+- Whether this goes to the owner as it stands, with the family-hours result, is the orchestrator's decision.
+
+RECORDED by the orchestrator (2026-11-25 01:17Z; result `d1f75abdda52`): OUTSIDE, graded as registered. It was not an instrument stop: the anchors held, and 0 hours were BLIND. The escape hatch worked, and nothing was re-graded. P1-P5 stay observations with their alternatives open.
+
+**THE MISS, recorded as two misses:**
+- **blipscope-5c's:** the floor's four controls mixed two night-rate hours (02Z, 03Z) with two day-rate hours (19Z, 20Z), so their median sat above the stop's own night-rate hours. The registration named the intent ("a collapse, not a dip"), and the controls did not deliver it. A same-hour comparison on another day was considered while drafting and not taken.
+- **The orchestrator's:** it accepted K as "the right separator" without checking the controls' time of day.
+
+What carries forward: a control must match the measured hours in everything except what is being tested. These differed in time of day, and the floor measured that.
+
+GO: THE SAME HOURS ON OTHER DAYS (POP-DAY, below), registered first, with a tolerance derived before the read from 11-22 against 11-23.
+
+F1 POP-DAY. The text of blipscope-5c's `f1r/f1-popday-1.md` (sha256 `35221286d05e`, 103 lines, the registration as accepted) follows VERBATIM; its `#` title is a plain line here, and its `##` headings are demoted to `####`.
+
+F1 POP-DAY: 11-24's stopped hours against the same clock hours on 11-22 and 11-23 (registration 1; stamped 2026-11-25T01:18:44Z from date -u, before any reader or read)
+
+**For:** the orchestrator. **By:** blipscope-5c. **On:** its GO after POP-GAP result 1 (d1f75abdda52): "THE SAME HOURS ON OTHER DAYS … with a tolerance you derive BEFORE the read from 11-22 vs 11-23's own hour-by-hour spread". Nothing is built or run before it accepts this. Frozen: corrections go below, append-only.
+
+#### 0. Why, and what is already known
+
+POP-GAP read K (device-attributed lines) on 11-24 04Z-18Z as a smooth curve, from 1,658 to 6,580. Its two alternatives (P2) were:
+- (i) the keyed fleet's own daily cycle;
+- (ii) a partial log loss that follows a curve.
+
+The same clock hours on other days separate them: under (i) the curve repeats, and under (ii) 11-24 sits below it.
+
+**Already known, so it cannot be graded as a blind prediction:** 11-24's T and N for every one of the 15 hours (POP-GAP's printed lines). They are used here as MUST-READS (section 2), not as a prediction. **What is NOT known when this is frozen:** any value on 11-22 or 11-23 for these hours. The tolerance is a FORMULA fixed here and computed from those two days alone, so it cannot be fitted to 11-24.
+
+#### 1. The definitions (POP-GAP's, unchanged)
+
+- **T** = `$metadata.service` = the production proxy AND `evt` = `req`;
+- **N** = T AND `dev` absent AND `devl` absent;
+- **K** = T − N.
+
+Count queries only; nothing identifying is read.
+
+#### 2. The calls (fixed here; 94 count queries, about 95 minutes at 60 s, ABR 1 on every one)
+
+1. **Anchors (4):** ANCHOR-PRE 11-19 12Z must read T 3695 and N 36; ANCHOR-POST 11-23 14Z must read T 5553 and N 249.
+2. **R-24, 11-24 re-read (30):** T and N for 04Z-18Z, each pair MUST EQUAL POP-GAP's printed pair:
+
+   | hour | T | N |
+   |---|---|---|
+   | 04Z | 2292 | 7 |
+   | 05Z | 1780 | 2 |
+   | 06Z | 1673 | 15 |
+   | 07Z | 1703 | 4 |
+   | 08Z | 2001 | 2 |
+   | 09Z | 2653 | 337 |
+   | 10Z | 2161 | 8 |
+   | 11Z | 2677 | 4 |
+   | 12Z | 3532 | 0 |
+   | 13Z | 4731 | 9 |
+   | 14Z | 5152 | 8 |
+   | 15Z | 5978 | 4 |
+   | 16Z | 6260 | 6 |
+   | 17Z | 6589 | 9 |
+   | 18Z | 6212 | 4 |
+
+   **This is the "prove the artifact is holding still" read.** If 11-24's counts have moved since 00:21Z, late-arriving logs are themselves evidence, and the run STOPS rather than compare a moving target.
+3. **The reference (60):** T and N for 04Z-18Z on **11-22** and on **11-23**.
+
+#### 3. THE TOLERANCE, a formula fixed now
+
+For each clock hour h (04Z…18Z), let a = K(11-22, h) and b = K(11-23, h).
+- **The hour's own day-to-day spread:** s_h = |a − b| ÷ ((a + b) / 2).
+- **τ = the MEDIAN of the 15 s_h, with a floor of 0.10.** The median is the typical day-to-day difference across these hours. The floor keeps two near-identical days from making the band narrower than ordinary noise.
+- **The band for hour h:** from **min(a, b) × (1 − τ)**, rounded down, to **max(a, b) × (1 + τ)**, rounded up.
+- **11-24's K(h) reads:** IN (inside the band), BELOW, or ABOVE.
+
+#### 4. THE VERDICT (registered before any read)
+
+**The order of the tests:**
+1. **A STOP (exit 3, or 6 for a BLIND anchor):**
+   - an anchor off;
+   - **an R-24 pair not equal to POP-GAP's** ("the target moved");
+   - a BLIND window hour (nothing is dropped);
+   - N above T in any hour;
+   - a reference hour with T = 0 (s_h is undefined).
+2. **THE FLEET'S DAILY CYCLE, no partial loss:** 11-24's K is **IN in all 15 hours**.
+3. **A PARTIAL LOSS:** 11-24's K is **BELOW in a run of at least 3 consecutive hours**, and ABOVE in none. The run's hours are named.
+4. **OUTSIDE:** anything else. That includes a BELOW hour not in a run of 3, any ABOVE hour, or two separate runs. → **stop and decide.**
+
+**Printed for information, grading nothing:**
+- τ and every s_h;
+- every hour's band, 11-24's K and its mark;
+- **N at 09Z on 11-22, 11-23 and 11-24** (the 337 burst against the same hour on two other days);
+- the reference days' own K curves.
+
+#### 5. What each verdict CANNOT show
+
+- **CYCLE does not show that the logs are complete.** It shows that 11-24 matches two other days. A loss that hit all three days alike would be invisible.
+- **PARTIAL LOSS does not show WHOSE loss.** Fewer device-attributed lines than usual reads the same whether the logs dropped them or the devices were genuinely quiet (an outage, a network failure, many boards off). This read cannot separate those.
+  - The instrument that could is a second pipeline counting the same requests: the Worker's Analytics Engine data points. That is offered, not part of this read.
+- **The days differ in kind:** 11-22 is a Sunday, 11-23 a Monday and 11-24 a Tuesday, and the fleet can grow day to day. τ absorbs a difference only as large as the reference days' own. A weekday pattern stronger than the Sunday-Monday spread would read as BELOW or ABOVE.
+- **Nothing identifying is read.**
+
+#### 6. My own prediction (grades nothing)
+
+**CYCLE**, weakly held. POP-GAP's K curve was smooth, with its minimum at 06Z and no step at the family's stop. But that is exactly the shape I could not tell apart from (ii), which is why this read exists.
+
+#### 7. The build, once accepted
+
+A mode `popday` in `colo_occupancy_read.py`, with plant rows red first (named PD-, so no clash):
+- PD-RED (the pre-popday reader, 0d5dc4ffde7c);
+- PD-CYCLE;
+- PD-LOSS (a run of 4 BELOW);
+- PD-ODD (one BELOW → OUTSIDE);
+- PD-ABOVE (→ OUTSIDE);
+- PD-TWO (two runs → OUTSIDE);
+- PD-MOVED (an R-24 pair changed → stop);
+- PD-FLOOR (identical reference days → τ = 0.10);
+- PD-ANCHOR;
+- PD-BLIND-A;
+- PD-BLIND-W.
+
+Then a sabotage (the run length 3 → 1, so PD-ODD turns OFF), readdiff against ba636810808b, the push (prediction first), CI and the run, each through the gate. **About 1.5 hours of build, then about 95 minutes of run. It must start before 11-26 06:00Z (ANCHOR-PRE's retention).**
+
+ACCEPTED by the orchestrator (2026-11-25 01:19Z, `35221286d05e`, 103 lines). 11-24's pairs are MUST-READS, so a moved pair STOPS. τ is a formula from 11-22 and 11-23 alone, with a 0.10 floor, fixed before either is read. OUTSIDE comes last, and the limits are stated up front.
+
+RESULT of the code (append-only): as registered. Two design choices were stated before the code, and two predictions were missed during the build; both misses are recorded (`f1r/popday/red-prediction.md`, `ef61ff43e2de` with its READ lines).
+
+- **The two design choices:**
+  - each PD row overrides the reader's `PD_R24` constant with synthetic pairs, because real events at the registered scale would cost about 60k events a row;
+  - so one row is ADDED, PD-TABLE, asserting that the real `PD_R24` equals the registered fifteen pairs. That makes 12 PD rows, not the registered 11.
+- **Red:** against the reader without popday (blob `0d5dc4ffde7c`): 72 rows, 61 as predicted; exactly the 11 PD rows other than PD-RED OFF; exit 1.
+- **Green, first run: NOT AS PREDICTED.** 9 rows were OFF, every one stopped at ANCHOR-POST reading T 5818.
+  - The cause was the plant's data. ANCHOR-POST's hour, 11-23 14:00Z, is also a reference hour, and the plant added its synthetic reference lines on top of the anchor's 5553. The reader read the fake correctly.
+  - A plant-only commit fixed it: that hour's anchor lines serve as its reference lines. The outcome was re-predicted before the re-run.
+- **After the fix:** red preserved (72 rows, 61 as predicted, the same 11 OFF). Green against the new reader (blob `90c5a0d5529e`): 72 of 72, exit 0.
+- **P-SAB: NOT AS PREDICTED.** `PD_RUN = 3` replaced by 1 turned 3 rows OFF, not 1.
+  - PD-ODD turned to A PARTIAL LOSS, the logic the sabotage targets.
+  - PD-ABOVE and PD-TWO were OFF only because `PD_RUN` is printed in the OUTSIDE text. The predicted set was incomplete.
+- **P-SAB-2,** pre-registered before it ran, on the logic only: the run test's `>= PD_RUN` becomes `>= 1`, and the printed text is unchanged. Exactly PD-ODD OFF, reading A PARTIAL LOSS; exit 1.
+- **`read` unchanged:** `read` with reader `ba636810808b` (before) against `90c5a0d5529e` (after), the pair printed on line 1: 7 of 7 identical (`readdiff-check.out`, `0e7c3be3a760`).
+- **Commits:** `3cddbc1361f2` (the 12 PD rows; plant blob `9efd4957fff9`), `64c337aff651` (the plant fix; plant blob `7fb94a4e4056`) and `bc756becf416` (the mode).
+- **Outputs:** in `f1r/popday/`:
+  - red `fd4bbe4f116f`, the same before and after the fix;
+  - green, first run `b52076a43726`, and after the fix `91c7c67fec33`;
+  - P-SAB `13b403ee440a` and P-SAB-2 `4a9150e787df`.
+- **CI at `bc756becf416`:** AS PREDICTED, two reads identical: 39 check-runs, 37 success and 2 skipped, 0 failures.
+
+**The run,** on the orchestrator's GO, through the gate (head `bc756becf416`, reader `90c5a0d5529e`; started 01:49:20Z, before 11-26 06:00Z). The text of blipscope-5c's `f1r/f1-popday-result-1.md` (sha256 `3925a774f9e8`) follows VERBATIM; its `#` title is a plain line here, and its `##` headings are demoted to `####`.
+
+F1 POP-DAY, result 1 (stamped 2026-11-25T03:25:28Z from date -u, after the run exited)
+
+**For:** the orchestrator. **By:** blipscope-5c. **Graded against:** f1-popday-1.md (35221286d05e), exactly as registered. Counts only; nothing identifying was read. Frozen: corrections go below, append-only.
+
+#### Verdict
+
+**THE FLEET'S DAILY CYCLE, no partial loss.** 11-24's K is IN its band in **all 15 hours** (04Z-18Z), with τ 0.1000. My own registered prediction (section 6, grades nothing) was CYCLE, weakly held.
+
+#### The run
+
+- **Start:** preconditions held at 01:48:53Z (head bc756becf416, reader 90c5a0d5529e, porcelain 0, before 11-26 06:00Z). gate-popday PASSED at 01:49:20Z (VOID on the ruled five, no extras); tag bg-20261125T014920Z-d8316145.
+- **Exit:** 0 at 03:23:25Z. stderr carries only the token file's Windows-permissions note.
+- **Calls:** 94 count queries, the registered number. Each answered on its first attempt with status 200 and ABR 1; 0 retries.
+- **End check:** bgcheck exit 4 at 03:24:47Z, VOID on exactly the ruled five.
+  - It also EXCLUDED one process, by its rule F2: a `sleep.exe` created 03:10:29Z.
+  - Its parent pid is the reused pid of a ledger root of mine from 2026-11-22, long recorded dead. It is not a process this run started.
+- **Files** (f1-20261123/):
+
+  | file | sha |
+  |---|---|
+  | popday.out | d62b3d17d5d5 |
+  | popday.json | 945e01651e45 |
+  | popday.err | 16803fbd5c80 |
+  | popday.reg | efc49a940298 |
+  | gate-popday.out | 3d8cde64e0ac |
+  | end-popday.out | 48362b0aaaae |
+
+#### Observations, in the registered order
+
+1. **Anchors HOLD.** ANCHOR-PRE 11-19 12Z read T 3695 and N 36. ANCHOR-POST 11-23 14Z read T 5553 and N 249.
+2. **R-24 HOLDS in all 15 hours.** Every 11-24 T/N pair equals POP-GAP's printed pair, so the target had not moved since 00:21Z.
+3. **No stop condition fired.** No BLIND hour, N never above T, and no reference hour at T 0.
+4. **The spread.** The 15 s_h run from 0.0086 to 0.1524, with median 0.0510 (08Z). **So τ is the floor, 0.1000.**
+5. **Marks:** IN ×15, BELOW ×0, ABOVE ×0.
+
+| hour | K 11-22 | K 11-23 | s_h | band | K 11-24 | mark |
+|---|---|---|---|---|---|---|
+| 04Z | 2152 | 2507 | 0.1524 | 1936..2758 | 2285 | IN |
+| 05Z | 1903 | 1868 | 0.0186 | 1681..2094 | 1778 | IN |
+| 06Z | 1638 | 1745 | 0.0633 | 1474..1920 | 1658 | IN |
+| 07Z | 1726 | 1704 | 0.0128 | 1533..1899 | 1699 | IN |
+| 08Z | 2271 | 2158 | 0.0510 | 1942..2499 | 1999 | IN |
+| 09Z | 2362 | 2330 | 0.0136 | 2097..2599 | 2316 | IN |
+| 10Z | 2115 | 2209 | 0.0435 | 1903..2430 | 2153 | IN |
+| 11Z | 2778 | 2500 | 0.1053 | 2250..3056 | 2673 | IN |
+| 12Z | 3680 | 3379 | 0.0853 | 3041..4049 | 3532 | IN |
+| 13Z | 5114 | 4682 | 0.0882 | 4213..5626 | 4722 | IN |
+| 14Z | 5492 | 5304 | 0.0348 | 4773..6042 | 5144 | IN |
+| 15Z | 6176 | 6123 | 0.0086 | 5510..6794 | 5974 | IN |
+| 16Z | 6066 | 6179 | 0.0185 | 5459..6797 | 6254 | IN |
+| 17Z | 6066 | 6469 | 0.0643 | 5459..7116 | 6580 | IN |
+| 18Z | 6445 | 6947 | 0.0750 | 5800..7642 | 6208 | IN |
+
+**Printed for information, grading nothing (registered):**
+- **N at 09Z:** 11-22 248, 11-23 277, 11-24 337.
+- **N on the reference days.** On 11-22 and 11-23, N sits near 250 in most hours: the no-key family running. On 11-24 it reads 0-15 in every hour except 09Z, the family's stop.
+  - So 09Z's 337 on 11-24 is a keyless burst on a day the family was not running. On the two reference days the same hour's N is the family's ordinary rate.
+  - This is POP-GAP's reading, restated; nothing new is claimed.
+
+#### Findings
+
+- **The finding.** POP-GAP's smooth K curve on 11-24 (04Z-18Z) is the keyed fleet's ordinary daily curve. It repeats on 11-22 and 11-23 at the same clock hours, inside a tolerance fixed before either day was read. A partial log loss that put 11-24's device-attributed lines below the band for 3 hours or more is excluded.
+- **The alternative this read was built to separate**, (ii) "a partial log loss that follows a curve", is excluded **at the instrument's resolution**: anything larger than about 10% below the lower reference day, sustained for 3 hours or more. A smaller loss is NOT excluded; see the post-hoc section.
+- **What this cannot show** (registered, section 5, and all of it stands):
+  - CYCLE does not show the logs are complete. A loss hitting all three days alike would be invisible.
+  - The days differ in kind (Sunday, Monday, Tuesday).
+- **For the original question.** Together with POP-GAP (OUTSIDE: T > 0 every hour, anchors held) and the deploy read (0 deployments 03-07Z), the 04Z stop of the no-key family is **not accompanied by a drop in keyed traffic**. Keyed devices stayed within the registered tolerance of their usual daily volume through the family's stopped hours.
+  - So the evidence points at the no-key family itself stopping (its sender), not at the Worker or the log pipeline dropping lines.
+  - **The alternative still standing:** a change that affects only keyless requests, such as a KV config change or a routing rule matching only keyless traffic. The deploy read does not cover config. This read cannot separate "the senders stopped" from "the keyless path stopped being logged", because K does not exercise the keyless path at all.
+
+#### Post-hoc (NOT registered; computed from popday.out after the verdict; grades nothing and changes nothing)
+
+- **Against the two reference days' own range, without τ:**
+  - 6 hours inside (04, 06, 10, 11, 12, 13Z);
+  - 7 below the lower day (05, 07, 08, 09, 14, 15, 18Z), including 07-09Z consecutively;
+  - 2 above the higher day (16, 17Z).
+- **Extremes and sums:**
+  - lowest K24/min(a,b) is 0.9263 at 08Z, which is also the hour closest to a band edge, 57 above the floor of 1942;
+  - highest K24/max(a,b) is 1.0172 at 17Z;
+  - summed 04Z-18Z: 11-22 55,984, 11-23 56,104, 11-24 54,975. **11-24 is 0.9809 of the two days' mean.**
+- **The alternatives, unseparated.** A shortfall of about 2% overall and at most about 7% in any hour fits three explanations equally:
+  - a Tuesday being slightly quieter than a Sunday and a Monday;
+  - ordinary fleet churn;
+  - a small partial loss below the 10% floor.
+
+  The data does not exclude any of them. Report all three; claim none.
+- **This does not change the verdict**, and it is not a reason to re-grade. The τ floor was fixed before the read precisely so a near-identical pair of reference days could not narrow the band below ordinary noise. The instrument that could resolve a loss this small is the second pipeline (Analytics Engine counts), which stays OFFERED and is not brought, per the orchestrator's rule (only on PARTIAL LOSS).
+
+RECORDED by the orchestrator (2026-11-25 03:26Z; result `3925a774f9e8`): THE FLEET'S DAILY CYCLE, no partial loss, graded as registered. Both anchors hold, and all 15 R-24 pairs equal POP-GAP's, so the read held still. The bgcheck F2 exclusion is recorded: a reused pid, not this run's. The post-hoc 2% stays POST-HOC, with three explanations and none excluded; it is not graded. The Analytics Engine read stays offered and unrun.
+
+**Where the chase stands after FAMILY HOURS, POP-GAP and POP-DAY** (counts only, no ids):
+- **The family stopped at 11-24 04:00Z** and had not returned by 20:00Z (FAMILY HOURS O1, POP-GAP P4).
+- **The logs did not stop with it.** T is above 0 in every stopped hour (POP-GAP P1). Keyed traffic over the same hours matches the same clock hours on 11-22 and 11-23, within the tolerance registered before either day was read (POP-DAY).
+- **No deploy explains it.** There were 0 deployments 03Z-07Z, and one version served the whole window (POP-GAP P5).
+- **So the evidence points at the family's own senders stopping.**
+- **THE ALTERNATIVE THAT STANDS:** a change touching only keyless requests, such as a KV-held config. Neither the deploy read nor K can see one, so it is not excluded.
+- **Open:** the owner is asked whether he touched a device near 04:00Z. His answer may close it without another read. Nothing further is registered.
+
+**`read`'s code since the ruling.** The reader moved twice more: to `0d5dc4ffde7c` (popgap) and `90c5a0d5529e` (popday). Each readdiff against `ba636810808b` read 7 of 7 identical (`e1684806b15d`, `0e7c3be3a760`), so `read`'s code is unchanged. The ruling names neither blob: the ruled reader stays `ba636810808b` until the orchestrator rules otherwise.
+
 ## Step 4e: lever (c), what the refresh-data job writes (registered 2026-11-19T00:14:57Z, before its reader exists; read-only, GitHub only)
 
 **Why.** Step 4c showed that production's KV writes are the Worker's request path, plus the refresh-data job at about
