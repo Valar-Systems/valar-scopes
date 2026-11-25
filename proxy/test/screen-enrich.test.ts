@@ -28,7 +28,9 @@
 //
 // Rows (predicted first, in screen-enrich-red.md): P-S1 P-S2 P-S3 P-E1 P-E2 (a-f) P-C1 P-K1 P-R1 P-G1 P-L1 (strict,
 // two locations) P-L1b P-T1 P-V1 P-D1 P-J1 P-G2 P-G3 P-M1 (the 8 new outcomes) P-T1g (the test seams reach no RPC
-// surface) P-H3 (no per-outcome counts exposed).
+// surface) P-H3 (no per-outcome counts exposed); and G1-G3 (ruled 15:21-15:23Z): P-P1-P-P4 (private rows redacted at the
+// source, the site's daily-ID construction with a UTC day), P-B3 ("~" stripped for the block check), P-V2 (v1: null
+// dbFlags is flagged).
 import { env, fetchMock } from "cloudflare:test";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { pointerKey } from "../src/photolicense";
@@ -46,6 +48,8 @@ const X = W as unknown as {
   ScreenDetailsDO?: { prototype: DOProto };
   __setClockForTests?: (f: (() => number) | undefined) => void;
   __tapEnrichRequestForTests?: (f: ((r: Request) => void | Promise<void>) | undefined) => void;
+  __setPrivateBlockSizeForTests?: (n: number | undefined) => void;
+  __observeDayKeyForTests?: (f: ((raw: Uint8Array) => void) | undefined) => void;
 };
 
 const LOL = "https://api.adsb.lol";
@@ -62,11 +66,16 @@ const H = {
   PUB: "a0b1c2", NULLDB: "a0b1c3", GA: "a0b1c4", FLAG4: "a1a1a1", FLAG8: "a1a1a8", MILD: "a2a2a2", BLK: "a3a3a3",
   ABSENT: "a4a4a4", COLD: "a5a5a5", C1: "a6a6a6", R1: "a7a7a1", R2: "a7a7a2", R3: "a7a7a3", MILR: "ae0f00", PRIV: "c0ffee",
   V1: "a8a8a1", GAP: "a9a9a1", GAP2: "a9a9a2", S3: "a0a0a3", E: "a0a0ae", T1: "a0a0a1",
+  INBLOCK: "210000", // a PUBLIC hex inside the private-ID block (0x210000-0x22ffff): G1 must never hand it out
 } as const;
+const PRIVATE_ID = /^~2[12][0-9a-f]{4}$/;
 
+// Every fixture row gets its OWN altitude, so a redacted private row (no hex, no cs: G1) can still be matched to its
+// fixture by the test.
+let nextAlt = 30000;
 function ac(hex: string, cs: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    hex, cs, lat: 51.5, lon: -0.4, alt_ft: 30000, gs_kt: 400, track_deg: 90, vrate_fpm: 0, category: 3, seen_s: 1,
+    hex, cs, lat: 51.5, lon: -0.4, alt_ft: (nextAlt += 100), gs_kt: 400, track_deg: 90, vrate_fpm: 0, category: 3, seen_s: 1,
     t: "A320", desc: "AIRBUS A-320", dbFlags: null, ...extra,
   };
 }
@@ -78,6 +87,11 @@ const FIXTURE = [
   ac(H.S3, "TST123", { lat: 51.53, lon: -0.31, track_deg: 270 }), ac(H.E, "TST124"),
 ];
 const T1_AC = ac(H.T1, "TST125"); // P-T1's own: its upstream answer is delayed, so it is in no other test's snapshot
+const TILDE_BLK = ac(`~${H.BLK}`, "TST131"); // G2: the blocked airframe relayed under a non-ICAO "~" id
+const INBLOCK_AC = ac(H.INBLOCK, "TST132"); // G1: a public aircraft whose hex the private-ID block contains
+/** A served row's fixture hex, by its unique altitude: a redacted private row has no hex of its own (G1). */
+const ALT_HEX = new Map([...FIXTURE, T1_AC, TILDE_BLK, INBLOCK_AC].map((a) => [a.alt_ft as number, a.hex as string]));
+const fixtureHexByAlt = (row: Record<string, unknown>) => ALT_HEX.get(row.alt_ft as number) ?? "?";
 const CLASS_WANT: Record<string, "public" | "private"> = {
   [H.PUB]: "public", [H.NULLDB]: "public", [H.MILR]: "public", [H.MILD]: "public",
   [H.PRIV]: "private", [H.GA]: "private", [H.FLAG4]: "private", [H.FLAG8]: "private",
@@ -191,6 +205,7 @@ beforeAll(() => {
   fetchMock.get(LOL).intercept({ path: "/api/0/routeset", method: "POST" }).reply(200, () => { routesetPosts++; return "[]"; }).persist();
   for (const a of FIXTURE) mockHex(a.hex as string, MOCK_EXTRA[a.hex as string]);
   mockHex(H.T1);
+  mockHex(H.INBLOCK);
 });
 beforeEach(() => {
   routesetPosts = 0;
@@ -204,6 +219,8 @@ afterEach(async () => {
   while (live.length) await live.pop()!.settle();
   X.__setClockForTests?.(undefined);
   X.__tapEnrichRequestForTests?.(undefined);
+  X.__setPrivateBlockSizeForTests?.(undefined);
+  X.__observeDayKeyForTests?.(undefined);
   vi.restoreAllMocks();
 });
 afterAll(() => {
@@ -267,7 +284,7 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
     const h = harness();
     const s = await site(h.loc, "snapshot");
     expect(s.ok).toBe(true);
-    const got = Object.fromEntries(aircraftOf(s).map((a) => [a.hex as string, a.class]));
+    const got = Object.fromEntries(aircraftOf(s).map((a) => [fixtureHexByAlt(a), a.class]));
     for (const [hex, want] of Object.entries(CLASS_WANT)) expect(got[hex], hex).toBe(want);
     for (const a of aircraftOf(s)) expect(["public", "private"]).toContain(a.class);
     await h.settle();
@@ -354,6 +371,107 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
     const texts = [...lines, ...h.counter.points.map((p) => JSON.stringify(p))];
     expect(h.counter.points.length).toBe(3); // CONTROL: there is something to search
     for (const hex of [H.BLK, H.ABSENT, H.PRIV]) for (const t of texts) expect(t.toLowerCase()).not.toContain(hex);
+    tally(h);
+  });
+
+  it("P-B3 (G2): a blocked airframe relayed as \"~<hex>\" is still hidden -- from snapshot(), and from enrich (counted blocked)", async () => {
+    await env.ENRICH_KV.put("cfg:screen-blocked", JSON.stringify([H.BLK]));
+    const h = harness({ feed: feedAnswer([...FIXTURE.filter((a) => a.hex !== H.BLK), TILDE_BLK]) });
+    const s = await site(h.loc, "snapshot");
+    expect(s.ok).toBe(true);
+    expect(aircraftOf(s).length).toBe(FIXTURE.length - 1); // CONTROL: every other row is served
+    expect(aircraftOf(s).map((a) => a.alt_ft)).not.toContain(TILDE_BLK.alt_ft);
+    expect(await site(h.loc, "enrich", { hex: H.BLK })).toEqual({ ok: false, reason: "not_in_snapshot" });
+    expect(outcomes(h.counter).slice(-1)).toEqual(["blocked"]);
+    tally(h);
+  });
+
+  it("P-V2 (G3): a feed answer whose v is not 2 treats a null dbFlags as flagged; v 2 does not", async () => {
+    const row = FIXTURE.find((a) => a.hex === H.NULLDB)!;
+    const v1 = harness({ feed: { ...feedAnswer([row]), v: 1 } });
+    const r1 = await site(v1.loc, "snapshot");
+    expect(aircraftOf(r1).map((a) => a.class)).toEqual(["private"]);
+    expect(await site(v1.loc, "enrich", { hex: H.NULLDB })).toEqual({ ok: false, reason: "private" });
+    tally(v1);
+    const v2 = harness({ feed: feedAnswer([row]) });
+    expect(aircraftOf(await site(v2.loc, "snapshot")).map((a) => a.class)).toEqual(["public"]); // CONTROL: v 2, as before
+    tally(v2);
+  });
+
+  // G1, the site's construction with a UTC day (ruled 15:23:33Z): a private row's hex slot carries "~" + 6 hex inside
+  // 0x210000-0x22ffff, keyed by a random per-UTC-day key held only in the object's memory; its cs is "".
+  const PRIVATE_HEXES = Object.keys(CLASS_WANT).filter((x) => CLASS_WANT[x] === "private");
+  const PRIVATE_CS = FIXTURE.filter((a) => PRIVATE_HEXES.includes(a.hex as string)).map((a) => a.cs as string);
+  const idOf = (s: Answer, hex: string) => aircraftOf(s).find((a) => fixtureHexByAlt(a) === hex)?.hex as string | undefined;
+
+  it("P-P1 (G1): a private row carries no raw hex and no callsign; its hex slot holds a daily ID inside the block", async () => {
+    const h = harness();
+    const s = await site(h.loc, "snapshot");
+    expect(s.ok).toBe(true);
+    const text = JSON.stringify(s);
+    expect(PRIVATE_HEXES.length).toBe(4); // CONTROL: the four private fixtures are in the snapshot to be redacted
+    for (const x of PRIVATE_HEXES) expect(text.toLowerCase(), x).not.toContain(x);
+    for (const cs of PRIVATE_CS) expect(text, cs).not.toContain(cs);
+    let privates = 0;
+    for (const a of aircraftOf(s)) {
+      if (a.class !== "private") continue;
+      privates++;
+      expect(a.hex as string).toMatch(PRIVATE_ID);
+      const n = parseInt((a.hex as string).slice(1), 16);
+      expect(n >= 0x210000 && n <= 0x22ffff).toBe(true);
+      expect(a.cs).toBe("");
+      expect(a.lat).toBe(51.5); // positions stay, as the site serves them
+    }
+    expect(privates).toBe(4);
+    const pub = aircraftOf(s).find((a) => fixtureHexByAlt(a) === H.PUB)!;
+    expect([pub.hex, pub.cs]).toEqual([H.PUB, "TST101"]); // public rows keep their identity
+    tally(h);
+  });
+
+  it("P-P2 (G1): one ID per hex per UTC day, a new one the next day, distinct hexes distinct, never a public hex", async () => {
+    const h = harness();
+    const at = async (t: number) => { clock = t; return site(h.loc, "snapshot"); };
+    const d1a = await at(T0), d1b = await at(T0 + 3_600_000), d2 = await at(T0 + 86_400_000);
+    expect(idOf(d1a, H.PRIV)).toMatch(PRIVATE_ID);
+    expect(idOf(d1b, H.PRIV)).toBe(idOf(d1a, H.PRIV));
+    expect(idOf(d2, H.PRIV)).not.toBe(idOf(d1a, H.PRIV));
+    expect(idOf(d1a, H.GA)).not.toBe(idOf(d1a, H.PRIV));
+    tally(h);
+    // A block of TWO slots, the first of which is a PUBLIC aircraft's hex: the private aircraft can only get the second.
+    X.__setPrivateBlockSizeForTests!(2);
+    const g = harness({ feed: feedAnswer([INBLOCK_AC, FIXTURE.find((a) => a.hex === H.PRIV)!]) });
+    const s = await site(g.loc, "snapshot");
+    expect(idOf(s, H.INBLOCK)).toBe(H.INBLOCK); // CONTROL: the public aircraft is served under its own hex
+    expect(idOf(s, H.PRIV)).toBe("~210001");
+    tally(g);
+  });
+
+  it("P-P3 (G1): the block exhausted -> snapshot() answers error, and no private row is served raw", async () => {
+    X.__setPrivateBlockSizeForTests!(1);
+    const h = harness({ feed: feedAnswer(FIXTURE.filter((a) => a.hex === H.PRIV || a.hex === H.GA)) });
+    const s = await site(h.loc, "snapshot");
+    expect(s).toEqual({ ok: false, reason: "error" });
+    for (const x of [H.PRIV, H.GA]) expect(JSON.stringify(s).toLowerCase()).not.toContain(x);
+    expect(outcomes(h.counter)).toEqual(["error"]);
+    tally(h);
+  });
+
+  it("P-P4 (G1): the day's key appears in no log line and no answer", async () => {
+    const keys: string[] = [];
+    X.__observeDayKeyForTests!((raw) => {
+      const bytes = [...raw];
+      keys.push(bytes.map((b) => b.toString(16).padStart(2, "0")).join(""), btoa(String.fromCharCode(...bytes)), bytes.join(","));
+    });
+    const lines: string[] = [];
+    for (const m of ["log", "info", "warn", "error", "debug"] as const) {
+      vi.spyOn(console, m).mockImplementation((...a: unknown[]) => { lines.push(a.map(String).join(" ")); });
+    }
+    const h = harness();
+    const answers = [await site(h.loc, "snapshot"), await site(h.loc, "enrich", { hex: H.PRIV })];
+    await h.settle();
+    expect(keys.length).toBe(3); // CONTROL: one key was made, seen in three spellings
+    const texts = [...lines, ...answers.map((a) => JSON.stringify(a)), ...h.counter.points.map((p) => JSON.stringify(p))];
+    for (const k of keys) for (const t of texts) expect(t.includes(k)).toBe(false);
     tally(h);
   });
 
@@ -606,7 +724,7 @@ describe("the counter and what is exposed (P-M1, P-H3)", () => {
     }
     expect(Object.keys(W.default)).toEqual(["fetch"]);
     const seams = W as unknown as Record<string, unknown>;
-    for (const name of ["__setClockForTests", "__tapEnrichRequestForTests", "__setHandlerForTests"]) {
+    for (const name of ["__setClockForTests", "__tapEnrichRequestForTests", "__setHandlerForTests", "__setPrivateBlockSizeForTests", "__observeDayKeyForTests"]) {
       expect(typeof seams[name], name).toBe("function"); // CONTROL: the seams exist, so their absence below means something
       expect((seams[name] as { fetch?: unknown }).fetch, name).toBeUndefined();
     }
