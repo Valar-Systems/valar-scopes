@@ -27,6 +27,7 @@ const PASS: ReadonlyArray<[string, string]> = [
   ["screen_error", j({ evt: "screen_error", method: "enrich", caller: "app", name: "TypeError" })],
   ["screen_metrics_write_failed", j({ evt: "screen_metrics_write_failed", name: "Error" })],
   ["screen_bg_error", j({ evt: "screen_bg_error", name: "TypeError" })],
+  ["screen_bg_error with the producers' fallback name", j({ evt: "screen_bg_error", name: "unknown" })],
   ["screen_log_dropped", j({ evt: "screen_log_dropped", from: "enrich_gap" })],
 ];
 
@@ -42,7 +43,12 @@ const DROP: ReadonlyArray<[string, unknown[], string]> = [
   ["id outside the closed set (a hex)", [j({ evt: "upstream", id: HEX, op: "hex", ok: true, ms: 9 })], "upstream"],
   ["id outside the closed set (a name)", [j({ evt: "hold", id: "relay_c", ms: 1000 })], "hold"],
   ["state outside its set", [j({ evt: "breaker", id: "adsb_lol", state: "half_open", consecutiveFailures: 1 })], "breaker"],
-  ["the hex belt: a class name made of hex digits", [j({ evt: "screen_error", method: "enrich", caller: "app", name: "deadbeef" })], "screen_error"],
+  // "Decade" is six hex letters: the name fits the Error-class shape, so only the belt can drop it.
+  ["the hex belt: an Error class name holding six hex letters", [j({ evt: "screen_error", method: "enrich", caller: "app", name: "DecadeError" })], "screen_error"],
+  ["caller outside the set (a name)", [j({ evt: "screen_error", method: "enrich", caller: "dashboard", name: "TypeError" })], "screen_error"],
+  ["caller outside the set (a request path holding a hex)", [j({ evt: "screen_error", method: "enrich", caller: `/v1/enrich/${HEX}`, name: "TypeError" })], "screen_error"],
+  ["name not an Error class", [j({ evt: "screen_bg_error", name: "Wrapped" })], "screen_bg_error"],
+  ["method outside the map", [j({ evt: "screen_error", method: "photos", caller: "app", name: "TypeError" })], "screen_error"],
   ["a second argument", [j({ evt: "tn_miss", t: "A320" }), "extra"], "tn_miss"],
   ["a non-string argument", [{ evt: "tn_miss", t: "A320" }], "other"],
   ["a JSON array", [j(["tn_miss"])], "other"],

@@ -27,7 +27,10 @@ const METHODS = new Set(SCREEN_MAP.flatMap((r) => (r.kind === "method" ? [r.meth
 const CALLERS = new Set(["website", "app"]);
 /** `err` is free text in the boards' line (String(err)); only these two exact shapes pass (fe's ruling). */
 const ERR = /^(?:Error: HTTP \d{3}|degraded_stale)$/;
-const CLASS_NAME = /^[A-Za-z]{1,40}$/;
+/** An error's CLASS, as every producer writes it: `e instanceof Error ? e.name : "unknown"`. "Error" itself passes
+ *  (an Error subclass that sets no name, such as chain.ts's HttpStatusError, logs as "Error"); any other word drops. */
+/*P-NS10*/
+const CLASS_NAME = /^(?:[A-Za-z]{0,40}Error|unknown)$/;
 const TYPE = /^[A-Z0-9]{1,4}$/; // an ICAO type designator: a type is not a subject (a hidden row keeps it)
 
 const BASE: Readonly<Record<string, Readonly<Record<string, Shape>>>> = {

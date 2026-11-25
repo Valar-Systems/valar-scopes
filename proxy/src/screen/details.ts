@@ -103,8 +103,13 @@ export function __tapEnrichRequest(f: ((r: Request) => void | Promise<void>) | u
  */
 export function enrichCtx(waitUntil: (p: Promise<unknown>) => void): { waitUntil(p: Promise<unknown>): void; passThroughOnException(): void; props: object } {
   return {
-    /*P-NS5*/
-    waitUntil: (p: Promise<unknown>) => waitUntil(p),
+    waitUntil: (p: Promise<unknown>) =>
+      waitUntil(
+        /*P-NS5*/
+        p.catch((e: unknown) => {
+          console.error(JSON.stringify({ evt: "screen_bg_error", name: e instanceof Error ? e.name : "unknown" }));
+        }),
+      ),
     passThroughOnException: () => undefined,
     props: {},
   };

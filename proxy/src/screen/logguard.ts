@@ -9,6 +9,7 @@
 // A WRAPPER KNOWS ITSELF BY A MARK, NOT BY A FLAG. A test's vi.spyOn(console, ...) and its restore replace the
 // method underneath us; a module flag would then say "installed" over a console that is not. Re-checking the mark on
 // every entry re-wraps whatever is there. A double wrap is harmless: the guard passes its own output unchanged.
+import { DROP_FROM, LOG_ALLOW, type Shape } from "./logallow";
 
 type Level = "log" | "info" | "warn" | "error" | "debug";
 type LogFn = (...args: unknown[]) => void;
@@ -44,8 +45,48 @@ export function installLogGuard(): void {
   }
 }
 
-/** What a console call may write: its own arguments, or one replacement line. RED STUB: passes everything. */
+/** What a console call may write: its own arguments, unchanged, or ONE replacement line naming what was dropped. */
 export function screenLogLine(args: readonly unknown[]): readonly unknown[] {
-  /*P-NS4*/
-  return args;
+  const from = dropFrom(args);
+  return from === null ? args : [JSON.stringify({ evt: "screen_log_dropped", from })];
+}
+
+/** A 6-hex run, either case, "~" or not: a string VALUE holding one drops the line, even under an allowed key. Strings
+ *  only: a number such as hold's 600000 ms is six hex digits and is not an address. */
+const HEXISH = /~?[0-9a-f]{6}/i;
+
+/** null: the line passes unchanged. Otherwise the replacement's `from`: the evt when logallow.ts names it, "text" for a
+ *  line that is not JSON, "other" for anything else. */
+function dropFrom(args: readonly unknown[]): string | null {
+  const first = args[0];
+  if (typeof first !== "string") return "other";
+  let o: unknown;
+  try {
+    o = JSON.parse(first);
+  } catch {
+    return "text";
+  }
+  if (!o || typeof o !== "object" || Array.isArray(o)) return "other";
+  const rec = o as Record<string, unknown>;
+  const from = typeof rec.evt === "string" && DROP_FROM.has(rec.evt) ? rec.evt : "other";
+  if (args.length !== 1) return from;
+  /*P-NS9*/
+  if (JSON.stringify(rec) !== first) return from; // the TEXT is what is written: it must be exactly the object checked
+  const shapes = typeof rec.evt === "string" && Object.hasOwn(LOG_ALLOW, rec.evt) ? LOG_ALLOW[rec.evt] : undefined;
+  if (!shapes) return from;
+  for (const [k, v] of Object.entries(rec)) {
+    if (k === "evt") continue;
+    if (!Object.hasOwn(shapes, k) || !fits(v, shapes[k])) return from;
+    /*P-NS3belt*/
+    if (typeof v === "string" && HEXISH.test(v)) return from;
+  }
+  /*P-NS4pass*/
+  return null;
+}
+
+function fits(v: unknown, s: Shape): boolean {
+  if (s === "number") return typeof v === "number" && Number.isFinite(v);
+  if (s === "boolean") return typeof v === "boolean";
+  if (s instanceof RegExp) return typeof v === "string" && s.test(v);
+  return typeof v === "string" && s.has(v);
 }
