@@ -28,7 +28,8 @@ on:
         required: false
         default: ""
 
-permissions: {}
+permissions:
+  contents: none
 
 jobs:
   read:
