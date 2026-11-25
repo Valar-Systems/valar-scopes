@@ -5,11 +5,12 @@ import { env as cf } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import { build } from "../src/basemap/build";
 import { crc32, decode, validate } from "../src/basemap/format";
-import { BASEMAP_REV, SYNC_WAIT_MS, basemapDigest, basemapHealth, basemapTiming, cacheKey, errKey, failKey, lockKey, pkgKey, resetBasemapIsolate } from "../src/basemap/handler";
+import { BASEMAP_REV, SYNC_WAIT_HEADER, SYNC_WAIT_MS, basemapDigest, basemapHealth, basemapTiming, cacheKey, errKey, failKey, lockKey, pkgKey, resetBasemapIsolate } from "../src/basemap/handler";
 import { etagOf, parseQuery, queryKey } from "../src/basemap/query";
 import builder, { buildLine, makeBuilder } from "../src/basemap/worker";
 import { type SynthDef, COMMIT, lonLatOf, mbStore, writeSynthStore } from "./basemap-synth";
 import { apiRequest, call } from "./helpers";
+import proxyToml from "../wrangler.toml?raw";
 
 const QW = "lat=0.37&lon=0.59&r=97&eps=100584&layers=water,roads";
 const ETAG = /^"bm1-[0-9]+-[0-9a-f]{12}-[0-9a-f]{24}"$/;
@@ -842,5 +843,78 @@ describe("MG, the retry-storm guard", () => {
       expect(k).toMatch(/^bm\/v1\/(pkg|pkg-lock)\/[0-9a-f]{12}\/[0-9a-f]{24}(\.err|\.fail)?$/);
       for (const c of ["370000", "590000"]) expect(k).not.toContain(c);
     }
+  });
+});
+
+// SW (S2's measurement route): a staging-only in-line wait. A request may ask the cold path's race to wait longer with
+// SYNC_WAIT_HEADER, up to the env's BASEMAP_SYNC_WAIT_MAX_MS; anything else about the header is REFUSED (400) before any
+// store read or build, never ignored or clamped. The live wait is shortened to 50 ms as in MS3, and the builder takes 300 ms.
+describe("SW, the staging-only in-line wait", () => {
+  const VAR = { BASEMAP_SYNC_WAIT_MAX_MS: "120000" };
+  async function sw(r: number, h: Record<string, string>, env: Record<string, string>) {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = slowOver(s.store.objects, 300);
+    await storeKv().put("bm:store", s.storeId);
+    basemapTiming.syncWaitMs = 50;
+    try {
+      const { res, line } = await mkCall(() => call(get(basemapPath(at(r)), h), { BASEMAP: b.BASEMAP, ...env }));
+      return { res, line, b };
+    } finally { basemapTiming.syncWaitMs = SYNC_WAIT_MS; }
+  }
+  const refused = async (res: Response) => [res.status, (await res.json<{ error: string }>()).error];
+
+  it("SW1: CONTROL, no header and no var: a build slower than the wait answers 202 (today's behaviour)", async () => {
+    const { res, line, b } = await sw(150, {}, {});
+    expect([res.status, res.headers.get("retry-after"), line.bm, b.n.calls]).toEqual([202, "15", "known-miss", 1]);
+  });
+
+  it("SW2: with the var, a header longer than the build awaits it in-line: 200 with a valid package", async () => {
+    const { res, b } = await sw(151, { [SYNC_WAIT_HEADER]: "1000" }, VAR);
+    expect([res.status, b.n.calls]).toEqual([200, 1]);
+    expect(validate(new Uint8Array(await res.arrayBuffer())).status).toBe("kOk");
+  });
+
+  it("SW3: the header with the var absent, not an integer, or above the cap is refused: 400 sync_wait_not_enabled, no build", async () => {
+    const envs: Array<Record<string, string>> = [{}, { BASEMAP_SYNC_WAIT_MAX_MS: "abc" }, { BASEMAP_SYNC_WAIT_MAX_MS: "500000" }];
+    for (const env of envs) {
+      const { res, b } = await sw(152, { [SYNC_WAIT_HEADER]: "1000" }, env);
+      expect([...(await refused(res)), b.n.calls], JSON.stringify(env)).toEqual([400, "sync_wait_not_enabled", 0]);
+    }
+  });
+
+  it("SW4: a header above the var is refused, not clamped: 400 bad_sync_wait, no build", async () => {
+    const { res, b } = await sw(153, { [SYNC_WAIT_HEADER]: "200000" }, VAR);
+    expect([...(await refused(res)), b.n.calls]).toEqual([400, "bad_sync_wait", 0]);
+  });
+
+  it("SW5: a header that is not a whole number of ms is refused: 400 bad_sync_wait, no build", async () => {
+    for (const v of ["abc", "2.5", "-1", ""]) {
+      const { res, b } = await sw(154, { [SYNC_WAIT_HEADER]: v }, VAR);
+      expect([...(await refused(res)), b.n.calls], JSON.stringify(v)).toEqual([400, "bad_sync_wait", 0]);
+    }
+  });
+
+  it("SW6: a header shorter than the live wait is refused (it may only lengthen it): 400 bad_sync_wait, no build", async () => {
+    const { res, b } = await sw(155, { [SYNC_WAIT_HEADER]: "40" }, VAR);
+    expect([...(await refused(res)), b.n.calls]).toEqual([400, "bad_sync_wait", 0]);
+  });
+
+  it("SW7: the header's value bounds the wait: shorter than the build, it answers 202", async () => {
+    const { res, b } = await sw(156, { [SYNC_WAIT_HEADER]: "100" }, VAR);
+    expect([res.status, b.n.calls]).toEqual([202, 1]);
+  });
+
+  it("SW8: wrangler.toml sets BASEMAP_SYNC_WAIT_MAX_MS exactly once, under [env.staging.vars], to a whole number in (1600, 120000]", () => {
+    let section = "(top level)";
+    const found: Array<{ section: string; value: string }> = [];
+    for (const raw of proxyToml.split(/\r?\n/)) {
+      const head = raw.match(/^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(#.*)?$/);
+      if (head) { section = head[1]!; continue; }
+      const m = raw.match(/^\s*BASEMAP_SYNC_WAIT_MAX_MS\s*=\s*"([^"]*)"/);
+      if (m) found.push({ section, value: m[1]! });
+    }
+    expect(found.map((f) => f.section)).toEqual(["env.staging.vars"]);
+    const v = Number(found[0]!.value);
+    expect(/^[0-9]+$/.test(found[0]!.value) && v > 1600 && v <= 120000, found[0]!.value).toBe(true);
   });
 });
