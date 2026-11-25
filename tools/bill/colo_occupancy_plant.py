@@ -291,8 +291,15 @@ def pd_k22():
     return [100 + 10 * i for i in range(15)]
 
 
+PD_ANCHOR_I = 10                                              # 11-23 14:00Z = POP_H0: the anchor's hour IS a reference hour
+PD_ANCHOR_K = 5553 - 249                                      # so its K is the anchor's: 5304 keyed lines, 249 no-key
+
+
 def pd_k23(k22=None):
-    return [13 * k // 10 for k in (k22 or pd_k22())]          # 1.3 x: every s_h = 0.3 / 1.15
+    """1.3 x K(11-22), so every s_h = 0.3 / 1.15, EXCEPT the anchor's hour, whose lines are the anchor's own."""
+    ks = [13 * k // 10 for k in (k22 or pd_k22())]
+    ks[PD_ANCHOR_I] = PD_ANCHOR_K
+    return ks
 
 
 def pd_k24(k22=None, k23=None):
@@ -320,6 +327,8 @@ def pd_set(k22=None, k23=None, k24=None, post_n=249, moved=None):
     for day, ks in ((22, k22), (23, k23), (24, k24)):
         for i, kk in enumerate(ks):
             h = pd_hour(day, i)
+            if h == POP_H0:
+                continue                                           # the anchor's lines above ARE this reference hour
             add(h, kk + (1 if (day == 24 and moved == i) else 0), ep=API_EPS[0], status=200, model="plant-model",
                 dev=EXAMPLE_ID)
             add(h, PD_N, ep="/credits", status=200, model="")
