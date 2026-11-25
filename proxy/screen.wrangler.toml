@@ -1,0 +1,48 @@
+# The screen service, `blipscope-screen` (the screen registration, accepted 2026-11-25): a SEPARATE Worker script that
+# serves the website's and the app's screens by RPC, through two entrypoints, ScreenWebsite and ScreenApp
+# (src/screen/worker.ts). It never deploys with the boards' Worker, and nothing of it rides their bundle
+# (scripts/check-screen-bundle.mjs reads both dry-run bundles: P-B2).
+#
+# PHASE 0: its shape and its checks only. No bindings, no route and no workers.dev address. The custom domain the
+# Cache API needs, the read-only KV wrapper, the weather bucket and the two service bindings arrive with phases 1-3.
+# Not deployed: staging waits for the hold to lift and a booking; production needs the owner's OK and is the map
+# server's to run.
+name = "blipscope-screen"
+main = "src/screen/worker.ts"
+compatibility_date = "2025-12-01"
+account_id = "48822e896bb10c45aa6bfe139bcff3d1"
+workers_dev = false
+
+# The nested quotes are required: the value is substituted into the bundle verbatim, as a JS string literal.
+define = { BUILD_COMMIT = "\"UNSTAMPED\"" }
+
+[env.staging]
+name = "blipscope-screen-staging"
+workers_dev = false
+
+[env.staging.define]
+BUILD_COMMIT = "\"UNSTAMPED\""
+
+[env.staging.observability]
+enabled = true
+head_sampling_rate = 1
+
+[env.staging.observability.logs]
+invocation_logs = false
+
+[env.production]
+name = "blipscope-screen"
+workers_dev = false
+
+[env.production.define]
+BUILD_COMMIT = "\"UNSTAMPED\""
+
+# Workers Logs in production: "screen service logs: sample 10%" (the owner, 2026-11-25). Every request and every error
+# is still counted unsampled in the metrics store (phase 1), and a full-logs day is a separate deploy with its own end
+# (docs/screen-logs-runbook.md). scripts/check-screen.ts's P-O1 holds this at exactly 0.1. Invocation logs stay OFF.
+[env.production.observability]
+enabled = true
+head_sampling_rate = 0.1
+
+[env.production.observability.logs]
+invocation_logs = false
