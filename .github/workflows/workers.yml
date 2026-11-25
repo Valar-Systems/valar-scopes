@@ -281,6 +281,17 @@ jobs:
         if: matrix.worker == 'proxy'
         run: node scripts/sabotage-basemap.mjs --selftest-keep
 
+      # The support page's links to our own site, read OUT OF pages/support.html, must answer 200, and a linked page
+      # must carry the page's own "frozen on <date>" phrase. A control URL on the same site must answer first, so an
+      # unreachable site reads BLIND, never as a dead link. Kept LAST among the proxy steps: a red here (a link not
+      # live yet) hides no other step's result. Live and read-only: anonymous GETs to the public site.
+      - name: the support page's links answer and match (selftest)
+        if: matrix.worker == 'proxy'
+        run: node scripts/check-support-links.mjs --selftest
+      - name: the support page's links answer and match (live)
+        if: matrix.worker == 'proxy'
+        run: node scripts/check-support-links.mjs
+
       # Every SQL statement the dashboard can issue, run against the LIVE Analytics
       # Engine endpoint. vitest never executes the SQL, and two defects reached the
       # browser through a green suite on 2026-09-24 (IF() branch types, and a

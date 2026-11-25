@@ -843,8 +843,12 @@ export const supportHtml = `<!DOCTYPE html>
 
     <h3>Blipscope Cloud — on by default, nothing to set up</h3>
     <p>Your device ships pointed at <b>Blipscope Cloud</b>, and for almost everyone
-       that is the whole story. There is no account to make, no key to paste and
-       nothing to renew.</p>
+       that is the whole story. There is no account to make and no key to paste.
+       Three years of cloud service are included. The three years start the day you
+       first set Blipscope up, and after that the cloud service continues with an
+       optional subscription. Every Blipscope on our list of earlier devices, frozen
+       on November 25, 2026, keeps the cloud service with no end date.
+       <a href="https://valarscopes.com/blipscope/cloud/">How the cloud service works</a></p>
     <p>Behind it we aggregate the community ADS-B networks —
        <a href="https://adsb.fi">adsb.fi</a> and
        <a href="https://adsb.lol">adsb.lol</a> — through our own relay, so your
