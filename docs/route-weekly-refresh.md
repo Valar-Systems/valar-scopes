@@ -1,4 +1,5 @@
 # The weekly route refresh: a plan (no code before the reviewer's review)
+> **Record (added 2026-11-25):** this is the plan as reviewed (#702 at b7aa114d5d94). It shipped as #708 (620a215d0e5f, merged 2026-11-14), whose code doc is docs/route-weekly-code.md. The status line below is as of 2026-11-13.
 
 **Status: PLAN, accepted in direction by the reviewer at 2026-11-13 17:04:02Z, on seven conditions (below).** Nothing
 here runs yet. The one-off refresh it follows is `docs/route-refresh-2026-11.md`, piece (A). The 10-day alert that
