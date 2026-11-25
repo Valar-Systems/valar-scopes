@@ -259,13 +259,23 @@ const SABOTAGES = {
   "S-TERRCAP": {
     file: BUDGET, set: "all",
     edits: [["  for (const s of sections) if (s.type !== TYPE.TERRAIN) n += sectionSize(s);\n", "  for (const s of sections) n += sectionSize(s); // SABOTAGE S-TERRCAP: the TERRAIN body counted\n"]],
-    expect: ["MB8a", "MB8b"],
+    // The S-STRICT PR (docs/basemap-cap-equality.md), re-registered before any run: MB8c builds what MB8a builds, so it is red with it
+    expect: ["MB8a", "MB8b", "MB8c"],
+  },
+  // The budget's bound is <= (docs/basemap-cap-equality.md): the ladder fills to the byte, and 1 of 22 references landed exactly AT
+  // its device's cap. A strict bound must turn every test that builds at its cap exactly red. The set was read on a copy of H6 (MB4
+  // and T-PROV-b were that prediction's misses, kept on record there), plus MB8c, the identity row this PR adds.
+  "S-STRICT": {
+    file: BUDGET, set: "all",
+    edits: [["return lastBytes <= capBytes ? s : null;", "return lastBytes < capBytes ? s : null; /* SABOTAGE S-STRICT */"]],
+    expect: ["MB1", "MB4", "MB5", "MB8a", "MB8c", "MN2", "T-PROV-b"],
   },
   "S-TNOMARGIN": {
     file: TERRAIN, set: "all",
     edits: [["  return [Math.floor(x0 / 256) - 1, Math.floor(y0 / 256) - 1, Math.floor(x1 / 256) + 1, Math.floor(y1 / 256) + 1];\n",
              "  return [Math.floor(x0 / 256), Math.floor(y0 / 256), Math.floor(x1 / 256), Math.floor(y1 / 256)]; // SABOTAGE S-TNOMARGIN\n"]],
-    expect: ["MT3b", "MB8a", "MB8b"],
+    // The S-STRICT PR (docs/basemap-cap-equality.md), re-registered before any run: MB8c builds what MB8a builds, so it is red with it
+    expect: ["MT3b", "MB8a", "MB8b", "MB8c"],
   },
   // A1.7's MQ sabotages (A2.28).
   "S-QROUND": {
