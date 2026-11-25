@@ -12,8 +12,9 @@
 #   bash proxy/scripts/check-deploy-args.sh             the rows, each against its prediction: exit 0 all, 1 off, 2 rig
 #   bash proxy/scripts/check-deploy-args.sh --sabotage  copies of deploy.sh, in a temp tree beside a copy of
 #        scripts/session-claim.py so the claim tool resolves; an unmodified copy must read every row as predicted, then
-#        S-EXTRA (the general refusal removed) must turn exactly DA1-DA4 and DA8-DA10 red, and S-OVERREACH (the refusal
-#        applied to --screen too) exactly DA11 and DA12
+#        S-EXTRA (the general refusal removed) must turn exactly DA1-DA4 and DA8-DA10 red, S-OVERREACH (the refusal
+#        applied to --screen too) exactly DA11 and DA12, and S-ABOVE-SHIFT (the line moved above the shift) exactly
+#        DA5, DA11, DA12 and DA13
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
@@ -42,6 +43,15 @@ ROWS=(
   "DA12|--screen production-fulllogs --until $U|1|does not hold the deploy claim for screen:production"
   "DA13|--builder staging|1|does not hold the deploy claim for builder:staging"
 )
+# Every row must split into EXACTLY four fields of the right shape, or nothing runs (map-server's note on L3: the
+# sabotage table's refusal, given to the rows too). The field COUNT is checked, not a re-join: `read` puts any extra
+# fields into the last variable, so a row with one "|" too many would re-join to itself and pass.
+for r in "${ROWS[@]}"; do
+  IFS='|' read -r name args want token <<< "$r"
+  if [ "$(awk -F'|' '{ print NF }' <<< "$r")" != 4 ] || ! [[ "$name" =~ ^DA[0-9]+$ ]] || ! [[ "$want" =~ ^[0-9]$ ]] || [ -z "$token" ]; then
+    echo "RIG: the row '$r' does not parse into four fields of the right shape"; exit 2
+  fi
+done
 
 RED=""
 run_all() {   # run_all <deploy.sh path> [loud]
@@ -99,5 +109,18 @@ for s in "${SABOTAGES[@]}"; do
   run_all "$COPY"
   if [ "$RED" = "$want" ]; then echo "$sname: AS REGISTERED (red: $RED)"; else echo "$sname: OFF (red: ${RED:-none}; registered: $want)"; off=1; fi
 done
+# S-ABOVE-SHIFT (map-server's F6 on L3): the line MOVED, not replaced, to directly above `case "${1:-}" in`, before the
+# --builder/--screen shift, so $# counts that word. Exactly the rows where it does must turn red: DA13's placement
+# claim, seen failing rather than reasoned. SCREEN is already "" and usage() already defined there.
+CASE_LINE='case "${1:-}" in'
+[ "$(grep -cxF -- "$CASE_LINE" "$HERE/deploy.sh")" = 1 ] || { echo "RIG: S-ABOVE-SHIFT's case line is not in deploy.sh exactly once"; exit 2; }
+awk -v a="$ANCHOR" -v c="$CASE_LINE" '$0 == a { next } $0 == c { print a } { print }' "$HERE/deploy.sh" > "$COPY"
+la="$(grep -nxF -- "$ANCHOR" "$COPY" | cut -d: -f1)"; lc="$(grep -nxF -- "$CASE_LINE" "$COPY" | cut -d: -f1)"
+if [ "$(grep -cxF -- "$ANCHOR" "$COPY")" != 1 ] || [ -z "$la" ] || [ -z "$lc" ] || [ "$la" -ge "$lc" ]; then
+  echo "RIG: S-ABOVE-SHIFT's copy does not hold the line exactly once, above the case"; exit 2
+fi
+run_all "$COPY"
+want="DA5 DA11 DA12 DA13"
+if [ "$RED" = "$want" ]; then echo "S-ABOVE-SHIFT: AS REGISTERED (red: $RED)"; else echo "S-ABOVE-SHIFT: OFF (red: ${RED:-none}; registered: $want)"; off=1; fi
 [ "$off" = 0 ] && { echo "SABOTAGES: each turns exactly its registered rows red"; exit 0; }
 echo "SABOTAGES: OFF"; exit 1

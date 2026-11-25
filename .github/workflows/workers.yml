@@ -202,10 +202,12 @@ jobs:
       - name: The screen service's pre-deploy check (selftests)
         if: matrix.worker == 'proxy'
         run: node scripts/screen-deploy-check.mjs --selftest-until && node scripts/screen-deploy-check.mjs --selftest-bundles
-      # deploy.sh's argument rules (map-server's F2 on #811): --until belongs to --screen alone and is refused as usage
-      # on every other path, never silently dropped. DA1-DA7 with an empty claims folder (nothing past the claim runs),
-      # then the sabotage: a copy without the refusal must turn exactly DA1-DA4 red.
-      - name: deploy.sh refuses --until off --screen (DA1-DA7, then the sabotage)
+      # deploy.sh's argument rules (map-server's F2-F6 on #811): on every path but --screen NOTHING may follow the
+      # environment, refused as usage, never silently dropped (`staging --dry-run` would otherwise deploy for real);
+      # --screen alone takes --until. DA1-DA13 with an empty claims folder (nothing past the claim runs), then three
+      # sabotages on copies: S-EXTRA (the refusal removed), S-OVERREACH (it reaches --screen) and S-ABOVE-SHIFT (it is
+      # moved above the --builder/--screen shift), each turning exactly its registered rows red.
+      - name: deploy.sh refuses anything after the environment off --screen (DA1-DA13, then three sabotages)
         if: matrix.worker == 'proxy'
         run: bash scripts/check-deploy-args.sh && bash scripts/check-deploy-args.sh --sabotage
 
