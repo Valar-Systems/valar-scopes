@@ -44,6 +44,7 @@ REGISTERED = {
     "provisioner": {TOP: {"contents": "read"}},
     "refresh-data": {TOP: {"contents": "read"}},
     "routes-refresh": {TOP: {"contents": "read", "issues": "write"}},  # routes-notify.ts: gh label create, gh issue
+    "screen-logs-watch": {TOP: {"contents": "read"}},   # actions/checkout of the one verdict script; no write
     "web-renderer": {TOP: {"contents": "read"}, "publish": {"contents": "write"}},   # gh release upload
     "workers": {TOP: {"contents": "read"}},
 }

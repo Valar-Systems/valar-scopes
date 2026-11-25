@@ -177,7 +177,9 @@ jobs:
       # The screen service's checks (its registration, accepted 2026-11-25), in plain Node: P-F1 parity (the boards'
       # route table read from src/index.ts against src/screen/map.ts), P-F3 (the release URL against the firmware's
       # own, an integer-only version parser, a memo that fails closed), P-F2 and P-T2 (the release and tier gates as
-      # truth tables). The selftest makes each check fail on a temp copy first; then the real check runs.
+      # truth tables), P-O1..P-O4 (the logs: 10% in production, each env's LOGS_RATE equal to its sampling, the
+      # full-logs env at 1.0, the counter bound in every env) and P-W (the logs watch is scheduled exactly when
+      # production has a route). The selftest makes each check fail on a temp copy first; then the real check runs.
       - name: The screen service's checks (selftest, then the real check)
         if: matrix.worker == 'proxy'
         run: npx --no-install tsx scripts/check-screen.ts --selftest && npx --no-install tsx scripts/check-screen.ts
@@ -188,6 +190,25 @@ jobs:
       - name: The screen service stays out of the boards' bundle (selftest)
         if: matrix.worker == 'proxy'
         run: node scripts/check-screen-bundle.mjs --selftest
+
+      # The screen service's logs (its phase-1 registration, R5 and R4; docs/screen-logs-runbook.md). The full-logs
+      # watch's verdict on canned /health bodies (P-V), then Vs, a copy comparing `until` the wrong way, must flip
+      # exactly its two cases. The pre-deploy check: P-U's --until rules on a fixed clock, then Us (the 24 h cap
+      # removed) must flip exactly +25 h; and P-M2/P-S on each env's own dry-run bundle, then Ss (an unstamped bundle)
+      # and Ms (the counter's write stripped) must each refuse. Dry-runs only; no credentials.
+      - name: The screen service's logs watch verdict (selftest)
+        if: matrix.worker == 'proxy'
+        run: node scripts/screen-logs-verdict.mjs --selftest
+      - name: The screen service's pre-deploy check (selftests)
+        if: matrix.worker == 'proxy'
+        run: node scripts/screen-deploy-check.mjs --selftest-until && node scripts/screen-deploy-check.mjs --selftest-bundles
+      # deploy.sh's argument rules (map-server's F2-F6 on #811): on every path but --screen NOTHING may follow the
+      # environment, refused as usage, never silently dropped (`staging --dry-run` would otherwise deploy for real);
+      # --screen alone takes --until. check-deploy-args.sh's rows run with an empty claims folder (nothing past the
+      # claim runs); then its sabotages, each on a copy of deploy.sh, must turn exactly their registered rows red.
+      - name: deploy.sh refuses anything after the environment off --screen (check-deploy-args.sh's rows, then its sabotages)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/check-deploy-args.sh && bash scripts/check-deploy-args.sh --sabotage
 
       # The test identity (docs/test-identity.md), which replaced the blip-creds wrapper. The mint script against a
       # local stub of the provision route (TM1, TM1s, TM-R, and S-TMPRINT, a copy that prints the key, which the output

@@ -12,11 +12,18 @@
 //   P-T2  tierAllows: fail-closed; "cloud" allows free and cloud, "plus" and "business" allow all; anything else none.
 //   P-O1  The owner's "screen service logs: sample 10%" (2026-11-25), read from screen.wrangler.toml: production
 //         observability enabled at exactly 0.1, invocation logs off in every env, and no env above 0.1 but the exempt.
+//   P-O2  every env with observability stamps a LOGS_RATE define equal to its head_sampling_rate, so /health's
+//         logs.rate cannot misreport the rate the env actually samples at.
+//   P-O3  the full-logs day exists: [env.production-fulllogs] observability at exactly 1.0 (docs/screen-logs-runbook.md).
+//   P-O4  the unsampled counter has somewhere to write: staging, production and production-fulllogs each bind
+//         SCREEN_METRICS once, to its dataset (production-fulllogs shares production's).
+//   P-W   the watch is on exactly when there is something to watch: if production carries a route or a custom domain,
+//         .github/workflows/screen-logs-watch.yml must carry a schedule trigger; with no route, it must carry none.
 //
 //   npx tsx scripts/check-screen.ts              exit 0 PASS, 1 FAIL, 2 BLIND (an input the check cannot read)
 //   npx tsx scripts/check-screen.ts --selftest   the real check must PASS; then each sabotage, on a TEMP COPY that
-//        is asserted to differ from its source, must FAIL exactly as predicted (F1s, F3s, F2s, T2s, P3s, O1s).
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+//        is asserted to differ from its source, must FAIL exactly as predicted (F1s, F3s, F2s, T2s, P3s, O1s, O2s, O4s, Ws).
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -28,6 +35,7 @@ const OTA = join(REPO, "src", "OtaUpdater.cpp");
 const GATE = join(PROXY, "src", "screen", "gate.ts");
 const RELEASE = join(PROXY, "src", "screen", "release.ts");
 const TOML = join(PROXY, "screen.wrangler.toml");
+const WATCH = join(REPO, ".github", "workflows", "screen-logs-watch.yml");
 
 type Tier = "free" | "cloud" | "plus";
 type Firmware = { released: number } | { waitsFor: number | "unscheduled" };
@@ -187,7 +195,108 @@ function checkObservability(tomlSrc: string): Result {
   };
 }
 
-interface Inputs { indexSrc: string; otaSrc: string; gatePath: string; releasePath: string; tomlSrc: string }
+/** `[env.<name>.define]` KEY = "<value>": the value's text per env (the JS expression wrangler substitutes). */
+function defineValues(tomlSrc: string, key: string): Map<string, string> {
+  const out = new Map<string, string>();
+  let env: string | null = null;
+  for (const raw of tomlSrc.split("\n")) {
+    const line = raw.replace(/#.*$/, "").trim();
+    const head = /^\[env\.([a-z0-9-]+)\.define\]$/.exec(line);
+    if (head) { env = head[1]; continue; }
+    if (line.startsWith("[")) { env = null; continue; }
+    const kv = env ? new RegExp(`^${key}\\s*=\\s*"(.*)"$`).exec(line) : null;
+    if (env && kv) out.set(env, kv[1]);
+  }
+  return out;
+}
+
+/** P-O2 and P-O3: each env's stamped LOGS_RATE equals what it samples at, and the full-logs day exists at 1.0. */
+function checkRates(tomlSrc: string): Result {
+  const envs = observabilityEnvs(tomlSrc);
+  const rates = defineValues(tomlSrc, "LOGS_RATE");
+  const failures: string[] = [];
+  let matched = 0;
+  for (const [env, e] of envs) {
+    if (env === "top") continue;
+    const d = rates.get(env);
+    if (d === undefined) { failures.push(`P-O2: ${env} has no LOGS_RATE define`); continue; }
+    if (Number(d) !== Number(e.rate)) failures.push(`P-O2: ${env} LOGS_RATE is ${Number(d)}, head_sampling_rate is ${Number(e.rate)}`);
+    else matched++;
+  }
+  const fl = envs.get("production-fulllogs");
+  if (!fl) failures.push("P-O3: no [env.production-fulllogs] observability section");
+  else if (Number(fl.rate) !== 1) failures.push(`P-O3: production-fulllogs head_sampling_rate is ${Number(fl.rate)}, want 1`);
+  return {
+    verdict: failures.length ? "FAIL" : "PASS",
+    lines: [`P-O2: LOGS_RATE equals the sampled rate in ${matched} env(s); P-O3: production-fulllogs ${fl ? `at ${Number(fl.rate)}` : "absent"}`],
+    failures,
+  };
+}
+
+/**
+ * P-O4: the unsampled counter has somewhere to write. metrics.ts writes only `if (env.SCREEN_METRICS)`, so an env without
+ * the binding deploys the write site (P-M2 passes) and counts nothing. Each env in METRICS_DATASETS that exists binds
+ * SCREEN_METRICS exactly once, to its dataset; production-fulllogs shares production's. An absent env is P-O3's to name.
+ */
+const METRICS_DATASETS: Record<string, string> = { staging: "blipscope_screen_staging", production: "blipscope_screen", "production-fulllogs": "blipscope_screen" };
+function metricsBindings(tomlSrc: string): Map<string, Array<{ binding?: string; dataset?: string }>> {
+  const out = new Map<string, Array<{ binding?: string; dataset?: string }>>();
+  let cur: { binding?: string; dataset?: string } | null = null;
+  for (const raw of tomlSrc.split("\n")) {
+    const line = raw.replace(/#.*$/, "").trim();
+    const head = /^\[\[env\.([a-z0-9-]+)\.analytics_engine_datasets\]\]$/.exec(line);
+    if (head) {
+      cur = {};
+      out.set(head[1], [...(out.get(head[1]) ?? []), cur]);
+      continue;
+    }
+    if (line.startsWith("[")) { cur = null; continue; }
+    const kv = /^(binding|dataset)\s*=\s*"([^"]*)"$/.exec(line);
+    if (cur && kv) cur[kv[1] as "binding" | "dataset"] = kv[2];
+  }
+  return out;
+}
+function checkMetrics(tomlSrc: string): Result {
+  const envs = observabilityEnvs(tomlSrc);
+  const bound = metricsBindings(tomlSrc);
+  const failures: string[] = [];
+  let present = 0, good = 0;
+  for (const [env, want] of Object.entries(METRICS_DATASETS)) {
+    if (!envs.has(env)) continue;
+    present++;
+    const b = (bound.get(env) ?? []).filter((x) => x.binding === "SCREEN_METRICS");
+    if (b.length === 0) failures.push(`P-O4: ${env} has no SCREEN_METRICS binding`);
+    else if (b.length > 1) failures.push(`P-O4: ${env} has ${b.length} SCREEN_METRICS bindings`);
+    else if (b[0].dataset !== want) failures.push(`P-O4: ${env} SCREEN_METRICS writes to ${b[0].dataset ?? "(no dataset)"}, want ${want}`);
+    else good++;
+  }
+  return { verdict: failures.length ? "FAIL" : "PASS", lines: [`P-O4: SCREEN_METRICS bound in ${good} of ${present} env(s)`], failures };
+}
+
+/** Does production carry a route or a custom domain? A [[env.production.routes]] table, or a routes/route key in [env.production]. */
+function productionHasRoute(tomlSrc: string): boolean {
+  let inProd = false;
+  for (const raw of tomlSrc.split("\n")) {
+    const line = raw.replace(/#.*$/, "").trim();
+    if (/^\[\[env\.production\.routes?\]\]$/.test(line)) return true;
+    if (line.startsWith("[")) { inProd = line === "[env.production]"; continue; }
+    if (inProd && /^(routes|route)\s*=/.test(line)) return true;
+  }
+  return false;
+}
+
+/** P-W: the watch is scheduled exactly when production has a route to watch. */
+function checkWatch(tomlSrc: string, workflowSrc: string | null): Result {
+  if (workflowSrc === null) return { verdict: "FAIL", lines: [], failures: ["P-W: .github/workflows/screen-logs-watch.yml is absent"] };
+  const route = productionHasRoute(tomlSrc);
+  const schedule = workflowSrc.split("\n").some((l) => /^\s*schedule\s*:/.test(l.replace(/#.*$/, "")));
+  const failures: string[] = [];
+  if (route && !schedule) failures.push("P-W: production carries a route but screen-logs-watch.yml has no schedule");
+  if (!route && schedule) failures.push("P-W: screen-logs-watch.yml has a schedule but production carries no route");
+  return { verdict: failures.length ? "FAIL" : "PASS", lines: [`P-W: production route ${route ? "yes" : "no"}, watch schedule ${schedule ? "yes" : "no"}`], failures };
+}
+
+interface Inputs { indexSrc: string; otaSrc: string; gatePath: string; releasePath: string; tomlSrc: string; workflowSrc: string | null }
 async function runAll(inp: Inputs): Promise<Result> {
   const mapMod = await import(pathToFileURL(join(PROXY, "src", "screen", "map.ts")).href) as { SCREEN_MAP: readonly Row[]; RELEASE_URL: string };
   const gate = await import(pathToFileURL(inp.gatePath).href) as GateMod;
@@ -200,12 +309,18 @@ async function runAll(inp: Inputs): Promise<Result> {
     checkTierGate(gate),
     await checkMemo(rel),
     checkObservability(inp.tomlSrc),
+    checkRates(inp.tomlSrc),
+    checkMetrics(inp.tomlSrc),
+    checkWatch(inp.tomlSrc, inp.workflowSrc),
   ];
   const verdict = parts.some((p) => p.verdict === "BLIND") ? "BLIND" : parts.some((p) => p.verdict === "FAIL") ? "FAIL" : "PASS";
   return { verdict, lines: parts.flatMap((p) => p.lines), failures: parts.flatMap((p) => p.failures) };
 }
 
-const real = (): Inputs => ({ indexSrc: readFileSync(INDEX, "utf8"), otaSrc: readFileSync(OTA, "utf8"), gatePath: GATE, releasePath: RELEASE, tomlSrc: readFileSync(TOML, "utf8") });
+const real = (): Inputs => ({
+  indexSrc: readFileSync(INDEX, "utf8"), otaSrc: readFileSync(OTA, "utf8"), gatePath: GATE, releasePath: RELEASE,
+  tomlSrc: readFileSync(TOML, "utf8"), workflowSrc: existsSync(WATCH) ? readFileSync(WATCH, "utf8") : null,
+});
 
 /** A sabotaged copy of one source file, written to a temp dir; refuses if the edit did not change the text. */
 function sabotagedCopy(dir: string, src: string, name: string, edit: (s: string) => string): string {
@@ -254,11 +369,25 @@ async function selftest(): Promise<number> {
     // P3s: a parser that accepts a trailing letter, in a copy of release.ts.
     const r3 = sabotagedCopy(dir, RELEASE, "release-p3s.ts", (s) => s.replace("/*P-F3*/", "/*P-F3*/ text = text.replace(/[a-z]$/, \"\");"));
     expect("P3s", await runAll({ ...real(), releasePath: r3 }), [`P-F3 parse "20x"`]);
-    // O1s: production's sampling put back to 1.0 in a copy of screen.wrangler.toml.
+    // O1s: production's sampling put back to 1.0 in a copy of screen.wrangler.toml -- its LOGS_RATE define moved with it,
+    // so P-O2 still holds and only P-O1 (the owner's 0.1) can see it.
     const toml = readFileSync(TOML, "utf8");
-    const tomlSab = toml.replace(/(\[env\.production\.observability\]\n(?:[^[\n].*\n)*?head_sampling_rate = )[0-9.]+/, "$11.0");
+    const setProdDefine = (s: string, v: string) => s.replace(/(\[env\.production\.define\]\n(?:[^[\n].*\n)*?LOGS_RATE = ")[^"]*"/, `$1${v}"`);
+    const tomlSab = setProdDefine(toml.replace(/(\[env\.production\.observability\]\n(?:[^[\n].*\n)*?head_sampling_rate = )[0-9.]+/, "$11.0"), "1.0");
     if (tomlSab === toml) throw new Error("sabotage O1s: the edit did not apply");
     expect("O1s", await runAll({ ...real(), tomlSrc: tomlSab }), ["P-O1: production head_sampling_rate is 1, want 0.1"]);
+    // O2s: production's LOGS_RATE define alone moved to 1.0 -- /health would report 1.0 while the env samples 0.1.
+    const tomlO2 = setProdDefine(toml, "1.0");
+    if (tomlO2 === toml) throw new Error("sabotage O2s: the edit did not apply");
+    expect("O2s", await runAll({ ...real(), tomlSrc: tomlO2 }), ["P-O2: production LOGS_RATE is 1, head_sampling_rate is 0.1"]);
+    // O4s: production's counter binding removed -- the write site still deploys, and counts nothing.
+    const prodBinding = "[[env.production.analytics_engine_datasets]]\nbinding = \"SCREEN_METRICS\"\ndataset = \"blipscope_screen\"\n";
+    if (toml.split(prodBinding).length !== 2) throw new Error("sabotage O4s: production's binding table is not there exactly once");
+    expect("O4s", await runAll({ ...real(), tomlSrc: toml.replace(prodBinding, "") }), ["P-O4: production has no SCREEN_METRICS binding"]);
+    // Ws: a production custom domain with the watch still unscheduled -- the domain PR landing without the watch.
+    const tomlW = toml.replace("[env.production]\n", "[env.production]\nroute = { pattern = \"screen.example.test\", custom_domain = true }\n");
+    if (tomlW === toml) throw new Error("sabotage Ws: the edit did not apply");
+    expect("Ws", await runAll({ ...real(), tomlSrc: tomlW }), ["P-W: production carries a route but screen-logs-watch.yml has no schedule"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -273,7 +402,7 @@ async function main(): Promise<number> {
   r.failures.forEach((f) => console.log(`FAIL ${f}`));
   const routes = routesFromIndex(readFileSync(INDEX, "utf8")).length;
   console.log(r.verdict === "PASS"
-    ? `PASS (P-F1 ${routes} routes; P-F3 URL + ${PARSE_CASES.length} parser cases; P-F2 ${FW_ROWS.length * READS.length}; P-T2 ${CTXS.length * TIERS.length}; memo 3; P-O1 ${observabilityEnvs(readFileSync(TOML, "utf8")).size} envs)`
+    ? `PASS (P-F1 ${routes} routes; P-F3 URL + ${PARSE_CASES.length} parser cases; P-F2 ${FW_ROWS.length * READS.length}; P-T2 ${CTXS.length * TIERS.length}; memo 3; P-O1 ${observabilityEnvs(readFileSync(TOML, "utf8")).size} envs; P-O2; P-O3; P-O4 ${Object.keys(METRICS_DATASETS).length} envs; P-W)`
     : r.verdict);
   return r.verdict === "PASS" ? 0 : r.verdict === "BLIND" ? 2 : 1;
 }
