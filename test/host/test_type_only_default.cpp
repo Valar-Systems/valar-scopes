@@ -89,7 +89,7 @@ static std::vector<std::string> parsePresets(const std::string& src)
 static std::vector<std::string> linesFor(const std::vector<Field>& t, const std::vector<bool>& enabled)
 {
     std::vector<const char*> keys;
-    bool willDraw[64];
+    bool willDraw[64] = {};
     for (size_t i = 0; i < t.size(); ++i) {
         keys.push_back(t[i].key.c_str());
         willDraw[i] = enabled[i];
