@@ -1016,9 +1016,9 @@ export const supportHtml = `<!DOCTYPE html>
        couldn't open a secure connection, which describes the device and not you.
        Counts only: numbers, never the aircraft or the callsign or the tail number they
        were about. The report is a short line of digits, sent at most once an hour
-       on a connection the device was already using. Each report is kept against the
-       device's identifier, so the counts belong to a device rather than being
-       anonymous. That identifier is a fixed code made from the device's hardware
+       on a connection the device was already using.
+       Each report is kept against the device's identifier, so the counts are tied to the device that sent them.
+       That identifier is a fixed code made from the device's hardware
        address (never the address itself), the same one the leaderboard uses.</p>
     <p>This changed in firmware 9. Earlier versions collected none of it and said so
        here; we would rather say plainly that it changed than quietly reword the old
