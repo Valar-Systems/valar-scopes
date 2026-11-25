@@ -177,7 +177,8 @@ export class DetailsCore {
     for (const { a, hex, cls } of kept) {
       if (cls === "private") {
         /*P-P1*/
-        aircraft.push({ ...a, hex: await this.privateIds.idFor(hex, day, publicHexes), cs: "", class: cls });
+        const { dbFlags: _named, ...typeOnly } = a; // "type only": dbFlags would name the program an owner joined (P-P5)
+        aircraft.push({ ...typeOnly, hex: await this.privateIds.idFor(hex, day, publicHexes), cs: "", class: cls });
         continue;
       }
       const row: Record<string, unknown> = { ...a, class: cls };
