@@ -110,15 +110,17 @@ namespace fonts {
 // (exact below 2^24). Text is [len, OP_TEXT, fg, bg (-1 none), x, y, sx, sy, offset, count] into
 // `text`. The page decodes this (site/radar.js); the order is the paint order.
 // A raster -- a sprite holding real pixels: the card's photo, or the frame's weather plane -- is [len, OP_RASTER, id,
-// x, y, w, h, hashLo, hashHi]: the page reads the pixels by id (web_raster_ptr), and the hash of those pixels rides in
-// the list, so whatever hashes a frame's list hashes the photo's content too (_handoffs/p4/web-photos/REG-web-photos.txt,
-// C5). The plane's pixels are byte-swapped 565 (_handoffs/p4/web-weather/REG-web-weather.txt, D1); the op names that
-// from D3 on.
+// x, y, w, h, hashLo, hashHi, format]: the page reads the pixels by id (web_raster_ptr), and the hash of those pixels
+// rides in the list, so whatever hashes a frame's list hashes the photo's content too
+// (_handoffs/p4/web-photos/REG-web-photos.txt, C5). The format says how each pixel's two bytes are stored: the photo's
+// are logical RGB565, the plane's the device's byte-swapped 565 (_handoffs/p4/web-weather/REG-web-weather.txt, D3,
+// A4.5). It is APPENDED, so every field before it keeps its position.
 enum Op : int {
     OP_FILL_SCREEN = 0, OP_LINE, OP_CIRCLE, OP_FILL_CIRCLE, OP_FILL_TRI, OP_FILL_RECT, OP_RECT,
     OP_FILL_RRECT, OP_RRECT, OP_FILL_ARC, OP_ARC, OP_TEXT, OP_PIXEL, OP_IMAGE, OP_ELLIPSE, OP_FILL_ELLIPSE,
     OP_RASTER
 };
+enum RasterFormat : int { RASTER_LOGICAL_565 = 0, RASTER_SWAPPED_565 = 1 };
 
 // A sprite wrapping its caller's buffer (setBuffer) takes fills and pixels into that buffer and nothing else: any
 // other draw would record a command the buffer never shows, so it stops here instead (REG-web-weather, A3.3).

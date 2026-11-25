@@ -44,8 +44,9 @@ void lgfx::LGFX_Sprite::pushSprite(int32_t, int32_t)
         // since, because every per-pixel write precedes every vector op (REG-web-weather, F1, D2). A frame that never
         // handed it out presents its list exactly as before.
         const uint64_t h = webphoto::Hash(reinterpret_cast<const uint8_t*>(pixels()), (size_t)w_ * (size_t)h_ * 2);
-        const float r[] = {9, (float)OP_RASTER, (float)rasterId(), 0, 0, (float)w_, (float)h_,
-                           (float)(uint32_t)(h & 0xFFFFFF), (float)(uint32_t)((h >> 24) & 0xFFFFFF)};
+        const float r[] = {10, (float)OP_RASTER, (float)rasterId(), 0, 0, (float)w_, (float)h_,
+                           (float)(uint32_t)(h & 0xFFFFFF), (float)(uint32_t)((h >> 24) & 0xFFFFFF),
+                           (float)RASTER_SWAPPED_565};
         dl_.ops.insert(dl_.ops.begin(), std::begin(r), std::end(r));
         dl_.imageCalls++;
     }
@@ -75,7 +76,8 @@ void lgfx::LGFX_Sprite::pushSprite(LGFX_Sprite* dst, int32_t x, int32_t y)
         // them by id, and their hash rides in the list so a frame's hash covers the photo's content.
         const uint64_t h = webphoto::Hash(reinterpret_cast<const uint8_t*>(pixels()), (size_t)w_ * (size_t)h_ * 2);
         dst->dl_.op({(float)OP_RASTER, (float)rasterId(), (float)x, (float)y, (float)w_, (float)h_,
-                     (float)(uint32_t)(h & 0xFFFFFF), (float)(uint32_t)((h >> 24) & 0xFFFFFF)});
+                     (float)(uint32_t)(h & 0xFFFFFF), (float)(uint32_t)((h >> 24) & 0xFFFFFF),
+                     (float)RASTER_LOGICAL_565});
     }
     for (size_t i = 0; i < v.size();) {
         const int len = (int)v[i];

@@ -8,6 +8,10 @@
 // /photo/ is the card's photo, fetched on a card open from the path the enrich reply names (the owner, 2026-11-24:
 // the website and the screens show full cards). Only this one prefix: a near miss (/v1/photo/, /photos/, /photo with
 // no slash, an absolute URL) is answered here like everything else (_handoffs/p4/web-photos/REG-web-photos.txt, C1).
+//
+// /wx/ is the radar's weather crop, asked only with wx-layer on (GetBytes, at WxPolicy's cadence). Only this one
+// prefix, with its near misses answered here as the photo's are (_handoffs/p4/web-weather/REG-web-weather.txt, D4,
+// A4.3).
 // std::string only, so test/host/test_web_route.cpp can compile it on its own.
 #include <string>
 
@@ -17,6 +21,7 @@ constexpr const char* kBlips = "/api/v1/blipscope/blips";
 constexpr const char* kEnrich = "/api/v1/blipscope/enrich/";
 constexpr const char* kAirports = "/api/v1/blipscope/airports";
 constexpr const char* kPhoto = "/api/v1/blipscope/photo/";
+constexpr const char* kWx = "/api/v1/blipscope/wx/";
 
 inline bool StartsWith(const std::string& s, const char* p) { return s.rfind(p, 0) == 0; }
 
@@ -24,11 +29,13 @@ inline bool IsBlips(const std::string& path) { return StartsWith(path, kBlips); 
 
 inline bool IsPhoto(const std::string& path) { return StartsWith(path, kPhoto); }
 
+inline bool IsWx(const std::string& path) { return StartsWith(path, kWx); }
+
 inline bool AirportsRemoteOn(const std::string& stored) { return stored == "true"; }
 
 inline bool Forwarded(const std::string& path, bool airportsRemote)
 {
-    if (StartsWith(path, kBlips) || StartsWith(path, kEnrich) || IsPhoto(path)) return true;
+    if (StartsWith(path, kBlips) || StartsWith(path, kEnrich) || IsPhoto(path) || IsWx(path)) return true;
     return airportsRemote && StartsWith(path, kAirports);
 }
 

@@ -65,7 +65,8 @@ function texts(mod) {
   return out;
 }
 
-// [len, OP_RASTER, id, x, y, w, h, hashLo, hashHi]
+// [len, OP_RASTER, id, x, y, w, h, hashLo, hashHi, format]: read by position, so the format appended by
+// REG-web-weather D3 (A4.5) moves nothing here
 function rasters(mod) {
   const ops = list(mod), out = [];
   for (let i = 0; i < ops.length; i += ops[i])

@@ -35,13 +35,19 @@ radar.setTextMode("smooth");                    // or "device" (the panel's glcd
   whose enrich reply names a `p` under that prefix, and drawn by the device's own JPEG decoder at the model's
   `SCREEN_SIZE`, unscaled (a photo of another size is clipped or margined, exactly as on the device). Serve the square
   at that size. `web_photo_shown()` names the photo on screen, so the page can draw its credit beside the canvas.
+- Optionally `GET /api/v1/blipscope/wx/<product>?lat=&lon=&r=`, the radar's weather crop: asked only with `wx-layer`
+  on, which the renderer's own settings keep off until weather's re-attach (parity: nothing public uses it before the
+  release that ships it), at the device's cadence (`include/WxPolicy.h`). Reply with the crop's bytes and its `ETag`
+  and `X-Wx-Max-Age` headers. Both are read, and the request is made with `cache: "no-cache"`, so the browser itself
+  revalidates the crop (_handoffs/p4/web-weather/REG-web-weather.txt, D4).
 
 **What the renderer never does:**
 - It requests nothing else from anywhere, including `/config` and `/airports`.
 - It sends no header.
 - It posts nothing.
-- It uses no eval (it is linked with `-sDYNAMIC_EXECUTION=0`), no storage of any kind and no cookies, and it has no
-  inline script. Every file comes from a URL the page passes.
+- It uses no eval (it is linked with `-sDYNAMIC_EXECUTION=0`), no page storage (localStorage, sessionStorage,
+  IndexedDB, Cache Storage) and no cookies; weather replies may sit in the browser's own HTTP cache, revalidated on
+  every poll. It has no inline script. Every file comes from a URL the page passes.
 
 These are checked on the built files in CI by `check_site_rules.mjs`, which plants each pattern in a copy and must
 catch it.

@@ -95,20 +95,23 @@ export class Renderer {
         case OP.IMAGE:
           ctx.fillStyle = "#202020"; ctx.fillRect(ops[a], ops[a + 1], ops[a + 2], ops[a + 3]); break;
         case OP.TEXT: this.text(ctx, ops, i + 2, textBase); break;
-        case OP.RASTER: this.raster(ctx, ops, i + 2); break;
+        case OP.RASTER: this.raster(ctx, ops, i + 2, len); break;
       }
       i += len;
     }
     ctx.restore();
   }
 
-  // [id, x, y, w, h, hashLo, hashHi]: a sprite's real RGB565 pixels -- the card's photo -- read from the module by id
-  // and expanded as the shim expands a 565 colour, so a photo pixel and a vector colour of the same value agree. Drawn
-  // through the panel transform, unsmoothed: one panel pixel stays one block, as on the glass. Re-read only when the
-  // pixels' hash changes.
-  raster(ctx, ops, b) {
+  // [id, x, y, w, h, hashLo, hashHi, format]: a sprite's real RGB565 pixels -- the card's photo, or the frame's weather
+  // plane -- read from the module by id and expanded as the shim expands a 565 colour, so a raster pixel and a vector
+  // colour of the same value agree. The format, appended (_handoffs/p4/web-weather/REG-web-weather.txt, D3, A4.5): 0
+  // the photo's logical RGB565, 1 the plane's byte-swapped 565 as the device stores it; an op without it (length 9)
+  // reads as 0. Drawn through the panel transform, unsmoothed: one panel pixel stays one block, as on the glass.
+  // Re-read only when the pixels' hash or their format changes.
+  raster(ctx, ops, b, len) {
     const id = ops[b], x = ops[b + 1], y = ops[b + 2], w = ops[b + 3], h = ops[b + 4];
-    const key = `${ops[b + 5]}:${ops[b + 6]}:${w}x${h}`;
+    const swapped = len >= 10 && ops[b + 7] === 1;
+    const key = `${ops[b + 5]}:${ops[b + 6]}:${w}x${h}:${swapped ? 1 : 0}`;
     this.rasters = this.rasters || new Map();
     let hit = this.rasters.get(id);
     if (!hit || hit.key !== key) {
@@ -118,7 +121,7 @@ export class Renderer {
         : Object.assign(document.createElement("canvas"), { width: w, height: h });
       const g = c.getContext("2d"), img = g.createImageData(w, h), d = img.data, u8 = this.m.HEAPU8;
       for (let i = 0, q = p; i < w * h; i++, q += 2) {
-        const v = u8[q] | (u8[q + 1] << 8);
+        const v = swapped ? (u8[q] << 8) | u8[q + 1] : u8[q] | (u8[q + 1] << 8);
         const r5 = (v >> 11) & 31, g6 = (v >> 5) & 63, b5 = v & 31;
         d[4 * i] = (r5 << 3) | (r5 >> 2); d[4 * i + 1] = (g6 << 2) | (g6 >> 4); d[4 * i + 2] = (b5 << 3) | (b5 >> 2);
         d[4 * i + 3] = 255;
