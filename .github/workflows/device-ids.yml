@@ -126,6 +126,11 @@ jobs:
       - run: python3 scripts/check_wrangler_calls.py --selftest
       - run: python3 scripts/check_wrangler_calls.py
       - run: node proxy/scripts/wrangler-run.mjs --selftest
+      # Every R2 bucket and Worker our wrangler configs name has an account-budget row (scripts/check_budget_names.py): the
+      # reader's own tables are imported, so a bucket added to a config without a row fails HERE, not on the first billed
+      # read. Here and not in account-budget.yml, whose path filter does not include the wrangler configs.
+      - run: python3 scripts/check_budget_names.py --selftest
+      - run: python3 scripts/check_budget_names.py
       # The fresh-boot hands-on cadence (RELEASING.md step 0; docs/fresh-boot-automation.md): its five registered
       # controls on a synthetic repository. Only the selftest runs here: a real read needs the release tags, which this
       # job's shallow checkout does not fetch. scripts/fresh-boot-auto.sh runs the real read before every automated step 0.
