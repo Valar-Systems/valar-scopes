@@ -775,7 +775,8 @@ anchor control. That survives a rebuild; a sha does not.
 
 ## Standing practice: a default only reaches keys that were never saved
 
-**Changing a `defaultOn` in firmware reaches factory-fresh devices and nobody
+**Changing a `defaultOn` in firmware reaches factory-fresh devices and boards
+that have never pressed Save, and nobody
 else.** The config page posts the WHOLE form, and an unchecked box is simply
 absent from the body — so `SaveToggle()` writes an explicit `"false"` for it. From
 that moment the key has a value, and no future default can reach it:
