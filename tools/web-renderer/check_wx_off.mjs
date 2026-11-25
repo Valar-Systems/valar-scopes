@@ -37,17 +37,24 @@ export function check(dir) {
   const map = config.match(/static std::map<std::string, std::string> m = \{([\s\S]*?)\n\s*\};/);
   if (!map) return { code: 2, why: "the web config's settings map was not found: re-derive" };
   const entries = [...map[1].matchAll(/\{\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\}/g)].map((m) => [m[1], m[2]]);
-  const wx = entries.filter(([k]) => k === "wx-layer");
-  if (wx.length === 0)
-    return { code: 1, why: "the web config has no wx-layer entry, and the firmware reads an absent key as ON " +
-                           "while getBuffer() is a stand-in: the per-pixel layer cannot run on the website" };
-  const on = wx.filter(([, v]) => v !== "false");
-  if (on.length)
-    return { code: 1, why: `the web config turns wx-layer on (${on.map(([, v]) => JSON.stringify(v)).join(", ")}) ` +
-                           "while getBuffer() is a stand-in: the per-pixel layer cannot run on the website" };
-  return { code: 0, why: `wx-layer "false" in the web config's map (${entries.length} entries); ` +
+  // Step D (E2, docs/blipscope-map-client-steps.md "Step D's other half" (e)): the map and its town names too. Both read
+  // ON when absent (DO1, DN1), and the website compiles no map, so "false" in writing keeps a later build that does from
+  // inheriting ON.
+  for (const key of OFF_KEYS) {
+    const got = entries.filter(([k]) => k === key);
+    if (got.length === 0)
+      return { code: 1, why: `the web config has no ${key} entry, and the firmware reads an absent key as ON ` +
+                             "while getBuffer() is a stand-in: the per-pixel layer cannot run on the website" };
+    const on = got.filter(([, v]) => v !== "false");
+    if (on.length)
+      return { code: 1, why: `the web config turns ${key} on (${on.map(([, v]) => JSON.stringify(v)).join(", ")}) ` +
+                             "while getBuffer() is a stand-in: the per-pixel layer cannot run on the website" };
+  }
+  return { code: 0, why: `${OFF_KEYS.join(", ")} "false" in the web config's map (${entries.length} entries); ` +
                          "getBuffer() is the stand-in" };
 }
+
+export const OFF_KEYS = ["wx-layer", "map-layer", "map-names"];
 
 function sha(p) { return crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex"); }
 
@@ -82,6 +89,19 @@ function selftest() {
     fs.writeFileSync(cfgA, srcA.replace(entry, "/* PLANT: the entry removed */"));
     if (fs.readFileSync(cfgA, "utf8") === srcA) { console.log("RIG: the plant did not apply"); return 2; }
     cases.push(['plant: the wx-layer entry removed from a copy of the web config', absent, 1]);
+    // Step D's four (E2): either map entry removed, either set "true".
+    for (const key of ["map-layer", "map-names"]) {
+      const entryM = `{"${key}", "false"},`;
+      for (const [tag, repl] of [["absent", `/* PLANT: the ${key} entry removed */`], ["true", `{"${key}", "true"},`]]) {
+        const d = copy(`${key}-${tag}`);
+        const f = path.join(d, "web", "web_config.cpp");
+        const s = fs.readFileSync(f, "utf8");
+        if (s.split(entryM).length !== 2) { console.log(`RIG: the plant's anchor ${entryM} occurs ${s.split(entryM).length - 1} times, need 1`); return 2; }
+        fs.writeFileSync(f, s.replace(entryM, repl));
+        if (fs.readFileSync(f, "utf8") === s) { console.log("RIG: the plant did not apply"); return 2; }
+        cases.push([`plant: the ${key} entry ${tag === "absent" ? "removed" : 'set "true"'} in a copy of the web config`, d, 1]);
+      }
+    }
     for (const [label, dir, want] of cases) {
       const r = check(dir);
       const ok = r.code === want;
