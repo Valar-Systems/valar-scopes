@@ -14,10 +14,10 @@
  * that moment the key has a value, and no future change to `defaultOn` can ever
  * reach that device again.
  *
- * So the first time a customer saves ANYTHING -- and setting a location, which
- * every device needs, is a whole-form save -- the defaults in force that day are
- * frozen into their NVS as explicit values. Changing a default in firmware
- * afterwards is a change for factory-fresh boards only.
+ * So the first time a customer presses Save on the config page (it declares
+ * every checkbox; since v15 "Use my location" writes only the location) the
+ * defaults in force that day are frozen into their NVS as explicit values. A
+ * changed default reaches only the boards that never pressed Save.
  *
  * That is why #238 (aircraft type + operator ship on) could not reach a single
  * configured device, and why it needed this rather than another default change.
