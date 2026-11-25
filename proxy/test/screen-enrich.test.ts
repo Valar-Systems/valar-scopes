@@ -142,6 +142,10 @@ let screenKvWrites = 0;
 let droppedSeen = 0;
 
 let clock = T0;
+// Every harness of the running test, so afterEach can drain its background work even when an assertion threw first.
+// Without that, a FAILING test leaves resolutions in flight, the pool cannot pop its isolated storage, and the whole
+// file aborts -- which turns one red into a truncated run (the first sabotage pass, screen-enrich-red.md).
+const live: Array<{ settle(): Promise<void> }> = [];
 function harness(opts: { vars?: Record<string, string>; feed?: Record<string, unknown>; kvThrowOn?: string } = {}) {
   const DO = X.ScreenDetailsDO!.prototype; // red until the export exists: TypeError, per test
   const feed = { reads: 0, answer: opts.feed ?? feedAnswer(FIXTURE), snapshot: async () => { feed.reads++; return structuredClone(feed.answer); } };
@@ -167,6 +171,7 @@ function harness(opts: { vars?: Record<string, string>; feed?: Record<string, un
   });
   const settle = async () => { while (pending.length) await Promise.allSettled(pending.splice(0)); };
   const stats = async () => (await DO.stats.call(doSelf)).kvWritesDropped;
+  live.push({ settle });
   return { feed, kvRec, gaps, counter, pending, doCalls, loc: location(), location, settle, stats };
 }
 type Self = { env: object };
@@ -194,7 +199,8 @@ beforeEach(() => {
   __resetReleaseMemoForTests();
   __resetBreakersForTests();
 });
-afterEach(() => {
+afterEach(async () => {
+  while (live.length) await live.pop()!.settle();
   X.__setClockForTests?.(undefined);
   X.__tapEnrichRequestForTests?.(undefined);
   vi.restoreAllMocks();
