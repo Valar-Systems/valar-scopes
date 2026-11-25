@@ -29,9 +29,13 @@ CLASS_B = {"HeadBucket", "HeadObject", "GetObject", "UsageSummary", "GetBucketEn
            "GetBucketCors", "GetBucketLifecycleConfiguration"}
 SCRIPT = {"blipscope-proxy": "proxy", "blipscope-proxy-staging": "proxy-staging", "blipscope-wx-ingest": "cref",
           "blipscope-wx-ingest-dev": "wx-dev", "blipscope-basemap-staging": "basemap-staging",
-          "valarscopes-app": "kiosk", "valarscopes-site": "kiosk"}
+          "blipscope-basemap": "basemap-production", "valarscopes-app": "kiosk", "valarscopes-site": "kiosk"}
 BUCKET = {"missileer-live": "missileer-live", "missileer-clips": "missileer-clips", "blipscope-wx-dev": "wx-dev",
-          "blipscope-basemap-pkg-staging": "basemap-staging", "blipscope-basemap": "basemap-bucket", "": "account-level"}
+          "blipscope-basemap-pkg-staging": "basemap-staging", "blipscope-basemap": "basemap-bucket",
+          "blipscope-basemap-pkg": "basemap-production", "": "account-level"}
+# Buckets attributed by their own rule below, not by BUCKET (docs/account-budget.md section 2): blipscope-wx is shared by the
+# ingests and the proxy's /wx serving. scripts/check_budget_names.py reads BUCKET and this set, so both rules are checked.
+SHARED_BUCKETS = {"blipscope-wx"}
 KV_NS = {"733bf90056104f56be9492e62450a0bf": "proxy", "8b6e92ed802a4192b6b6c1399fdf96aa": "proxy-staging"}   # wrangler.toml (public)
 
 
@@ -93,7 +97,7 @@ def main():
         cls = "r2_class_a" if act in CLASS_A else "r2_class_b" if act in CLASS_B else None
         if cls is None:
             continue   # free operations (deletes, aborts)
-        if bk == "blipscope-wx":
+        if bk in SHARED_BUCKETS:
             # Shared (docs/account-budget.md section 2). Class A: the proxy never writes it, so it is the ingests'. In a
             # silent read that is cref alone; in any other read it is cref and the ten together, which this tool does not
             # split by guess. Class B: the ingests plus the proxy's /wx serving, which R2 cannot separate.
@@ -146,7 +150,7 @@ def main():
             rows.append({"product": p, "state": s, "allowance": al, "value": month, "read": rid, "basis": "measured",
                          "how": f"{a}..{b} ({hours:g} h) x {k:g}"})
     for bk, by in sorted(store.items()):
-        p = "blipscope-wx-reads" if bk == "blipscope-wx" else BUCKET.get(bk, "unattributed")
+        p = "blipscope-wx-reads" if bk in SHARED_BUCKETS else BUCKET.get(bk, "unattributed")
         if p == "blipscope-wx-reads":
             p = "cref+opera-ten" if opera_state != "silent" else "cref"   # storage is written by the ingests
         if p == "unattributed":

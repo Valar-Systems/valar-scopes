@@ -179,6 +179,14 @@
     "now"
    ]
   },
+  "basemap-production": {
+   "label": "basemap production (D4): the builder blipscope-basemap and its package bucket blipscope-basemap-pkg (docs/account-budget.md section 12); 'off' until D4",
+   "states": [
+    "off",
+    "on-before-v20",
+    "on-v20"
+   ]
+  },
   "wx-dev": {
    "label": "dev ingest, parked (blipscope-wx-ingest-dev; blipscope-wx-dev)",
    "states": [
@@ -214,22 +222,26 @@
   "before shsr": {
    "opera-ten": "silent",
    "shsr": "absent",
-   "missileer-live": "now"
+   "missileer-live": "now",
+   "basemap-production": "off"
   },
   "today": {
    "opera-ten": "silent",
    "shsr": "built",
-   "missileer-live": "now"
+   "missileer-live": "now",
+   "basemap-production": "off"
   },
   "OPERA running": {
    "opera-ten": "running",
    "shsr": "absent",
-   "missileer-live": "now"
+   "missileer-live": "now",
+   "basemap-production": "off"
   },
   "OPERA running + shsr": {
    "opera-ten": "running",
    "shsr": "built",
-   "missileer-live": "now"
+   "missileer-live": "now",
+   "basemap-production": "off"
   },
   "Nov none": {
    "month": "2026-11",
@@ -243,7 +255,8 @@
      "from": "2026-11-13T06:16:00Z"
     }
    ],
-   "missileer-live": "now"
+   "missileer-live": "now",
+   "basemap-production": "off"
   },
   "Nov none + weather": {
    "month": "2026-11",
@@ -261,7 +274,8 @@
      "from": "2026-11-17T00:00:00Z"
     }
    ],
-   "missileer-live": "now"
+   "missileer-live": "now",
+   "basemap-production": "off"
   },
   "Nov none + Missileer": {
    "month": "2026-11",
@@ -283,7 +297,8 @@
      "state": "cut",
      "from": "2026-11-17T00:00:00Z"
     }
-   ]
+   ],
+   "basemap-production": "off"
   },
   "Nov fallback": {
    "month": "2026-11",
@@ -305,7 +320,8 @@
      "from": "2026-11-13T06:16:00Z"
     }
    ],
-   "missileer-live": "now"
+   "missileer-live": "now",
+   "basemap-production": "off"
   },
   "Nov fallback + weather": {
    "month": "2026-11",
@@ -331,7 +347,8 @@
      "from": "2026-11-17T00:00:00Z"
     }
    ],
-   "missileer-live": "now"
+   "missileer-live": "now",
+   "basemap-production": "off"
   },
   "Nov fallback + Missileer": {
    "month": "2026-11",
@@ -361,43 +378,50 @@
      "state": "cut",
      "from": "2026-11-17T00:00:00Z"
     }
-   ]
+   ],
+   "basemap-production": "off"
   },
   "Dec none": {
    "month": "2026-12",
    "opera-ten": "silent",
    "shsr": "built",
-   "missileer-live": "now"
+   "missileer-live": "now",
+   "basemap-production": "off"
   },
   "Dec none + weather": {
    "month": "2026-12",
    "opera-ten": "silent",
    "shsr": "built-no-list",
-   "missileer-live": "now"
+   "missileer-live": "now",
+   "basemap-production": "off"
   },
   "Dec none + Missileer": {
    "month": "2026-12",
    "opera-ten": "silent",
    "shsr": "built",
-   "missileer-live": "cut"
+   "missileer-live": "cut",
+   "basemap-production": "off"
   },
   "Dec fallback": {
    "month": "2026-12",
    "opera-ten": "running",
    "shsr": "built",
-   "missileer-live": "now"
+   "missileer-live": "now",
+   "basemap-production": "off"
   },
   "Dec fallback + weather": {
    "month": "2026-12",
    "opera-ten": "running",
    "shsr": "built-no-list",
-   "missileer-live": "now"
+   "missileer-live": "now",
+   "basemap-production": "off"
   },
   "Dec fallback + Missileer": {
    "month": "2026-12",
    "opera-ten": "running",
    "shsr": "built",
-   "missileer-live": "cut"
+   "missileer-live": "cut",
+   "basemap-production": "off"
   }
  },
  "reads": {
