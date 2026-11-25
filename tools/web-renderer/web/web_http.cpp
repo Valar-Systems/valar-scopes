@@ -10,7 +10,7 @@
 //     request;
 //   - every Post() is answered here with 404 and no request (the leaderboard, ntfy, reports).
 // A fetch runs in the browser while the calling task's fiber yields frame by frame (web_rtos.cpp); 15 s without
-// an answer reads as status 0, the way a dead socket reads on the device.
+// an answer reads as status 0, the way a dead socket reads on the device, and aborts the browser's request.
 #include "HttpRequestManager.h"
 #include "web_route.h"     // which requests are forwarded (docs/web-kiosk-airfield.md)
 #include "web_photo.h"     // the card's photo: which fetched bytes came from which path
@@ -20,16 +20,23 @@
 #include <string>
 
 // ---- the page's half (render.js may install Module.blipscopeFetch; the default is a same-origin fetch) ----
+// Every fetch carries its own AbortController's signal, and a drop aborts it (_handoffs/p4/web-abort/
+// REG-web-fetch-abort.txt, F1-F3): a request the firmware has stopped waiting for must not keep holding one of the
+// browser's connections to the origin (6 per host at HTTP/1.1). The page's own fetch receives the same init as its
+// second argument, and must pass init.signal on to its own fetch() for that to hold.
 EM_JS(int, js_fetch_start, (const char* url), {
     const u = UTF8ToString(url);
     Module._webFetches = Module._webFetches || new Map();
     Module._webFetchId = (Module._webFetchId || 0) + 1;
     const id = Module._webFetchId;
-    const rec = { done: false, status: 0, body: new Uint8Array(0) };
+    const ctl = typeof AbortController === "function" ? new AbortController() : null;
+    const rec = { done: false, status: 0, body: new Uint8Array(0), ctl: ctl };
     Module._webFetches.set(id, rec);
-    const run = Module.blipscopeFetch || ((x) => fetch(x, { credentials: "omit", cache: "no-store" })
+    const init = { credentials: "omit", cache: "no-store" };
+    if (ctl) init.signal = ctl.signal;
+    const run = Module.blipscopeFetch || ((x, i) => fetch(x, i)
         .then(async (r) => ({ status: r.status, body: new Uint8Array(await r.arrayBuffer()) })));
-    Promise.resolve().then(() => run(u)).then((r) => {
+    Promise.resolve().then(() => run(u, init)).then((r) => {
         rec.status = r.status | 0;
         rec.body = r.body instanceof Uint8Array ? r.body : new TextEncoder().encode(String(r.body || ""));
         rec.done = true;
@@ -49,7 +56,13 @@ EM_JS(void, js_fetch_take, (int id, char* dst, int len), {
     if (rec) HEAPU8.set(rec.body.subarray(0, len), dst);
     Module._webFetches.delete(id);
 });
-EM_JS(void, js_fetch_drop, (int id), { if (Module._webFetches) Module._webFetches.delete(id); });
+// A drop (the 15 s timeout below) aborts the browser request, then forgets it. The abort rejects into the reject
+// handler above, on a record already deleted, so nothing reads it (F3).
+EM_JS(void, js_fetch_drop, (int id), {
+    const rec = Module._webFetches && Module._webFetches.get(id);
+    if (rec && rec.ctl) rec.ctl.abort();
+    if (Module._webFetches) Module._webFetches.delete(id);
+});
 
 namespace web {
 String g_cloudBase;                 // web_config.cpp: the firmware's "cloud-url", which only this file reads

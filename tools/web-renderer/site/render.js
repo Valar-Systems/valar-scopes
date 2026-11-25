@@ -218,7 +218,9 @@ export async function mount(canvas, options) {
   const factory = await factoryFor(opts);
   const mod = await factory({
     locateFile: (f) => (f.endsWith(".wasm") ? opts.wasmUrl : f),
-    blipscopeFetch: opts.fetch,   // optional: a page-supplied answerer (a demo scene); default is a same-origin fetch
+    blipscopeFetch: opts.fetch,   // optional: a page-supplied answerer (a demo scene); default is a same-origin fetch.
+                                  // Called as fetch(url, init): a page fetch that reaches the network must pass
+                                  // init.signal on, so a request the firmware drops is aborted (REG-web-fetch-abort).
     print: opts.log || (() => {}),
     printErr: opts.log || (() => {}),
   });
