@@ -146,10 +146,12 @@ int main()
     check(ResolveToggle("", MAP_DEFAULT_ON), "DOC1 map: unset (empty) -> ON");
     check(ResolveToggle("true", MAP_DEFAULT_ON), "DOC1 map: true -> ON");
     check(!ResolveToggle("false", MAP_DEFAULT_ON), "DOC1 map: false -> OFF (the control)");
-    check(ResolveToggle(nullptr, MAP_NAMES_DEFAULT_ON), "DNC1 names: unset (nullptr) -> ON");
-    check(ResolveToggle("", MAP_NAMES_DEFAULT_ON), "DNC1 names: unset (empty) -> ON");
-    check(ResolveToggle("true", MAP_NAMES_DEFAULT_ON), "DNC1 names: true -> ON");
-    check(!ResolveToggle("false", MAP_NAMES_DEFAULT_ON), "DNC1 names: false -> OFF (the control)");
+    // The town names: OFF when unset since the owner's look of 2026-11-25 ("towns: off"); a stored "true" is the
+    // control now (an explicit tick wins). S-DNC1 plants the old default (true): exactly the two unset rows go red.
+    check(!ResolveToggle(nullptr, MAP_NAMES_DEFAULT_ON), "DNC1 names: unset (nullptr) -> OFF");
+    check(!ResolveToggle("", MAP_NAMES_DEFAULT_ON), "DNC1 names: unset (empty) -> OFF");
+    check(ResolveToggle("true", MAP_NAMES_DEFAULT_ON), "DNC1 names: true -> ON (the control)");
+    check(!ResolveToggle("false", MAP_NAMES_DEFAULT_ON), "DNC1 names: false -> OFF");
 
     if (failures == 0) std::printf("test_config_migration: all checks passed\n");
     else               std::printf("test_config_migration: %d FAILURE(S)\n", failures);

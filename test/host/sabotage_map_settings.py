@@ -3,7 +3,8 @@ basemap client's section 6, DOC1 and DOC2). Each plant goes into a COPY of the h
 rows, no fewer and no more:
 
   S-DOC1  MAP_DEFAULT_ON = false (include/ConfigMigration.h): exactly DOC1's nullptr and "" rows in test_config_migration
-  S-DNC1  MAP_NAMES_DEFAULT_ON = false: exactly DNC1's nullptr and "" rows in test_config_migration
+  S-DNC1  MAP_NAMES_DEFAULT_ON = true (the default before the owner's 2026-11-25 "towns: off"): exactly DNC1's nullptr
+          and "" rows in test_config_migration
   S-DOC2  the page's header reads a literal "false" in place of ResolveToggle for the map: only DOC2 rows in
           test_map_settings_html
   S-DNC2  the same for the town names: only DNC2 rows
@@ -57,15 +58,15 @@ CM, MSH, MT, MC = "include/ConfigMigration.h", "include/MapSettingsHtml.h", "inc
 SABOTAGES = {
     "S-DOC1": ("test_config_migration", CM, "constexpr bool MAP_DEFAULT_ON = true;", "constexpr bool MAP_DEFAULT_ON = false;",
                {"DOC1 map: unset (nullptr) -> ON", "DOC1 map: unset (empty) -> ON"}),
-    "S-DNC1": ("test_config_migration", CM, "constexpr bool MAP_NAMES_DEFAULT_ON = true;",
-               "constexpr bool MAP_NAMES_DEFAULT_ON = false;",
-               {"DNC1 names: unset (nullptr) -> ON", "DNC1 names: unset (empty) -> ON"}),
+    "S-DNC1": ("test_config_migration", CM, "constexpr bool MAP_NAMES_DEFAULT_ON = false;",
+               "constexpr bool MAP_NAMES_DEFAULT_ON = true;",
+               {"DNC1 names: unset (nullptr) -> OFF", "DNC1 names: unset (empty) -> OFF"}),
     # the parameter stays named ((void)p, ...): -Werror would otherwise refuse it as unused, the rig and not a red
     "S-DOC2": ("test_map_settings_html", MSH, "configmigration::ResolveToggle(storedMap, configmigration::MAP_DEFAULT_ON)",
                'configmigration::ResolveToggle(((void)storedMap, "false"), configmigration::MAP_DEFAULT_ON)', {"DOC2"}),
     "S-DNC2": ("test_map_settings_html", MSH,
                "configmigration::ResolveToggle(storedNames, configmigration::MAP_NAMES_DEFAULT_ON)",
-               'configmigration::ResolveToggle(((void)storedNames, "false"), configmigration::MAP_NAMES_DEFAULT_ON)',
+               'configmigration::ResolveToggle(((void)storedNames, "true"), configmigration::MAP_NAMES_DEFAULT_ON)',
                {"DNC2"}),
     "S-D1": ("test_map_terrain", MT, "    return kDefault;   // unset, empty or unknown",
              "    return Level::Subtle;   // PLANT S-D1", {"D1"}),

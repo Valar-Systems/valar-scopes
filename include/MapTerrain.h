@@ -6,7 +6,9 @@
 //   value     S2: land + (shade - mid) x gain, per channel
 //   off       no terrain: the land is the theme's land colour (Q-T2: the terrain layer is not drawn)
 //   subtle    gain 0.075, mid 128: today's map, the Dark row's own gain
-//   strong    gain 0.45, mid 180: THE DEFAULT. Level ground stores shade 180, so flat land keeps the land colour
+//   strong    gain 0.45, mid 154: THE DEFAULT ("P1", the owner's look of 2026-11-25: "terrain: P1"). Level ground stores
+//             shade 180, so flat land sits (180 - 154) x 0.45 = +11.7 per channel above the land colour: brighter at
+//             rest than mid 180 was, with the same relief gain
 //   xstrong   gain 0.45, mid 128
 //
 // EXACT LOWERCASE MATCH ONLY. Anything else -- unset, "", "STRONG", "subtle " with a space, "loud" -- reads as Strong,
@@ -48,7 +50,7 @@ inline Shading Of(Level l)
     case Level::Xstrong: return Shading{true, 0.45, 128};
     case Level::Strong: break;
     }
-    return Shading{true, 0.45, 180};
+    return Shading{true, 0.45, 154};
 }
 
 /** The S2 inputs for the stored value `stored` (nullptr or "" when the key is absent). */

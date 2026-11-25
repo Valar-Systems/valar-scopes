@@ -64,14 +64,15 @@ int main()
 
     // DNC2
     check(!InputTag(unset, "map-names").empty(), "DNC2 the names' box is rendered");
-    check(Checked(unset, "map-names"), "DNC2 no map-names key (nullptr): the box is checked");
-    check(Checked(empty, "map-names"), "DNC2 no map-names key (\"\"): the box is checked");
-    check(Checked(mapsettingshtml::Html(nullptr, "true", nullptr), "map-names"), "DNC2 a stored \"true\": checked");
+    // the town names are OFF when unset since the owner's look of 2026-11-25 ("towns: off"): a stored "true" is the control
+    check(!Checked(unset, "map-names"), "DNC2 no map-names key (nullptr): the box is unchecked");
+    check(!Checked(empty, "map-names"), "DNC2 no map-names key (\"\"): the box is unchecked");
+    check(Checked(mapsettingshtml::Html(nullptr, "true", nullptr), "map-names"), "DNC2 CONTROL a stored \"true\": checked");
     check(!Checked(mapsettingshtml::Html(nullptr, "false", nullptr), "map-names"),
-          "DNC2 CONTROL a stored \"false\": not checked");
+          "DNC2 a stored \"false\": not checked");
     // the two boxes are independent; each row belongs to the box it reads, so a plant on one box reds only its family
-    check(Checked(mapsettingshtml::Html("false", nullptr, nullptr), "map-names"),
-          "DNC2 the map's \"false\" leaves the names' box checked");
+    check(Checked(mapsettingshtml::Html("false", "true", nullptr), "map-names"),
+          "DNC2 the map's \"false\" leaves a stored names' \"true\" checked");
     check(Checked(mapsettingshtml::Html(nullptr, "false", nullptr), "map-layer"),
           "DOC2 the names' \"false\" leaves the map's box checked");
 

@@ -5884,3 +5884,26 @@ full `run.sh` under WSL "failed only its two standing environment blocks", is **
   begin with that text. The weather section itself was still under its switch.
 - **The fix,** under its own predictions: WP1 anchors on the weather gate line nearest the markup, with a decoy plant
   that the old anchor reads red and the new one allows. The harness defect is routed to its owner.
+
+### Step D after the owner's look: town names off, Strong to P1 (2026-11-25)
+
+The owner's words at and after the map look (relayed by the orchestrator, 2026-11-25 ~17:29Z and 20:09Z), as they
+bear on this step. His free text is not reproduced here, because it names a place.
+
+- **"towns: off".** Aircraft labels must stay readable over map text; until that is fixed, town names ship OFF by
+  default. `configmigration::MAP_NAMES_DEFAULT_ON` is now `false`. No migration: v19 has no `map-names` key, so the
+  new default reaches every device in the field, and a saved `"true"` stands. The fix that lets labels win over map
+  text (a dark backing) is v21.
+- **"terrain: P1".** Strong becomes `{gain 0.45, mid 154}`: flat land sits (180 − 154) × 0.45 ≈ +11.7 per channel
+  above the land colour, brighter at rest, with the same relief gain. Extra strong (0.45, 128) and Subtle are
+  unchanged. His words: "merge P1 on my word above. Don't hold step D's merge for my eye. I'll confirm it on the board
+  at Friday's sitting. If I want it changed then, it's a follow-up to the constant before the freeze."
+- **"sweep: v21".** The sweep lighting the terrain is not changed in v20.
+
+S8's before/after pictures (5, 10, 50 and 100 mi, the device's renderer) go to the owner privately; they are not in
+this repository because the fixture is a real place. The line rows (S8C) are unchanged across all four values.
+
+Rows, red first (registration outside the repo, `stepd2_registration.txt` 35c21cb54e8a): the expectations moved first
+and turned exactly five rows red on the old constants (DNC1 x2, DNC2 x2, D1 x1); the constants then turned all three
+suites green; `sabotage_map_settings.py` plants the OLD values (`S-DNC1` = true, `S-DNC2` a literal "true") and all
+seven plants are red in exactly their own rows.

@@ -726,8 +726,8 @@ private:
     bool mapAllocFailed = false;       // the map stays off until the next config change
     size_t mapHeldLen = 0;             // the held package's length; 0 when none is held
     bmpk::Package mapPkg;              // the gate's accepted package, pointing into mapLanding
-    // Step D (docs/blipscope-map-client-steps.md): the map's settings, resolved at every Initialise. The map and its
-    // town names ON when unset (ResolveToggle with MAP_DEFAULT_ON / MAP_NAMES_DEFAULT_ON); terrain Strong when unset
+    // Step D (docs/blipscope-map-client-steps.md): the map's settings, resolved at every Initialise. The map ON and its
+    // town names OFF when unset (ResolveToggle with MAP_DEFAULT_ON / MAP_NAMES_DEFAULT_ON); terrain Strong when unset
     // or unknown (mapterrain::Resolve). Map off asks for nothing and draws today's frame; a held package stays held.
     bool mapLayerOn = configmigration::MAP_DEFAULT_ON;
     bool mapNamesOn = configmigration::MAP_NAMES_DEFAULT_ON;

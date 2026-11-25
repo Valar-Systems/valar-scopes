@@ -153,7 +153,7 @@ int main(int argc, char** argv)
           "off: the terrain layer is not drawn (Q-T2); Subtle's inputs, never read");
     check(subtle.drawn && subtle.gain == maplayer::kThemes[maplayer::kThemeDark].terrainGain && subtle.mid == 128, "D1",
           "subtle: drawn, the Dark row's own gain (0.075), mid 128 -- today's map");
-    check(strong.drawn && strong.gain == 0.45 && strong.mid == 180, "D1", "strong: drawn, gain 0.45, mid 180");
+    check(strong.drawn && strong.gain == 0.45 && strong.mid == 154, "D1", "strong: drawn, gain 0.45, mid 154");
     check(xstrong.drawn && xstrong.gain == 0.45 && xstrong.mid == 128, "D1", "xstrong: drawn, gain 0.45, mid 128");
     {
         const mapterrain::Shading all[] = {off, subtle, strong, xstrong};
