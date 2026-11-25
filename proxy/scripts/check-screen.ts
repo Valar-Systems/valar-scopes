@@ -19,10 +19,18 @@
 //         SCREEN_METRICS once, to its dataset (production-fulllogs shares production's).
 //   P-W   the watch is on exactly when there is something to watch: if production carries a route or a custom domain,
 //         .github/workflows/screen-logs-watch.yml must carry a schedule trigger; with no route, it must carry none.
+//   P-E3  (phase 1, enrich) the military table the screen classes with, src/screen/milranges.gen.ts, equals the
+//         FIRMWARE's MIL_RANGES, parsed from src/SpecialAircraft.cpp (the app's rule names the firmware's table). Its
+//         difference to proxy/src/military.ts's own table is PRINTED as counts and not graded.
+//   P-K2  (phase 1, enrich) the screen runs the boards' handleEnrich, so it must run it with the boards' upstream vars:
+//         every var the enrich path reads -- `env.NAME` in src/enrich.ts and every file it imports, walked from the
+//         source, not listed here -- that proxy/wrangler.toml sets for staging or production, screen.wrangler.toml sets
+//         to the SAME value in the same env, and production-fulllogs to production's.
 //
 //   npx tsx scripts/check-screen.ts              exit 0 PASS, 1 FAIL, 2 BLIND (an input the check cannot read)
 //   npx tsx scripts/check-screen.ts --selftest   the real check must PASS; then each sabotage, on a TEMP COPY that
-//        is asserted to differ from its source, must FAIL exactly as predicted (F1s, F3s, F2s, T2s, P3s, O1s, O2s, O4s, Ws).
+//        is asserted to differ from its source, must FAIL exactly as predicted (F1s, F3s, F2s, T2s, P3s, O1s, O2s, O4s,
+//        Ws, E3s, K2s).
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -36,6 +44,11 @@ const GATE = join(PROXY, "src", "screen", "gate.ts");
 const RELEASE = join(PROXY, "src", "screen", "release.ts");
 const TOML = join(PROXY, "screen.wrangler.toml");
 const WATCH = join(REPO, ".github", "workflows", "screen-logs-watch.yml");
+const FIRMWARE_MIL = join(REPO, "src", "SpecialAircraft.cpp");
+const MIL_GEN = join(PROXY, "src", "screen", "milranges.gen.ts");
+const PROXY_MIL = join(PROXY, "src", "military.ts");
+const BOARDS_TOML = join(PROXY, "wrangler.toml");
+const ENRICH = join(PROXY, "src", "enrich.ts");
 
 type Tier = "free" | "cloud" | "plus";
 type Firmware = { released: number } | { waitsFor: number | "unscheduled" };
@@ -296,7 +309,106 @@ function checkWatch(tomlSrc: string, workflowSrc: string | null): Result {
   return { verdict: failures.length ? "FAIL" : "PASS", lines: [`P-W: production route ${route ? "yes" : "no"}, watch schedule ${schedule ? "yes" : "no"}`], failures };
 }
 
-interface Inputs { indexSrc: string; otaSrc: string; gatePath: string; releasePath: string; tomlSrc: string; workflowSrc: string | null }
+/**
+ * P-E3. The pairs inside one table's text: from `anchor` to the first `close` after it. The firmware writes
+ * `{ 0x010070, 0x01008F }`, proxy/src/military.ts writes `{ lo: 0x010070, hi: 0x01008f, op: ... }`.
+ */
+type Pair = readonly [number, number];
+const FW_TABLE = { anchor: "constexpr Range MIL_RANGES[] = {", close: "};", pair: /\{\s*0x([0-9A-Fa-f]+)\s*,\s*0x([0-9A-Fa-f]+)\s*\}/g };
+const PX_TABLE = { anchor: "const MIL_RANGES: MilRange[] = [", close: "];", pair: /lo:\s*0x([0-9A-Fa-f]+)\s*,\s*hi:\s*0x([0-9A-Fa-f]+)/g };
+function rangesIn(src: string, t: { anchor: string; close: string; pair: RegExp }): Pair[] {
+  const at = src.indexOf(t.anchor);
+  if (at < 0) return [];
+  const end = src.indexOf(t.close, at + t.anchor.length);
+  const block = src.slice(at + t.anchor.length, end < 0 ? undefined : end);
+  return [...block.matchAll(t.pair)].map((m) => [parseInt(m[1], 16), parseInt(m[2], 16)] as const);
+}
+async function checkMil(fwSrc: string, genPath: string, proxyMilSrc: string): Promise<Result> {
+  const fw = rangesIn(fwSrc, FW_TABLE);
+  if (fw.length === 0) return { verdict: "BLIND", lines: ["P-E3: no MIL_RANGES read from src/SpecialAircraft.cpp"], failures: ["P-E3 blind"] };
+  if (!existsSync(genPath)) return { verdict: "FAIL", lines: [], failures: ["P-E3: src/screen/milranges.gen.ts is absent"] };
+  const gen = ((await import(pathToFileURL(genPath).href)) as { MIL_RANGES?: readonly Pair[] }).MIL_RANGES;
+  if (!Array.isArray(gen)) return { verdict: "FAIL", lines: [], failures: ["P-E3: milranges.gen.ts exports no MIL_RANGES"] };
+  const failures: string[] = [];
+  if (gen.length !== fw.length) failures.push(`P-E3: ${gen.length} runtime ranges, the firmware has ${fw.length}`);
+  for (let i = 0; i < Math.min(gen.length, fw.length); i++) {
+    if (gen[i][0] !== fw[i][0] || gen[i][1] !== fw[i][1]) failures.push(`P-E3: range ${i + 1} differs from the firmware's`);
+  }
+  const px = rangesIn(proxyMilSrc, PX_TABLE);
+  const key = (p: Pair) => `${p[0]}-${p[1]}`;
+  const fwKeys = new Set(fw.map(key)), pxKeys = new Set(px.map(key));
+  const shared = [...fwKeys].filter((k) => pxKeys.has(k)).length;
+  return {
+    verdict: failures.length ? "FAIL" : "PASS",
+    lines: [
+      `P-E3: ${gen.length} runtime ranges against the firmware's ${fw.length}: ${failures.length ? "DIFFER" : "equal"}`,
+      `P-E3 (printed, not graded): against proxy/src/military.ts's ${px.length}: shared ${shared}, firmware only ${fwKeys.size - shared}, proxy only ${pxKeys.size - shared}`,
+    ],
+    failures,
+  };
+}
+
+/**
+ * P-K2. The enrich path's files: src/enrich.ts and every .ts it imports by a relative path at RUN time, transitively.
+ * An `import type` / `export type` statement is skipped: it loads nothing, and following it would pull in files the
+ * path never executes (types.ts alone reaches the basemap and weather modules).
+ */
+const IMPORT_FROM = /(?:^|\n)[ \t]*(?:import|export)[ \t]+(type[ \t]+)?[^;]*?from[ \t]+"(\.{1,2}\/[^"]+)"/g;
+export function enrichPathFiles(entry: string): string[] {
+  const seen = new Set<string>();
+  const stack = [entry];
+  while (stack.length) {
+    const f = stack.pop()!;
+    if (seen.has(f)) continue;
+    seen.add(f);
+    for (const m of readFileSync(f, "utf8").matchAll(IMPORT_FROM)) {
+      if (m[1]) continue;
+      const base = resolve(dirname(f), m[2]);
+      const hit = [`${base}.ts`, join(base, "index.ts"), base].find((p) => p.endsWith(".ts") && existsSync(p));
+      if (hit) stack.push(hit);
+    }
+  }
+  return [...seen].sort();
+}
+/** `[env.<env>.vars]` NAME = value: the value's TEXT (quotes kept), comments dropped. */
+function varsOf(tomlSrc: string, env: string): Map<string, string> {
+  const out = new Map<string, string>();
+  let inside = false;
+  for (const raw of tomlSrc.split("\n")) {
+    const line = raw.trim();
+    if (line.startsWith("[")) { inside = line === `[env.${env}.vars]`; continue; }
+    const kv = inside ? /^([A-Z][A-Z0-9_]*)\s*=\s*("(?:[^"\\]|\\.)*"|[^#\s]+)/.exec(line) : null;
+    if (kv) out.set(kv[1], kv[2]);
+  }
+  return out;
+}
+const VAR_ENVS = ["staging", "production"] as const;
+function checkVars(screenToml: string, boardsToml: string, files: string[]): Result {
+  const read = new Set<string>();
+  for (const f of files) for (const m of readFileSync(f, "utf8").matchAll(/env\.([A-Z][A-Z0-9_]*)/g)) read.add(m[1]);
+  const vars = [...read].filter((n) => VAR_ENVS.some((e) => varsOf(boardsToml, e).has(n))).sort();
+  if (vars.length === 0) return { verdict: "BLIND", lines: ["P-K2: no var of the enrich path read from proxy/wrangler.toml"], failures: ["P-K2 blind"] };
+  const failures: string[] = [];
+  for (const e of VAR_ENVS) {
+    const b = varsOf(boardsToml, e), s = varsOf(screenToml, e);
+    for (const n of vars) {
+      if (b.get(n) === s.get(n)) continue;
+      failures.push(`P-K2: ${e} ${n} ${!s.has(n) ? "is missing (the boards set it)" : !b.has(n) ? "is set (the boards do not set it)" : "differs from the boards'"}`);
+    }
+  }
+  const prod = varsOf(screenToml, "production"), full = varsOf(screenToml, "production-fulllogs");
+  for (const n of vars) if (prod.get(n) !== full.get(n)) failures.push(`P-K2: production-fulllogs ${n} differs from production's`);
+  return {
+    verdict: failures.length ? "FAIL" : "PASS",
+    lines: [`P-K2: ${vars.length} vars read by the enrich path (${files.length} files from src/enrich.ts); staging and production ${failures.length ? "DIFFER" : "equal the boards'"}`],
+    failures,
+  };
+}
+
+interface Inputs {
+  indexSrc: string; otaSrc: string; gatePath: string; releasePath: string; tomlSrc: string; workflowSrc: string | null;
+  fwSrc: string; milGenPath: string; proxyMilSrc: string; boardsTomlSrc: string;
+}
 async function runAll(inp: Inputs): Promise<Result> {
   const mapMod = await import(pathToFileURL(join(PROXY, "src", "screen", "map.ts")).href) as { SCREEN_MAP: readonly Row[]; RELEASE_URL: string };
   const gate = await import(pathToFileURL(inp.gatePath).href) as GateMod;
@@ -312,6 +424,8 @@ async function runAll(inp: Inputs): Promise<Result> {
     checkRates(inp.tomlSrc),
     checkMetrics(inp.tomlSrc),
     checkWatch(inp.tomlSrc, inp.workflowSrc),
+    await checkMil(inp.fwSrc, inp.milGenPath, inp.proxyMilSrc),
+    checkVars(inp.tomlSrc, inp.boardsTomlSrc, enrichPathFiles(ENRICH)),
   ];
   const verdict = parts.some((p) => p.verdict === "BLIND") ? "BLIND" : parts.some((p) => p.verdict === "FAIL") ? "FAIL" : "PASS";
   return { verdict, lines: parts.flatMap((p) => p.lines), failures: parts.flatMap((p) => p.failures) };
@@ -320,6 +434,8 @@ async function runAll(inp: Inputs): Promise<Result> {
 const real = (): Inputs => ({
   indexSrc: readFileSync(INDEX, "utf8"), otaSrc: readFileSync(OTA, "utf8"), gatePath: GATE, releasePath: RELEASE,
   tomlSrc: readFileSync(TOML, "utf8"), workflowSrc: existsSync(WATCH) ? readFileSync(WATCH, "utf8") : null,
+  fwSrc: readFileSync(FIRMWARE_MIL, "utf8"), milGenPath: MIL_GEN, proxyMilSrc: readFileSync(PROXY_MIL, "utf8"),
+  boardsTomlSrc: readFileSync(BOARDS_TOML, "utf8"),
 });
 
 /** A sabotaged copy of one source file, written to a temp dir; refuses if the edit did not change the text. */
@@ -388,6 +504,16 @@ async function selftest(): Promise<number> {
     const tomlW = toml.replace("[env.production]\n", "[env.production]\nroute = { pattern = \"screen.example.test\", custom_domain = true }\n");
     if (tomlW === toml) throw new Error("sabotage Ws: the edit did not apply");
     expect("Ws", await runAll({ ...real(), tomlSrc: tomlW }), ["P-W: production carries a route but screen-logs-watch.yml has no schedule"]);
+    // E3s: one range edited in a copy of the generated table -- the screen would class by a table the firmware lacks.
+    const m3 = sabotagedCopy(dir, MIL_GEN, "milranges-e3s.ts", (s) => s.replace("0x010070", "0x010071"));
+    expect("E3s", await runAll({ ...real(), milGenPath: m3 }), ["P-E3: range 1 differs from the firmware's"]);
+    // K2s: production's relay base changed in a copy of screen.wrangler.toml -- production-fulllogs still mirrors the old.
+    const tomlK2 = toml.replace(/(\[env\.production\.vars\]\n(?:[^[\n].*\n)*?UPSTREAM_ADSB_LOL_BASE = ")[^"]*"/, "$1https://relay.example.test\"");
+    if (tomlK2 === toml) throw new Error("sabotage K2s: the edit did not apply");
+    expect("K2s", await runAll({ ...real(), tomlSrc: tomlK2 }), [
+      "P-K2: production UPSTREAM_ADSB_LOL_BASE differs from the boards'",
+      "P-K2: production-fulllogs UPSTREAM_ADSB_LOL_BASE differs from production's",
+    ]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -402,7 +528,7 @@ async function main(): Promise<number> {
   r.failures.forEach((f) => console.log(`FAIL ${f}`));
   const routes = routesFromIndex(readFileSync(INDEX, "utf8")).length;
   console.log(r.verdict === "PASS"
-    ? `PASS (P-F1 ${routes} routes; P-F3 URL + ${PARSE_CASES.length} parser cases; P-F2 ${FW_ROWS.length * READS.length}; P-T2 ${CTXS.length * TIERS.length}; memo 3; P-O1 ${observabilityEnvs(readFileSync(TOML, "utf8")).size} envs; P-O2; P-O3; P-O4 ${Object.keys(METRICS_DATASETS).length} envs; P-W)`
+    ? `PASS (P-F1 ${routes} routes; P-F3 URL + ${PARSE_CASES.length} parser cases; P-F2 ${FW_ROWS.length * READS.length}; P-T2 ${CTXS.length * TIERS.length}; memo 3; P-O1 ${observabilityEnvs(readFileSync(TOML, "utf8")).size} envs; P-O2; P-O3; P-O4 ${Object.keys(METRICS_DATASETS).length} envs; P-W; P-E3; P-K2)`
     : r.verdict);
   return r.verdict === "PASS" ? 0 : r.verdict === "BLIND" ? 2 : 1;
 }
