@@ -223,6 +223,12 @@
     "now"
    ]
   },
+  "non-blipscope": {
+   "label": "a Worker outside Blipscope, excluded by the owner's local list (never named here; section 14)",
+   "states": [
+    "now"
+   ]
+  },
   "cref+opera-ten": {
    "label": "blipscope-wx Class A in a running window (cref and the ten together; derivation input only)",
    "states": [
