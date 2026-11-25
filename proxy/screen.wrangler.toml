@@ -19,6 +19,22 @@ workers_dev = false
 # LOGS_RATE is a bare number and FULL_LOGS_UNTIL a bare null on purpose: /health reports them as a number and a null.
 define = { BUILD_COMMIT = "\"UNSTAMPED\"" }
 
+# PHASE 1, THE ENRICH PART (its registration, D3'): every env below binds, besides the counter,
+#   SITE_FEED       the site feed, by its NEUTRAL entrypoint name (src/index.ts re-exports the boards' class as SiteFeed);
+#                   the boards' Worker must be deployed with that alias before this binding can resolve
+#   ENRICH_KV       the boards' SAME namespace, used only through a read-only view (src/screen/rokv.ts, P-K1)
+#   SCREEN_DETAILS  the one details object (D3'): the strict call limit, the store, the resolution cap
+#   RL_SCREEN       the per-location shield, keyed by the caller's class (approximate; the strict limit is the DO's)
+# and vars: the three limits (PROVISIONAL -- the owner's "screen limits: 150 | 60" decides them before any deploy of
+# this phase), and the boards' upstream vars, held EQUAL to proxy/wrangler.toml's per env by check-screen.ts's P-K2.
+# No METRICS binding, on purpose: the service writes no enrich_gap points (P-G1). Secrets (RELAY_KEY,
+# ADSB_LOL_API_KEY) are set at the deploy, by whoever deploys.
+
+# A Durable Object class is created by a migration, and removed by one (deleted_classes) -- never by deleting lines.
+[[migrations]]
+tag = "v1-screen-details"
+new_sqlite_classes = ["ScreenDetailsDO"]
+
 [env.staging]
 name = "blipscope-screen-staging"
 workers_dev = false
@@ -31,6 +47,38 @@ FULL_LOGS_UNTIL = "null"
 [[env.staging.analytics_engine_datasets]]
 binding = "SCREEN_METRICS"
 dataset = "blipscope_screen_staging"
+
+[[env.staging.services]]
+binding = "SITE_FEED"
+service = "blipscope-proxy-staging"
+entrypoint = "SiteFeed"
+
+[[env.staging.kv_namespaces]]
+binding = "ENRICH_KV"
+id = "8b6e92ed802a4192b6b6c1399fdf96aa"
+
+[[env.staging.durable_objects.bindings]]
+name = "SCREEN_DETAILS"
+class_name = "ScreenDetailsDO"
+
+[[env.staging.unsafe.bindings]]
+name = "RL_SCREEN"
+type = "ratelimit"
+namespace_id = "1201"
+simple = { limit = 75, period = 60 }
+
+[env.staging.vars]
+SCREEN_LIMIT_WEBSITE_PER_MIN = "75"
+SCREEN_LIMIT_APP_PER_MIN = "75"
+SCREEN_RESOLVE_PER_MIN = "6"
+BLIPS_FEED_MAX_AGE_MS = "85000"
+ROUTE_ADSBDB_ENABLED = "false"
+TYPE_ADSBDB_ENABLED = "false"
+UPSTREAM_ADSB_FI_BASE = "https://relay-a.valarsystems.com/fi"
+UPSTREAM_ADSB_FI_BASE_B = "https://relay-b.valarsystems.com/fi"
+UPSTREAM_ADSB_FI_ENABLED = "true"
+UPSTREAM_ADSB_LOL_BASE = "https://relay-a.valarsystems.com"
+UPSTREAM_ADSB_LOL_BASE_B = "https://relay-b.valarsystems.com"
 
 [env.staging.observability]
 enabled = true
@@ -52,6 +100,38 @@ FULL_LOGS_UNTIL = "null"
 [[env.production.analytics_engine_datasets]]
 binding = "SCREEN_METRICS"
 dataset = "blipscope_screen"
+
+[[env.production.services]]
+binding = "SITE_FEED"
+service = "blipscope-proxy"
+entrypoint = "SiteFeed"
+
+[[env.production.kv_namespaces]]
+binding = "ENRICH_KV"
+id = "733bf90056104f56be9492e62450a0bf"
+
+[[env.production.durable_objects.bindings]]
+name = "SCREEN_DETAILS"
+class_name = "ScreenDetailsDO"
+
+[[env.production.unsafe.bindings]]
+name = "RL_SCREEN"
+type = "ratelimit"
+namespace_id = "2201"
+simple = { limit = 75, period = 60 }
+
+[env.production.vars]
+SCREEN_LIMIT_WEBSITE_PER_MIN = "75"
+SCREEN_LIMIT_APP_PER_MIN = "75"
+SCREEN_RESOLVE_PER_MIN = "6"
+BLIPS_FEED_MAX_AGE_MS = "85000"
+ROUTE_ADSBDB_ENABLED = "false"
+TYPE_ADSBDB_ENABLED = "false"
+UPSTREAM_ADSB_FI_BASE = "https://relay-a.valarsystems.com/fi"
+UPSTREAM_ADSB_FI_BASE_B = "https://relay-b.valarsystems.com/fi"
+UPSTREAM_ADSB_FI_ENABLED = "true"
+UPSTREAM_ADSB_LOL_BASE = "https://relay-a.valarsystems.com"
+UPSTREAM_ADSB_LOL_BASE_B = "https://relay-b.valarsystems.com"
 
 # Workers Logs in production: "screen service logs: sample 10%" (the owner, 2026-11-25). Every request and every error
 # is still counted unsampled in the metrics store above, and a full-logs day is a separate deploy with its own end
@@ -80,6 +160,39 @@ FULL_LOGS_UNTIL = "null"
 [[env.production-fulllogs.analytics_engine_datasets]]
 binding = "SCREEN_METRICS"
 dataset = "blipscope_screen"
+
+# The same bindings and vars as production: it is the same script (P-K2 holds its vars equal to production's).
+[[env.production-fulllogs.services]]
+binding = "SITE_FEED"
+service = "blipscope-proxy"
+entrypoint = "SiteFeed"
+
+[[env.production-fulllogs.kv_namespaces]]
+binding = "ENRICH_KV"
+id = "733bf90056104f56be9492e62450a0bf"
+
+[[env.production-fulllogs.durable_objects.bindings]]
+name = "SCREEN_DETAILS"
+class_name = "ScreenDetailsDO"
+
+[[env.production-fulllogs.unsafe.bindings]]
+name = "RL_SCREEN"
+type = "ratelimit"
+namespace_id = "2201"
+simple = { limit = 75, period = 60 }
+
+[env.production-fulllogs.vars]
+SCREEN_LIMIT_WEBSITE_PER_MIN = "75"
+SCREEN_LIMIT_APP_PER_MIN = "75"
+SCREEN_RESOLVE_PER_MIN = "6"
+BLIPS_FEED_MAX_AGE_MS = "85000"
+ROUTE_ADSBDB_ENABLED = "false"
+TYPE_ADSBDB_ENABLED = "false"
+UPSTREAM_ADSB_FI_BASE = "https://relay-a.valarsystems.com/fi"
+UPSTREAM_ADSB_FI_BASE_B = "https://relay-b.valarsystems.com/fi"
+UPSTREAM_ADSB_FI_ENABLED = "true"
+UPSTREAM_ADSB_LOL_BASE = "https://relay-a.valarsystems.com"
+UPSTREAM_ADSB_LOL_BASE_B = "https://relay-b.valarsystems.com"
 
 [env.production-fulllogs.observability]
 enabled = true

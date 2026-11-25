@@ -44,7 +44,7 @@ type DOProto = { serve(req: unknown): Promise<unknown>; stats(): Promise<{ kvWri
 const X = W as unknown as {
   ScreenDetailsDO?: { prototype: DOProto };
   __setClockForTests?: (f: (() => number) | undefined) => void;
-  __tapEnrichRequestForTests?: (f: ((r: Request) => void) | undefined) => void;
+  __tapEnrichRequestForTests?: (f: ((r: Request) => void | Promise<void>) | undefined) => void;
 };
 
 const LOL = "https://api.adsb.lol";
@@ -128,15 +128,13 @@ function shield(limit: number) {
 // Upstream hex lookups, counted per hex and zeroed per test. Routeset POSTs are counted file-wide (one path for every
 // callsign), zeroed per test.
 const hexFetches: Record<string, number> = {};
-function mockHex(hex: string, extra: Record<string, unknown> = {}, delayMs = 0) {
+const hexBodyFor = (hex: string, extra: Record<string, unknown> = {}) =>
+  hexBody([makeAc({ hex, flight: "TST000  ", r: "X-SYNTH", t: "A320", desc: "AIRBUS A-320", ownOp: "Synthetic Air", lat: 51.5, lon: -0.4, ...extra })]);
+function mockHex(hex: string, extra: Record<string, unknown> = {}) {
   hexFetches[hex] = 0;
-  const scope = fetchMock.get(LOL).intercept({ path: `/v2/hex/${hex}` }).reply(200, () => {
-    hexFetches[hex]++;
-    return hexBody([makeAc({ hex, flight: "TST000  ", r: "X-SYNTH", t: "A320", desc: "AIRBUS A-320", ownOp: "Synthetic Air", lat: 51.5, lon: -0.4, ...extra })]);
-  });
-  if (delayMs) scope.delay(delayMs);
-  scope.persist();
+  fetchMock.get(LOL).intercept({ path: `/v2/hex/${hex}` }).reply(200, () => { hexFetches[hex]++; return hexBodyFor(hex, extra); }).persist();
 }
+const sumFetches = () => Object.values(hexFetches).reduce((s, n) => s + n, 0);
 let routesetPosts = 0;
 
 // File-wide P-K1 tally: every KV write any screen harness saw, and every write its read-only wrapper dropped.
@@ -186,7 +184,7 @@ beforeAll(() => {
   fetchMock.disableNetConnect();
   fetchMock.get(LOL).intercept({ path: "/api/0/routeset", method: "POST" }).reply(200, () => { routesetPosts++; return "[]"; }).persist();
   for (const a of FIXTURE) mockHex(a.hex as string, MOCK_EXTRA[a.hex as string]);
-  mockHex(H.T1, {}, 800);
+  mockHex(H.T1);
 });
 beforeEach(() => {
   routesetPosts = 0;
@@ -219,7 +217,7 @@ describe("membership, staleness, the snapshot's own position (P-S1, P-S2, P-S3)"
     }
     expect(h.doCalls.n).toBe(1); // the malformed ones never reached the DO
     expect(h.feed.reads).toBe(1);
-    expect(Object.values(hexFetches).reduce((s, n) => s + n, 0)).toBe(0);
+    expect(sumFetches()).toBe(0);
     tally(h);
   });
 
@@ -236,7 +234,7 @@ describe("membership, staleness, the snapshot's own position (P-S1, P-S2, P-S3)"
   it("P-S3: enrich takes no place; the route check gets the SNAPSHOT's lat, lon and trk", async () => {
     const h = harness();
     const seen: string[] = [];
-    X.__tapEnrichRequestForTests!((r) => seen.push(r.url));
+    X.__tapEnrichRequestForTests!((r) => { seen.push(r.url); });
     const a = await site(h.loc, "enrich", { hex: H.S3, lat: 10, lon: 10, trk: 0, place: { lat: 10, lon: 10, r: 10 } });
     expect(a.ok).toBe(true);
     expect(seen.length).toBe(1);
@@ -435,20 +433,61 @@ describe("the limits (P-L1 strict, P-L1b, P-T1)", () => {
   });
 
   it("P-T1: while a resolution's upstream fetch is pending, 20 other calls into the object all answer first", async () => {
+    // H.T1's resolution is HELD at the seam immediately before handleEnrich (whose first act is the upstream hex
+    // fetch) and released only after the 20 have answered: no timer, so only the code's own ordering can make the 20
+    // wait. Two ways of holding the fetch itself were tried and are unusable in this pool: fetchMock's delay() ended
+    // every delayed reply as an AbortError (the chain retried it, 3 fetches), and a spy on globalThis.fetch never saw
+    // the chain's call (green 1 and green 3, screen-enrich-red.md).
+    let release!: () => void;
+    const held = new Promise<void>((r) => { release = r; });
+    let reached!: () => void;
+    const reachedHold = new Promise<void>((r) => { reached = r; });
+    let heldCalls = 0;
+    X.__tapEnrichRequestForTests!((r) => {
+      if (!r.url.includes(`/v1/enrich/${H.T1}`)) return;
+      heldCalls++;
+      reached();
+      return held;
+    });
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    const within = <T>(p: Promise<T>, ms: number) =>
+      Promise.race([p.then(() => "done" as const), new Promise<"waited">((r) => { timers.push(setTimeout(() => r("waited"), ms)); })]);
     const h = harness({ feed: feedAnswer([T1_AC, ...FIXTURE.filter((a) => a.hex === H.PRIV)]) });
     let coldDone = false;
     const cold = site(h.loc, "enrich", { hex: H.T1 }).then((a) => { coldDone = true; return a; });
-    const others = await Promise.all([
-      ...Array.from({ length: 10 }, () => site(h.loc, "snapshot")),
-      ...Array.from({ length: 5 }, () => site(h.loc, "enrich", { hex: H.ABSENT })),
-      ...Array.from({ length: 5 }, () => site(h.loc, "enrich", { hex: H.PRIV })),
-    ]);
-    expect(coldDone).toBe(false);
-    expect(others.map(reason)).toEqual([...Array(10).fill("ok"), ...Array(5).fill("not_in_snapshot"), ...Array(5).fill("private")]);
-    expect((await cold).ok).toBe(true);
-    expect(hexFetches[H.T1]).toBe(1);
-    await h.settle();
-    tally(h);
+    let othersP: Promise<Answer[]> | undefined;
+    try {
+      // FIRST the precondition: the resolution is in flight, held before its upstream fetch.
+      expect(await within(reachedHold, 2000)).toBe("done");
+      othersP = Promise.all([
+        ...Array.from({ length: 10 }, () => site(h.loc, "snapshot")),
+        ...Array.from({ length: 5 }, () => site(h.loc, "enrich", { hex: H.ABSENT })),
+        ...Array.from({ length: 5 }, () => site(h.loc, "enrich", { hex: H.PRIV })),
+      ]);
+      // The 20 get 2 s. A code that made them wait for the held resolution would wait forever: the bound turns that
+      // into a fast, legible failure, and the finally releases it either way so nothing outlives the test.
+      const answeredFirst = (await within(othersP, 2000)) === "done";
+      const coldDoneFirst = coldDone; // read BEFORE the release, which lets the cold call finish
+      const heldFirst = heldCalls;
+      const fetchesFirst = hexFetches[H.T1];
+      release();
+      const others = await othersP;
+      expect(answeredFirst).toBe(true);
+      expect(heldFirst).toBe(1); // CONTROL: one resolution, held -- the snapshots joined it rather than starting another
+      expect(fetchesFirst).toBe(0); // ... before its upstream fetch
+      expect(coldDoneFirst).toBe(false);
+      expect(others.map(reason)).toEqual([...Array(10).fill("ok"), ...Array(5).fill("not_in_snapshot"), ...Array(5).fill("private")]);
+      const a = await cold;
+      expect(a.ok).toBe(true);
+      expect((a as { value: { t?: string } }).value.t).toBe("A320");
+      expect(hexFetches[H.T1]).toBe(1);
+    } finally {
+      timers.forEach(clearTimeout);
+      release();
+      await Promise.allSettled([othersP ?? Promise.resolve([]), cold]);
+      await h.settle();
+      tally(h);
+    }
   });
 });
 
@@ -489,10 +528,11 @@ describe("model and place (P-V1, P-D1, P-G2, P-G3)", () => {
     for (const v of [undefined, "circle", "ANY", "any ", "{\"mode\":\"any\"}", ""]) {
       if (v !== undefined) await env.ENRICH_KV.put("cfg:screen-places", v);
       const h = harness();
+      const f0 = sumFetches(); // a delta: the previous iteration's ON snapshot resolved in the background
       expect(await site(h.loc, "snapshot", { place: OFF }), String(v)).toEqual({ ok: false, reason: "place_not_allowed" });
       expect(h.feed.reads, String(v)).toBe(1);
       expect(dataReads(h.kvRec.c), String(v)).toBe(0);
-      expect(Object.values(hexFetches).reduce((s, n) => s + n, 0), String(v)).toBe(0);
+      expect(sumFetches() - f0, String(v)).toBe(0);
       expect((await site(h.loc, "snapshot", { place: ON })).ok, String(v)).toBe(true);
       await h.settle();
       tally(h);

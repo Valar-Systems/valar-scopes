@@ -76,7 +76,8 @@ describe("the gates, seen through the classes (graded in full by check-screen.ts
   });
 
   it("7 ScreenApp with ctx cloud passes the gates and meets no handler yet: not_built", async () => {
-    expect(await callApp("snapshot", { tier: "cloud" })).toEqual({ ok: false, reason: "not_built" });
+    // photo (released, cloud): unbuilt until phase 2. Phase 1 built snapshot, which this case used in phase 0.
+    expect(await callApp("photo", { tier: "cloud" })).toEqual({ ok: false, reason: "not_built" });
   });
 
   it("8 a planned method (weather, waits for 20) is not_released while the release reads 19", async () => {
