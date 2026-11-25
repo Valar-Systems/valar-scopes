@@ -4,6 +4,7 @@
   PLAN_S_WANT=<merged sha> python -I s_clock.py <env> <label> <N>      a fixed-count phase (S1 3, S2 10, S3 60)
   PLAN_S_WANT=<merged sha> python -I s_clock.py opuk <label> s4        S4: until the 12th counted `stored` (cap 135 min)
   PLAN_S_WANT=<merged sha> python -I s_clock.py off <label> s5         S5: deploy `off` (removes the cron), no park
+  PLAN_S_SCRATCH=<dir> is required for each (refused if unset): this run's scratch directory, holding its deploy logs and wt-plan-s/proxy
 
   1. the firing offset: the last two invocations' scheduledTime in Workers Logs (must be 60 s +/- 2 s apart)
   2. deploy the phase ~20 s after a firing starts (its next N firings are the phase's)
@@ -22,7 +23,9 @@ import time
 import urllib.request
 from datetime import datetime, timezone
 
-SCRATCH = r"C:\Users\DanielFrenkel\AppData\Local\Temp\claude\c--Github-Blipscope\fb8462e7-ee3a-4757-8b09-2d0165eb9254\scratchpad"
+SCRATCH = os.environ.get("PLAN_S_SCRATCH", "")   # this run's scratch directory: its deploy logs, and wt-plan-s/proxy under it
+if not SCRATCH:
+    raise SystemExit("REFUSED: PLAN_S_SCRATCH is unset -- set it to this run's scratch directory (no default is assumed)")
 PROXY = os.path.join(SCRATCH, "wt-plan-s", "proxy")
 WRANGLER = os.path.join(PROXY, "scripts", "wrangler-run.mjs")   # every call through the helper (docs/wrangler-run.md)
 WANT = os.environ.get("PLAN_S_WANT", "")

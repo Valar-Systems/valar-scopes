@@ -18,6 +18,7 @@ import {
 import { FONTS } from "./fonts.generated";
 import { indexHtml, supportHtml, notfoundHtml } from "./pages.generated";
 import { record, recordOtaMem, recordUsage, setDeviceAttribution, type RequestMetric, recordBoot } from "./metrics";
+import { deviceLabel } from "./devlabel";
 import { handleMissileer, isMissileerPath } from "./missileer";
 import { handleCredits, handlePhoto } from "./photos";
 import { verifyDeviceKey } from "./deviceauth";
@@ -363,6 +364,12 @@ async function route(
   // Attribute the metric to the device only now that its key has been verified;
   // see setDeviceAttribution() for why unauthenticated headers are never stored.
   setDeviceAttribution(meta, request);
+  // The device LABEL for our own log line, which carries it INSTEAD of the id (src/devlabel.ts; record()). Computed
+  // here because the digest is async and record() is not. Failure-safe: a failed digest leaves the label out and never
+  // fails the request; the missing label is then visible in the stored lines (docs/workers-logs-invocation-off.md (e)).
+  if (meta.dev) {
+    try { meta.devl = await deviceLabel(meta.dev); } catch { /* no label; see above */ }
+  }
   // WHICH CREDENTIAL WAS ACCEPTED — echoed to the device, not merely recorded.
   //
   // Now always "device": reaching here at all means the per-device path passed,
@@ -388,7 +395,7 @@ async function route(
   recordFleetFirmware(env, ctx, meta);
 
   recordOtaMem(env, request.headers.get("X-Blip-OTA-Mem"), meta.model, meta.dev);
-  // Anonymous feature-use counts, at most hourly per device, on the same
+  // Feature-use counts, kept against the device's identifier, at most hourly per device, on the same
   // already-authenticated request and behind the same rate limiting for the same
   // reason: an anonymous caller must never be able to spend our Analytics Engine
   // budget. Counts only -- what a device DOES, never what it does it to. See

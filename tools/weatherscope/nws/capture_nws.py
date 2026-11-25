@@ -37,7 +37,7 @@ def get(url):
 
 def inside_repo(path):
     """True if `path` is the repo or under it, however either is spelled. Compared by file identity, ancestor by
-    ancestor: a string compare missed a Windows 8.3 short name (DANIEL~1) against the long one on 2026-11-06, and the
+    ancestor: a string compare missed a Windows 8.3 short name (<USER~1>) against the long one on 2026-11-06, and the
     first capture then wrote its raw documents inside the worktree (A12.132)."""
     p = os.path.abspath(path)
     while True:

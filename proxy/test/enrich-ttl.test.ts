@@ -49,7 +49,7 @@ describe("ac:<hex> entries are written under that rule", () => {
     // Backfill consulted because there is no type, and it also comes up empty.
     fetchMock.get(ADSBDB).intercept({ path: "/v0/aircraft/a37d56" }).reply(404, '{"response":"unknown aircraft"}');
 
-    await call(apiRequest("/v1/enrich/a37d56"));
+    await call(apiRequest("/v1/enrich/a37d56"), { TYPE_ADSBDB_ENABLED: "true" }); // the backfill is OFF by default; opt in
 
     const stored = await env.ENRICH_KV.get<{ found: boolean; r: string; t: string; v: number }>(
       "ac:a37d56",
@@ -98,7 +98,7 @@ describe("legacy entries written under the old rule heal themselves", () => {
         JSON.stringify({ response: { aircraft: { icao_type: "E75L", registration: "N311SY", type: "175" } } }),
       );
 
-    const res = await call(apiRequest("/v1/enrich/a34c2f"));
+    const res = await call(apiRequest("/v1/enrich/a34c2f"), { TYPE_ADSBDB_ENABLED: "true" }); // OFF by default; opt in
     // The whole point: the type appears on a card that had been blank.
     expect(await res.json()).toMatchObject({ r: "N311SY", t: "E75L" });
 

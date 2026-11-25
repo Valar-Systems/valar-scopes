@@ -48,8 +48,8 @@ is where someone will be tempted to forget it.
   `rotate-staging-provision-token.sh`, and `tools/wx`'s deploy, rollback and cycle scripts. Until then, their lines are
   allowlist entries reading "migrates in PR B (staging rehearsal)", so the check forces PR B. The helper also joins
   `deploy-inputs.mjs`'s machinery list (DB17) in PR B.
-- **After the sea-path PR** (map-server's, v20's critical path): `proxy/scripts/basemap/d1.ts`, with entries reading
-  "migrates after the sea-path PR".
+- **In the sea-path PR** (map-server's, v20's critical path): `proxy/scripts/basemap/d1.ts`. Its one allowlist entry
+  ("migrates after the sea-path PR") was dropped there, with its call moved to the helper (the reviewer, 2026-11-13 ~07:39Z).
 - **`tools/wx/*` and the `ingest-*` scripts:** only after the reviewer clears the exact lines with weatherscope and
   uk-data.
 
@@ -116,6 +116,20 @@ real device" names `wrangler kv key list --prefix "enr:dev:"`, which lists devic
 replacement asks the one question as a boolean:
 
     node proxy/scripts/wrangler-run.mjs kv key get "enr:dev:<id>" --binding ENRICH_KV --env production --remote > /dev/null && echo present || echo absent
+
+**Correction, 2026-11-13 (blipscope-5c), added below the proposal, which stands as written.** CLAUDE.md did not
+get this one-liner. Measured on wrangler 4.35.0 with the fake id `enr:dev:0000000000000000` only, it gets two things
+wrong:
+- **It prints the key.** On a missing key, wrangler's error line on stderr carries the request URL, key included.
+  `> /dev/null` hides only stdout.
+- **Every failure reads "absent".** A fake token answers HTTP 401. A run from the repo root never reaches the API,
+  because there is no `[env.production]` there. Both exit non-zero.
+
+CLAUDE.md's `kv_has` (#704, then the pipe form in #706) is what replaced the row. It counts only an HTTP 404 as absent,
+never shows stderr, reads it through a pipe so nothing reaches disk, runs from `proxy/`, and asks `meta:airports`
+first, an anchor in the same ENRICH_KV namespace. The same one-liner in
+`proxy/src/fleet.ts`'s runbook now points at `kv_has`. Its key list gains `--binding ENRICH_KV`, without which wrangler
+refuses before any API call.
 
 ### The clearances (2026-11-13, relayed before 07:00Z) and HP6 restated
 

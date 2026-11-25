@@ -1,5 +1,7 @@
 import type { BasemapBranch } from "./basemap/handler";
+import { normDeviceId } from "./devlabel";
 import type { Env } from "./types";
+import { PRODUCTS } from "./wx/products";
 
 export interface RequestMetric {
   ep: string;
@@ -13,6 +15,9 @@ export interface RequestMetric {
   // The authenticated device id, or "" -- see setDeviceAttribution() for why
   // this is only ever populated on the device-key path.
   dev?: string;
+  /** The device LABEL (src/devlabel.ts): what our console line carries INSTEAD of `dev`, which stays only in the
+   *  Analytics Engine point. Set in index.ts right after setDeviceAttribution(); absent when no device is attributed. */
+  devl?: string;
   fw?: string; // X-Blip-FW, digits only, same authentication rule as `dev`
   /**
    * Which credential authenticated this request. Undefined when no auth ran.
@@ -53,8 +58,9 @@ export interface RequestMetric {
 // this is the boundary where the value stops being a credential and becomes
 // stored data.
 export function setDeviceAttribution(m: RequestMetric, request: Request): void {
-  const id = (request.headers.get("X-Blip-Device") ?? "").trim().toLowerCase();
-  if (/^[0-9a-f]{8,32}$/.test(id)) m.dev = id;
+  // ONE rule for what a device id is, shared with the label helper (src/devlabel.ts).
+  const id = normDeviceId(request.headers.get("X-Blip-Device") ?? "");
+  if (id !== null) m.dev = id;
   const fw = (request.headers.get("X-Blip-FW") ?? "").trim();
   if (/^\d{1,6}$/.test(fw)) m.fw = fw;
 }
@@ -93,6 +99,10 @@ export const KNOWN_ROUTES = new Set([
   "/api/v1/blipscope/blips",
   "/api/v1/blipscope/config",
   "/api/v1/blipscope/airports",
+  // The map under the planes (docs/basemap-route.md): unlisted from #486 (2026-10-29) to docs/route-labels.md, so every
+  // /basemap request sat in "/other". test/route-labels.test.ts now reads the router's dispatch, so a route cannot be added
+  // without its label again.
+  "/api/v1/blipscope/basemap",
   // Weather under the planes, exact paths, never a wildcard: from v19 a board asks every 60 s, which makes this the
   // busiest route, and unlisted it would sit inside "/other". test/metrics.test.ts takes the path from the firmware.
   "/api/v1/blipscope/wx/cref",
@@ -126,6 +136,9 @@ export const KNOWN_ROUTES = new Set([
   "/v1/blips",
   "/v1/config",
   "/v1/airports",
+  "/v1/basemap",
+  // The legacy alias of every weather product, from the same list KR2 reads, so it cannot drift from it.
+  ...PRODUCTS.map((p) => `/v1/wx/${p.id}`),
   "/v1/leaderboard",
   "/leaderboard",
   "/leaderboard.json",
@@ -203,6 +216,10 @@ export function routeTemplate(pathname: string): string {
   if (pathname.startsWith("/v1/enrich/")) return "/v1/enrich";
   if (pathname.startsWith("/v1/photo/")) return "/v1/photo";
   if (/^\/leaderboard\/[0-9a-f]{8,32}$/.test(pathname)) return "/leaderboard/:id";
+  // Follow's single airport (index.ts, airport/<code>). The TEMPLATE is stored, never the code: a device's airport is
+  // location-adjacent, so it stays out of the dataset by construction (docs/route-labels.md).
+  if (/^\/api\/v1\/blipscope\/airport\/[^/]+$/.test(pathname)) return "/api/v1/blipscope/airport/:code";
+  if (/^\/v1\/airport\/[^/]+$/.test(pathname)) return "/v1/airport/:code";
   // Checked BEFORE the exact-match set, like every other template. Order is not
   // load-bearing between these two and the literal Missileer paths -- both
   // regexes require a segment the literals do not have, so
@@ -226,7 +243,11 @@ const HIT_SAMPLE_RATE = 0.1;
 // One structured log line per request, plus an Analytics Engine data point.
 // Metrics must never fail a request.
 export function record(env: Env, m: RequestMetric): void {
-  console.log(JSON.stringify({ evt: "req", ...m }));
+  // The console line carries `devl`, the device LABEL, and NEVER `dev` (the owner's ruling, 2026-11-17;
+  // docs/workers-logs-invocation-off.md). `dev` stays in the Analytics Engine point below. test/device-label.test.ts
+  // pins the line's EXACT key set, so `dev` coming back, or a new field such as an address, turns it red.
+  const { dev: _dev, ...line } = m;
+  console.log(JSON.stringify({ evt: "req", ...line }));
   try {
     const sampled = m.status < 400 && (m.cache === "HIT" || m.cache === "STALE");
     if (sampled && Math.random() >= HIT_SAMPLE_RATE) return;
@@ -399,7 +420,7 @@ export function recordBoot(env: Env, raw: string | null, model: string, fw: stri
 
 // X-Blip-Usage: "<cardOpens>,<radar>,<list>,<stats>,<follow>,<claims>,<followEnabled>,<uptimeHours>"
 // sent by a device at most once an hour on a check-in it was making anyway
-// (include/UsageReport.h). Anonymous COUNTS of feature use.
+// (include/UsageReport.h). COUNTS of feature use, kept against the device's identifier.
 //
 // WHAT IT CARRIES AND WHAT IT CANNOT. Counts of how often features are used --
 // never what the use was about. No aircraft, no callsign, no tail number, no

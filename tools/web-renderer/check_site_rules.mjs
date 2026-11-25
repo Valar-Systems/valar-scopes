@@ -10,6 +10,12 @@
 // changes no byte of the web build: build.sh links a program that needs eval with its own flags (none allowed) and
 // again with only that flag removed (exactly one required, or the probe could not see the flag at all).
 //
+// Nor may that JavaScript hold a coordinate past 2 decimal places (the owner's 2 dp rule, 2026-11-13): v19's render
+// module shipped its usage example's latitude and longitude at 4 dp in a header comment. Comments ship, so the whole
+// text is scanned, and any number with 1-3 integer digits and 3 or more decimals counts -- a bare pair has no key to
+// find it by. A real constant of that shape that is not a coordinate gets a look, like a new wasm URL. Its context is
+// printed with every digit masked: a real hit must not put the coordinate it found into a public CI log.
+//
 // Exit 0: clean. 1: a finding, each printed with its category and file. 2: an instrument failure -- no loader, no
 // render module, no wasm or no probe was read, or the control showed no eval. Reading nothing never passes.
 import fs from "node:fs";
@@ -30,6 +36,7 @@ const JS_RULES = [
   ["absolute URL", "http(s)://", /\bhttps?:\/\//gi],
   ["absolute URL", "ws(s)://", /\bwss?:\/\//gi],
   ["absolute URL", "a //host string", /["'`]\/\/[A-Za-z0-9]/g],
+  ["coordinate", "a number past 2 dp", /(?<![\w$.])-?\d{1,3}\.\d{3,}(?![\w$])/g],   // not inside a name or a x.y.z
 ];
 
 // The wasm's URL strings: firmware constants, none reachable from the web build (R6). Each is named with its source.
@@ -45,8 +52,10 @@ function scanJs(text, only) {
   const out = [];
   for (const [cat, name, re] of JS_RULES) {
     if (only && cat !== only) continue;
-    for (const m of text.matchAll(re))
-      out.push({ cat, name, at: JSON.stringify(text.slice(Math.max(0, m.index - 20), m.index + 20)) });
+    for (const m of text.matchAll(re)) {
+      const at = text.slice(Math.max(0, m.index - 20), m.index + 20);
+      out.push({ cat, name, at: JSON.stringify(cat === "coordinate" ? at.replace(/\d/g, "#") : at) });
+    }
   }
   return out;
 }
@@ -147,7 +156,10 @@ function selftest(dist) {
     ["cookies", 'document.cookie = "a=1";'], ["cookies", 'cookieStore.get("a");'],
     ["absolute URL", 'fetch("https://example.com/x");'], ["absolute URL", 'new WebSocket("wss://example.com/x");'],
     ["absolute URL", 'import("//example.com/x.js");'],
+    ["coordinate", "const lon = -98.7654;"], ["coordinate", '// latitude: "12.345"'],
   ];
+  // A coordinate finding must print no digit, or a real hit would publish the value it found.
+  const masked = (r) => (r.findings || []).every((x) => x.cat !== "coordinate" || !/\d/.test(x.at));
   JS_PLANTS.forEach(([cat, plant], i) => {
     const dir = copy(path.join(tmp, `js-${i}`));
     const f = path.join(dir, path.basename(loader));
@@ -155,9 +167,29 @@ function selftest(dist) {
     fs.writeFileSync(f, before + "\n;" + plant + "\n");
     const applied = fs.readFileSync(f, "utf8").includes(plant) && fs.readFileSync(f, "utf8") !== before;
     const r = check(dir);
-    const exact = r.code === 1 && r.findings.length === 1 && r.findings[0].cat === cat;
+    const exact = r.code === 1 && r.findings.length === 1 && r.findings[0].cat === cat && masked(r);
     say(applied && exact, `S-js-${i} ${cat}: ${plant} -> exit ${r.code}, ` +
-        `${(r.findings || []).map((x) => x.cat + "/" + x.name).join(", ") || "no finding"}${applied ? "" : " (NOT APPLIED)"}`);
+        `${(r.findings || []).map((x) => x.cat + "/" + x.name).join(", ") || "no finding"}` +
+        `${masked(r) ? "" : " (a digit in the printed context)"}${applied ? "" : " (NOT APPLIED)"}`);
+  });
+
+  // The coordinate rule in the render module, in v19's own shape (a usage-example comment), and at its boundary:
+  // past 2 dp is two findings; at 2 dp, the owner's rule, it is none.
+  const coordPair = [
+    ["S-coord-render, past 2 dp", '//     config:    { latitude: "12.3456", longitude: "-98.7654" },', 1, 2],
+    ["S-coord-render, 2 dp (the boundary: allowed)", '//     config:    { latitude: "12.35", longitude: "-98.77" },', 0, 0],
+  ];
+  coordPair.forEach(([what, plant, code, n], i) => {
+    const dir = copy(path.join(tmp, `coord-${i}`));
+    const f = path.join(dir, path.basename(render));
+    const before = fs.readFileSync(f, "utf8");
+    fs.writeFileSync(f, before + "\n" + plant + "\n");
+    const applied = fs.readFileSync(f, "utf8").includes(plant) && fs.readFileSync(f, "utf8") !== before;
+    const r = check(dir);
+    const exact = r.code === code && r.findings.length === n &&
+                  r.findings.every((x) => x.cat === "coordinate" && x.file === path.basename(render)) && masked(r);
+    say(applied && exact, `${what}: exit ${r.code} (${code} required), ${r.findings.length} finding(s) (${n} required)` +
+        `${masked(r) ? "" : " (a digit in the printed context)"}${applied ? "" : " (NOT APPLIED)"}`);
   });
 
   // The wasm plant: one firmware URL changed at the same length, so nothing else in the binary moves.
@@ -179,7 +211,8 @@ function selftest(dist) {
   say(empty.code === 2, `an empty folder: exit ${empty.code} (2 required: reading nothing never passes)`);
 
   fs.rmSync(tmp, { recursive: true, force: true });
-  console.log(`site rules selftest: ${bad ? bad + " problem(s)" : "every plant caught, exactly"} (${JS_PLANTS.length + 1} plants)`);
+  console.log(`site rules selftest: ${bad ? bad + " problem(s)" : "every plant caught, exactly"} ` +
+              `(${JS_PLANTS.length + 2} plants and the 2 dp boundary)`);
   return bad ? 1 : 0;
 }
 

@@ -29,9 +29,14 @@ CLASS_B = {"HeadBucket", "HeadObject", "GetObject", "UsageSummary", "GetBucketEn
            "GetBucketCors", "GetBucketLifecycleConfiguration"}
 SCRIPT = {"blipscope-proxy": "proxy", "blipscope-proxy-staging": "proxy-staging", "blipscope-wx-ingest": "cref",
           "blipscope-wx-ingest-dev": "wx-dev", "blipscope-basemap-staging": "basemap-staging",
-          "valarscopes-app": "kiosk", "valarscopes-site": "kiosk"}
+          "blipscope-basemap": "basemap-production", "valarscopes-app": "kiosk", "valarscopes-site": "kiosk",
+          "blipscope-screen": "screen", "blipscope-screen-staging": "screen-staging"}
 BUCKET = {"missileer-live": "missileer-live", "missileer-clips": "missileer-clips", "blipscope-wx-dev": "wx-dev",
-          "blipscope-basemap-pkg-staging": "basemap-staging", "blipscope-basemap": "basemap-bucket", "": "account-level"}
+          "blipscope-basemap-pkg-staging": "basemap-staging", "blipscope-basemap": "basemap-bucket",
+          "blipscope-basemap-pkg": "basemap-production", "": "account-level"}
+# Buckets attributed by their own rule below, not by BUCKET (docs/account-budget.md section 2): blipscope-wx is shared by the
+# ingests and the proxy's /wx serving. scripts/check_budget_names.py reads BUCKET and this set, so both rules are checked.
+SHARED_BUCKETS = {"blipscope-wx"}
 KV_NS = {"733bf90056104f56be9492e62450a0bf": "proxy", "8b6e92ed802a4192b6b6c1399fdf96aa": "proxy-staging"}   # wrangler.toml (public)
 
 
@@ -56,7 +61,12 @@ def gql(q, a, b):
 def script_product(s, opera_state):
     if s.startswith("blipscope-wx-ingest-op"):
         return "opera-ten", opera_state
+    if s in SCRIPT_STATE:
+        return SCRIPT_STATE[s]
     return SCRIPT.get(s, "unattributed"), "now"
+
+
+SCRIPT_STATE = {"blipscope-wx-ingest-shsr": ("shsr", "built")}   # 9.4: its product's live state, so a read attributes it
 
 
 def main():
@@ -88,7 +98,7 @@ def main():
         cls = "r2_class_a" if act in CLASS_A else "r2_class_b" if act in CLASS_B else None
         if cls is None:
             continue   # free operations (deletes, aborts)
-        if bk == "blipscope-wx":
+        if bk in SHARED_BUCKETS:
             # Shared (docs/account-budget.md section 2). Class A: the proxy never writes it, so it is the ingests'. In a
             # silent read that is cref alone; in any other read it is cref and the ten together, which this tool does not
             # split by guess. Class B: the ingests plus the proxy's /wx serving, which R2 cannot separate.
@@ -119,6 +129,10 @@ def main():
     # The account's totals from SEPARATE, coarser queries (no script, bucket or namespace dimension), so the checker's
     # anchor compares the attributed rows against something they were not summed from: a truncated grouped query
     # (limit 1000) or a group the mapping skipped shows as a gap.
+    # PREMISE the checker depends on (scripts/account_budget.py anchor, 9.12): each total below is rounded ONCE, to the
+    # unit, on its raw sum x k, and each row further down is rounded once on its own. So a scaled read's rows and total
+    # can differ by up to 0.5 x (rows + 1) from rounding alone, which is the allowance the anchor grants where k != 1.
+    # Round anything here differently and that bound changes with it.
     totals = {}
     tw = gql("workersInvocationsAdaptive(limit: 10, filter: {datetime_geq: $a, datetime_lt: $b}) { sum { cpuTimeUs requests } }", a, b)
     totals["cpu_ms"] = round(sum(g["sum"]["cpuTimeUs"] for g in tw["workersInvocationsAdaptive"]) / 1000.0 * k)
@@ -133,11 +147,11 @@ def main():
     rows = []
     for (p, s, al), v in sorted(acc.items()):
         if al in ("kv_read", "kv_write", "kv_list", "kv_delete", "cpu_ms", "requests", "r2_class_a", "r2_class_b", "do_requests", "do_gb_s"):
-            month = round(v * k)
+            month = round(v * k)   # once per row, to the unit: the anchor's rounding allowance (9.12) assumes it
             rows.append({"product": p, "state": s, "allowance": al, "value": month, "read": rid, "basis": "measured",
                          "how": f"{a}..{b} ({hours:g} h) x {k:g}"})
     for bk, by in sorted(store.items()):
-        p = "blipscope-wx-reads" if bk == "blipscope-wx" else BUCKET.get(bk, "unattributed")
+        p = "blipscope-wx-reads" if bk in SHARED_BUCKETS else BUCKET.get(bk, "unattributed")
         if p == "blipscope-wx-reads":
             p = "cref+opera-ten" if opera_state != "silent" else "cref"   # storage is written by the ingests
         if p == "unattributed":
@@ -146,7 +160,9 @@ def main():
         rows.append({"product": p, "state": "excluded" if take == "opera" else "now", "allowance": "r2_storage_gb", "value": gb,
                      "read": rid, "basis": "measured",
                      "how": f"the window's largest stored bytes, {bk} (not anchored: storage has no coarser total)"})
-    read = {"tool": "tools/budget/budget_read.py", "window": [a, b], "totals": totals}
+    # k: the checker's anchor reads it, and only asks whether it is 1. Six places: a full float repr (720/318 written in
+    # full has 16 digits after the point) can carry 16 digits in a row, which the device-id guard rightly reads as an id.
+    read = {"tool": "tools/budget/budget_read.py", "window": [a, b], "k": round(k, 6), "totals": totals}
     if observation:
         read["observation"] = True
         rows = []   # totals only: printed beside the graded figure, never summed (section 5.1)

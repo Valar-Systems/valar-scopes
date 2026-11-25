@@ -84,6 +84,9 @@ static_assert(joinfail::R_HANDSHAKE_TIMEOUT      == WIFI_REASON_HANDSHAKE_TIMEOU
 
 LGFX tft;
 LGFX_Sprite backbuffer(&tft);
+#if defined(BLIPSCOPE_PUSH_TASK)
+LGFX_Sprite backbuffer2(&tft);   // M3: the second backbuffer (docs/m3-push-task.md, section 3)
+#endif
 
 // The borrowed view the /diag/fb handler reads. No second allocation: on every
 // SKU BANDED_RENDER is false, so this sprite IS the whole 240x240 RGB565 frame
@@ -113,6 +116,165 @@ uint32_t     Clears()                { return g_fbClears; }
 void         SetTag(uint32_t tag)    { g_fbTag = tag; }
 uint32_t     Tag()                   { return g_fbTag; }
 }  // namespace framebuf
+
+#if defined(BLIPSCOPE_PUSH_TASK)
+// =====================================================================================================
+// M3: THE PUSH ON ITS OWN TASK (docs/m3-push-task.md; design (i), DMA straight from the PSRAM buffer).
+//
+// Two backbuffers. The loop draws frame N into one, hands it over, and draws frame N+1 into the other
+// while frame N goes out over SPI. Each buffer has a binary semaphore, "free": the loop takes it before
+// drawing, and the push task gives it back only AFTER the send completes, so the loop can never draw
+// into a buffer that is being sent, and a frame is handed over exactly once.
+//
+// What was read before this was written (the doc's section 2): the push held the loop for its whole
+// 25.8 ms; LovyanGFX turns DMA OFF for PSRAM sprites on purpose ("DMA disable with use SPIRAM",
+// LGFX_Sprite.hpp), which is why the cache is written back here first and why design (ii) exists; the
+// S3's DMA path issues a long buffer segment by segment and yields between them; nothing the loop calls
+// at run time writes the SPI bus, EXCEPT the two restart screens, which call Quiesce() first.
+// =====================================================================================================
+#include <esp_cache.h>
+namespace pushtask {
+constexpr size_t kBytes = (size_t)SCREEN_SIZE * SCREEN_SIZE * 2;   // one RGB565 frame
+static_assert(!variant::BANDED_RENDER, "M3 needs whole-frame buffers: BANDED_RENDER must be false");
+static_assert(kBytes % 64 == 0, "the cache write-back covers whole 64-byte lines");
+
+LGFX_Sprite* g_buf[2] = {&backbuffer, &backbuffer2};
+SemaphoreHandle_t g_free[2] = {nullptr, nullptr};
+QueueHandle_t g_queue = nullptr;
+int g_draw = 0;                  // the buffer the loop draws into next (loop task only)
+volatile int g_complete = -1;    // the last buffer handed over complete: what /diag/fb reads
+
+// The [m3] line's counters: written by the push task, printed by it every kReportEvery pushes.
+uint32_t g_pushes = 0, g_syncErr = 0;
+uint64_t g_pushUsSum = 0, g_syncUsSum = 0;
+uint32_t g_pushUsMax = 0;
+volatile uint32_t g_waitUsSum = 0, g_waitUsMax = 0, g_waits = 0;   // the loop's waits for a free buffer
+constexpr uint32_t kReportEvery = 750;                              // ~30 s at 25 fps
+
+void Task(void*)
+{
+    for (;;) {
+        uint8_t i;
+        if (xQueueReceive(g_queue, &i, portMAX_DELAY) != pdTRUE) continue;
+        uint8_t* const p = (uint8_t*)g_buf[i]->getBuffer();
+        const uint32_t t0 = micros();
+        // Design (i): the DMA reads PSRAM directly, so the CPU's cached writes must reach PSRAM first.
+        if (esp_cache_msync(p, kBytes, ESP_CACHE_MSYNC_FLAG_DIR_C2M) != ESP_OK) g_syncErr++;
+        const uint32_t t1 = micros();
+        tft.startWrite();
+        tft.pushImageDMA(0, 0, SCREEN_SIZE, SCREEN_SIZE, (const lgfx::swap565_t*)p);
+        // Bus_SPI::wait() busy-polls, so wait for the last segment by yielding instead of spinning.
+        while (tft.dmaBusy()) vTaskDelay(1);
+        tft.endWrite();
+        const uint32_t t2 = micros();
+        // FrameDone moves HERE (doc, section 5): map-client's p2p is timed from it, and it must stay
+        // "present to present". Left in the loop it would time the loop, not the glass.
+        framebuf::SetPhase(framebuf::kPhasePushed);
+        framebuf::FrameDone();
+        xSemaphoreGive(g_free[i]);
+
+        g_pushes++;
+        g_syncUsSum += t1 - t0;
+        g_pushUsSum += t2 - t0;
+        if (t2 - t0 > g_pushUsMax) g_pushUsMax = t2 - t0;
+        if (g_pushes % kReportEvery == 0) {
+            const uint32_t waits = g_waits ? g_waits : 1;
+            Serial.printf("[m3] pushes=%lu push_avg_us=%lu push_max_us=%lu sync_avg_us=%lu sync_err=%lu "
+                          "loop_wait_avg_us=%lu loop_wait_max_us=%lu\n",
+                          (unsigned long)g_pushes, (unsigned long)(g_pushUsSum / g_pushes),
+                          (unsigned long)g_pushUsMax, (unsigned long)(g_syncUsSum / g_pushes),
+                          (unsigned long)g_syncErr, (unsigned long)(g_waitUsSum / waits),
+                          (unsigned long)g_waitUsMax);
+            g_pushUsMax = 0;
+            g_waitUsMax = 0;
+        }
+    }
+}
+
+// Both buffers 64-byte aligned in PSRAM, so the cache write-back covers whole lines. Allocated once, at
+// boot, before Wi-Fi (doc, section 3). Returns the first buffer, or nullptr if either allocation failed.
+void* CreateBuffers()
+{
+    const size_t internalBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    void* a = heap_caps_aligned_alloc(64, kBytes, MALLOC_CAP_SPIRAM);
+    void* b = heap_caps_aligned_alloc(64, kBytes, MALLOC_CAP_SPIRAM);
+    if (!a || !b) {
+        Serial.printf("[m3] buffers: ALLOC FAILED a=%p b=%p\n", a, b);
+        return nullptr;
+    }
+    memset(a, 0, kBytes);
+    memset(b, 0, kBytes);
+    backbuffer.setColorDepth(16);
+    backbuffer2.setColorDepth(16);
+    backbuffer.setBuffer(a, SCREEN_SIZE, SCREEN_SIZE, 16);
+    backbuffer2.setBuffer(b, SCREEN_SIZE, SCREEN_SIZE, 16);
+    g_free[0] = xSemaphoreCreateBinary();
+    g_free[1] = xSemaphoreCreateBinary();
+    g_queue = xQueueCreate(1, sizeof(uint8_t));
+    xSemaphoreGive(g_free[0]);
+    xSemaphoreGive(g_free[1]);
+    // One priority above the loop, on the loop's core: it mostly sleeps in the DMA's yields, and its
+    // short bursts preempt the draw rather than Wi-Fi on core 0 (M3-5 measures the effect).
+    const UBaseType_t prio = uxTaskPriorityGet(nullptr) + 1;
+    const BaseType_t ok = xTaskCreatePinnedToCore(Task, "m3push", 4096, nullptr, prio, nullptr, xPortGetCoreID());
+    const size_t internalAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    Serial.printf("[m3] buffers: a=%p b=%p aligned64=%d bytes=%u each; task=%s core=%d prio=%u; "
+                  "internal free %u -> %u (%d B)\n",
+                  a, b, (int)(((uintptr_t)a % 64 == 0) && ((uintptr_t)b % 64 == 0)), (unsigned)kBytes,
+                  ok == pdPASS ? "ok" : "FAILED", (int)xPortGetCoreID(), (unsigned)prio,
+                  (unsigned)internalBefore, (unsigned)internalAfter,
+                  (int)internalAfter - (int)internalBefore);
+    return (ok == pdPASS && g_free[0] && g_free[1] && g_queue) ? a : nullptr;
+}
+
+// The loop takes the buffer it is about to draw into: it waits only if that buffer's push is still
+// running (or /diag/fb is copying it).
+LGFX_Sprite& TakeForDrawing()
+{
+    const uint32_t t0 = micros();
+    xSemaphoreTake(g_free[g_draw], portMAX_DELAY);
+    const uint32_t w = micros() - t0;
+    g_waits = g_waits + 1;
+    g_waitUsSum = g_waitUsSum + w;
+    if (w > g_waitUsMax) g_waitUsMax = w;
+    return *g_buf[g_draw];
+}
+
+// The loop hands the finished frame to the push task and moves to the other buffer.
+void HandOver()
+{
+    const uint8_t i = (uint8_t)g_draw;
+    g_complete = i;
+    framebuf::Register(g_buf[i]);
+    xQueueSend(g_queue, &i, portMAX_DELAY);
+    g_draw ^= 1;
+}
+
+// Before the loop draws straight to the panel (the two restart screens): wait out any push in flight
+// and keep both buffers, so nothing else touches the SPI bus. Bounded, so a stuck push cannot hang a
+// restart: the restart proceeds either way.
+void Quiesce()
+{
+    xSemaphoreTake(g_free[0], pdMS_TO_TICKS(200));
+    xSemaphoreTake(g_free[1], pdMS_TO_TICKS(200));
+}
+}  // namespace pushtask
+
+namespace framebuf {
+LGFX_Sprite* AcquireComplete(uint32_t timeoutMs)
+{
+    const int i = pushtask::g_complete;
+    if (i < 0) return nullptr;
+    if (xSemaphoreTake(pushtask::g_free[i], pdMS_TO_TICKS(timeoutMs)) != pdTRUE) return nullptr;
+    return pushtask::g_buf[i];
+}
+void ReleaseComplete(LGFX_Sprite* sprite)
+{
+    for (int i = 0; i < 2; ++i)
+        if (pushtask::g_buf[i] == sprite) xSemaphoreGive(pushtask::g_free[i]);
+}
+}  // namespace framebuf
+#endif  // BLIPSCOPE_PUSH_TASK
 
 #ifdef FEATURE_WEATHERSCOPE
 // DiagText.h's storage (docs/weatherscope-stage3.md A9.42): diag only, Weatherscope its one user. The route asks, the
@@ -387,7 +549,12 @@ void setup()
   } else {
     backbuffer.setColorDepth(8);
   }
+#if defined(BLIPSCOPE_PUSH_TASK)
+  // M3: both backbuffers, 64-byte aligned in PSRAM, plus the push task; allocated here, once, before Wi-Fi.
+  void* spriteBuf = pushtask::CreateBuffers();
+#else
   void* spriteBuf = backbuffer.createSprite(SCREEN_SIZE, BAND_H);
+#endif
   // Published only once it exists; the handler checks for nullptr, so a
   // failed allocation is a 503 rather than a crash.
   if (spriteBuf) framebuf::Register(&backbuffer);
@@ -765,6 +932,9 @@ void loop()
 #endif
   if (tier != factoryreset::Tier::None) {
     factoryreset::Perform(tier, [&wm]() { wm.resetSettings(); });
+#if defined(BLIPSCOPE_PUSH_TASK)
+    pushtask::Quiesce();   // M3: this splash writes the panel directly; no push may be in flight
+#endif
     DrawSplash(tft, backbuffer,
                tier == factoryreset::Tier::Factory ? "Factory reset" : "Wi-Fi cleared",
                "Restarting into setup...");
@@ -809,6 +979,9 @@ void loop()
         Serial.println("[WiFi] link lost; watchdog armed (reboot in 10 min if it stays down)");
       } else if (millis() - wifiDownSinceMs >= WIFI_DOWN_REBOOT_MS) {
         Serial.println("[WiFi] down 10 min -- restarting to re-run the join/portal path");
+#if defined(BLIPSCOPE_PUSH_TASK)
+        pushtask::Quiesce();   // M3: this splash writes the panel directly; no push may be in flight
+#endif
         DrawSplash(tft, backbuffer, "Wi-Fi lost", "Restarting...");
         delay(1500);
         ESP.restart();
@@ -922,8 +1095,16 @@ void loop()
   const float sweep = appManager.CurrentSweepAngle();
 #endif
 
+#if defined(BLIPSCOPE_PUSH_TASK)
+  // M3: the buffer this frame draws into. It waits only while that buffer's previous push is still going.
+  LGFX_Sprite& drawBuf = pushtask::TakeForDrawing();
+#endif
   for (int bandY = 0; bandY < SCREEN_SIZE; bandY += BAND_H) {
+#if defined(BLIPSCOPE_PUSH_TASK)
+    BandCanvas canvas(drawBuf, bandY);
+#else
     BandCanvas canvas(backbuffer, bandY);
+#endif
     const bool firstPass = (bandY == 0);
 
     framebuf::SetPhase(framebuf::kPhaseClearing);  // /diag/fb copies only between Drawn and this (A9.26)
@@ -979,8 +1160,14 @@ void loop()
     const uint8_t pushPhase = framebuf::Phase();
     const uint32_t pushT0 = micros();
 #endif
+#if defined(BLIPSCOPE_PUSH_TASK)
+    // M3: frame N goes to the push task, and the loop moves on to frame N+1. The Pushed phase and
+    // FrameDone are set by the push task when the send completes (docs/m3-push-task.md, section 5).
+    pushtask::HandOver();
+#else
     backbuffer.pushSprite(0, bandY);
     framebuf::SetPhase(framebuf::kPhasePushed);    // diag only (A9.22)
+#endif
 #ifdef FEATURE_WEATHERSCOPE
     appManager.OnPushed(framebuf::Tag(), pushPhase, micros() - pushT0);
 #endif
@@ -992,7 +1179,12 @@ void loop()
   // AFTER the flush, so a reader that samples the counter either side of its
   // copy is comparing against completed frames rather than against a frame
   // still being assembled.
+#if !defined(BLIPSCOPE_PUSH_TASK)
   framebuf::FrameDone();
+#endif
+  // M3: FrameDone runs in the push task, at the send's completion. RecordFrameUs below therefore no
+  // longer contains the push: `fr` drops by up to the push's 25.8 ms whether or not the glass is faster.
+  // The gate reads map-client's p2p, which is anchored on FrameDone (docs/m3-push-task.md, section 5).
 
 #if !defined(FEATURE_EAM) && !defined(FEATURE_SPACE) && !defined(FEATURE_SEISMIC) && !defined(FEATURE_BIRDING) && !defined(FEATURE_FISHING) && !defined(FEATURE_CLAUDESCOPE) && !defined(FEATURE_SPEED) && !defined(FEATURE_WEATHERSCOPE)
   appManager.RecordFrameUs(micros() - frameStartUs);

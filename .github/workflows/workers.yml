@@ -22,6 +22,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 jobs:
   # The published photo manifest and the repo's manifest.json must name the same
   # photos. On 2026-09-16 they did not: the repo said 237, production said 238,
@@ -127,6 +130,28 @@ jobs:
         if: matrix.worker == 'proxy'
         run: bash scripts/routes-age-verdict.selftest.sh
 
+      # smoke-prod.sh section 2c, enrich on a fixed hex: eleven canned answers with the whole case list compared, no op
+      # value in the output, and three plants (the control's NOT FOUND check dropped, op printed, the hex shape check
+      # removed), each proven applied and turning exactly its registered cases.
+      - name: smoke's fixed-hex enrich verdict (selftest)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/enrich-fixed-verdict.selftest.sh
+
+      # W7 (docs/route-weekly-code.md): the weekly route refresh's rows, all through the FAKE KV (no network, no real
+      # namespace). FK1 refuses the fake wherever a real credential is in reach; this job holds none, so they run here.
+      - name: the route refresh's guards, FK1, TK1, SC2 and SC4 (selftest)
+        if: matrix.worker == 'proxy'
+        run: npx --no-install tsx scripts/routes-guards.selftest.mts
+      - name: the route refresh's freeze, as the workflow sees it (selftest)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/routes-freeze.selftest.sh
+      - name: the key-level writer, verify, seal and replay (selftest, fake KV)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/routes-writer.selftest.sh
+      - name: the routes-refresh run, end to end (selftest, fake KV)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/routes-run.selftest.sh
+
       # /healthz's build stamp, the TOP-LEVEL "commit" only (docs/healthz-commit-read.md), as confirm-deploy.sh,
       # smoke-prod.sh and tools/wx/r12_prod.sh read it through one helper: rows HC1-HC5, CD1-CD2, SM1-SM5, R12 and
       # W1-W3, and two plants (P-OLD, P-FIRST) whose whole red sets must equal the registered ones.
@@ -149,6 +174,42 @@ jobs:
         if: matrix.worker == 'proxy'
         run: node scripts/check-wx-plant.mjs --selftest
 
+      # The screen service's checks (its registration, accepted 2026-11-25), in plain Node: P-F1 parity (the boards'
+      # route table read from src/index.ts against src/screen/map.ts), P-F3 (the release URL against the firmware's
+      # own, an integer-only version parser, a memo that fails closed), P-F2 and P-T2 (the release and tier gates as
+      # truth tables), P-O1..P-O4 (the logs: 10% in production, each env's LOGS_RATE equal to its sampling, the
+      # full-logs env at 1.0, the counter bound in every env) and P-W (the logs watch is scheduled exactly when
+      # production has a route). The selftest makes each check fail on a temp copy first; then the real check runs.
+      - name: The screen service's checks (selftest, then the real check)
+        if: matrix.worker == 'proxy'
+        run: npx --no-install tsx scripts/check-screen.ts --selftest && npx --no-install tsx scripts/check-screen.ts
+
+      # P-B2, read from `wrangler deploy --dry-run`: nothing of the screen service rides the boards' bundle (anchored
+      # on the boards' own "enrich_gap", controlled by the screen bundle carrying its marker exactly once). The
+      # selftest re-exports the screen worker from the boards' entry, which must FAIL. Dry-runs only; no credentials.
+      - name: The screen service stays out of the boards' bundle (selftest)
+        if: matrix.worker == 'proxy'
+        run: node scripts/check-screen-bundle.mjs --selftest
+
+      # The screen service's logs (its phase-1 registration, R5 and R4; docs/screen-logs-runbook.md). The full-logs
+      # watch's verdict on canned /health bodies (P-V), then Vs, a copy comparing `until` the wrong way, must flip
+      # exactly its two cases. The pre-deploy check: P-U's --until rules on a fixed clock, then Us (the 24 h cap
+      # removed) must flip exactly +25 h; and P-M2/P-S on each env's own dry-run bundle, then Ss (an unstamped bundle)
+      # and Ms (the counter's write stripped) must each refuse. Dry-runs only; no credentials.
+      - name: The screen service's logs watch verdict (selftest)
+        if: matrix.worker == 'proxy'
+        run: node scripts/screen-logs-verdict.mjs --selftest
+      - name: The screen service's pre-deploy check (selftests)
+        if: matrix.worker == 'proxy'
+        run: node scripts/screen-deploy-check.mjs --selftest-until && node scripts/screen-deploy-check.mjs --selftest-bundles
+      # deploy.sh's argument rules (map-server's F2-F6 on #811): on every path but --screen NOTHING may follow the
+      # environment, refused as usage, never silently dropped (`staging --dry-run` would otherwise deploy for real);
+      # --screen alone takes --until. check-deploy-args.sh's rows run with an empty claims folder (nothing past the
+      # claim runs); then its sabotages, each on a copy of deploy.sh, must turn exactly their registered rows red.
+      - name: deploy.sh refuses anything after the environment off --screen (check-deploy-args.sh's rows, then its sabotages)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/check-deploy-args.sh && bash scripts/check-deploy-args.sh --sabotage
+
       # The test identity (docs/test-identity.md), which replaced the blip-creds wrapper. The mint script against a
       # local stub of the provision route (TM1, TM1s, TM-R, and S-TMPRINT, a copy that prints the key, which the output
       # scan must catch); EXAMPLE values only. Under tsx, because it imports the Worker's own deviceIdFromMac.
@@ -160,6 +221,11 @@ jobs:
       - name: The checks run only as the test identity (selftest)
         if: ${{ !cancelled() && matrix.worker == 'proxy' }}
         run: npx tsx scripts/test-identity.selftest.mts
+      # The device label (docs/workers-logs-invocation-off.md, section 8): the helper reads one id from stdin and prints
+      # only its label (H1-H6), and S-DLECHO, a copy that echoes its input, must be caught. EXAMPLE ids only.
+      - name: The device label helper (selftest)
+        if: ${{ !cancelled() && matrix.worker == 'proxy' }}
+        run: npx tsx scripts/device-label.selftest.mts
       # TX2 and S-TXRECON: reconcile-fleet.py leaves the test identity out of "KV ONLY" (a fixture; no KV touched).
       - name: reconcile-fleet leaves the test identity out (selftest)
         if: ${{ !cancelled() && matrix.worker == 'proxy' }}
@@ -242,6 +308,14 @@ jobs:
         run: npm run typecheck:scripts
 
       - run: npm test
+
+      # The basemap sabotage driver's kept-evidence rule (docs/basemap-sabotage-keep.md): a run it cannot grade as
+      # predicted keeps its vitest JSON, stdout and stderr and names the dir on its line; a run graded as predicted keeps
+      # nothing. Both directions on the real Workers pool: S-VCRC against a wrong expect must keep, against its true
+      # expect must not. The whole driver stays local (about an hour); this is the part that must not silently regress.
+      - name: the sabotage driver keeps a failed run's evidence (selftest)
+        if: matrix.worker == 'proxy'
+        run: node scripts/sabotage-basemap.mjs --selftest-keep
 
       # Every SQL statement the dashboard can issue, run against the LIVE Analytics
       # Engine endpoint. vitest never executes the SQL, and two defects reached the

@@ -24,7 +24,7 @@ export const BASEMAP_REV = 1;
 /** Which way a request went (docs/basemap-branch-log.md; MK1-MK7; docs/basemap-a1.md, MS1-MS9): set on the caller's
  *  metric, so it reaches the proxy's `evt:"req"` log line and never the dataset point. Fixed strings: no device id, no
  *  query. A 503 not_configured or a 400 returns before any branch and carries none. */
-export type BasemapBranch = "304-known" | "304-kv" | "hit" | "stored" | "stored-error" | "known-miss" | "in-flight" | "unknown-store";
+export type BasemapBranch = "304-known" | "304-kv" | "hit" | "stored" | "stored-error" | "known-miss" | "in-flight" | "unknown-store" | "guarded";
 
 export interface BasemapEnv { BASEMAP?: Fetcher; BASEMAP_PKG?: R2Bucket; BASEMAP_NAME_KEY?: string; ENRICH_KV?: KVNamespace }
 
@@ -33,10 +33,19 @@ export interface BasemapEnv { BASEMAP?: Fetcher; BASEMAP_PKG?: R2Bucket; BASEMAP
  *  tests only, which shorten the waits. */
 export const SYNC_WAIT_MS = 1_600, RETRY_AFTER_S = 15, LOCK_STALE_MS = 45_000;
 export const basemapTiming = { syncWaitMs: SYNC_WAIT_MS, lockStaleMs: LOCK_STALE_MS };
+/** The retry-storm guard: after a build fails, or dies without releasing its lock (a cut-off or a cancelled waitUntil leaves
+ *  no other trace), its place waits N before another build is tried. N(count) = GUARD_BASE_MS x 2^(count-1), capped at
+ *  GUARD_MAX_MS. An ask inside N answers 503 basemap_retry_later with Retry-After = the seconds left, and builds nothing.
+ *  THE DEVICE: this firmware honours Retry-After only on a 202 or 429 (MapPolicy CA4); on a 503 it backs off on its own
+ *  ladder (CA7: 60 s doubling to 3,600 s) and ignores the header. The header stays: it is correct HTTP, and tests and other
+ *  clients read it. (After v20: honour Retry-After on a 503, so the device waits exactly N.) */
+export const GUARD_BASE_MS = 600_000, GUARD_MAX_MS = 21_600_000;
+export const guardMs = (count: number) => Math.min(GUARD_BASE_MS * 2 ** Math.max(0, count - 1), GUARD_MAX_MS);
 /** A1's keys: the store id and the query's 24-hex digest only, never a coordinate (MS8). */
 export const pkgKey = (storeId: string, digest: string) => `bm/v1/pkg/${storeId}/${digest}`;
 export const errKey = (storeId: string, digest: string) => `bm/v1/pkg/${storeId}/${digest}.err`;
 export const lockKey = (storeId: string, digest: string) => `bm/v1/pkg-lock/${storeId}/${digest}`;
+export const failKey = (storeId: string, digest: string) => `bm/v1/pkg/${storeId}/${digest}.fail`;
 
 // ---- Where the 304 learns the current store id without a store read (ruled as recommended, A2.40). ---------------
 // The store id from this isolate's last builder response, believed for STORE_TTL_MS. A cold
@@ -107,12 +116,16 @@ async function callBuilder(env: BasemapEnv, q: Query): Promise<Response | Built>
 
 /** A1: one build, its package (or its 404/422) kept in BASEMAP_PKG, and the lock released -- what a 202 leaves running.
  *  Keeping is best-effort: a failed put costs a later rebuild, never this answer. */
-async function buildAndKeep(env: BasemapEnv, q: Query, pkg: R2Bucket, digest: string, id?: string, locked = false): Promise<Response | Built> {
+async function buildAndKeep(env: BasemapEnv, q: Query, pkg: R2Bucket, digest: string, id?: string, locked = false,
+                            marked = false): Promise<Response | Built> {
   try {
     const r = await callBuilder(env, q);
     try {
-      if (!(r instanceof Response)) await pkg.put(pkgKey(r.storeId, digest), r.bytes);
-      else if (id && (r.status === 404 || r.status === 422)) await pkg.put(errKey(id, digest), JSON.stringify({ status: r.status, code: r.status === 404 ? "no_coverage" : "too_large" }));
+      if (!(r instanceof Response)) {
+        await pkg.put(pkgKey(r.storeId, digest), r.bytes);
+        if (id) await pkg.delete(failKey(id, digest)); // the guard's clear: this place builds again
+      } else if (id && (r.status === 404 || r.status === 422)) await pkg.put(errKey(id, digest), JSON.stringify({ status: r.status, code: r.status === 404 ? "no_coverage" : "too_large" }));
+      else if (id && !marked) await markFailure(pkg, id, digest); // the guard's trigger (a); a takeover has already counted
     } catch { /* kept nothing: the next request builds again */ }
     return r;
   } finally {
@@ -120,16 +133,27 @@ async function buildAndKeep(env: BasemapEnv, q: Query, pkg: R2Bucket, digest: st
   }
 }
 
-/** A1's lock: R2's create-once write (`If-None-Match: *`, atomic). True when this request may build. A lock older than
- *  lockStaleMs belongs to a build that died; it is taken over on its own etag, so only one taker wins. */
-async function takeLock(pkg: R2Bucket, key: string): Promise<boolean> {
+/** The guard's marker: one more failure for this place, at now ({at, count} on an empty object). Best-effort, like every A1
+ *  write: a marker not written costs at worst one more build. */
+async function markFailure(pkg: R2Bucket, id: string, digest: string): Promise<void> {
+  try {
+    const prev = await pkg.head(failKey(id, digest));
+    const count = (Number(prev?.customMetadata?.count ?? 0) || 0) + 1;
+    await pkg.put(failKey(id, digest), "", { customMetadata: { at: String(Date.now()), count: String(count) } });
+  } catch { /* marked nothing */ }
+}
+
+/** A1's lock: R2's create-once write (`If-None-Match: *`, atomic). "taken" or "takeover" when this request may build, "held"
+ *  when another build holds it. A lock older than lockStaleMs belongs to a build that died; it is taken over on its own etag,
+ *  so only one taker wins -- and the takeover is reported, because the dead build left no other trace (the guard counts it). */
+async function takeLock(pkg: R2Bucket, key: string): Promise<"taken" | "takeover" | "held"> {
   const at = { at: String(Date.now()) };
-  if (await pkg.put(key, "", { onlyIf: new Headers({ "If-None-Match": "*" }), customMetadata: at })) return true;
+  if (await pkg.put(key, "", { onlyIf: new Headers({ "If-None-Match": "*" }), customMetadata: at })) return "taken";
   const held = await pkg.head(key);
-  if (!held) return (await pkg.put(key, "", { onlyIf: new Headers({ "If-None-Match": "*" }), customMetadata: at })) !== null;
+  if (!held) return (await pkg.put(key, "", { onlyIf: new Headers({ "If-None-Match": "*" }), customMetadata: at })) !== null ? "taken" : "held";
   const since = Number(held.customMetadata?.at ?? held.uploaded.getTime());
-  if (Date.now() - since < basemapTiming.lockStaleMs) return false;
-  return (await pkg.put(key, "", { onlyIf: { etagMatches: held.etag }, customMetadata: at })) !== null;
+  if (Date.now() - since < basemapTiming.lockStaleMs) return "held";
+  return (await pkg.put(key, "", { onlyIf: { etagMatches: held.etag }, customMetadata: at })) !== null ? "takeover" : "held";
 }
 
 /** A validated package as the answer: 304 when the client already holds it, else the bytes; a copy for the Cache API. */
@@ -166,7 +190,9 @@ export async function handleBasemap(request: Request, env: BasemapEnv, ctx: Exec
       // S2 (docs/basemap-sync-wait.md): the package and its .err in ONE round of reads, so a cold first request waits for
       // one R2 read before the lock, not two. A stored request reads both; the .err is then simply not used. So a failed
       // .err read must not fail a request the package can answer: a missing .err only means a rebuild (MS11).
-      const [kept, err] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest)).catch(() => null)]);
+      // The guard's marker is read in the same round, and a failed read is "no marker" (the .err rule): at worst, one build.
+      const [kept, err, fail] = await Promise.all([pkg.get(pkgKey(id, digest)), pkg.get(errKey(id, digest)).catch(() => null),
+        pkg.head(failKey(id, digest)).catch(() => null)]);
       if (kept) {
         const bytes = new Uint8Array(await kept.arrayBuffer());
         if (validate(bytes).status === "kOk") {
@@ -182,9 +208,21 @@ export async function handleBasemap(request: Request, env: BasemapEnv, ctx: Exec
           return errorResponse(e.status, e.code);
         }
       }
-      if (!(await takeLock(pkg, lockKey(id, digest)))) { log.bm = "in-flight"; return accepted(); }
+      // The retry-storm guard: a place whose last build failed or died waits N, and an ask inside N builds nothing
+      if (fail) {
+        const count = Number(fail.customMetadata?.count ?? 1) || 1;
+        const left = Number(fail.customMetadata?.at ?? fail.uploaded.getTime()) + guardMs(count) - Date.now();
+        if (left > 0) {
+          log.bm = "guarded";
+          return errorResponse(503, "basemap_retry_later", { "retry-after": String(Math.ceil(left / 1000)) }); // no-store, as every error
+        }
+      }
+      const lock = await takeLock(pkg, lockKey(id, digest));
+      if (lock === "held") { log.bm = "in-flight"; return accepted(); }
+      // A takeover is the only trace a dead build leaves: count it, then build (the one attempt of this N)
+      if (lock === "takeover") await markFailure(pkg, id, digest);
       // This request builds, raced against the wait: the answer when it is quick, else 202 and waitUntil finishes it
-      const work = buildAndKeep(env, q, pkg, digest, id, true);
+      const work = buildAndKeep(env, q, pkg, digest, id, true, lock === "takeover");
       ctx.waitUntil(work.then(() => undefined, () => undefined));
       const quick = await Promise.race([work, sleep(basemapTiming.syncWaitMs).then(() => null)]);
       if (quick === null) return accepted();

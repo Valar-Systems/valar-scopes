@@ -1,0 +1,769 @@
+{
+ "flags": [
+  "--norchain",
+  "--only161",
+  "--onlyiv256"
+ ],
+ "controls": {
+  "synth_check": {
+   "exit": 0,
+   "tail": [
+    "--check: every committed byte equal"
+   ]
+  },
+  "dp_bump_half_eps": true,
+  "dp_bump_double_eps_kept": true,
+  "ring_clipped_closed": true,
+  "line_reentry_two_runs": true,
+  "river_chain_three_links": true,
+  "place_ties_by_name": true,
+  "rule_l_figures": {
+   "City of Westminster": 204236,
+   "City of London": 8583,
+   "London": 8799728
+  },
+  "rule_l_as_ruled": true,
+  "london_id_is_the_city": true,
+  "files_terrain_stable": {
+   "first": 34,
+   "after_all": 34,
+   "equal": true
+  }
+ },
+ "pop_stats": {
+  "ons_counts": 6985,
+  "bua_polygons": 8545,
+  "nrs_polygons": 503,
+  "london_lads": 33,
+  "pop_from": {
+   "nrs": 216,
+   "ons": 1199,
+   "bua-without-count": 1,
+   "none": 7,
+   "rule-L1": 2,
+   "rule-L2": 1
+  },
+  "rule_l": [
+   {
+    "name": "City of Westminster",
+    "rule": "rule-L1",
+    "pop": 204236
+   },
+   {
+    "name": "City of London",
+    "rule": "rule-L1",
+    "pop": 8583
+   },
+   {
+    "name": "London",
+    "rule": "rule-L2",
+    "pop": 8799728
+   }
+  ]
+ },
+ "runs": [
+  {
+   "centre": "LHR",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "D",
+   "bytes_first": 126438,
+   "bytes_final": 32764,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {
+    "water": 9,
+    "roads": 9390
+   },
+   "collapsed": {
+    "roads": 171,
+    "rivers": 0,
+    "water": 9
+   },
+   "section_bytes_first": {
+    "1": 481,
+    "2": 15740,
+    "3": 102918,
+    "4": 335,
+    "5": 4710,
+    "7": 2126
+   },
+   "section_bytes_final": {
+    "1": 0,
+    "2": 15545,
+    "3": 10055,
+    "4": 335,
+    "5": 4710,
+    "7": 1991
+   },
+   "files_terrain": 34,
+   "class2_km_in_square": 8857.1,
+   "class2_km_kept": 5174.2,
+   "counts": {
+    "water": 0,
+    "rivers": 1512,
+    "roads": 844,
+    "peaks": 16,
+    "places": 256
+   }
+  },
+  {
+   "centre": "MAN",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "D",
+   "bytes_first": 132883,
+   "bytes_final": 32767,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {
+    "water": 27,
+    "roads": 10101
+   },
+   "collapsed": {
+    "roads": 170,
+    "rivers": 0,
+    "water": 6
+   },
+   "section_bytes_first": {
+    "1": 1087,
+    "2": 10545,
+    "3": 114060,
+    "4": 309,
+    "5": 4628,
+    "7": 2126
+   },
+   "section_bytes_final": {
+    "1": 0,
+    "2": 10378,
+    "3": 15331,
+    "4": 309,
+    "5": 4628,
+    "7": 1993
+   },
+   "files_terrain": 49,
+   "class2_km_in_square": 10440.9,
+   "class2_km_kept": 7703.4,
+   "counts": {
+    "water": 0,
+    "rivers": 957,
+    "roads": 1305,
+    "peaks": 16,
+    "places": 256
+   }
+  },
+  {
+   "centre": "BHX",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "D",
+   "bytes_first": 163638,
+   "bytes_final": 32768,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {
+    "water": 21,
+    "roads": 13185
+   },
+   "collapsed": {
+    "roads": 234,
+    "rivers": 0,
+    "water": 11
+   },
+   "section_bytes_first": {
+    "1": 903,
+    "2": 14070,
+    "3": 141396,
+    "4": 325,
+    "5": 4689,
+    "7": 2127
+   },
+   "section_bytes_final": {
+    "1": 0,
+    "2": 13837,
+    "3": 11795,
+    "4": 325,
+    "5": 4689,
+    "7": 1994
+   },
+   "files_terrain": 48,
+   "class2_km_in_square": 12481.0,
+   "class2_km_kept": 5450.9,
+   "counts": {
+    "water": 0,
+    "rivers": 1331,
+    "roads": 960,
+    "peaks": 16,
+    "places": 256
+   }
+  },
+  {
+   "centre": "NCL",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "D",
+   "bytes_first": 56278,
+   "bytes_final": 32766,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {
+    "water": 24,
+    "roads": 2313
+   },
+   "collapsed": {
+    "roads": 67,
+    "rivers": 2,
+    "water": 4
+   },
+   "section_bytes_first": {
+    "1": 818,
+    "2": 8218,
+    "3": 40090,
+    "4": 308,
+    "5": 4591,
+    "7": 2125
+   },
+   "section_bytes_final": {
+    "1": 0,
+    "2": 8137,
+    "3": 17611,
+    "4": 308,
+    "5": 4591,
+    "7": 1991
+   },
+   "files_terrain": 35,
+   "class2_km_in_square": 4172.4,
+   "class2_km_kept": 4014.6,
+   "counts": {
+    "water": 0,
+    "rivers": 781,
+    "roads": 1640,
+    "peaks": 16,
+    "places": 256
+   }
+  },
+  {
+   "centre": "EDI",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "D",
+   "bytes_first": 42811,
+   "bytes_final": 32768,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {
+    "water": 77,
+    "roads": 508
+   },
+   "collapsed": {
+    "roads": 38,
+    "rivers": 0,
+    "water": 18
+   },
+   "section_bytes_first": {
+    "1": 4099,
+    "2": 8513,
+    "3": 23709,
+    "4": 355,
+    "5": 3881,
+    "7": 2126
+   },
+   "section_bytes_final": {
+    "1": 0,
+    "2": 8464,
+    "3": 17949,
+    "4": 355,
+    "5": 3881,
+    "7": 1991
+   },
+   "files_terrain": 51,
+   "class2_km_in_square": 3682.5,
+   "class2_km_kept": 3659.4,
+   "counts": {
+    "water": 0,
+    "rivers": 815,
+    "roads": 1706,
+    "peaks": 16,
+    "places": 225
+   }
+  },
+  {
+   "centre": "GLA",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "D",
+   "bytes_first": 33575,
+   "bytes_final": 30850,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {},
+   "collapsed": {
+    "roads": 20,
+    "rivers": 0,
+    "water": 20
+   },
+   "section_bytes_first": {
+    "1": 3926,
+    "2": 9543,
+    "3": 14369,
+    "4": 359,
+    "5": 3124,
+    "7": 2126
+   },
+   "section_bytes_final": {
+    "1": 2054,
+    "2": 9500,
+    "3": 13558,
+    "4": 359,
+    "5": 3124,
+    "7": 2127
+   },
+   "files_terrain": 50,
+   "class2_km_in_square": 3006.4,
+   "class2_km_kept": 3006.4,
+   "counts": {
+    "water": 77,
+    "rivers": 929,
+    "roads": 1321,
+    "peaks": 16,
+    "places": 182
+   }
+  },
+  {
+   "centre": "GLA",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": true,
+   "outcome": "D",
+   "bytes_first": 61602,
+   "bytes_final": 32759,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {
+    "water": 77,
+    "roads": 2433
+   },
+   "collapsed": {
+    "roads": 27,
+    "rivers": 0,
+    "water": 177
+   },
+   "section_bytes_first": {
+    "1": 3940,
+    "2": 9543,
+    "3": 41313,
+    "4": 359,
+    "5": 4214,
+    "7": 2105
+   },
+   "section_bytes_final": {
+    "1": 0,
+    "2": 9500,
+    "3": 16579,
+    "4": 359,
+    "5": 4214,
+    "7": 1979
+   },
+   "files_terrain": 50,
+   "class2_km_in_square": 4125.5,
+   "class2_km_kept": 3790.9,
+   "counts": {
+    "water": 0,
+    "rivers": 929,
+    "roads": 1428,
+    "peaks": 16,
+    "places": 243
+   }
+  },
+  {
+   "centre": "ABZ",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "C",
+   "bytes_first": 26121,
+   "bytes_final": 26121,
+   "validate": "kOk",
+   "eps_doubled": false,
+   "dropped": {},
+   "collapsed": {
+    "roads": 12,
+    "rivers": 0,
+    "water": 4
+   },
+   "section_bytes_first": {
+    "1": 3227,
+    "2": 8049,
+    "3": 10154,
+    "4": 348,
+    "5": 2091,
+    "7": 2124
+   },
+   "section_bytes_final": {
+    "1": 3227,
+    "2": 8049,
+    "3": 10154,
+    "4": 348,
+    "5": 2091,
+    "7": 2124
+   },
+   "files_terrain": 31,
+   "class2_km_in_square": 1785.4,
+   "class2_km_kept": 1785.4,
+   "counts": {
+    "water": 81,
+    "rivers": 821,
+    "roads": 905,
+    "peaks": 16,
+    "places": 119
+   }
+  },
+  {
+   "centre": "INV",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "C",
+   "bytes_first": 25610,
+   "bytes_final": 25610,
+   "validate": "kOk",
+   "eps_doubled": false,
+   "dropped": {},
+   "collapsed": {
+    "roads": 6,
+    "rivers": 1,
+    "water": 1
+   },
+   "section_bytes_first": {
+    "1": 6030,
+    "2": 8989,
+    "3": 6436,
+    "4": 346,
+    "5": 1556,
+    "7": 2125
+   },
+   "section_bytes_final": {
+    "1": 6030,
+    "2": 8989,
+    "3": 6436,
+    "4": 346,
+    "5": 1556,
+    "7": 2125
+   },
+   "files_terrain": 48,
+   "class2_km_in_square": 1925.3,
+   "class2_km_kept": 1925.3,
+   "counts": {
+    "water": 129,
+    "rivers": 909,
+    "roads": 556,
+    "peaks": 16,
+    "places": 92
+   }
+  },
+  {
+   "centre": "CWL",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "D",
+   "bytes_first": 84755,
+   "bytes_final": 32765,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {
+    "water": 11,
+    "roads": 5035
+   },
+   "collapsed": {
+    "roads": 85,
+    "rivers": 1,
+    "water": 4
+   },
+   "section_bytes_first": {
+    "1": 409,
+    "2": 13213,
+    "3": 63960,
+    "4": 313,
+    "5": 4607,
+    "7": 2125
+   },
+   "section_bytes_final": {
+    "1": 0,
+    "2": 12971,
+    "3": 12755,
+    "4": 313,
+    "5": 4607,
+    "7": 1991
+   },
+   "files_terrain": 38,
+   "class2_km_in_square": 6220.6,
+   "class2_km_kept": 5384.1,
+   "counts": {
+    "water": 0,
+    "rivers": 1216,
+    "roads": 1056,
+    "peaks": 16,
+    "places": 256
+   }
+  },
+  {
+   "centre": "NQY",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "C",
+   "bytes_first": 20775,
+   "bytes_final": 20775,
+   "validate": "kOk",
+   "eps_doubled": false,
+   "dropped": {},
+   "collapsed": {
+    "roads": 18,
+    "rivers": 0,
+    "water": 0
+   },
+   "section_bytes_first": {
+    "1": 116,
+    "2": 5012,
+    "3": 11165,
+    "4": 325,
+    "5": 1905,
+    "7": 2124
+   },
+   "section_bytes_final": {
+    "1": 116,
+    "2": 5012,
+    "3": 11165,
+    "4": 325,
+    "5": 1905,
+    "7": 2124
+   },
+   "files_terrain": 21,
+   "class2_km_in_square": 1593.8,
+   "class2_km_kept": 1593.8,
+   "counts": {
+    "water": 5,
+    "rivers": 455,
+    "roads": 1079,
+    "peaks": 16,
+    "places": 111
+   }
+  },
+  {
+   "centre": "BFS",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "F",
+   "bytes_first": 12242,
+   "bytes_final": 12242,
+   "validate": "kOk",
+   "eps_doubled": false,
+   "dropped": {},
+   "collapsed": {
+    "roads": 5,
+    "rivers": 0,
+    "water": 0
+   },
+   "section_bytes_first": {
+    "1": 415,
+    "2": 2987,
+    "3": 5709,
+    "4": 358,
+    "5": 522,
+    "7": 2123
+   },
+   "section_bytes_final": {
+    "1": 415,
+    "2": 2987,
+    "3": 5709,
+    "4": 358,
+    "5": 522,
+    "7": 2123
+   },
+   "files_terrain": 16,
+   "class2_km_in_square": 688.0,
+   "class2_km_kept": 688.0,
+   "counts": {
+    "water": 13,
+    "rivers": 271,
+    "roads": 511,
+    "peaks": 16,
+    "places": 29
+   }
+  },
+  {
+   "centre": "BFS",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": true,
+   "outcome": "D",
+   "bytes_first": 53746,
+   "bytes_final": 32763,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {
+    "water": 10,
+    "roads": 2335
+   },
+   "collapsed": {
+    "roads": 17,
+    "rivers": 0,
+    "water": 671
+   },
+   "section_bytes_first": {
+    "1": 524,
+    "2": 2987,
+    "3": 43338,
+    "4": 358,
+    "5": 4308,
+    "7": 2103
+   },
+   "section_bytes_final": {
+    "1": 0,
+    "2": 2970,
+    "3": 23021,
+    "4": 358,
+    "5": 4308,
+    "7": 1978
+   },
+   "files_terrain": 16,
+   "class2_km_in_square": 2766.1,
+   "class2_km_kept": 2517.1,
+   "counts": {
+    "water": 0,
+    "rivers": 271,
+    "roads": 2297,
+    "peaks": 16,
+    "places": 256
+   }
+  },
+  {
+   "centre": "LDY",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": false,
+   "outcome": "F",
+   "bytes_first": 6868,
+   "bytes_final": 6868,
+   "validate": "kOk",
+   "eps_doubled": false,
+   "dropped": {},
+   "collapsed": {
+    "roads": 1,
+    "rivers": 0,
+    "water": 1
+   },
+   "section_bytes_first": {
+    "1": 604,
+    "2": 1457,
+    "3": 2137,
+    "4": 330,
+    "5": 89,
+    "7": 2123
+   },
+   "section_bytes_final": {
+    "1": 604,
+    "2": 1457,
+    "3": 2137,
+    "4": 330,
+    "5": 89,
+    "7": 2123
+   },
+   "files_terrain": 15,
+   "class2_km_in_square": 485.2,
+   "class2_km_kept": 485.2,
+   "counts": {
+    "water": 13,
+    "rivers": 136,
+    "roads": 183,
+    "peaks": 16,
+    "places": 5
+   }
+  },
+  {
+   "centre": "LDY",
+   "r_km": 161,
+   "eps_m": 671.0,
+   "variant": "iv",
+   "N": 256,
+   "ni_in": true,
+   "outcome": "D",
+   "bytes_first": 52431,
+   "bytes_final": 32768,
+   "validate": "kOk",
+   "eps_doubled": true,
+   "dropped": {
+    "water": 8,
+    "roads": 1993
+   },
+   "collapsed": {
+    "roads": 11,
+    "rivers": 0,
+    "water": 674
+   },
+   "section_bytes_first": {
+    "1": 711,
+    "2": 1457,
+    "3": 43260,
+    "4": 330,
+    "5": 4442,
+    "7": 2103
+   },
+   "section_bytes_final": {
+    "1": 0,
+    "2": 1455,
+    "3": 24436,
+    "4": 330,
+    "5": 4442,
+    "7": 1977
+   },
+   "files_terrain": 15,
+   "class2_km_in_square": 2553.5,
+   "class2_km_kept": 2366.0,
+   "counts": {
+    "water": 0,
+    "rivers": 136,
+    "roads": 2313,
+    "peaks": 16,
+    "places": 256
+   }
+  }
+ ],
+ "seconds": 80
+}

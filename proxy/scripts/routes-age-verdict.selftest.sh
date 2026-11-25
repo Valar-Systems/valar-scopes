@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # SV1-SV6 (docs/route-mirror-age.md, section 3): routes_age_verdict, each case in warn mode and in fail mode, compared as
 # WHOLE lines, never by fragment. ROUTES_VERDICT names the file to grade, so a sabotage can be graded by the same cases.
+# SV7-SV8 (docs/route-age-alert.md): smoke-prod.sh sets fail mode exactly once, and counts the verdict.
 #
 #   bash scripts/routes-age-verdict.selftest.sh        exit 0 every case as expected, 1 otherwise
 set -u
@@ -35,5 +36,15 @@ case "$got" in
   "") printf 'FAIL SV6: empty line\n'; fails=$((fails+1)) ;;
   *) printf 'PASS SV6\n' ;;
 esac
+# SV7 (docs/route-age-alert.md): smoke-prod.sh runs this verdict in FAIL mode -- exactly one mode assignment, to "fail",
+# and none to "warn". ROUTES_SMOKE names the file to grade, so a sabotage can be graded by the same check.
+SMOKE="${ROUTES_SMOKE:-$HERE/smoke-prod.sh}"
+nf="$(grep -cx 'ROUTES_AGE_MODE="fail"' "$SMOKE")"; nw="$(grep -c 'ROUTES_AGE_MODE="warn"' "$SMOKE")"
+if [ "$nf" = 1 ] && [ "$nw" = 0 ]; then printf 'PASS SV7\n'
+else printf 'FAIL SV7: ROUTES_AGE_MODE="fail" lines %s, ="warn" lines %s (want 1 and 0)\n' "$nf" "$nw"; fails=$((fails+1)); fi
+# SV8 (control): the fail-mode branch that counts the verdict into pass/fail is present exactly once.
+n8="$(grep -cF 'case "$RA_VERDICT" in PASS*) pass=$((pass+1)) ;; *) fail=$((fail+1)) ;; esac' "$SMOKE")"
+if [ "$n8" = 1 ]; then printf 'PASS SV8\n'
+else printf 'FAIL SV8: the counting branch appears %s time(s) (want 1)\n' "$n8"; fails=$((fails+1)); fi
 if [ "$fails" -eq 0 ]; then printf 'SELFTEST PASSED\n'; exit 0; fi
 printf 'SELFTEST FAILED: %d\n' "$fails"; exit 1

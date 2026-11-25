@@ -44,6 +44,10 @@ cpu_ms = 14530
 enabled = true
 head_sampling_rate = 1
 
+# Request (invocation) logs off, as on the proxy: the builder's own build line stays (D4's (B), 2026-11-18).
+[env.staging.observability.logs]
+invocation_logs = false
+
 # The same, read-only store as production: there is one sealed store, and the builder never writes.
 [[env.staging.r2_buckets]]
 binding = "STORE"
@@ -59,6 +63,14 @@ BUILD_COMMIT = "\"UNSTAMPED\""
 
 [env.production.limits]
 cpu_ms = 14530
+
+# Workers Logs, PRODUCTION: written and switched OFF (the owner, 2026-11-18: D4 logs = A). Switch-on, his word only: true.
+[env.production.observability]
+enabled = false
+head_sampling_rate = 1
+
+[env.production.observability.logs]
+invocation_logs = false
 
 [[env.production.r2_buckets]]
 binding = "STORE"

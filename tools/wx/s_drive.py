@@ -9,6 +9,7 @@ graded reading is s_reads.py. Deploys only from the clean checkout at the merged
            (after the last `backfilled`), 12
     prints each finished invocation as tail reports it, the deploys' times and version ids, and writes
     plan-s-<label>.tail.json beside the deploy logs
+  PLAN_S_SCRATCH=<dir> is required (refused if unset): this run's scratch directory, holding its deploy logs and wt-plan-s/proxy
 """
 import json
 import os
@@ -19,7 +20,9 @@ import threading
 import time
 from datetime import datetime, timezone
 
-SCRATCH = r"C:\Users\DanielFrenkel\AppData\Local\Temp\claude\c--Github-Blipscope\fb8462e7-ee3a-4757-8b09-2d0165eb9254\scratchpad"
+SCRATCH = os.environ.get("PLAN_S_SCRATCH", "")   # this run's scratch directory: its deploy logs, and wt-plan-s/proxy under it
+if not SCRATCH:
+    raise SystemExit("REFUSED: PLAN_S_SCRATCH is unset -- set it to this run's scratch directory (no default is assumed)")
 PROXY = os.path.join(SCRATCH, "wt-plan-s", "proxy")
 WRANGLER = os.path.join(PROXY, "scripts", "wrangler-run.mjs")   # every call through the helper (docs/wrangler-run.md)
 WANT = os.environ.get("PLAN_S_WANT", "")   # the merged commit the copy deploys from (refused if unset)

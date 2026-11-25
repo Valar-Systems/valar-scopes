@@ -43,18 +43,23 @@ bench Missileer, and it was the photo unit.
 | `-Board` | Product, role | Label (the MAC's last two bytes) | Rule |
 |---|---|---|---|
 | `missileer` | **Missileer**, bench | `E9:D8` (VID:PID `303A:1001`) | Flash any time without asking: game client, display work, touch measurements. |
-| `missileer-photo` | **Missileer**, photo unit | `E7:94` (VID:PID `303A:1001`) | Product photos (`env:missileer-photo`, [docs/missileer-photo-mode.md](docs/missileer-photo-mode.md)). Missileer envs only, flashed on Daniel's go (`-DanielApproved`). Ran `missileer-s3-128` v15 `no-cloud+eam` on 2026-10-12, mDNS `Missileer-E794.local`. |
-| `weatherscope` | **Weatherscope**, bench | `6E:64` (VID:PID `303A:1001`) | The Weatherscope session's board since 2026-10-20 (Daniel). Until then it was the Blipscope soak board; its last Blipscope state is in [docs/v18-reboot-cap.md](docs/v18-reboot-cap.md). **Never flash it for Blipscope or Missileer work**; ask Daniel before touching it. |
-| `blipscope-bench` | **Blipscope**, bench | `E2:08` | The Blipscope session's board (device `e5cd743f`, COM18 on 2026-10-12). **Never flash it for Missileer work**; ask Daniel before touching it. |
+| `missileer-photo` | **Missileer**, photo unit | `E7:94` (VID:PID `303A:1001`) | **YKUSH port 1.** Any firmware, flashing and power cycles, Blipscope builds included (the owner, 2026-11-22). Reserve it first; log every flash and switch. Product photos still use `env:missileer-photo` ([docs/missileer-photo-mode.md](docs/missileer-photo-mode.md)). |
+| `weatherscope` | **Weatherscope**, bench | `6E:64` (VID:PID `303A:1001`) | **YKUSH port 2.** Any firmware, flashing and power cycles (the owner, 2026-11-22). Reserve it first; log every flash and switch. Its last Blipscope state before 2026-10-20 is in [docs/v18-reboot-cap.md](docs/v18-reboot-cap.md). |
+| `blipscope-bench` | **Blipscope**, bench | `E2:08` | **YKUSH port 3.** Any firmware, flashing and power cycles (the owner, 2026-11-22). Reserve it first; log every flash and switch. |
 
 The Blipscope and Weatherscope boards are separate units, and so are the two Missileers (Daniel, 2026-10-12; the Weatherscope row since 2026-10-20).
+
+The three YKUSH boards' ports (read 2026-11-22, read-only): port 1 = E7:94, port 2 = 6E:64, port 3 = E2:08, port 4 = the
+hub's controller. A number from a newly used board counts only once it reads the same as E2:08 on the same image, within
+the bench's own noise (the owner, 2026-11-22). **A board outside this table is never touched; the closed set refuses it.**
 
 **The full serials are not in the repo** (Daniel, 2026-11-06): a MAC plus the public salt gives a device id, and a device
 name carries the MAC's last three bytes. A board is named here by its label. The serials live in one local file outside
 every repo, `~/.config/blipscope/boards` or the path in `BLIPSCOPE_BOARDS_FILE`, and `scripts/board-port.py` refuses with
 exit 4 without it. `scripts/check_macs.py` refuses a full MAC or a device-name suffix in a tracked file.
 `scripts/board-port.py` (`BOARDS`) and `scripts/bench-flash.ps1` (`-Board`) carry the
-same four rows; change all three together.
+same four rows; change all three together. `board-port.py --selftest` compares the three
+name sets whole, so a row added to one of them alone fails it, whatever the row is called.
 
 **A COM number is not an identity.** Windows numbers a port per USB interface layout, so
 the same board moves whenever its firmware's USB shape changes: the Missileer board was
@@ -67,9 +72,10 @@ the colons removed.
 - `python scripts/board-port.py --list` shows where each board is right now.
 - `scripts/bench-flash.ps1 -PioEnv <env> -Board missileer -Label <l>` resolves the port
   from the serial (and 1200-baud-touches a TinyUSB board into download mode itself), and
-  prints the board's label beside the port before it writes anything. It refuses every board
-  but `missileer` without `-DanielApproved`, refuses a `missileer-*` env on a
-  non-Missileer board, and refuses a non-Missileer env on the photo unit.
+  prints the board's label beside the port before it writes anything. Since the owner's rule
+  of 2026-11-22 the three YKUSH boards take any firmware with a reservation alone
+  (`-DanielApproved` is accepted and ignored). `-Board` is a closed set: a board outside the
+  table is refused at parameter binding, before the script runs a line.
 - A bare `pio run -t upload --upload-port COMx` is how the wrong board gets flashed:
   resolve the port first (`board-port.py missileer --upload`).
 
@@ -862,6 +868,14 @@ NOT during an OTA observation window -- it makes workflow runs and release noise
 a run is the thing being measured. Scheduled for after Run 1 closes
 (2026-09-02T20:21:42Z).
 
+**Fired, 2026-11-20 (REH-B; `docs/release-perms-rehearsal.md`, section 11).** A prerelease on a throwaway
+commit, with the shipping leg deliberately broken: the slug-ful leg failed; `version` FAILED at "Every publishing
+SKU must have published"; its demote ran (`demoted: prerelease=true`); `version.txt` was never published. The
+planned observation above ("is `version` skipped?") never matched the wiring this paragraph describes: under
+`if: always()`, `version` runs on every release event, and a missing receipt FAILS its step instead of skipping
+the job. Since 2026-09-20 that failure also demotes the release. So the blocking direction reads as `version`
+FAILED plus the demote. `promote`'s own job is still unrun; its first real run is expected to be v20's.
+
 **Still open, deliberately.** The gate cannot yet distinguish SKIP ("nothing to
 verify here") from UNTRUSTWORTHY ("cannot verify"), so `animtest` stays red
 forever. That is the correct fix and it is NOT free: a SKIP that is easy to earn
@@ -1418,13 +1432,43 @@ The first attempt at that rehearsal silently failed to patch the file, and the
 unsabotaged "9 passed" was nearly reported as the rehearsal. Print the failure
 count before and after; if they match, the sabotage is the thing that is broken.
 
-The check is one line and it is always available:
+The check is always available:
 
 | claim | the artifact |
 |---|---|
 | "this file contains X" | `git cat-file -p <blob>` / `git show <sha>:<path>` |
-| "this id is a real device" | the registry: `wrangler kv key list --prefix "enr:dev:"` |
+| "this id is a real device" | the registry, asked as one yes/no: `kv_has`, under this table. Never a key list on `enr:dev:`, which prints every device id |
 | "this annotation is a record" | nothing — **which is the point.** If provenance cannot be established, it is prose |
+
+The registry row prints present, absent or "cannot tell", never the key or its value, and
+`kv_has` itself writes nothing to disk ([docs/wrangler-run.md](docs/wrangler-run.md)). A plain
+`kv key get ... > /dev/null` gets two things wrong: on a missing key wrangler's error line on
+stderr carries the request URL, key included; and a 401 or a missing `wrangler.toml` exits
+non-zero too, so "non-zero means absent" answers absent for every id. Only an HTTP 404 is absent,
+and only after the anchor says present. Three details are load-bearing:
+
+- `err=$(...)` is a plain assignment. `local err=$(...)` resets `$?` to 0, and every id would read
+  "present".
+- grep is fed by `printf`, never a here-string (`<<<`): bash before 5.1 writes a here-string to a
+  temp file, which is the copy on disk this form exists to avoid. `err` is unset after.
+- The id comes from a variable or a file, never typed into the call: a typed id lands in the
+  session transcript, on disk.
+
+```sh
+kv_has() {  # present / absent / cannot tell; never the key, never the value, nothing on disk
+  err=$( (cd "$(git rev-parse --show-toplevel)/proxy" && node scripts/wrangler-run.mjs kv key get "$1" \
+     --binding ENRICH_KV --env production --remote) 2>&1 >/dev/null ); rc=$?
+  s=$(printf '%s\n' "$err" | grep -o -E ' - [0-9]{3}: ' | head -1 | tr -dc 0-9); unset err
+  if [ $rc -eq 0 ]; then echo present; elif [ "$s" = 404 ]; then echo absent
+  else echo "cannot tell: exit $rc, HTTP ${s:-none}"; fi
+}
+kv_has meta:airports                 # the anchor, same namespace: present, or the next line proves nothing
+read -r id < "$ID_FILE"              # one id, from a file outside the repo; never typed
+kv_has "enr:dev:$id"; unset id       # the question
+```
+
+The helper still gives wrangler's own debug log a per-call temp folder and removes it when the call
+ends. That folder is wrangler-run.mjs's to close, not `kv_has`'s.
 
 Corollary, which is the fix for the third row: **unlabelled real data is a trap
 with the sign flipped.** The RMA annotation cost an hour precisely because nobody
@@ -1831,7 +1875,7 @@ and said never.** It was reversed deliberately, by Daniel, and the reversal is
 recorded rather than edited away so the next person does not read the new code as
 a violation of an old rule and revert it.
 
-**What is collected now.** Anonymous counts of feature use, at most hourly, on a
+**What is collected now.** Counts of feature use, at most hourly, on a
 request the device already makes: detail-card opens, screen switches per screen,
 logbook claims, whether Follow is configured (a boolean), and uptime hours. Eight
 integers. See [include/UsageReport.h](include/UsageReport.h).

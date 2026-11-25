@@ -1,0 +1,40 @@
+name: bench-tools
+
+# scripts/app-only-write.py writes the app image to ota_0 on the bench boards (bench-flash.ps1 -AppOnly, and the
+# frame-time windows). Its --selftest runs a full write and a --check-only run against a fake esptool and checks EVERY
+# argv they build: each must pin --stub-version 2 (see STUB_VERSION in the script for why). --sabotage plants the pin's
+# removal, a pin of 1, and an unguarded --check-only into copies of the script, and each must turn exactly its own rows
+# red. No path filter, like device-ids.yml: it costs seconds, and a filter is one more way for a guard not to run.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A read-only token: this workflow uses no secrets and only reads the repository (the step after checkout asserts it).
+permissions:
+  contents: read
+
+# A newer PR head cancels this workflow's run for its older head; nothing else is ever cancelled (docs/ci-concurrency.md).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  app-only-write:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # The token is read-only: this fails unless a top-level permissions block grants contents: read and nothing else,
+      # as exact lines. It landed before the block (red first), so it is known to fail when the block is missing.
+      - run: |
+          grep -Pzq '\npermissions:\n  contents: read\n(?!  \S)' .github/workflows/bench-tools.yml
+      - run: python3 scripts/app-only-write.py --selftest
+      - run: python3 scripts/app-only-write.py --sabotage
+      # scripts/board-port.py's selftest: the reservation and registry rules, and the closed set of bench boards compared
+      # whole across BOARDS, bench-flash.ps1's -Board set and CLAUDE.md's board table. It touches no USB and no real
+      # claim: every scratch file it writes is in a temporary directory.
+      - run: python3 scripts/board-port.py --selftest
+      # tools/wx/opera_return.py, the continent's return check (.github/workflows/opera-return.yml, schedule only): its
+      # grading rules on synthetic days, then five plants on copies, each of which must turn exactly its own rows red.
+      - run: python3 tools/wx/opera_return.py --selftest
+      - run: python3 tools/wx/opera_return.py --sabotage

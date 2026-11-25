@@ -37,9 +37,10 @@ secondary) poll adsb.lol and the Worker consumes from them. See [relay/](../rela
   even for major scheduled callsigns (its OpenAPI docs promise 200 + JSON), so
   it currently yields no data. adsbdb — the route source the firmware used for
   years — earns its place back for **callsign→route only** (aircraft metadata
-  stays on adsb.lol). Empty routeset answers fall through to adsbdb; only
-  definitive answers (from either source) are negative-cached. Disable the
-  fallback with `ROUTE_ADSBDB_ENABLED = "false"` once routeset recovers.
+  stays on adsb.lol). Empty routeset answers fall through to adsbdb only when
+  `ROUTE_ADSBDB_ENABLED` is exactly `"true"`; it is OFF by default and "false" in
+  every environment (docs/adsbdb-off-by-default.md). Only definitive answers
+  (from either source) are negative-cached.
 - **airplanes.live is PROHIBITED by operator** (written refusal, July 2026) and
   ships permanently dark — hardcoded off in `airplanes_live.ts`, not a reserve
   option. **adsb.fi is now the primary** (written redistribution permission,
@@ -65,7 +66,7 @@ fails over to relay-b, so the full point/hex chain is
 | 1–2 | **adsb.fi** (via relay-a / relay-b) | **PRIMARY** — staging 2026-07-30, production pending soak review | **Caching/redistribution permission granted in writing 2026-07-30.** Leads on operational grounds: ~19× the rate headroom (3600 req/h/IP vs the ~190/h where adsb.lol starts 429ing us), ~90 KB/s vs adsb.lol's ~12 KB/s anonymous cap, and an operator who answers email. Measured over a 21.3 h two-relay soak: **0 % 429 across 10,037 position fetches.** | Public limit **1 req/s per IP** — the binding scale constraint; see the rate model below. The old "adsb.fi 403s us" was Cloudflare shared egress, not policy, and the relays solve it. |
 | 3–4 | **adsb.lol** (via relay-a / relay-b) | **FALLBACK** (was primary) | **ODbL 1.0 — a right no operator can revoke**, which is worth more as a fallback than as a primary. Demoted, not dropped: the maintainer is unresponsive and has publicly flagged the public API may have to be withdrawn, so the fleet's primary path must not depend on it. Same soak: **68 % 429, with a 720 s unbroken degraded run.** | `adsb_lol_b` is deliberately the **terminal** feed — the breaker may never skip the terminal feed, so the one leg the chain can always reach is the one with the irrevocable licence. |
 | — | **airplanes.live** | **PROHIBITED** | Operator sent a **written refusal** ("do not use our data"), dated 2026-07-22. Hardcoded off in `airplanes_live.ts`; no env flip can enable it. **Removed from all reserve/failover options** — off the table, not undecided. | nothing (prohibited) |
-| — | **adsbdb** | ENABLED | Routes + type backfill only, not positions. Not part of the position-feed posture. | n/a |
+| — | **adsbdb** | **OFF** in every environment (corrected 2026-11-24: this row said ENABLED) | Routes + type backfill only, never positions. Both switches are `"false"` in every `[vars]` block of `wrangler.toml`: `ROUTE_ADSBDB_ENABLED` (the route data's rights holder refused commercial use; owner ruling 2026-11-14, docs/route-sources.md section 0a) and `TYPE_ADSBDB_ENABLED` (PlaneBase-derived, personal use only; owner ruling 2026-11-16, docs/adsbdb-off-by-default.md). Routes come from the CC0 `rt:` mirror. | n/a |
 
 **Sponsorship posture — unconditional.** Blipscope sponsors **adsb.lol at $50/month
 regardless of chain position**, and that does not change now that it is the fallback.
@@ -456,14 +457,14 @@ entrypoint = "BendFeed"
 - **Whether adsb.fi's operator's permission for valarscopes.com covers app.valarscopes.com is not recorded here.** It is Daniel's to confirm.
 
 - **It isn't a route.** No public request can reach it, and it takes no device credentials.
-- **It never fetches an upstream.** Its data is a snapshot cut from fetches devices already made, kept only when a device's fetched area covers a fixed 30 mi circle around downtown (44.058, -121.315).
+- **It never fetches an upstream.** Its data is a snapshot cut from fetches devices already made, kept only when a device's fetched area covers a fixed 30 mi circle around downtown (44.06, -121.31).
 - **The snapshot carries nothing of the device:** no tile, no radius bucket, no limit.
 - **Writes:** at most once per 10 s (30 s until 2026-11-04), globally (`BendSnapshotDO`, one instance), in `waitUntil`, so they can never slow or fail a device.
 - **Reads:** cached 10 s per colo.
 
 **The response:**
 ```json
-{ "available": true, "v": 2, "centre": {"lat": 44.058, "lon": -121.315}, "radius_km": 48.28,
+{ "available": true, "v": 2, "centre": {"lat": 44.06, "lon": -121.31}, "radius_km": 48.28,
   "t": 1761080000, "age_s": 23, "stale": false, "source": "adsb.fi", "attribution": "aircraft data: adsb.fi", "attribution_url": "https://adsb.fi",
   "aircraft": [{"hex": "a1b2c3", "cs": "ASA123", "lat": 44.1, "lon": -121.2, "alt_ft": 31000, "gs_kt": 452,
                 "track_deg": 271, "vrate_fpm": 0, "category": 3, "seen_s": 2,
@@ -652,8 +653,10 @@ UPSTREAM_AIRPLANES_LIVE_ENABLED = "false"
 npm run deploy:production
 ```
 
-Leave `ROUTE_ADSBDB_ENABLED = "true"` alone -- adsbdb supplies routes and the
-type backfill, not aircraft positions, so it is not part of this revert.
+Leave `ROUTE_ADSBDB_ENABLED` and `TYPE_ADSBDB_ENABLED` alone -- adsbdb never supplied
+aircraft positions, so neither is part of this revert. Both are "false" everywhere: the
+route data was replaced by the CC0 mirror, and the type data is PlaneBase-derived,
+personal use only, ruled out by the owner (docs/adsbdb-off-by-default.md).
 
 Expect the feed to go empty during adsb.lol's shared-egress 429 windows once the
 failovers are off; that is the trade being made, and it is why they were enabled
@@ -1123,7 +1126,7 @@ routing are validated on staging, not in unit tests.
 Operational tunables (env vars, all optional): `UPSTREAM_TIMEOUT_MS` (8000),
 `UPSTREAM_RETRY_DELAY_MS` (400), `BLIPS_FRESH_TTL_MS` (3000),
 `BLIPS_SERVE_DEADLINE_MS` (3500), `ENRICH_SERVE_DEADLINE_MS` (2500),
-`ROUTE_ADSBDB_ENABLED` ("true"), `UPSTREAM_ADSB_FI_ENABLED` /
+`ROUTE_ADSBDB_ENABLED` and `TYPE_ADSBDB_ENABLED` ("false"; OFF unless exactly "true"), `UPSTREAM_ADSB_FI_ENABLED` /
 `UPSTREAM_AIRPLANES_LIVE_ENABLED` ("false" pending permission).
 
 ## Work queue

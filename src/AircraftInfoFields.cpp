@@ -131,3 +131,25 @@ const AircraftInfoFieldDef AIRCRAFT_INFO_FIELDS[] = {
 
 const size_t AIRCRAFT_INFO_FIELD_COUNT =
     sizeof(AIRCRAFT_INFO_FIELDS) / sizeof(AIRCRAFT_INFO_FIELDS[0]);
+
+// P6: every input the formatters above read, in the table's order. The raw value, not the rounded one, so the key can
+// only over-invalidate (one refill), never keep a stale text.
+void LabelKey(const TrackedAircraft& t, labelcache::KeyBuf& k)
+{
+    k.Str(t.state.callsign.c_str());
+    k.Str(t.typeCode.c_str());
+    k.Str(t.operatorName.c_str());
+    k.Str(t.registration.c_str());
+    k.Str(t.routeOrigin.c_str());
+    k.Str(t.routeDest.c_str());
+    k.Str(t.state.icao24.c_str());
+    k.Str(t.state.originCountry.c_str());
+    k.Num(t.state.velocity);
+    k.Num(t.state.verticalRate);
+    k.Num(t.state.baroAltitude);
+    k.Num(t.state.geoAltitude);
+    k.Num(t.state.trueTrack);
+    k.Str(t.state.squawk.c_str());
+    k.Num((int32_t)t.state.category);
+    k.Num((int32_t)t.state.positionSource);
+}

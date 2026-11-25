@@ -190,7 +190,7 @@ so it is not shippable on its own even though the table says it "fits".
 >
 > Hi airplanes.live team,
 >
-> I'm Daniel Frenkel, building **Blipscope** — a small desk "flight radar" gadget (a
+> I'm the owner, building **Blipscope** — a small desk "flight radar" gadget (a
 > round touch display on an ESP32) that shows aircraft overhead. In cloud mode the
 > devices fetch aircraft through a small **Cloudflare Worker proxy we run**, so they
 > don't each hit you directly.
@@ -211,7 +211,7 @@ so it is not shippable on its own even though the table says it "fits".
 > should be on?
 >
 > Thanks for running such a great resource.
-> Daniel Frenkel — Valar Systems / Blipscope — danielfrenkel@gmail.com
+> the owner — Valar Systems / Blipscope — support@valarsystems.com
 
 ## Draft: adsb.fi reply (redistribution → commercial → rate limit)
 
@@ -304,7 +304,7 @@ reply on the existing testing-permission thread.
 > service, and I'd rather have a clear "no" than a quiet misuse of it.
 >
 > Best,
-> Daniel Frenkel — Valar Systems / Blipscope — danielfrenkel@gmail.com
+> the owner — Valar Systems / Blipscope — support@valarsystems.com
 
 ## Draft: adsb.lol (offer to feed + interest in the future feeder-key program)
 
@@ -312,7 +312,7 @@ reply on the existing testing-permission thread.
 >
 > Hi adsb.lol team,
 >
-> I'm Daniel Frenkel, building **Blipscope**, a small desk ADS-B radar gadget. I've
+> I'm the owner, building **Blipscope**, a small desk ADS-B radar gadget. I've
 > been using your public API and really value the project and its open (ODbL) stance.
 >
 > Two things:
@@ -331,7 +331,7 @@ reply on the existing testing-permission thread.
 >
 > I'm setting up feeding from my own receiver regardless. Thanks for all you do.
 >
-> Daniel Frenkel — Valar Systems / Blipscope — danielfrenkel@gmail.com
+> the owner — Valar Systems / Blipscope — support@valarsystems.com
 
-*(Fill in the real sending address / company signature before sending; the Gmail
-address above is a placeholder.)*
+*(Fill in the company signature before sending. The address above is the support role
+address, not a personal one.)*

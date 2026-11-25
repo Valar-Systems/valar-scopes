@@ -143,3 +143,22 @@ That is E3's first row, and the reason the merge waits for weatherscope's `shsr`
 `device-ids.yml` gains steps but no job. **Predicted: 33 = 31/2/0.** It read 33 = 30/2/1 (section 5).
 
 **The fix commit,** re-predicted before its push: **33 = 31/2/0** on main `eed76e5e`.
+
+## 7. The scanned count (2026-11-25)
+
+The guard used to print only what it found, `<files> file(s), <opens> direct open(s)`, and both numbers come from the
+hits. So a run whose `git ls-files -- '*.py'` returned nothing printed `0 file(s), 0 direct open(s) -- OK`, the same
+line as a clean tree: a green step could not say the guard had read anything.
+
+It now prints `<S> tracked .py scanned` first, where S counts the tracked `.py` files it actually read, and **exits 2
+(BLIND) when S is 0** instead of passing. Two selftest rows cover it:
+
+| row | plants | passes only if |
+|---|---|---|
+| G2 scanned | a fresh git tree: a tracked clean `.py` at the root, a tracked `.py` two folders down holding the plant, and an untracked `.py` holding it too | the scan reads exactly 2 files, and its only hit is the plant two folders down |
+| G2 blind | a fresh git tree with no tracked `.py` | the guard exits 2 and says it scanned 0 |
+
+Each was seen failing first, on a copy of the guard outside the repo: with the counter never incremented, only G2
+scanned failed; with the refusal removed, only G2 blind failed; unchanged, the copy passed all five rows. On main's
+tree (`0b998272`) the guard scans 258 tracked `.py` files. In CI the device-ids log's guard step carries that count, so
+a reader can check S > 0.

@@ -17,6 +17,7 @@ scenario that leaves a product's state unset -- or a failed anchor: the rows tak
 read's own account total within 1%, so a product left out (or counted twice) cannot pass.
 """
 import copy
+import datetime
 import json
 import math
 import os
@@ -39,8 +40,59 @@ class Malformed(Exception):
     pass
 
 
+MONTH = __import__("re").compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+STEADY_H = 30 * 24   # a steady row is a 30-day figure (9.1)
+
+
+def month_bounds(m):
+    """(start, end) of calendar month YYYY-MM, as aware UTC datetimes."""
+    y, mo = int(m[:4]), int(m[5:])
+    start = datetime.datetime(y, mo, 1, tzinfo=datetime.timezone.utc)
+    end = datetime.datetime(y + (mo == 12), mo % 12 + 1, 1, tzinfo=datetime.timezone.utc)
+    return start, end
+
+
+def utc(t):
+    d = datetime.datetime.fromisoformat(t.replace("Z", "+00:00")) if isinstance(t, str) else None
+    if d is None or d.tzinfo is None or d.utcoffset() != datetime.timedelta(0):
+        raise ValueError(t)
+    return d
+
+
+def segments(s, p, segs, m, states):
+    """9.9(a): [(state, hours)] for a product's ordered segment list in month scenario s. Refuses an empty list, a first
+    segment with a from, a later one without, an unknown state, a from outside the month, unsorted froms, and any list
+    in a 30-day scenario (no month). Every refusal names the segment rule."""
+    if m is None:
+        raise Malformed(f"scenario {s}: {p} is given segments, and a 30-day scenario (no month) takes one state")
+    if not segs:
+        raise Malformed(f"scenario {s}: {p}'s segment list is empty")
+    start, end = month_bounds(m)
+    edges = [start]
+    for i, g in enumerate(segs):
+        if not isinstance(g, dict) or g.get("state") not in states:
+            raise Malformed(f"scenario {s}: {p}'s segment {i} names no known state")
+        if i == 0:
+            if "from" in g:
+                raise Malformed(f"scenario {s}: {p}'s first segment has a from (it starts the month)")
+            continue
+        try:
+            t = utc(g.get("from"))
+        except (ValueError, TypeError):
+            raise Malformed(f"scenario {s}: {p}'s segment {i} needs from, an ISO UTC time")
+        if not start < t < end:
+            raise Malformed(f"scenario {s}: {p}'s segment {i} starts outside {m}")
+        if t <= edges[-1]:
+            raise Malformed(f"scenario {s}: {p}'s segment froms are not in increasing order")
+        edges.append(t)
+    edges.append(end)
+    return [(g["state"], (edges[i + 1] - edges[i]).total_seconds() / 3600) for i, g in enumerate(segs)]
+
+
 def validate(b):
     al, prods, reads = b.get("allowances", {}), b.get("products", {}), b.get("reads", {})
+    if not isinstance(b.get("month"), str) or not MONTH.match(b["month"]):
+        raise Malformed("the file has no month (YYYY-MM), the month its one-off rows are counted for")
     for a in REQUIRED:
         if a not in al:
             raise Malformed(f"required allowance {a} is missing")
@@ -48,6 +100,13 @@ def validate(b):
         for k in ("label", "included", "price", "unit", "round_up"):
             if k not in v:
                 raise Malformed(f"allowance {a} has no {k}")
+        # Section 11: an allowance may be in force only in some months ({from} and/or {until}, YYYY-MM, inclusive).
+        if "months" in v:
+            w = v["months"]
+            if (not isinstance(w, dict) or not w or set(w) - {"from", "until"}
+                    or not all(isinstance(x, str) and MONTH.match(x) for x in w.values())
+                    or ("from" in w and "until" in w and w["from"] > w["until"])):
+                raise Malformed(f"allowance {a}: months must be {{from: YYYY-MM}} and/or {{until: YYYY-MM}}, from <= until")
     for p, v in prods.items():
         if not v.get("states"):
             raise Malformed(f"product {p} has no states")
@@ -70,14 +129,42 @@ def validate(b):
             raise Malformed(f"row {i}: basis must be measured, derived or projected")
         if not isinstance(r["value"], (int, float)) or r["value"] < 0 or math.isnan(r["value"]):
             raise Malformed(f"row {i}: value must be a number >= 0")
+        # 9.1/9.2 (docs/account-budget.md section 9): a row is steady (a 30-day figure) or a one-off (per_event x the
+        # events in a month). A one-off scaled as if steady is refused rather than summed: a plausible number of the
+        # wrong kind is worse than none.
+        cad = r.get("cadence")
+        if cad not in ("steady", "one-off"):
+            raise Malformed(f"row {i}: cadence must be steady or one-off")
+        if cad == "steady" and ("per_event" in r or "events" in r):
+            raise Malformed(f"row {i}: a steady row carries no per_event or events")
+        if cad == "one-off":
+            pe, ev = r.get("per_event"), r.get("events")
+            if not isinstance(pe, (int, float)) or pe < 0 or math.isnan(pe):
+                raise Malformed(f"row {i}: a one-off row needs per_event, a number >= 0")
+            if not isinstance(ev, dict) or not ev or not all(
+                    isinstance(m, str) and MONTH.match(m) and isinstance(n, int) and not isinstance(n, bool) and n >= 0
+                    for m, n in ev.items()):
+                raise Malformed(f"row {i}: a one-off row needs events, a map of YYYY-MM to a whole number >= 0")
+            want = pe * ev.get(b["month"], 0)
+            if abs(r["value"] - want) > 1e-9 * max(abs(want), 1.0):
+                raise Malformed(f"row {i}: a one-off row's value must be per_event x events[{b['month']}] = {want:,.0f}, not {r['value']:,.0f}")
         key = (r["product"], r["state"], r["allowance"], r["read"])
         if key in seen:
             raise Malformed(f"row {i}: duplicate {key}")
         seen.add(key)
+    oneoff_prods = {r["product"] for r in b.get("rows", []) if r.get("cadence") == "one-off"}
     for s, pick in b.get("scenarios", {}).items():
+        m = pick.get("month")
+        if m is not None and (not isinstance(m, str) or not MONTH.match(m)):
+            raise Malformed(f"scenario {s}: month must be YYYY-MM")
         for p, v in prods.items():
             st = pick.get(p, v["states"][0] if len(v["states"]) == 1 else None)
-            if st is None or st not in v["states"]:
+            if isinstance(st, list):
+                segments(s, p, st, m, v["states"])   # raises Malformed naming the segment rule
+                if len(st) > 1 and p in oneoff_prods:
+                    raise Malformed(f"scenario {s}: {p} has a one-off row, so its state may not change inside the "
+                                    f"month (9.9a: no segments for it)")
+            elif st is None or st not in v["states"]:
                 raise Malformed(f"scenario {s} leaves {p}'s state unset or unknown")
     for rid, rd in reads.items():
         for k in ("tool", "window", "totals"):
@@ -89,16 +176,36 @@ def validate(b):
 
 
 def anchor(b):
-    """Every read's rows, per allowance in its totals, sum to the read's account total within ANCHOR_TOL."""
+    """Every read's rows, per allowance in its totals, sum to the read's account total within ANCHOR_TOL -- or, for a
+    read scaled by k != 1, within the rounding of its terms (9.12, ruled 2026-11-15). tools/budget/budget_read.py rounds
+    each row once and each total once, to the unit, so a scaled read's rows and total can differ by up to 0.5 x (rows
+    + 1) from rounding alone. A read with k = 1 is not scaled: its counts round exactly, and the 1% rule keeps a missing
+    count of 1 visible at a small total. A read with totals and no k is refused: its bound would be unknown."""
     bad = []
     for rid, rd in b["reads"].items():
         if rd.get("observation"):
             continue
+        k = rd.get("k")
+        if rd["totals"] and (isinstance(k, bool) or not isinstance(k, (int, float)) or not k > 0):
+            bad.append(f"read {rid}: no k (its 30-day scale), so its rounding allowance is unknown")
+            continue
         for a, total in rd["totals"].items():
-            got = sum(r["value"] for r in b["rows"] if r["read"] == rid and r["allowance"] == a)
-            if abs(got - total) > ANCHOR_TOL * max(total, 1):
+            vals = [r["value"] for r in b["rows"] if r["read"] == rid and r["allowance"] == a]
+            got = sum(vals)
+            tol = ANCHOR_TOL * max(total, 1)
+            if k != 1:
+                tol = max(tol, 0.5 * (len(vals) + 1))
+            if abs(got - total) > tol:
                 bad.append(f"read {rid}, {a}: rows sum to {got:,.0f}, the account read {total:,.0f}")
     return bad
+
+
+def in_force(al, m):
+    """Section 11: is the allowance in force in month m (YYYY-MM)? No months window means always."""
+    w = al.get("months")
+    if not w:
+        return True
+    return ("from" not in w or m >= w["from"]) and ("until" not in w or m <= w["until"])
 
 
 def cost(al, amount):
@@ -108,15 +215,46 @@ def cost(al, amount):
     return over * al["price"]
 
 
+def weights(b, s, pick):
+    """{product: [(state, weight)]}: in scenario s a steady row of (product, state) counts value x weight. A 30-day
+    scenario (no month) weighs 1; a month scenario weighs days/30 (9.8 i), or each segment's hours / 720 (9.9 a)."""
+    m = pick.get("month")
+    days = (month_bounds(m)[1] - month_bounds(m)[0]).days if m else 30
+    out = {}
+    for p, v in b["products"].items():
+        st = pick.get(p, v["states"][0])
+        out[p] = ([(x, h / STEADY_H) for x, h in segments(s, p, st, m, v["states"])] if isinstance(st, list)
+                  else [(st, days / 30)])
+    return out
+
+
+def row_amount(r, m, wt):
+    """One row's amount in a scenario: a one-off is per_event x events[month] (9.8 iii) -- in a 30-day scenario its
+    value, which is the file's month's -- and a steady row is value x weight."""
+    if r.get("cadence") == "one-off":
+        return r["per_event"] * r["events"].get(m, 0) if m else r["value"]
+    return r["value"] * wt
+
+
 def evaluate(b):
     """{scenario: {"lines": [(allowance, amount, share, mark, cost)], "overage": usd}}"""
     out = {}
     for s, pick in b["scenarios"].items():
-        state = {p: pick.get(p, v["states"][0]) for p, v in b["products"].items()}
+        m, w = pick.get("month"), weights(b, s, pick)
+        days = (month_bounds(m)[1] - month_bounds(m)[0]).days if m else 30
         lines, overage = [], 0.0
         for a, al in b["allowances"].items():
-            amt = sum(r["value"] for r in b["rows"]
-                      if r["allowance"] == a and r["state"] != EXCLUDED and state[r["product"]] == r["state"])
+            # Section 11: out of force in this scenario's month (a 30-day scenario takes the file's month): no amount,
+            # no mark, no cost. The table and the report print n/a.
+            if not in_force(al, m or b["month"]):
+                lines.append((a, None, None, "", 0.0))
+                continue
+            # Section 10: an allowance billed per month (R2 storage, a GB-month) is the month's average, whatever the
+            # month's length, so a calendar month does not scale it: its weights (days/30, or hours/720) x 30/days.
+            pm = 30 / days if al.get("per_month") else 1.0
+            amt = sum(row_amount(r, m, wt * pm) for r in b["rows"]
+                      if r["allowance"] == a and r["state"] != EXCLUDED
+                      for st, wt in w[r["product"]] if st == r["state"])
             share = amt / al["included"] if al["included"] else 0.0
             mark = "OVER" if share > 1.0 else "FLAG" if share >= FLAG_AT else ""
             c = cost(al, amt)
@@ -145,20 +283,48 @@ def observed(b):
 OBS_LABEL = "24 h rate (observation, not graded)"
 
 
-def render(b):
-    ev, ob = evaluate(b), observed(b)
-    heads = list(ev) + ([OBS_LABEL] if ob else [])
+def table(b, ev, names, ob):
+    heads = names + ([OBS_LABEL] if ob else [])
     L = ["| allowance | included | " + " | ".join(heads) + " |", "|---|---|" + "---|" * len(heads)]
     for i, (a, al) in enumerate(b["allowances"].items()):
         cells = []
-        for s in ev:
+        for s in names:
             _, amt, share, mark, c = ev[s]["lines"][i]
+            if amt is None:   # section 11: not in force in this scenario's month
+                cells.append("n/a")
+                continue
             cells.append(f"{fmt_amount(a, al, amt)} ({share:.0%})" + (f" **{mark}**" if mark else "") + (f", ${c:.2f}" if c else ""))
         if ob:
             cells.append(f"{fmt_amount(a, al, ob[a])} ({ob[a] / al['included']:.0%})" if a in ob else "not read")
         L.append(f"| {al['label']} | {fmt_amount(a, al, al['included'])} | " + " | ".join(cells) + " |")
-    L.append("| **overage a month (Read A)** | | " + " | ".join(f"**${ev[s]['overage']:.2f}**" for s in ev) + (" | |" if ob else " |"))
-    return "\n".join(L) + "\n"
+    L.append("| **overage a month (Read A)** | | " + " | ".join(f"**${ev[s]['overage']:.2f}**" for s in names) + (" | |" if ob else " |"))
+    return "\n".join(L)
+
+
+def render(b):
+    """The 30-day table (with the observation column), then one table per calendar month (9.8 i), then one line per
+    one-off row (9.2): per_event x events[the file's month] = value, its events by month, the reader's 30-day figure."""
+    ev, ob = evaluate(b), observed(b)
+    thirty = [s for s, p in b["scenarios"].items() if "month" not in p]
+    months = sorted({p["month"] for p in b["scenarios"].values() if "month" in p})
+    parts = [f"**30-day figures** (a steady row as read; a one-off at {b['month']}'s events)", table(b, ev, thirty, ob)]
+    for m in months:
+        st, en = month_bounds(m)
+        parts += [f"**{m}, calendar month ({(en - st).days} days)**",
+                  table(b, ev, [s for s, p in b["scenarios"].items() if p.get("month") == m], {})]
+    ones = [r for r in b["rows"] if r.get("cadence") == "one-off" and r["state"] != EXCLUDED]
+    if ones:
+        L = [f"| product | state | allowance | per_event x events[{b['month']}] = value | events by month | reader's 30-day figure |",
+             "|---|---|---|---|---|---|"]
+        for r in ones:
+            a, al = r["allowance"], b["allowances"][r["allowance"]]
+            n = r["events"].get(b["month"], 0)
+            evs = ", ".join(f"{k}: {v}" for k, v in sorted(r["events"].items()))
+            rd = fmt_amount(a, al, r["reader_30d"]) if "reader_30d" in r else "not read"
+            L.append(f"| {r['product']} | {r['state']} | {al['label']} | {fmt_amount(a, al, r['per_event'])} x {n} = "
+                     f"{fmt_amount(a, al, r['value'])} | {evs} | {rd} |")
+        parts += ["**One-off rows**", "\n".join(L)]
+    return "\n\n".join(parts) + "\n"
 
 
 def flags(b):
@@ -172,6 +338,9 @@ def report(b):
         print(f"== {s}")
         for a, amt, share, mark, c in ev[s]["lines"]:
             al = b["allowances"][a]
+            if amt is None:   # section 11
+                print(f"  {a:14s} {'n/a':>14s} (not in force in this scenario's month)")
+                continue
             print(f"  {a:14s} {fmt_amount(a, al, amt):>14s} of {fmt_amount(a, al, al['included']):>10s}  {share:7.1%}  {mark:4s}  ${c:6.2f}")
         print(f"  overage a month (Read A): ${ev[s]['overage']:.2f}")
     ob = observed(b)
@@ -226,11 +395,13 @@ def synthetic():
                         "cpu_ms": A("Workers CPU ms", 30e6, 0.02, 1e6, False), "requests": A("Workers requests", 10e6, 0.30, 1e6, False)},
          "products": {"stream": {"states": ["now"]}, "proxy": {"states": ["now"]}, "ingest": {"states": ["silent", "running"]}},
          "scenarios": {"today": {"ingest": "silent"}, "running": {"ingest": "running"}},
-         "reads": {"r1": {"tool": "synthetic", "window": ["t0", "t1"],
+         "reads": {"r1": {"tool": "synthetic", "window": ["t0", "t1"], "k": 1,
                           "totals": {"r2_class_a": 0.90e6, "r2_class_b": 3.0e6, "kv_read": 7.2e6, "cpu_ms": 20e6}},
                    "r2": {"tool": "synthetic", "window": ["t2", "t3"], "totals": {}}},
          "rows": []}
-    R = lambda p, st, a, v, rd="r1": {"product": p, "state": st, "allowance": a, "value": v, "read": rd, "basis": "measured", "how": "synthetic"}
+    b["month"] = "2026-12"   # 9.1: the month the one-offs are counted for in a scenario without its own
+    R = lambda p, st, a, v, rd="r1": {"product": p, "state": st, "allowance": a, "value": v, "read": rd, "basis": "measured",
+                                      "how": "synthetic", "cadence": "steady"}
     b["rows"] = [R("stream", "now", "r2_class_a", 0.75e6), R("stream", "now", "r2_class_b", 2.0e6),
                  R("proxy", "now", "kv_read", 7.2e6), R("proxy", "now", "cpu_ms", 10e6), R("proxy", "now", "r2_class_b", 0.5e6),
                  R("ingest", "silent", "r2_class_a", 0.15e6), R("ingest", "silent", "cpu_ms", 10e6), R("ingest", "silent", "r2_class_b", 0.5e6),
@@ -262,17 +433,41 @@ def selftest():
     check(all(v == [] for v in flags(p2).values()), "P2: every row at a third raises no FLAG anywhere")
     # P3: an unknown allowance is refused
     p3 = copy.deepcopy(base)
-    p3["rows"].append({"product": "proxy", "state": "now", "allowance": "r2_class_z", "value": 1, "read": "r1", "basis": "measured", "how": "P3"})
+    # The row carries a cadence, and the refusal must name the allowance: without both, P3 passed on the cadence check
+    # (added in 9.2) and S3 could no longer turn it red -- found 2026-11-14 before the driver's first run of 9.2.
+    p3["rows"].append({"product": "proxy", "state": "now", "allowance": "r2_class_z", "value": 1, "read": "r1", "basis": "measured",
+                       "how": "P3", "cadence": "steady"})
     try:
         validate(p3); ok = False
-    except Malformed:
-        ok = True
+    except Malformed as e:
+        ok = "unknown allowance" in str(e)
     check(ok, "P3: a row naming an unknown allowance is refused")
     # P4: the stream's rows removed fails the anchor (on Class A and Class B)
     p4 = copy.deepcopy(base)
     p4["rows"] = [r for r in p4["rows"] if r["product"] != "stream"]
     bad = anchor(p4)
     check(any("r2_class_a" in x for x in bad) and any("r2_class_b" in x for x in bad), f"P4: dropping the stream fails the anchor on Class A and B ({len(bad)} lines)")
+    # ---- 9.12: the anchor's rounding allowance, only where a read is scaled (k != 1); a read with totals needs k ------
+    def small(k, vals, total, with_k=True):
+        t = copy.deepcopy(base)
+        t["reads"]["rk"] = {"tool": "synthetic", "window": ["t6", "t7"], "totals": {"kv_write": total}}
+        if with_k:
+            t["reads"]["rk"]["k"] = k
+        for p, v in zip(("stream", "proxy"), vals):
+            t["rows"].append({"product": p, "state": "now", "allowance": "kv_write", "value": v, "read": "rk",
+                              "basis": "measured", "how": "synthetic", "cadence": "steady"})
+        return anchor(t)
+    got = small(2.2642, (2, 2), 5)
+    check(got == [], f"P7: CONTROL: a scaled read (k 2.2642) whose 2 rows round to 4 against a total of 5 anchors (got {got})")
+    got = small(2.2642, (2, 1), 5)
+    check(got == ["read rk, kv_write: rows sum to 3, the account read 5"],
+          f"P7g: at k 2.2642 a gap of 2 over 2 rows, past the rounding bound of 1.5, fails the anchor (got {got})")
+    got = small(1, (2, 2), 5)
+    check(got == ["read rk, kv_write: rows sum to 4, the account read 5"],
+          f"P7k: at k = 1 a gap of 1 at a small total fails the anchor: no rounding allowance (got {got})")
+    got = small(2.2642, (2, 2), 5, with_k=False)
+    check(got == ["read rk: no k (its 30-day scale), so its rounding allowance is unknown"],
+          f"P7n: a read with totals and no k is refused (got {got})")
     # P5: a stale render is refused
     with tempfile.TemporaryDirectory() as d:
         doc = os.path.join(d, "doc.md")
@@ -293,6 +488,124 @@ def selftest():
     sums = lambda bb: {s: [round(x[1]) for x in v["lines"]] for s, v in evaluate(bb).items()}
     check(flags(p6) == flags(base) and sums(p6) == sums(base) and anchor(p6) == [],
           "P6: an excluded row and an observation read change no flag, no sum and no anchor")
+    # ---- 9.3: the one-off basis. A one-off row is per_event x events[month]; a one-off scaled as if steady is refused ----
+    one = {"product": "proxy", "state": "now", "allowance": "kv_write", "read": "r2", "basis": "measured", "how": "9.3",
+           "cadence": "one-off", "per_event": 0.1e6, "events": {"2026-11": 5, "2026-12": 4}, "value": 0.4e6}
+    def refused(bb):
+        try:
+            validate(bb)
+            return False
+        except Malformed:
+            return True
+    pc = copy.deepcopy(base); pc["rows"].append(dict(one))
+    check(not refused(pc), "P-ONE-ctl: a one-off row whose value is per_event x events[month] reads clean")
+    po = copy.deepcopy(base); po["rows"].append({**one, "value": one["value"] * 30})
+    check(refused(po), "P-ONE: the same one-off scaled x 30 (as if steady) is refused")
+    ps = copy.deepcopy(base); ps["rows"].append({**base["rows"][3], "allowance": "kv_write", "read": "r2", "per_event": 1.0})
+    check(refused(ps), "P-ONE-steady: a steady row carrying per_event is refused")
+    pn = copy.deepcopy(base); pn["rows"].append({k: v for k, v in base["rows"][3].items() if k != "cadence"} | {"allowance": "kv_write", "read": "r2"})
+    check(refused(pn), "P-ONE-none: a row with no cadence is refused")
+    # ---- 9.8/9.9: calendar-month scenarios and state segments ----------------------------------------------------------
+    def amt(bb, s, a):
+        return next(x[1] for x in evaluate(bb)[s]["lines"] if x[0] == a)
+    pm = copy.deepcopy(pc)
+    pm["scenarios"]["dec"] = {"month": "2026-12", "ingest": "silent"}
+    pm["scenarios"]["nov-run"] = {"month": "2026-11", "ingest": [{"state": "silent"}, {"state": "running", "from": "2026-11-16T00:00:00Z"}]}
+    ok = not refused(pm)
+    # December, whole month: steady x 31/30; the one-off at 4 events
+    check(ok and abs(amt(pm, "dec", "cpu_ms") - 20e6 * 31 / 30) < 1 and abs(amt(pm, "dec", "kv_write") - 0.4e6) < 1,
+          "M1: a December scenario counts steady rows x 31/30 and a one-off at December's events")
+    # November with the ingest running from 11-16: silent 15 days, running 15 days (of 30)
+    want = 10e6 + 10e6 * 15 / 30 + 25e6 * 15 / 30
+    check(ok and abs(amt(pm, "nov-run", "cpu_ms") - want) < 1 and abs(amt(pm, "nov-run", "kv_write") - 0.5e6) < 1,
+          "M2: a segment weights each state's steady rows by its hours in the month; a one-off counts November's events")
+    bad_segs = {"empty list": [], "first has a from": [{"state": "silent", "from": "2026-11-02T00:00:00Z"}],
+                "unsorted": [{"state": "silent"}, {"state": "running", "from": "2026-11-20T00:00:00Z"}, {"state": "silent", "from": "2026-11-10T00:00:00Z"}],
+                "out of month": [{"state": "silent"}, {"state": "running", "from": "2026-12-02T00:00:00Z"}]}
+    # M3's refusals must name the SEGMENT rule: a validator that refuses every list (today's) passes "refused" alone,
+    # so the reason is the assertion, and M2 (a valid list accepted) is its control.
+    def why(bb):
+        try:
+            validate(bb)
+            return ""
+        except Malformed as e:
+            return str(e)
+    for label, segs in bad_segs.items():
+        pb = copy.deepcopy(pc); pb["scenarios"]["x"] = {"month": "2026-11", "ingest": segs}
+        check("segment" in why(pb), f"M3: segments refused, by the segment rule, when {label}")
+    p30 = copy.deepcopy(pc); p30["scenarios"]["x"] = {"ingest": [{"state": "silent"}, {"state": "running", "from": "2026-11-16T00:00:00Z"}]}
+    check("30-day" in why(p30), "M3: segments refused, by the segment rule, in a 30-day scenario")
+    po2 = copy.deepcopy(pc)
+    po2["rows"].append({**one, "product": "ingest", "state": "silent", "allowance": "kv_write"})
+    po2["scenarios"]["x"] = {"month": "2026-11", "ingest": [{"state": "silent"}, {"state": "running", "from": "2026-11-16T00:00:00Z"}]}
+    check("one-off" in why(po2) and "segment" in why(po2), "M3: a one-off row's product changing state inside a month is refused")
+    # ---- 10: R2 storage is billed per GB-month, so a calendar month does not scale a per-month allowance -------------
+    pst = copy.deepcopy(pc)
+    pst["allowances"]["r2_storage_gb"] = {"label": "R2 storage (GB-month)", "included": 10, "price": 0.015, "unit": 1,
+                                          "round_up": True, "per_month": True}
+    for p, st, v in (("stream", "now", 3.0), ("ingest", "silent", 1.0), ("ingest", "running", 2.0)):
+        pst["rows"].append({"product": p, "state": st, "allowance": "r2_storage_gb", "value": v, "read": "r2",
+                            "basis": "measured", "how": "synthetic", "cadence": "steady"})
+    pst["scenarios"]["dec"] = {"month": "2026-12", "ingest": "silent"}
+    pst["scenarios"]["dec-seg"] = {"month": "2026-12", "ingest": [{"state": "silent"}, {"state": "running", "from": "2026-12-16T00:00:00Z"}]}
+    ok_st = not refused(pst)
+    check(ok_st and abs(amt(pst, "today", "r2_storage_gb") - 4.0) < 1e-9,
+          "M-ST0: CONTROL: a 30-day scenario leaves the per-month rows at their value (3.0 + 1.0 = 4.0)")
+    check(ok_st and abs(amt(pst, "dec", "r2_storage_gb") - 4.0) < 1e-9 and abs(amt(pst, "dec", "cpu_ms") - 20e6 * 31 / 30) < 1,
+          "M-ST1: a December scenario, whole month, leaves the per-month rows at 4.0 (not x 31/30), while cpu_ms is x 31/30")
+    want_st = 3.0 + 1.0 * 360 / 744 + 2.0 * 384 / 744
+    check(ok_st and abs(amt(pst, "dec-seg", "r2_storage_gb") - want_st) < 1e-9,
+          "M-ST2: a December segment weighs a per-month row by its share of December's 744 hours, not of 720")
+    # ---- 9.2 / 9.8: the render. One line per one-off row; month scenarios under their own month's table -------------
+    rt = render(pm) if ok else ""
+    check("| proxy | now | KV writes | 0.100 M x 4 = 0.400 M | 2026-11: 5, 2026-12: 4 | not read |" in rt,
+          "R1: a one-off row renders as per_event x events[the file's month] = value, its events by month beside it")
+    head30, _, rest = rt.partition("**2026-12, calendar month (31 days)**")
+    tbl = next((c for c in rest.split("\n\n") if c.startswith("| allowance")), "")
+    check("| dec |" in tbl.split("\n")[0] and " dec " not in head30 and " today " in head30,
+          "R2: a month scenario renders in its month's table, never in the 30-day one")
+    # ---- 11: an allowance in force only in some months (December's Logs GB allowances) --------------------------------
+    plg = copy.deepcopy(pc)
+    plg["allowances"]["ev_old"] = {"label": "ev old", "included": 20e6, "price": 0.60, "unit": 1e6, "round_up": False,
+                                   "months": {"until": "2026-11"}}
+    plg["allowances"]["gb_new"] = {"label": "gb new", "included": 50, "price": 0.25, "unit": 1, "round_up": False,
+                                   "months": {"from": "2026-12"}}
+    for a, v in (("ev_old", 1.0e6), ("gb_new", 5.0)):
+        plg["rows"].append({"product": "proxy", "state": "now", "allowance": a, "value": v, "read": "r2",
+                            "basis": "measured", "how": "synthetic", "cadence": "steady"})
+    plg["scenarios"]["dec"] = {"month": "2026-12", "ingest": "silent"}
+    plg["scenarios"]["nov"] = {"month": "2026-11", "ingest": "silent"}
+    ok_lg = not refused(plg)
+    check(ok_lg and all(amt(plg, s, "cpu_ms") is not None for s in ("today", "dec", "nov")),
+          "M-LG0: CONTROL: valid months windows are accepted, and an allowance without one has an amount in every scenario")
+    check(ok_lg and amt(plg, "today", "ev_old") is None and amt(plg, "today", "gb_new") == 5.0,
+          "M-LG1: a 30-day scenario takes the file's month (2026-12): ev_old (until 2026-11) is n/a, gb_new reads 5.0")
+    check(ok_lg and amt(plg, "nov", "gb_new") is None and amt(plg, "nov", "ev_old") == 1.0e6,
+          "M-LG2: November: gb_new (from 2026-12) is n/a, ev_old reads 1.0 M")
+    g3 = amt(plg, "dec", "gb_new") if ok_lg else None
+    check(ok_lg and amt(plg, "dec", "ev_old") is None and g3 is not None and g3 > 0,
+          "M-LG3: December: ev_old is n/a, gb_new has an amount above 0")
+    msgs = []
+    for w in ({"from": "2026-13"}, {"after": "2026-12"}, {"from": "2026-12", "until": "2026-11"}):
+        pw = copy.deepcopy(plg)
+        pw["allowances"]["gb_new"]["months"] = w
+        msgs.append(why(pw))
+    check(all("months" in x for x in msgs),
+          "M-LG4: a malformed months window is refused, naming months (a month 2026-13, an unknown key, from after until)")
+    rlg = render(plg) if ok_lg else ""
+    check("| ev old | 20.000 M | n/a | n/a |" in rlg.split("**2026-11, calendar month")[0].split("\n"),
+          "M-LG5: the 30-day table's ev_old line is exactly | ev old | 20.000 M | n/a | n/a |")
+    pbig, pnone = copy.deepcopy(plg), copy.deepcopy(plg)
+    for r in pbig["rows"]:
+        if r["allowance"] == "ev_old":
+            r["value"] = 1000e6
+    pnone["rows"] = [r for r in pnone["rows"] if r["allowance"] != "ev_old"]
+    ok6 = False
+    if ok_lg:
+        eb, en = evaluate(pbig)["dec"], evaluate(pnone)["dec"]
+        lb = next(x for x in eb["lines"] if x[0] == "ev_old")
+        ok6 = lb[3] == "" and lb[4] == 0 and abs(eb["overage"] - en["overage"]) < 1e-9
+    check(ok6, "M-LG6: ev_old at 1,000 M (50x) in December raises no mark and no cost, and leaves the overage unchanged")
     print("SELFTEST " + ("PASSED" if not fails else f"FAILED: {len(fails)}"))
     return 0 if not fails else 1
 

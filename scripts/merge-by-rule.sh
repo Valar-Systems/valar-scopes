@@ -4,7 +4,12 @@
 #   0. the PR's own base must be the stated <base> (default main), which must exist on origin; otherwise refuse, before
 #      any CI wait or claim (docs/merge-by-rule-base.md, ruled 2026-11-11: `gh pr merge` merges into the PR's own base,
 #      so every read below is of that base -- this script once read main while merging elsewhere);
-#   1. H = the base's head; H's CI must be FINISHED (ci-wait.sh: two reads 60 s apart, 0 unfinished, nothing failed);
+#   1. H = the base's head; H's CI must be FINISHED and GREEN, and ci-wait.sh's EXIT CODE says which (0 green, 1 red,
+#      3 not finished, 4 a job of an unknown url shape, 2 the rig); every code but 0 refuses. H's CI is the base's OWN push CI: the push-event runs with head_sha == H and
+#      head_branch == <base>, decided from those RUNS (all completed, the set stable over two reads 60 s apart, none
+#      red) and tallied from their JOBS, so a release, tag-push or schedule run on H, or a check-run another workflow
+#      posts into a push run's suite, neither passes nor blocks a merge (2026-11-19, REH-A's release run on main's head;
+#      2026-11-21, photo-drift's posted check-run);
 #   2. take the merge claim. Another session's claim means wait, polled, for at most 15 minutes, never race;
 #   3. in the SAME command as the merge, re-read the base and merge only if it is still H (squash,
 #      --match-head-commit = the approved head, no --admin);
@@ -50,9 +55,10 @@ case "$BASE" in ""|-*|*[!A-Za-z0-9._/-]*) echo "STOP: '$BASE' is not a branch na
 PB="$(gh pr view "$PR" --repo Valar-Systems/valar-scopes --json baseRefName -q .baseRefName 2>&1)" || { echo "STOP: could not read #$PR's base ($PB); nothing merged, no claim taken"; exit 1; }
 [ "$PB" = "$BASE" ] || { echo "STOP: #$PR's base is '$PB', not the stated '$BASE'; nothing merged, no claim taken"; exit 1; }
 H="$($G ls-remote origin "refs/heads/$BASE" | cut -f1)"; echo "H ${H:0:12} ($BASE) at $(date -u +%H:%M:%SZ)"
-OUT="$(bash "$ROOT/scripts/ci-wait.sh" "$H" 30)"; echo "$OUT" | head -3
-echo "$OUT" | head -1 | grep -q "unfinished 0 stable [0-9]* timed-out no" || { echo "STOP: H's CI did not finish"; exit 1; }
-echo "$OUT" | grep -q -E "^ +[0-9]+ (failure|cancelled|timed_out|action_required)" && { echo "STOP: H's CI has a failure"; exit 1; }
+OUT="$(bash "$ROOT/scripts/ci-wait.sh" "$H" 30 "$BASE")"; RC=$?; echo "$OUT" | head -4
+[ "$RC" -eq 3 ] && { echo "STOP: H's CI did not finish"; exit 1; }
+[ "$RC" -eq 4 ] && { echo "STOP: H's CI could not be read (ci-wait exit 4: a job of unknown shape)"; exit 1; }
+[ "$RC" -eq 0 ] || { echo "STOP: H's CI has a failure (ci-wait exit $RC)"; exit 1; }
 if [ -n "${MERGE_DRY:-}" ]; then echo "DRY: would take the merge claim and squash #$PR into $BASE at H ${H:0:12}; stopping here"; exit 0; fi
 take_claim || exit 1
 NOW="$($G ls-remote origin "refs/heads/$BASE" | cut -f1)"

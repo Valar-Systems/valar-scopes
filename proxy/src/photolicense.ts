@@ -308,7 +308,7 @@ licensed under <a href="https://opendatacommons.org/licenses/by/1-0/" rel="noope
 released into the public domain under <a href="https://creativecommons.org/publicdomain/zero/1.0/" rel="noopener">CC0 1.0</a>.</li>
 <li>Weather radar derived from NOAA MRMS data. Not endorsed by NOAA.</li>
 <li>Weather radar outside the US: EUMETNET OPERA CIRRUS maximum-reflectivity composite, created by Meteo France, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01&deg; grid and binned to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET.</li>
-<li>Basemap water, rivers, roads, places and summits from the U.S. Census Bureau's TIGER/Line 2024, the 2025 Census
+<li>Basemap water, rivers, roads, places and summits from the U.S. Census Bureau's TIGER/Line 2024 (TIGER/Line 2025 for six counties' water or river files), the 2025 Census
 Gazetteer and SUB-EST2024, and USGS GNIS Domestic Names: works of the United States government.</li>
 <li>Basemap terrain from AWS Terrain Tiles (Terrarium, zoom 9).</li>
 ${TERRAIN_CREDITS.map((t) => `<li>${esc(t)}</li>`).join("\n")}
@@ -322,7 +322,7 @@ volunteers pay for it.</p>
 <a href="https://commons.wikimedia.org" rel="noopener">Wikimedia Commons</a> and shown on
 Blipscope devices in cloud mode. Public-domain
 images are credited as a courtesy; CC BY, CC BY-SA, and OGL images are attributed as
-their licenses require. Images are resized for the device display.</p>
+their licenses require. Images are resized for the device display; camera location and serial metadata are removed.</p>
 <p class="note">${esc(SHAREALIKE_NOTE)}</p>
 <ul>
 ${rows}

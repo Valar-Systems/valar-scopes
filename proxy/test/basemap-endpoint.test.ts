@@ -5,7 +5,7 @@ import { env as cf } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import { build } from "../src/basemap/build";
 import { crc32, decode, validate } from "../src/basemap/format";
-import { BASEMAP_REV, SYNC_WAIT_MS, basemapDigest, basemapHealth, basemapTiming, cacheKey, errKey, lockKey, pkgKey, resetBasemapIsolate } from "../src/basemap/handler";
+import { BASEMAP_REV, SYNC_WAIT_MS, basemapDigest, basemapHealth, basemapTiming, cacheKey, errKey, failKey, lockKey, pkgKey, resetBasemapIsolate } from "../src/basemap/handler";
 import { etagOf, parseQuery, queryKey } from "../src/basemap/query";
 import builder, { buildLine, makeBuilder } from "../src/basemap/worker";
 import { type SynthDef, COMMIT, lonLatOf, mbStore, writeSynthStore } from "./basemap-synth";
@@ -140,7 +140,9 @@ describe("MW, the endpoint", () => {
     expect(b.n).toMatchObject({ calls: 1, reads: 3 });
   });
 
-  it("MW13: a test builder with capBytes 100 gives 422 too_large after 5 reads", async () => {
+  // MW13, re-frozen from the prototype (docs/basemap-dense-code.md, "The old ladder's test rows"): D2 builds again at r x 0.8, x 0.64, ...
+  // six times before the 422 stands, each step reading current, the manifest, coverage, the index and the one cell
+  it("MW13: a test builder with capBytes 100 gives 422 too_large after D2's 7 steps and 35 reads", async () => {
     resetBasemapIsolate();
     const s = await mwStore();
     let reads = 0;
@@ -151,7 +153,7 @@ describe("MW, the endpoint", () => {
     });
     const res = await mw(`/api/v1/blipscope/basemap?${QW}`, b);
     expect([res.status, (await res.json() as { error: string }).error]).toEqual([422, "too_large"]);
-    expect([b.n.calls, reads]).toEqual([1, 5]);
+    expect([b.n.calls, reads]).toEqual([1, 35]);
   });
 
   it("MW14: a store with no current is 503 basemap_unavailable after 1 read", async () => {
@@ -349,10 +351,13 @@ describe("MK, the branch on the proxy's request line", () => {
 // milliseconds only. Each of BB1 and BB2 reads the ONE line its own request produced.
 type BuildLine = { evt: string; status: number; reads: number; bytes: number; readMs: number; maxReadMs: number; wallMs: number };
 const BUILD_KEYS = ["evt", "status", "reads", "bytes", "readMs", "maxReadMs", "wallMs"];
-// Step 0 (docs/basemap-dense.md): a built package or a too_large also carries the ladder; a 422 its four rungs too
+// Step 0 (docs/basemap-dense.md): a built package or a too_large also carries the ladder; Q-W4 (docs/basemap-dense-code.md, R2-R5): both
+// carry D2's steps and refusedBuilt, and a built package the drawn set's refusals and its sea. The ruled ladder records no nt.
 const SEC_KEYS = ["secWater", "secRivers", "secRoads", "secPeaks", "secPlaces", "secProv"];
-const KEYS_200 = [...BUILD_KEYS, "rung", "cap", ...SEC_KEYS];
-const KEYS_422 = [...BUILD_KEYS, "rung", "cap", "nt0", "nt1", "nt2", "nt3", ...SEC_KEYS];
+const REPORT_KEYS = ["steps", "refusedBuilt"];
+const BUILT_KEYS = ["refused", "seaLost", "seaRefused", "seaCollapsed", "seaDropped", "refused5", "islandsDropped", "seaRepairs", "seaRepairVertices"];
+const KEYS_200 = [...BUILD_KEYS, "rung", "cap", ...SEC_KEYS, ...REPORT_KEYS, ...BUILT_KEYS];
+const KEYS_422 = [...BUILD_KEYS, "rung", "cap", ...SEC_KEYS, ...REPORT_KEYS];
 const buildLinesFrom = (from: number): BuildLine[] =>
   logs.slice(from).filter((l) => l.startsWith('{"evt":"bm_build"')).map((l) => JSON.parse(l) as BuildLine);
 
@@ -383,7 +388,7 @@ describe("BB, the builder's read line", () => {
     expect([lines[0]!.status, lines[0]!.reads]).toEqual([404, 3]);
   });
 
-  it("BB3: every build line holds exactly its fields (a 200 its 15, any line without a ladder its 7), integers only, and nothing of the query", () => {
+  it("BB3: every build line holds exactly its fields (a 200 its 26, a 422 its 17, any line without a ladder its 7), integers only, and nothing of the query", () => {
     const lines = logs.filter((l) => l.startsWith('{"evt":"bm_build"'));
     expect(lines.length).toBeGreaterThanOrEqual(3); // CONTROL: there were lines to check
     const seen = new Set<unknown>();
@@ -418,13 +423,14 @@ describe("BB, the builder's read line", () => {
     expect(l.secProv).toBeGreaterThan(0); // CONTROL: the ladder measured something
   });
 
-  it("BB5: a 422's line carries the ladder's four rungs, in order, as integers", () => {
+  it("BB5: a 422's line carries D2's steps and refusedBuilt, and no nt field (the ruled ladder records none)", () => {
     const line = buildLine(
-      { ok: false, status: 422, code: "too_large", ladder: { rung: -1, nt: [9, 8, 7, 6], sections: { water: 1, rivers: 2, roads: 3, peaks: 4, places: 5, provenance: 6 } } },
+      { ok: false, status: 422, code: "too_large", ladder: { rung: -1, nt: [], sections: { water: 1, rivers: 2, roads: 3, peaks: 4, places: 5, provenance: 6 } },
+        report: { radii: [97, 77.6, 62.08], refusedBuilt: 4 } },
       { reads: 11, bytes: 12, readMs: 13, maxReadMs: 14 }, 15);
     expect(Object.keys(line)).toEqual(KEYS_422);
-    expect([line.nt0, line.nt1, line.nt2, line.nt3]).toEqual([9, 8, 7, 6]);
-    expect([line.status, line.rung, line.cap, line.secProv]).toEqual([422, -1, 32_768, 6]);
+    expect([line.status, line.rung, line.cap, line.secProv, line.steps, line.refusedBuilt]).toEqual([422, -1, 32_768, 6, 3, 4]);
+    expect(Object.keys(line).some((k) => k.startsWith("nt")), "no nt field").toBe(false);
   });
 });
 
@@ -718,5 +724,123 @@ describe("NK, K1's keyed names", () => {
       ran++;
     }
     expect(ran).toBe(6); // CONTROL: the loop ran all six
+  });
+});
+
+// MG: the retry-storm guard (guard27). After a build fails, or dies leaving its lock, a place waits N before another build;
+// an ask inside N is 503 basemap_retry_later with Retry-After, bm "guarded", and no builder call. At the END of the file, so
+// MK6's count of the labels above is untouched.
+describe("MG, the retry-storm guard", () => {
+  const failing = (objects: Map<string, Uint8Array>, delayMs = 0) =>
+    builderOver(objects, async () => { if (delayMs) await new Promise((r) => setTimeout(r, delayMs)); return new Response("boom", { status: 500 }); });
+  const plantFail = (storeId: string, digest: string, ageMs: number, count: number) =>
+    pkgBucket().put(failKey(storeId, digest), "", { customMetadata: { at: String(Date.now() - ageMs), count: String(count) } });
+  const failCount = async (storeId: string, digest: string) => {
+    const h = await pkgBucket().head(failKey(storeId, digest));
+    return h ? Number(h.customMetadata?.count) : null;
+  };
+  const retryAfter = (res: Response) => Number(res.headers.get("retry-after"));
+
+  it("G1: a failed build marks the place (count 1); the next ask is 503 basemap_retry_later, Retry-After ~600 s, guarded, no builder call", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = failing(s.store.objects);
+    const digest = await basemapDigest(qOf(at(140)), NAME_KEY);
+    await storeKv().put("bm:store", s.storeId);
+    const first = await mkCall(() => call(get(basemapPath(at(140))), { BASEMAP: b.BASEMAP }));
+    expect([first.res.status, b.n.calls, await failCount(s.storeId, digest)]).toEqual([503, 1, 1]);
+    const again = await mkCall(() => call(get(basemapPath(at(140))), { BASEMAP: b.BASEMAP }));
+    const body = await again.res.json<{ error: string }>();
+    expect([again.res.status, body.error, again.line.bm, b.n.calls, again.res.headers.get("cache-control")])
+      .toEqual([503, "basemap_retry_later", "guarded", 1, "no-store, no-transform"]); // the error helper's own: never cached
+    expect(retryAfter(again.res)).toBeGreaterThan(590);
+    expect(retryAfter(again.res)).toBeLessThanOrEqual(600);
+  });
+
+  it("G2: a marker older than N (count 1, 601 s) lets the ask build: one builder call, 200", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    const digest = await basemapDigest(qOf(at(141)), NAME_KEY);
+    await storeKv().put("bm:store", s.storeId);
+    await plantFail(s.storeId, digest, 601_000, 1);
+    const { res } = await mkCall(() => call(get(basemapPath(at(141))), { BASEMAP: b.BASEMAP }));
+    expect([res.status, b.n.calls]).toEqual([200, 1]);
+  });
+
+  it("G3: a successful build deletes the marker", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    const digest = await basemapDigest(qOf(at(142)), NAME_KEY);
+    await storeKv().put("bm:store", s.storeId);
+    await plantFail(s.storeId, digest, 601_000, 1);
+    expect(await failCount(s.storeId, digest)).toBe(1); // CONTROL: the marker was there
+    const { res } = await mkCall(() => call(get(basemapPath(at(142))), { BASEMAP: b.BASEMAP }));
+    expect([res.status, b.n.calls, await failCount(s.storeId, digest)]).toEqual([200, 1, null]);
+  });
+
+  it("G4: a stale lock and a failing slow builder: the takeover builds once, the marker counts 1 (not 2); the next ask is guarded", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = failing(s.store.objects, 300);
+    const digest = await basemapDigest(qOf(at(143)), NAME_KEY);
+    await storeKv().put("bm:store", s.storeId);
+    await pkgBucket().put(lockKey(s.storeId, digest), "", { customMetadata: { at: String(Date.now() - 60_000) } });
+    basemapTiming.syncWaitMs = 50;
+    try {
+      const first = await mkCall(() => call(get(basemapPath(at(143))), { BASEMAP: b.BASEMAP }));
+      expect([first.res.status, b.n.calls]).toEqual([202, 1]);
+    } finally { basemapTiming.syncWaitMs = SYNC_WAIT_MS; }
+    expect(await failCount(s.storeId, digest)).toBe(1);
+    const again = await mkCall(() => call(get(basemapPath(at(143))), { BASEMAP: b.BASEMAP }));
+    expect([again.res.status, again.line.bm, b.n.calls]).toEqual([503, "guarded", 1]);
+  });
+
+  it("G5 CONTROL: a normal slow build (202, then the package kept) leaves no marker; one builder call", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = slowOver(s.store.objects, 300);
+    const digest = await basemapDigest(qOf(at(144)), NAME_KEY);
+    await storeKv().put("bm:store", s.storeId);
+    basemapTiming.syncWaitMs = 50;
+    try {
+      const { res, line } = await mkCall(() => call(get(basemapPath(at(144))), { BASEMAP: b.BASEMAP }));
+      expect([res.status, line.bm]).toEqual([202, "known-miss"]);
+    } finally { basemapTiming.syncWaitMs = SYNC_WAIT_MS; }
+    expect(b.n.calls).toBe(1);
+    expect(await pkgBucket().head(pkgKey(s.storeId, digest))).not.toBeNull();
+    expect(await failCount(s.storeId, digest)).toBeNull();
+  });
+
+  it("G6: N grows with the count, to the 6 h cap", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = builderOver(s.store.objects);
+    await storeKv().put("bm:store", s.storeId);
+    // count 2, 15 min old: N is 20 min, so guarded with about 300 s left
+    await plantFail(s.storeId, await basemapDigest(qOf(at(145)), NAME_KEY), 15 * 60_000, 2);
+    const r1 = (await mkCall(() => call(get(basemapPath(at(145))), { BASEMAP: b.BASEMAP }))).res;
+    expect([r1.status, retryAfter(r1) > 290 && retryAfter(r1) <= 300]).toEqual([503, true]);
+    // count 2, 21 min old: N has lapsed, so it builds
+    await plantFail(s.storeId, await basemapDigest(qOf(at(146)), NAME_KEY), 21 * 60_000, 2);
+    const r2 = (await mkCall(() => call(get(basemapPath(at(146))), { BASEMAP: b.BASEMAP }))).res;
+    expect([r2.status, b.n.calls]).toEqual([200, 1]);
+    // count 10, 5 h old: 10 min x 2^9 is capped at 6 h, so guarded with about 3,600 s left
+    await plantFail(s.storeId, await basemapDigest(qOf(at(147)), NAME_KEY), 5 * 3_600_000, 10);
+    const r3 = (await mkCall(() => call(get(basemapPath(at(147))), { BASEMAP: b.BASEMAP }))).res;
+    expect([r3.status, retryAfter(r3) > 3_590 && retryAfter(r3) <= 3_600]).toEqual([503, true]);
+    expect(b.n.calls).toBe(1); // only the lapsed one built
+  });
+
+  it("G7: the marker's key is the store id and the digest only, and holds no coordinate", async () => {
+    resetBasemapIsolate();
+    const s = await mwStore(), b = failing(s.store.objects);
+    await storeKv().put("bm:store", s.storeId);
+    const real = pkgBucket(), keys: string[] = [];
+    const rec = {
+      put: (k: string, v: unknown, o?: R2PutOptions) => { keys.push(k); return real.put(k, v as never, o); },
+      get: (k: string) => real.get(k), head: (k: string) => real.head(k), delete: (k: string) => real.delete(k),
+    } as unknown as R2Bucket;
+    expect((await mkCall(() => call(get(basemapPath(at(148))), { BASEMAP: b.BASEMAP, BASEMAP_PKG: rec }))).res.status).toBe(503);
+    expect(keys.filter((k) => k.endsWith(".fail")).length).toBe(1); // CONTROL: the marker was written through the recorder
+    for (const k of keys) {
+      expect(k).toMatch(/^bm\/v1\/(pkg|pkg-lock)\/[0-9a-f]{12}\/[0-9a-f]{24}(\.err|\.fail)?$/);
+      for (const c of ["370000", "590000"]) expect(k).not.toContain(c);
+    }
   });
 });

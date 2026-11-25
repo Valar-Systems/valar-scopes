@@ -1039,7 +1039,7 @@ forum. Let them submit an identification for an unresolved aircraft, and publish
 4. **Type only, never registration.** Same rule as the floor. A wrong tail number on a
    military aircraft is a worse failure than an empty field — and ADSBX does not have one
    either, so we would be inventing rather than lagging.
-5. **No accounts.** We deliberately have none. Anonymous submission makes independence
+5. **No accounts.** We deliberately have none. Submission without an account makes independence
    harder to establish. The device id already exists and already backs the leaderboard, so
    it is the obvious identity — but that is a **decision to make, not to inherit**, and it
    ties an identification to a board rather than a person.
