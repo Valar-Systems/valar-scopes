@@ -29,7 +29,8 @@ CLASS_B = {"HeadBucket", "HeadObject", "GetObject", "UsageSummary", "GetBucketEn
            "GetBucketCors", "GetBucketLifecycleConfiguration"}
 SCRIPT = {"blipscope-proxy": "proxy", "blipscope-proxy-staging": "proxy-staging", "blipscope-wx-ingest": "cref",
           "blipscope-wx-ingest-dev": "wx-dev", "blipscope-basemap-staging": "basemap-staging",
-          "blipscope-basemap": "basemap-production", "valarscopes-app": "kiosk", "valarscopes-site": "kiosk"}
+          "blipscope-basemap": "basemap-production", "valarscopes-app": "kiosk", "valarscopes-site": "kiosk",
+          "blipscope-screen": "screen", "blipscope-screen-staging": "screen-staging"}
 BUCKET = {"missileer-live": "missileer-live", "missileer-clips": "missileer-clips", "blipscope-wx-dev": "wx-dev",
           "blipscope-basemap-pkg-staging": "basemap-staging", "blipscope-basemap": "basemap-bucket",
           "blipscope-basemap-pkg": "basemap-production", "": "account-level"}
