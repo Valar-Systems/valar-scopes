@@ -14,9 +14,11 @@ Names come from EVERY *wrangler.toml under proxy/, found by walking the folder (
 each read for every r2_buckets bucket_name AND every Worker `name`, at the top level and in every env. The configs read are
 printed against an independent listing of the files on disk, and a difference is a finding: until 2026-11-25 this check
 read a fixed list of two files while proxy/ held five, so a new config was invisible to it. The reader's tables are
-IMPORTED from budget_read.py, never copied, so a change there is checked here at once. A NAMED LIMIT: it reads buckets and
-Workers ONLY, never Analytics Engine datasets or any other binding -- AE is unbilled today (2026-11-25) and the budget has no
-allowance for it, so a dataset that one day bills needs that allowance first and then a rule here. NOT_IN_ACCOUNT holds
+IMPORTED from budget_read.py, never copied, so a change there is checked here at once. A NAMED LIMIT: it checks NAMES ONLY
+-- buckets and Workers -- never Analytics Engine datasets or any other binding -- AE is unbilled today (2026-11-25) and the
+budget has no allowance for it, so a dataset that one day bills needs that allowance first and then a rule here. KV
+namespaces are attributed by budget_read.py's KV_NS, and Durable Object namespaces by their callers at read time
+(docs/account-budget.md section 13); neither is checked here. NOT_IN_ACCOUNT holds
 the names a config carries but the account never bills, each with its reason; an entry that is attributed anyway, or that
 no config names any more, is STALE and fails.
 """

@@ -1113,3 +1113,31 @@ come in a later commit of this PR, graded against what is frozen here.
 workflows that run on every PR run, with `account-budget` and without `workers`. **Predicted: 37 check runs, 35 success, 2
 skipped (`promote`, `version`), 0 failed,** tested on the merge into main as of the push, read twice at least 65 s apart.
 Anything else: stop and read which job.
+
+## 13. Durable Object duration and the shared KV namespace: what the reader can attribute (2026-11-25)
+
+**Durable Object duration is attributed per window, by caller.** Cloudflare's duration dataset reports GB-s per Durable Object
+namespace. Its invocations dataset names the Workers that CALL each namespace, not the Worker that owns it. So
+`tools/budget/budget_read.py` attributes each namespace in each read by its callers in that same window:
+
+- **exactly one caller:** that caller's product;
+- **no caller, or more than one:** `unattributed`, printed, and never smoothed onto a guess.
+
+Each `do_gb_s` row's `how` says so: "attributed by its only caller in this window; the dataset names callers, not owners". A
+namespace that gains a second caller turns `unattributed` in that window, and the output shows it. No namespace id is written to
+this file or to `docs/account-budget.json`; the console shows only a 6-hex prefix. `budget_read.py --selftest` (D1-D5, D-ALL)
+holds the rule, and `tools/budget/sabotage_account_budget.py` turns it red three ways (all on one product, the first caller
+listed, a whole id in a label).
+
+**Two named limits.**
+
+- **Caller is not owner.** Over 2026-11-18..25 the account had six namespaces, 263.4 GB-s in all. Two had two callers each,
+  about 17.9 GB-s, or 6.8%, and those stay `unattributed`: the reader cannot tell whose they are without a listing of
+  namespace owners, which needs a Workers permission the budget's analytics token does not have.
+- **The screen's KV reads are counted under the boards.** The screen service reads the boards' `ENRICH_KV` namespace (read
+  only), and KV analytics report per namespace, so its reads land under `proxy` and `proxy-staging` and cannot be separated.
+
+**The reads already in this file are left as written.** `r-7d`, `r-silent` and `MTD-1114` came from the reader before this
+section, which put every namespace's duration on `proxy`. Over 2026-11-18..25, about 21.7% of the account's GB-s sat in
+namespaces only the kiosk calls. Those rows' `do_gb_s` therefore includes the kiosk's, and they are not re-attributed here.
+Attribution changes which product a GB-s lands on, never the account's total.
