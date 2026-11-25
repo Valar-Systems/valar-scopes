@@ -8,6 +8,13 @@
 // card's photo sprite ever receives drawJpg, so every sprite the weather layer reads or writes is still the token, and
 // setBuffer still aborts: the rule above is unchanged. The line below is still compared whole.
 //
+// Since the weather layer's plane (_handoffs/p4/web-weather/REG-web-weather.txt, D1 and AMENDMENT 3, A3.4): setBuffer
+// wraps its caller's buffer, and once it has run the frame holds a real plane. So "no pixels" is no longer why the
+// layer is off. What keeps it off is parity: weather reaches the website only in a set attached after the release that
+// ships it, by its own re-attach registration (D5). Until then the rule is the same as before: "wx-layer" is "false"
+// in writing. This check's own premise is replaced on Day 3 (D5); until then it reads the new getBuffer() line whole,
+// and refuses any other, #799's included.
+//
 //   node tools/web-renderer/check_wx_off.mjs [<web-renderer dir>]   exit 0 off; 1 turned on; 2 cannot tell
 //   node tools/web-renderer/check_wx_off.mjs --selftest              its control and its plant, each in a copy
 //
@@ -17,7 +24,8 @@
 // other value is not "off" in a way this check can vouch for.
 //
 // NOT covered here, and not mistaken for coverage: a page can pass "wx-layer" at runtime (web_config_set), and the
-// website's page code lives in another repo. That path is the shim's setBuffer, which aborts with a message.
+// website's page code lives in another repo. Since D1 that path RUNS the layer rather than aborting, so keeping it off
+// on a public page is that page's, under the parity rule.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -25,8 +33,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const STAND_IN = "void* getBuffer() const { return !px_.empty() ? (void*)px_.data() : created_ ? (void*)this : nullptr; }";
-const TOKEN_ONLY = "void* getBuffer() const { return created_ ? (void*)this : nullptr; }";   // the form before C3
+const STAND_IN = "void* getBuffer() const { return ext_ ? (void*)ext_ : handOut(); }";
+// The form before the weather plane (#799's, the photo's): a shim still carrying it must not read as off.
+const PHOTO_ONLY = "void* getBuffer() const { return !px_.empty() ? (void*)px_.data() : created_ ? (void*)this : nullptr; }";
 
 export function check(dir) {
   let shim, config;
@@ -45,14 +54,14 @@ export function check(dir) {
   const entries = [...map[1].matchAll(/\{\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\}/g)].map((m) => [m[1], m[2]]);
   const wx = entries.filter(([k]) => k === "wx-layer");
   if (wx.length === 0)
-    return { code: 1, why: "the web config has no wx-layer entry, and the firmware reads an absent key as ON " +
-                           "while getBuffer() is a stand-in: the per-pixel layer cannot run on the website" };
+    return { code: 1, why: "the web config has no wx-layer entry, and the firmware reads an absent key as ON: " +
+                           "weather on the website waits for its re-attach registration (REG-web-weather, D5)" };
   const on = wx.filter(([, v]) => v !== "false");
   if (on.length)
-    return { code: 1, why: `the web config turns wx-layer on (${on.map(([, v]) => JSON.stringify(v)).join(", ")}) ` +
-                           "while getBuffer() is a stand-in: the per-pixel layer cannot run on the website" };
+    return { code: 1, why: `the web config turns wx-layer on (${on.map(([, v]) => JSON.stringify(v)).join(", ")}): ` +
+                           "weather on the website waits for its re-attach registration (REG-web-weather, D5)" };
   return { code: 0, why: `wx-layer "false" in the web config's map (${entries.length} entries); ` +
-                         "getBuffer() is the stand-in" };
+                         "getBuffer() is the form this check reads" };
 }
 
 function sha(p) { return crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex"); }
@@ -88,15 +97,15 @@ function selftest() {
     fs.writeFileSync(cfgA, srcA.replace(entry, "/* PLANT: the entry removed */"));
     if (fs.readFileSync(cfgA, "utf8") === srcA) { console.log("RIG: the plant did not apply"); return 2; }
     cases.push(['plant: the wx-layer entry removed from a copy of the web config', absent, 1]);
-    // AMENDMENT 3: the check binds to the exact getBuffer() line -- any other form, the pre-photo one included, is
-    // CANNOT TELL, never read as off.
+    // AMENDMENT 3 (photos), and REG-web-weather A3.4: the check binds to the exact getBuffer() line -- any other form,
+    // the one before the weather plane included, is CANNOT TELL, never read as off.
     const other = copy("getbuffer");
     const shimO = path.join(other, "shim", "LovyanGFX.hpp");
     const srcO = fs.readFileSync(shimO, "utf8");
     if (srcO.split(STAND_IN).length !== 2) { console.log(`RIG: the plant's anchor occurs ${srcO.split(STAND_IN).length - 1} times, need 1`); return 2; }
-    fs.writeFileSync(shimO, srcO.replace(STAND_IN, `${TOKEN_ONLY}   // PLANT`));
+    fs.writeFileSync(shimO, srcO.replace(STAND_IN, `${PHOTO_ONLY}   // PLANT`));
     if (fs.readFileSync(shimO, "utf8") === srcO) { console.log("RIG: the plant did not apply"); return 2; }
-    cases.push(["plant: the getBuffer() line replaced (the pre-photo form) in a copy of the shim", other, 2]);
+    cases.push(["plant: the getBuffer() line replaced (the form before the weather plane) in a copy of the shim", other, 2]);
     for (const [label, dir, want] of cases) {
       const r = check(dir);
       const ok = r.code === want;

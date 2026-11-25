@@ -109,22 +109,38 @@ namespace fonts {
 // One flat float array per drawable: [length, op, colour, args...]. Colours are 0xRRGGBB as floats
 // (exact below 2^24). Text is [len, OP_TEXT, fg, bg (-1 none), x, y, sx, sy, offset, count] into
 // `text`. The page decodes this (site/radar.js); the order is the paint order.
-// A raster -- a sprite holding real pixels, today only the card's photo -- is [len, OP_RASTER, id, x, y, w, h,
-// hashLo, hashHi]: the page reads the pixels by id (web_raster_ptr), and the hash of those pixels rides in the list,
-// so whatever hashes a frame's list hashes the photo's content too (_handoffs/p4/web-photos/REG-web-photos.txt, C5).
+// A raster -- a sprite holding real pixels: the card's photo, or the frame's weather plane -- is [len, OP_RASTER, id,
+// x, y, w, h, hashLo, hashHi]: the page reads the pixels by id (web_raster_ptr), and the hash of those pixels rides in
+// the list, so whatever hashes a frame's list hashes the photo's content too (_handoffs/p4/web-photos/REG-web-photos.txt,
+// C5). The plane's pixels are byte-swapped 565 (_handoffs/p4/web-weather/REG-web-weather.txt, D1); the op names that
+// from D3 on.
 enum Op : int {
     OP_FILL_SCREEN = 0, OP_LINE, OP_CIRCLE, OP_FILL_CIRCLE, OP_FILL_TRI, OP_FILL_RECT, OP_RECT,
     OP_FILL_RRECT, OP_RRECT, OP_FILL_ARC, OP_ARC, OP_TEXT, OP_PIXEL, OP_IMAGE, OP_ELLIPSE, OP_FILL_ELLIPSE,
     OP_RASTER
 };
 
+// A sprite wrapping its caller's buffer (setBuffer) takes fills and pixels into that buffer and nothing else: any
+// other draw would record a command the buffer never shows, so it stops here instead (REG-web-weather, A3.3).
+[[noreturn]] inline void RefuseWrappedDraw()
+{
+    std::fprintf(stderr, "web renderer: a draw other than a fill or a pixel on a sprite wrapping its caller's buffer "
+                         "(setBuffer); stopping\n");
+    std::abort();
+}
+
 struct DisplayList {
     std::vector<float> ops;
     std::string text;
     uint32_t pixelCalls = 0;     // drawPixel / writePixel: what still draws one pixel at a time
     uint32_t imageCalls = 0;     // pushImage / drawJpg / a bitmap sprite composited: raster content
+    bool refuse = false;         // a wrapped sprite's list: any command at all stops the build (kept across clear())
     void clear() { ops.clear(); text.clear(); pixelCalls = 0; imageCalls = 0; }
-    void op(std::initializer_list<float> v) { ops.push_back((float)v.size() + 1); ops.insert(ops.end(), v.begin(), v.end()); }
+    void op(std::initializer_list<float> v)
+    {
+        if (refuse) RefuseWrappedDraw();
+        ops.push_back((float)v.size() + 1); ops.insert(ops.end(), v.begin(), v.end());
+    }
 };
 
 class ITouch { public: virtual ~ITouch() {} virtual bool init() { return true; } virtual void wakeup() {} virtual void sleep() {} };
@@ -134,8 +150,12 @@ class LGFXBase
   protected:
     // A sprite that holds pixels fills them instead of recording a fill (LGFX_Sprite overrides this).
     virtual bool fillPixels(float /*rgb888*/) { return false; }
+    // A sprite wrapping its caller's buffer writes a pixel there instead of recording it (LGFX_Sprite overrides this).
+    virtual bool pixelTo(int32_t /*x*/, int32_t /*y*/, float /*rgb888*/) { return false; }
   public:
     virtual ~LGFXBase() {}
+    // The panel (LGFX_Device) rather than a sprite: a sprite whose parent it is, is the frame (REG-web-weather, A3.2).
+    virtual bool isPanel() const { return false; }
     int32_t width() const { return w_; }
     int32_t height() const { return h_; }
     DisplayList& list() { return dl_; }
@@ -143,7 +163,7 @@ class LGFXBase
     template <typename T> void fillScreen(const T& c) { if (!fillPixels(q(c))) dl_.op({OP_FILL_SCREEN, q(c)}); }
     template <typename T> void clear(const T& c) { fillScreen(c); }
     void clear() { fillScreen((uint32_t)0); }
-    template <typename T> void drawPixel(int32_t x, int32_t y, const T& c) { dl_.pixelCalls++; dl_.op({OP_PIXEL, q(c), (float)x, (float)y}); }
+    template <typename T> void drawPixel(int32_t x, int32_t y, const T& c) { if (pixelTo(x, y, q(c))) return; dl_.pixelCalls++; dl_.op({OP_PIXEL, q(c), (float)x, (float)y}); }
     template <typename T> void writePixel(int32_t x, int32_t y, const T& c) { drawPixel(x, y, c); }
     template <typename T> void drawLine(int32_t x0, int32_t y0, int32_t x1, int32_t y1, const T& c) { dl_.op({OP_LINE, q(c), (float)x0, (float)y0, (float)x1, (float)y1}); }
     template <typename T> void drawFastHLine(int32_t x, int32_t y, int32_t w, const T& c) { if (w > 0) fillRect(x, y, w, 1, c); }
@@ -294,6 +314,7 @@ struct Panel_GC9A01 {
 class LGFX_Device : public LGFXBase
 {
   public:
+    bool isPanel() const override { return true; }
     void setPanel(Panel_GC9A01*) {}
     bool init();                                  // web/web_gfx.cpp: the size comes from variant::SCREEN_SIZE
     bool begin() { return init(); }
@@ -321,8 +342,10 @@ class LGFX_Sprite : public LGFXBase
     void setPsram(bool) {}
     void* createSprite(int32_t w, int32_t h) { dropPixels(); w_ = w; h_ = h; created_ = true; return this; }
     void deleteSprite() { dropPixels(); created_ = false; w_ = h_ = 0; dl_.clear(); }
-    // The pixels once drawJpg has given this sprite some (C3); a token otherwise, as before.
-    void* getBuffer() const { return !px_.empty() ? (void*)px_.data() : created_ ? (void*)this : nullptr; }
+    // A wrapped sprite's buffer (setBuffer); else handOut(): the pixels once drawJpg has given this sprite some (C3),
+    // the frame's weather plane once the firmware's own setBuffer has run (REG-web-weather, D1/D2, A2.2), a token
+    // otherwise, as before.
+    void* getBuffer() const { return ext_ ? (void*)ext_ : handOut(); }
     // The card's photo (_handoffs/p4/web-photos/REG-web-photos.txt, C3/C4): the first drawJpg turns this sprite into
     // real RGB565 pixels, seeded from a fill recorded before it, and decodes with the device's own decoder
     // (web/web_jpg.h). Anything the firmware never asks -- zoom, a datum, offsets, a colour depth but 16, vector
@@ -335,31 +358,35 @@ class LGFX_Sprite : public LGFXBase
     int rasterId() const { return rid_; }
     const std::string& source() const { return src_; }
     bool isCreated() const { return created_; }
+    // The frame's weather plane (REG-web-weather, D1): px_ holds the device's byte-swapped 565, and `out` says the
+    // plane was handed out through getBuffer() this frame, so the frame presents it first (D2).
+    bool isPlane() const { return plane_; }
+    bool planeOut() const { return planeOut_; }
+    void planePresented() { planeOut_ = false; }
     // The per-pixel weather layer wraps its own buffer here (AircraftManager::AllocateWeatherBuffers, only with
-    // wx-layer on). This stand-in has no pixels -- getBuffer() above is a token -- and the firmware reads that layer
-    // and writes the canvas through raw pointers, so reaching this means a per-pixel path was reached: stop, never
-    // corrupt memory. The website does not draw weather (docs/wx-device.md, (A); check_wx_off.mjs keeps wx-layer off).
-    [[noreturn]] void setBuffer(void*, int32_t, int32_t, uint8_t = 0)
-    {
-        std::fprintf(stderr, "web renderer: LGFX_Sprite::setBuffer reached -- the per-pixel weather layer (wx-layer) "
-                             "cannot run on a stand-in with no pixels; stopping\n");
-        std::abort();
-    }
+    // wx-layer on): this sprite then IS that buffer, as on the device. Fills and pixels write it in the device's
+    // byte-swapped 565; any other draw, or pushing it onto a sprite, stops the build (REG-web-weather, D1, A3.3).
+    void setBuffer(void* buffer, int32_t w, int32_t h, uint8_t bpp = 16);   // web/web_photo.cpp
     // To the parent device: this frame is done (web/web_gfx.cpp hands the list to the page).
     void pushSprite(int32_t x, int32_t y);
     // Onto another sprite: its commands composited at (x, y), as LovyanGFX blits the pixels.
     void pushSprite(LGFX_Sprite* dst, int32_t x, int32_t y);
 
   protected:
-    bool fillPixels(float rgb) override;   // web/web_photo.cpp
+    bool fillPixels(float rgb) override;                      // web/web_photo.cpp
+    bool pixelTo(int32_t x, int32_t y, float rgb) override;   // web/web_photo.cpp
 
   private:
     void dropPixels();                     // web/web_photo.cpp
+    void* handOut() const;                 // web/web_photo.cpp: getBuffer() for a sprite that wraps no buffer
     LGFXBase* parent_ = nullptr;
     bool created_ = false;
     std::vector<uint16_t> px_;             // w_ x h_ RGB565, row-major, once this sprite holds pixels
     int rid_ = 0;                          // its id in the page's raster table (web_raster_ptr)
     std::string src_;                      // the photo path whose bytes it decoded ("" if none known)
+    uint16_t* ext_ = nullptr;              // the caller's buffer, once setBuffer has wrapped one
+    bool plane_ = false;                   // px_ is the frame's weather plane (byte-swapped 565)
+    bool planeOut_ = false;                // the plane was handed out through getBuffer() this frame
 };
 
 // The touch chip on its I2C bus, as TouchWatchdog probes it: always present and awake, answering the

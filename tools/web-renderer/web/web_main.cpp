@@ -1,7 +1,8 @@
 // Blipscope web renderer: main.cpp's radar half, for the page. The same globals in the same order, the same
 // boot calls for the radar (tft.init, a 16-bit full-screen backbuffer, appManager.Initialise), and a
-// frame that is loop()'s draw cycle line for line: Update, clear, the sweep when the radar shows it, Draw,
-// push. The page calls web_frame() once per animation frame and then replays the pushed display list.
+// frame that is loop()'s draw cycle line for line: Update, the weather layer or the clear, the sweep when the
+// radar shows it, Draw, push. The page calls web_frame() once per animation frame and then replays the pushed
+// display list.
 //
 // Left out of the frame, because a website has none of them: Wi-Fi and the config page, OTA and the quiet
 // hour, the factory-reset path, MQTT, the leaderboard, the logbook flush hand-off.
@@ -28,16 +29,23 @@ extern "C" EMSCRIPTEN_KEEPALIVE void web_frame()
     const uint32_t frameStartUs = micros();
     appManager.Update();
 
-    // main.cpp loop(), the radar edition's draw cycle (BAND_H == SCREEN_SIZE on every S3: one band).
+    // main.cpp loop(), the radar edition's draw cycle (BAND_H == SCREEN_SIZE on every S3: one band), in its shipping
+    // FEATURE_CLOUD_FEED form: the weather layer replaces the clear and the wedge blends over it when it is shown, and
+    // with wx-layer off both calls return false before drawing anything (_handoffs/p4/web-weather/REG-web-weather.txt,
+    // A3.1).
     const bool drawScan = appManager.SweepEnabled() && appManager.IsRadarView() && !appManager.NightClockActive() &&
                           !appManager.SweepSuppressed();
     const float sweep = appManager.CurrentSweepAngle();
     for (int bandY = 0; bandY < SCREEN_SIZE; bandY += BAND_H) {
         BandCanvas canvas(backbuffer, bandY);
         const bool firstPass = (bandY == 0);
-        canvas.fillScreen(lgfx::color888(0, 0, 0));
-        if (drawScan)
-            DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
+        if (!appManager.DrawWeatherUnder(canvas))
+            canvas.fillScreen(lgfx::color888(0, 0, 0));
+        if (drawScan) {
+            if (!appManager.DrawSweepOverWeather(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2,
+                                                 sweep))
+                DrawRadarSweep(canvas, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2 - 1, SCREEN_SIZE_DIV_2, sweep);
+        }
         appManager.Draw(canvas, firstPass);
         backbuffer.pushSprite(0, bandY);
     }

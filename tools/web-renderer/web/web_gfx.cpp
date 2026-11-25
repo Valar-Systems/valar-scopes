@@ -8,6 +8,7 @@
 #include "web_photo.h"    // the card's photo: which photo the presented frame carries
 #include <cstdio>
 #include <cstdlib>
+#include <iterator>
 
 namespace {
 lgfx::DisplayList g_presented;     // the last frame pushed to the "panel"
@@ -34,10 +35,21 @@ bool lgfx::LGFX_Device::getTouch(int32_t* x, int32_t* y)
 void lgfx::LGFX_Sprite::pushSprite(int32_t, int32_t)
 {
     // The frame is done: it becomes what the page draws, and the sprite starts the next one empty.
-    if (hasPixels()) {   // a sprite of real pixels as the frame itself: its pixels would not reach the page
+    if (hasPixels() && !isPlane()) {   // a sprite of real pixels as the frame itself: its pixels would not reach the page
         std::fprintf(stderr, "web renderer: a sprite holding pixels was presented as the frame; stopping\n");
         std::abort();
     }
+    if (isPlane() && planeOut()) {
+        // The weather plane was handed out this frame: it is the frame's FIRST op, under every vector op recorded
+        // since, because every per-pixel write precedes every vector op (REG-web-weather, F1, D2). A frame that never
+        // handed it out presents its list exactly as before.
+        const uint64_t h = webphoto::Hash(reinterpret_cast<const uint8_t*>(pixels()), (size_t)w_ * (size_t)h_ * 2);
+        const float r[] = {9, (float)OP_RASTER, (float)rasterId(), 0, 0, (float)w_, (float)h_,
+                           (float)(uint32_t)(h & 0xFFFFFF), (float)(uint32_t)((h >> 24) & 0xFFFFFF)};
+        dl_.ops.insert(dl_.ops.begin(), std::begin(r), std::end(r));
+        dl_.imageCalls++;
+    }
+    planePresented();
     webphoto::Presented(dl_);
     std::swap(g_presented, dl_);
     dl_.clear();
@@ -48,6 +60,11 @@ void lgfx::LGFX_Sprite::pushSprite(LGFX_Sprite* dst, int32_t x, int32_t y)
     // Composite this sprite's commands into dst, offset by (x, y), in paint order. Which fields are
     // coordinates depends on the op: [len, op, colour, ...].
     if (!dst) return;
+    if (isPlane() || ext_ != nullptr) {   // the firmware never pushes either onto a sprite in the web build (A3.3)
+        std::fprintf(stderr, "web renderer: a wrapped buffer or the frame's weather plane pushed onto a sprite; "
+                             "stopping\n");
+        std::abort();
+    }
     const std::vector<float>& v = dl_.ops;
     const size_t textBase = dst->dl_.text.size();
     dst->dl_.text += dl_.text;

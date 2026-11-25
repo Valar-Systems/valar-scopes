@@ -1,6 +1,6 @@
 // Blipscope web renderer: the headless checks (docs/web-renderer.md, R3-R6), in Node, against a built model.
 //
-//   node tools/web-renderer/smoke.mjs [dist/s3-128] [--quick] [--r7-only]
+//   node tools/web-renderer/smoke.mjs [dist/s3-128] [--quick]
 //
 // The firmware runs at ~60 frames a second of wall time. globalThis.fetch is replaced by a recorder that answers
 // from the synthetic scene (site/scene.js), so the renderer's OWN default fetch path is the one exercised --
@@ -11,8 +11,9 @@
 //   R4  /enrich answered 404: each hex asked at most 3 times; no type line drawn
 //   R5  /enrich answered: type lines drawn
 //   R6  an off-base URL: answered locally (404), no request
-//   R7  wx-layer on: the module stops at the shim's setBuffer, an abort with the shim's own line (docs/wx-device.md,
-//       AB1). --r7-only runs it alone; its sabotage (sabotage_setbuffer.mjs) removes the abort and requires it red
+//   R7  RETIRED with its sabotage (sabotage_setbuffer.mjs), by name (_handoffs/p4/web-weather/REG-web-weather.txt,
+//       A3.4): it asserted that wx-layer on stops at the shim's setBuffer, and D1 makes setBuffer wrap its caller's
+//       buffer instead. R7' (wx-layer on draws the weather raster first) and its sabotage replace it with X2
 //   R8  a card opened on a contact fetches THAT contact's photo, exactly once, under /api/v1/blipscope/photo/
 //       (_handoffs/p4/web-photos/REG-web-photos.txt, W5 as amended)
 // Exit 0 when every check holds, 1 when one does not, 2 when the instrument could not run.
@@ -26,24 +27,6 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const dir = path.resolve(args.find((a) => !a.startsWith("--")) || "tools/web-renderer/dist/s3-128");
 const quick = args.includes("--quick");
-const r7only = args.includes("--r7-only");
-
-// R7's expected line, read from the shim's setBuffer -- taken from the other side, never retyped here. null when it
-// cannot be read, which is the instrument's failure, not the code's.
-function setBufferMessage() {
-  let shim;
-  try { shim = fs.readFileSync(path.join(HERE, "shim", "LovyanGFX.hpp"), "utf8"); } catch { return null; }
-  const body = shim.match(/void setBuffer\([^)]*\)\s*\{([\s\S]*?)std::abort\(\);/);
-  const f = body && body[1].match(/std::fprintf\(stderr,([\s\S]*?)\);/);
-  if (!f) return null;
-  const s = [...f[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((x) => x[1]).join("").replace(/\\n$/, "");
-  return s.length ? s : null;
-}
-if (args.includes("--print-setbuffer-message")) {   // a probe of the reading alone, with no build
-  const m = setBufferMessage();
-  console.log(m === null ? "INSTRUMENT: the shim's setBuffer message could not be read" : m);
-  process.exit(m === null ? 2 : 0);
-}
 const require = createRequire(import.meta.url);
 const loader = fs.readdirSync(dir).find((f) => /^blipscope-web-.*\.js$/.test(f));
 if (!loader) { console.log(`INSTRUMENT: no blipscope-web-*.js in ${dir}`); process.exit(2); }
@@ -79,35 +62,6 @@ async function run(label, { enrich, seconds, photos = null }) {
   console.log(`${label}: ${path.basename(dir)}, ${seconds} s; requests ${scene.log.length}; ` +
               `net blips ${net[0]} enrich ${net[1]} answered-locally ${net[2]} posts ${net[3]} timeouts ${net[4]} from-loop ${net[5]}`);
   return { mod, scene, inits, text, net, seconds };
-}
-
-// R7 (docs/wx-device.md, AB1): wx-layer on must stop the module at the shim's setBuffer -- the per-pixel weather layer
-// cannot run on a stand-in with no pixels. Initialise() reaches it inside _web_start(). Held only when something was
-// thrown with "Aborted" in it AND printErr carried the shim's own line; with the abort removed, neither happens.
-async function r7() {
-  const msg = setBufferMessage();
-  if (msg === null) { console.log("INSTRUMENT: the shim's setBuffer message could not be read (shim/LovyanGFX.hpp)"); process.exit(2); }
-  const scene = makeScene({ enrich: false });
-  globalThis.fetch = (url) => scene.fetch(String(url)).then((r) => ({
-    status: r.status, arrayBuffer: async () => r.body.buffer.slice(r.body.byteOffset, r.body.byteOffset + r.body.byteLength) }));
-  const errs = [];
-  delete require.cache[path.join(dir, loader)];
-  const factory = require(path.join(dir, loader));
-  const mod = await factory({ print: () => {}, printErr: (s) => errs.push(String(s)) });
-  for (const [k, v] of Object.entries({ ...CONFIG, "wx-layer": "true" })) mod.ccall("web_config_set", null, ["string", "string"], [k, v]);
-  mod.ccall("web_set_api_base", null, ["string"], [""]);
-  let thrown = null;
-  try {
-    await mod._web_start();
-    for (let i = 0; i < 30; i++) { await mod._web_frame(); await sleep(16); }
-  } catch (e) {
-    thrown = e;
-  }
-  const what = thrown === null ? "" : String((thrown && thrown.message) || thrown);
-  const said = errs.some((l) => l.includes(msg));
-  console.log(`R7: ${path.basename(dir)}; thrown ${thrown === null ? "nothing" : JSON.stringify(what.slice(0, 60))}; ` +
-              `the message ${said ? "printed" : "absent"}`);
-  check("R7", /Aborted/.test(what) && said, "wx-layer on stops at the shim's setBuffer: an abort, with its message");
 }
 
 // R8 (_handoffs/p4/web-photos/REG-web-photos.txt, W5): the scene offers a photo for every hex; a tap on the first
@@ -153,16 +107,6 @@ function verdict() {
   process.exit(ok ? 0 : 1);
 }
 
-if (r7only) {
-  try {
-    await r7();
-  } catch (e) {
-    console.log("INSTRUMENT: " + (e && e.stack || e));
-    process.exit(2);
-  }
-  verdict();
-}
-
 const types = new Set(makeScene().planes.map((p) => p[2]));
 try {
   // R3 + R5 (enrich answered), then R6 on the same module
@@ -202,9 +146,6 @@ try {
 
   // R8, on a fresh module: open whichever contact's card a tap on its label opens, and read the photo requests
   await r8();
-
-  // R7, on a fresh module: last, because an abort leaves its module dead
-  await r7();
 } catch (e) {
   console.log("INSTRUMENT: " + (e && e.stack || e));
   process.exit(2);
