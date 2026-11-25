@@ -283,14 +283,21 @@ jobs:
 
       # The support page's links to our own site, read OUT OF pages/support.html, must answer 200, and a linked page
       # must carry the page's own "frozen on <date>" phrase. A control URL on the same site must answer first, so an
-      # unreachable site reads BLIND, never as a dead link. Kept LAST among the proxy steps: a red here (a link not
-      # live yet) hides no other step's result. Live and read-only: anonymous GETs to the public site.
+      # unreachable site reads BLIND, never as a dead link. The selftest runs on every PR. The LIVE check runs only
+      # when this change touches a file that carries, embeds or checks those links (the script's SCOPE), so a site
+      # outage cannot turn an unrelated proxy PR red; otherwise it prints "skipped: no link-bearing change", and an
+      # empty diff or a scope file missing from the tree reads BLIND, never a skip. smoke-prod.sh prints the same live
+      # line at deploy time, as information. Kept LAST among the proxy steps: a red here hides no other step's result.
       - name: the support page's links answer and match (selftest)
         if: matrix.worker == 'proxy'
         run: node scripts/check-support-links.mjs --selftest
-      - name: the support page's links answer and match (live)
+      - name: the support page's links answer and match (live, on a link-bearing change)
         if: matrix.worker == 'proxy'
-        run: node scripts/check-support-links.mjs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          node scripts/check-support-links.mjs --changed-since "$BASE_SHA"
 
       # Every SQL statement the dashboard can issue, run against the LIVE Analytics
       # Engine endpoint. vitest never executes the SQL, and two defects reached the

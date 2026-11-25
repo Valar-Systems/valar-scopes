@@ -13,12 +13,32 @@
 //      phrase in its text (tags stripped, whitespace collapsed). A 200 without it is FAILED.
 //
 //   node scripts/check-support-links.mjs              exit 0 PASS, 1 FAILED, 2 BLIND, 3 OUTSIDE; prints urls, statuses
-//   node scripts/check-support-links.mjs --selftest   planted HTML and an injected fetch, no network
-import { readFileSync } from "node:fs";
+//   node scripts/check-support-links.mjs --changed-since <sha>
+//                                                     CI's form: the live check runs ONLY when the diff from <sha> to
+//                                                     HEAD touches the SCOPE below, so a site outage cannot turn an
+//                                                     unrelated PR red. Otherwise "skipped: no link-bearing change", exit 0.
+//                                                     A skip must be a skip: an empty diff, a scope file missing from the
+//                                                     tree, or a git failure is BLIND (exit 2), never a skip.
+//   node scripts/check-support-links.mjs --selftest   planted HTML, an injected fetch and planted diffs, no network
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 
 const CONTROL = "https://valarscopes.com/blipscope/";
 const UA = "BlipscopeLinkCheck/1 (+https://github.com/Valar-Systems/valar-scopes)";
 const EXIT = { PASS: 0, FAILED: 1, BLIND: 2, OUTSIDE: 3 };
+// The files that carry, embed or check these links: a change to any of them runs the live check in CI.
+const SCOPE = ["proxy/pages/support.html", "proxy/src/pages.generated.ts", "proxy/scripts/check-support-links.mjs"];
+const REPO = new URL("../../", import.meta.url);
+
+/** The CI scope decision: "run", "skip" or "BLIND", with why. `exists(path)` says whether a scope path is in the tree. */
+function decideScope(files, exists) {
+  const missing = SCOPE.filter((p) => !exists(p));
+  if (missing.length) return { action: "BLIND", why: `the scope names ${missing.join(", ")}, which is not in the tree: a skip could never be told from a rename` };
+  if (files.length === 0) return { action: "BLIND", why: "the diff lists no file: an empty diff cannot tell no change from a broken diff" };
+  const hit = files.filter((f) => SCOPE.includes(f));
+  if (hit.length) return { action: "run", why: `link-bearing change: ${hit.length} of ${files.length} files (${hit.join(", ")})` };
+  return { action: "skip", why: `skipped: no link-bearing change (${files.length} files changed, none in the scope)` };
+}
 
 const text = (html) => html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
 const siteLinks = (html) => [...new Set([...html.matchAll(/href="(https:\/\/valarscopes\.com\/[^"#?]*)"/g)].map((m) => m[1]))].sort();
@@ -90,6 +110,11 @@ async function selftest() {
   row("S-wording: a 200 WITHOUT the phrase reads FAILED", (await check(page([T]), stub({ [CONTROL]: [{ status: 200 }], [T]: [{ status: 200, body: "<p>frozen on the day these terms change</p>" }] }), 0)).verdict === "FAILED");
   row("S-split: the phrase split by a tag and a line break reads PASS", (await check(page([T]), stub({ [CONTROL]: [{ status: 200 }], [T]: [ok] }), 0)).verdict === "PASS");
   row("S-two-dates: a page stating 2 freeze dates reads OUTSIDE", (await check(page([T], "frozen on November 25, 2026 and frozen on December 1, 2026"), stub({ [CONTROL]: [{ status: 200 }], [T]: [ok] }), 0)).verdict === "OUTSIDE");
+  const all = () => true;
+  row("S-scope-hit: a scope file in the diff runs the live check", decideScope(["docs/x.md", "proxy/pages/support.html"], all).action === "run");
+  row("S-scope-miss: a diff with no scope file is a skip", decideScope(["docs/x.md", "proxy/src/index.ts"], all).action === "skip");
+  row("S-scope-empty: an empty diff reads BLIND, never a skip", decideScope([], all).action === "BLIND");
+  row("S-scope-stale: a scope file missing from the tree reads BLIND", decideScope(["docs/x.md"], (p) => p !== "proxy/pages/support.html").action === "BLIND");
   const fails = rows.filter((r) => !r).length;
   console.log(fails ? `SELFTEST FAILED: ${fails}` : "SELFTEST PASSED");
   return fails ? 1 : 0;
@@ -97,7 +122,23 @@ async function selftest() {
 
 if (process.argv.includes("--selftest")) {
   process.exit(await selftest());
-} else {
+}
+if (process.argv.includes("--changed-since")) {
+  const base = process.argv[process.argv.indexOf("--changed-since") + 1];
+  let files;
+  try {
+    if (!base || !/^[0-9a-f]{7,40}$/.test(base)) throw new Error("no base sha given");
+    files = execFileSync("git", ["diff", "--name-only", base, "HEAD"], { cwd: REPO, encoding: "utf8" }).split("\n").filter(Boolean);
+  } catch (e) {
+    console.log(`BLIND: the diff could not be read (${e instanceof Error ? e.message.split("\n")[0] : String(e)})`);
+    process.exit(EXIT.BLIND);
+  }
+  const d = decideScope(files, (p) => existsSync(new URL(p, REPO)));
+  console.log(d.why);
+  if (d.action === "BLIND") { console.log("VERDICT: BLIND"); process.exit(EXIT.BLIND); }
+  if (d.action === "skip") process.exit(0);
+}
+{
   const html = readFileSync(new URL("../pages/support.html", import.meta.url), "utf8");
   const r = await check(html, (u, init) => fetch(u, init));
   for (const l of r.lines) console.log(l);

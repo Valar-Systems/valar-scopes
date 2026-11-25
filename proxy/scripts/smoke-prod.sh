@@ -1050,6 +1050,18 @@ enroll_post "enroll POST, malformed id -> 400 (id shape checked before anything)
 # =============================================================================
 
 
+# The support page's links to our own site (scripts/check-support-links.mjs; its cases are graded by its --selftest in
+# CI). INFORMATION ONLY, and deliberately not counted in PASS/FAIL/SKIPPED: the site is not the proxy, so a site outage
+# must not turn a proxy deploy's smoke red. It is here so the person deploying SEES whether the support page links to a
+# live page with the same terms. CI runs the same check only on a change to a link-bearing file.
+printf '\n===== the support page links (valarscopes.com) =====\n'
+SL_OUT="$(node "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/check-support-links.mjs" 2>&1)"; SL_RC=$?
+printf '%s\n' "$SL_OUT"
+case "$SL_RC" in
+  0) SL_V="PASS" ;; 1) SL_V="FAILED" ;; 2) SL_V="BLIND" ;; 3) SL_V="OUTSIDE" ;; *) SL_V="ERROR (exit $SL_RC)" ;;
+esac
+printf 'RESULT: INFO -- %s (information only; not counted)\n' "$SL_V"
+
 printf '\n================ SUMMARY ================\n'
 printf 'PASS: %d   FAIL: %d   SKIPPED: %d\n' "$pass" "$fail" "$skipped"
 if [ "$skipped" -gt 0 ]; then
