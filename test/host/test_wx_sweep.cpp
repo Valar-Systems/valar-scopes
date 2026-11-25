@@ -87,7 +87,7 @@ static void W3()
 
 // W5 (the B1 fix, docs/wx-device.md): the span-only Blend against the whole-row BlendRows, at 3,600 angles, over a
 // frame of varied pixels and codes. W5a: the same frame, count and cleared slice; W5b: each row's span
-// holds only marked pixels (span bytes = marked), averaging the 7,279 sweep_geom measured.
+// holds only marked pixels (span bytes = marked), averaging the geometry measured for the current kTail.
 static void W5()
 {
     const int W = 240, H = 240, C = 119, RAD = 120, STEPS = 3600;
@@ -125,7 +125,11 @@ static void W5()
     const double avg = spanSum / STEPS, avgMarked = markSum / STEPS;
     std::printf("  info [W5] over %d angles: span bytes %.1f, marked %.1f on average\n", STEPS, avg, avgMarked);
     row(bad == 0, "W5a", "span-only Blend: the same frame, count and cleared slice as BlendRows at every angle", bad);
-    row(spanBad == 0 && (long)(avg + 0.5) == 7279, "W5b", "each row's span holds only marked pixels (span bytes = marked; average 7,279)", spanBad);
+    // The average is a measured geometry, one per afterglow (include/SweepWedge.h's kTail, 2026-11-22): 7,279 at
+    // 1.0 rad (sweep_geom), 3,695 at L3a's 0.5 (this row's own reading that day). Any other kTail has no measured
+    // average here, so the row fails until one is read and added -- never a stale number passed as the new one's.
+    const long want = kTail == 1.0f ? 7279 : kTail == 0.5f ? 3695 : -1;
+    row(spanBad == 0 && (long)(avg + 0.5) == want, "W5b", "each row's span holds only marked pixels (span bytes = marked; average 7,279 at kTail 1.0, 3,695 at 0.5)", spanBad);
 }
 
 int main()

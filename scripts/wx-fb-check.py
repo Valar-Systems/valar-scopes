@@ -150,8 +150,9 @@ def load_source():
     # Look 4's wedge (WD6, WD7; the wedge mask, ruled 2026-10-28), read from the source: what it can draw, and the
     # beam and head that locate it in a frame.
     sw = read("include/WxSweep.h")
-    peak = int(re.search(r"constexpr int kPeak = (\d+);", sw).group(1))
-    tail = float(re.search(r"constexpr float kTail = ([\d.]+)f;", sw).group(1))
+    wg = read("include/SweepWedge.h")   # the wedge's constants, one copy since 2026-11-22 (DrawRadarSweep reads them)
+    peak = int(re.search(r"constexpr int kPeak = (\d+);", wg).group(1))
+    tail = float(re.search(r"constexpr float kTail = ([\d.]+)f;", wg).group(1))
     assert "return pct + ((100 - pct) * lvl + kPeak / 2) / kPeak;" in sw, "wxsweep::LitPercent changed: re-derive"
     assert "return (uint16_t)((lvl & 0xFC) << 3);" in sw, "wxsweep::Green565 changed: re-derive"
     assert "LitPercent(wxs2::CodePercent(code, pct), lvl)" in sw, "wxsweep::Lit565 changed: re-derive"
@@ -275,7 +276,7 @@ def trustworthy(f, rings, n, out):
 
 
 # The wedge mask (ruled 2026-10-28; docs/wx-device.md "Rulings on the wedge"), frozen before this code.
-MASK_MARGIN = 0.06    # rad, each side of the wedge's 1.0 rad
+MASK_MARGIN = 0.06    # rad, each side of the wedge's kTail (1.0 rad when this was frozen)
 MASK_CORE = 12        # px around the centre, where angles mean nothing
 HEAD_RANGE = (117.0, 123.0)   # the head's centroid distance from the centre: the disc's edge
 BEAM_MIN = 0.70       # the share of the beam's 101 ray samples (r = 10..110) that must show its colour
@@ -719,6 +720,12 @@ J_THETA = -3.03   # a beam angle where the selftest's raster has the outer ring 
 def selftest(src):
     on = lambda kw, look: grade([synth(src, look=look, **kw)], look, src)
     off = lambda kw, excl=True: grade_off([synth_off(src, **kw)], src, ring_exclusion=excl)
+    # M2's band, one row per afterglow (include/SweepWedge.h's kTail), each around a share MEASURED at that kTail:
+    # 18.4-18.9 % at 1.0 rad (frozen 2026-10-28; read 18.62 % on 2026-11-22) and 10.4-11.0 % at L3a's 0.5 (read
+    # 10.74 %, +/- 0.25 rounded outward). Any other kTail has no measured row, so M2 fails until one is read and added.
+    m2_lo, m2_hi = {1.0: (0.184, 0.189), 0.5: (0.104, 0.110)}.get(src["tail"], (None, None))
+    m2_band = (f"its share {m2_lo * 100:.1f}-{m2_hi * 100:.1f} %" if m2_lo is not None
+               else f"no measured band for kTail {src['tail']}: read one and add its row")
 
     def share_case(look):
         out = []
@@ -726,7 +733,7 @@ def selftest(src):
         wm = wedge_mask(f, src, 0, out)
         if wm is None: return "UNTRUSTWORTHY", out
         verdict, lines = grade([f], look, src)
-        ok = 0.184 <= wm[1] <= 0.189 and verdict == "PASS"
+        ok = m2_lo is not None and m2_lo <= wm[1] <= m2_hi and verdict == "PASS"
         return ("PASS" if ok else "FAIL"), out + lines
 
     def split_case(gap):
@@ -782,7 +789,8 @@ def selftest(src):
         ("off: CONTROL, the same frame with ring pixels allowed into markers",
                                                       lambda: off(dict(outer_colour_far_black=True), excl=False), "FAIL"),
         # The wedge mask (ruled 2026-10-28). M2: located, and its share inside the predicted band.
-        ("M2 look 4's wedge drawn: the mask is found, its share 18.4-18.9 %", lambda: share_case("A"),   "PASS"),
+        (f"M2 look 4's wedge drawn: the mask is found, {m2_band}",
+                                                      lambda: share_case("A"),                           "PASS"),
         ("M3 S-m1: a wedge-only colour on a ring pixel outside the mask", lambda: on(dict(plant="outside"), "A"), "FAIL"),
         ("M4 S-m2: the head erased",                  lambda: on(dict(head="none"), "A"),                "UNTRUSTWORTHY"),
         ("M5 two heads",                              lambda: on(dict(head="two"), "A"),                 "UNTRUSTWORTHY"),

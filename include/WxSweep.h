@@ -5,29 +5,20 @@
 // same code on the canvas buffer.
 //
 // THE WEDGE IS TODAY'S, PIXEL FOR PIXEL. DrawRadarSweep (include/DrawHelpers.h) fills 18 triangles from the beam
-// backwards with LovyanGFX's fillTriangle; this file ports that rasteriser line for line (LGFXBase.cpp fillTriangle
-// and its collinear drawLine case) and gives each pixel the level of the LAST slice that covers it -- exactly what
-// the opaque wedge leaves on the screen -- so a pixel on a shared edge is blended once, never twice.
+// backwards with LovyanGFX's fillTriangle (wxsweep::FillWedge, include/SweepWedge.h, which also holds kTail, kSegs,
+// kPeak and SliceLevel); this file ports that rasteriser line for line (LGFXBase.cpp fillTriangle and its collinear
+// drawLine case) and gives each pixel the level of the LAST slice that covers it -- exactly what the opaque wedge
+// leaves on the screen -- so a pixel on a shared edge is blended once, never twice. test/host/test_sweep_wedge.cpp
+// holds Rasterise to FillWedge's pixels.
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <cmath>
 
+#include "SweepWedge.h"
 #include "WxS2.h"
 
 namespace wxsweep {
-
-constexpr float kTail = 1.0f;   // DrawRadarSweep's TAIL: the afterglow behind the beam, radians
-constexpr int kSegs = 18;       // DrawRadarSweep's SEGS
-constexpr int kPeak = 120;      // DrawRadarSweep's PEAK: the green level next to the beam
-
-/** Slice i's green level (1 = next to the beam, kSegs = the tail), exactly DrawRadarSweep's expression. */
-inline uint8_t SliceLevel(int i)
-{
-    const float frac = i / (float)kSegs;
-    const float g = 1.0f - frac;
-    return (uint8_t)(g * g * kPeak);
-}
 
 /** The opaque wedge's colour at `lvl`: (0, lvl, 0) in RGB565, as fillTriangle stores color888(0, lvl, 0). */
 inline uint16_t Green565(uint8_t lvl) { return (uint16_t)((lvl & 0xFC) << 3); }
