@@ -27,7 +27,11 @@ const call = (cls: { prototype: object }, self: object, name: string, ...args: u
   (cls.prototype as Record<string, (...a: unknown[]) => Promise<Answer>>)[name].call(self, ...args);
 
 const METHODS = new Set(SCREEN_MAP.filter((r) => r.kind === "method").map((r) => (r as { method: string }).method));
-const OUTCOMES = new Set(["ok", "bad_ctx", "tier", "not_released", "not_built", "unknown_method", "error"]);
+// Phase 1's enrich part adds exactly 8 (P-M1, extended): its own test, screen-enrich.test.ts, produces each once.
+const OUTCOMES = new Set([
+  "ok", "bad_ctx", "tier", "not_released", "not_built", "unknown_method", "error",
+  "not_in_snapshot", "stale", "private", "blocked", "blocked_unknown", "place_not_allowed", "bad_model", "limited",
+]);
 
 beforeAll(() => {
   fetchMock.activate();

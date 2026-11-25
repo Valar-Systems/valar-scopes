@@ -13,11 +13,26 @@
 //
 // EVERY CALL IS COUNTED, UNSAMPLED (phase 1, R1; src/screen/metrics.ts): one point per call on every path, refusals
 // included, and one more when a handler throws. A throw never crosses RPC: the caller gets { ok: false, reason: "error" }.
-import { WorkerEntrypoint } from "cloudflare:workers";
+//
+// PHASE 1 (the enrich part; registration D3'): `snapshot` and `enrich` are BUILT. Their handlers below refuse what
+// needs no data (bad_model, a malformed hex, a place that is not numbers) with 0 reads, keep the per-location shield
+// (RL_SCREEN), and send everything else as ONE RPC to the one ScreenDetailsDO, whose core is src/screen/details.ts.
+// The DO answers { answer, outcome }: dispatch counts the outcome and returns the answer (they differ only for a
+// blocked hex: answer.ts).
+import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
+import { type Answer, type Counted, type Refusal, refusal } from "./answer";
+import { isHex6, normHex } from "./classes";
+import { type CoreEnv, type CoreRequest, DetailsCore, parseModel, parsePlace } from "./details";
 import { isCtxTier, releaseAllows, tierAllows } from "./gate";
 import { type MethodName, type MethodRow, RELEASE_URL, WEBSITE_TIERS, mapCounts, methodRows } from "./map";
 import { type Caller, countError, countRequest } from "./metrics";
 import { releaseMemo, releasedVersion } from "./release";
+
+export type { Answer, Refusal } from "./answer";
+// TEST SEAMS ONLY, re-exported so a test reaches them through this module; no RPC method calls either.
+export { __setClock as __setClockForTests } from "./clock";
+export { __tapEnrichRequest as __tapEnrichRequestForTests } from "./details";
+export { __observeDayKey as __observeDayKeyForTests, __setPrivateBlockSize as __setPrivateBlockSizeForTests } from "./privateids";
 
 /** P-B2's marker: present exactly once in this script's bundle, and never in the boards'. */
 export const SCREEN_MARKER = "blipscope-screen:entry:v1";
@@ -32,60 +47,122 @@ declare const BUILD_COMMIT: string;
 declare const LOGS_RATE: number | undefined;
 declare const FULL_LOGS_UNTIL: string | null | undefined;
 
-// Phase 1 binds the counter. Optional, because this repo's tests run without it; a deployed env without it would count
-// nothing, which check-screen.ts's P-O4 refuses. Phases 1-3 add the read-only KV wrapper, the weather bucket and the
-// two service bindings.
-export interface ScreenEnv { SCREEN_METRICS?: AnalyticsEngineDataset }
+// The bindings, all optional in the type because this repo's tests run without them; a deployed env missing one is
+// refused by scripts/check-screen.ts (P-O4 for the counter). SITE_FEED and ENRICH_KV are read inside the DO (CoreEnv).
+export interface ScreenEnv {
+  SCREEN_METRICS?: AnalyticsEngineDataset;
+  SCREEN_DETAILS?: DurableObjectNamespace<ScreenDetailsDO>;
+  /** The per-location shield (D8): a Workers rate-limit binding, keyed by the caller's class. Coarse and approximate;
+   *  the strict limit is the DO's. miniflare cannot emulate it, so it is optional, like the boards' RL_IP. */
+  RL_SCREEN?: { limit(o: { key: string }): Promise<{ success: boolean }> };
+}
 
-export type Refusal = "bad_ctx" | "tier" | "not_released" | "not_built" | "unknown_method" | "error";
-export type Answer = { ok: true; value: unknown } | { ok: false; reason: Refusal };
-type Handler = (env: ScreenEnv, args: unknown[]) => Promise<Answer>;
+type Handler = (env: ScreenEnv, args: unknown[], caller: Caller) => Promise<Counted>;
 
-/** The handlers, by method. Empty in phase 0: phase 1 adds snapshot and enrich, 2 photo, 3 weather, basemap, airports. */
-const HANDLERS: Partial<Record<MethodName, Handler>> = {};
+/** The one object every snapshot and enrich call reaches (D3'). */
+const DETAILS_OBJECT = "screen";
+function detailsObject(env: ScreenEnv) {
+  const ns = env.SCREEN_DETAILS;
+  if (!ns) throw new Error("SCREEN_DETAILS is not bound");
+  return ns.get(ns.idFromName(DETAILS_OBJECT));
+}
+async function shieldAllows(env: ScreenEnv, caller: Caller): Promise<boolean> {
+  return env.RL_SCREEN ? (await env.RL_SCREEN.limit({ key: caller })).success : true;
+}
+const argsOf = (a: unknown): Record<string, unknown> => (a && typeof a === "object" ? (a as Record<string, unknown>) : {});
 
-/** TEST SEAM ONLY (test/screen-metrics.test.ts, P-M1e): plant a handler, or clear it with undefined. Not reachable by
- *  RPC (only the two classes' methods are), and nothing in the service calls it. */
+/** The handlers, by method. Phase 1 builds snapshot and enrich; 2 adds photo, 3 weather, basemap and airports. */
+const HANDLERS: Partial<Record<MethodName, Handler>> = {
+  async snapshot(env, [raw], caller) {
+    const a = argsOf(raw);
+    const model = parseModel(a.model);
+    if (!model) return refusal("bad_model");
+    const place = a.place === undefined ? undefined : parsePlace(a.place);
+    if (place === null) return refusal("place_not_allowed");
+    if (!(await shieldAllows(env, caller))) return refusal("limited");
+    const req: CoreRequest = { method: "snapshot", caller, model, ...(place ? { place } : {}) };
+    return (await detailsObject(env).serve(req)) as Counted;
+  },
+  async enrich(env, [raw], caller) {
+    const a = argsOf(raw);
+    const model = parseModel(a.model);
+    if (!model) return refusal("bad_model");
+    const hex = normHex(a.hex);
+    if (!isHex6(hex)) return refusal("not_in_snapshot"); // a hex of no possible shape cannot be in the snapshot
+    if (!(await shieldAllows(env, caller))) return refusal("limited");
+    return (await detailsObject(env).serve({ method: "enrich", caller, model, hex })) as Counted;
+  },
+};
+const BUILT: Readonly<Partial<Record<MethodName, Handler>>> = { ...HANDLERS };
+
+/** TEST SEAM ONLY (test/screen-metrics.test.ts, P-M1e): plant a handler, or put the BUILT one back with undefined.
+ *  Not reachable by RPC (only the two classes' methods are), and nothing in the service calls it. */
 export function __setHandlerForTests(method: MethodName, h: Handler | undefined): void {
-  if (h) HANDLERS[method] = h;
+  const restore = h ?? BUILT[method];
+  if (restore) HANDLERS[method] = restore;
   else delete HANDLERS[method];
 }
 
-const refuse = (reason: Refusal): Answer => ({ ok: false, reason });
 const readRelease = () => releasedVersion(() => fetch(RELEASE_URL), Date.now());
 
 /** Every call goes through here: answered, then counted, whatever the path. */
 async function dispatch(env: ScreenEnv, method: MethodName, caller: Caller, ctx: unknown, args: unknown[]): Promise<Answer> {
-  let answer: Answer;
+  let c: Counted;
   try {
-    answer = await answerCall(env, method, caller, ctx, args);
+    c = await answerCall(env, method, caller, ctx, args);
   } catch (e) {
     // The error's class only, into the (sampled) logs; the count below is the record.
     console.error(JSON.stringify({ evt: "screen_error", method, caller, name: e instanceof Error ? e.name : "unknown" }));
     countError(env, method, caller);
-    answer = refuse("error");
+    c = refusal("error");
   }
-  countRequest(env, method, caller, answer.ok ? "ok" : answer.reason);
-  return answer;
+  /*P-M1*/
+  countRequest(env, method, caller, c.outcome);
+  return c.answer;
 }
 
-async function answerCall(env: ScreenEnv, method: MethodName, caller: Caller, ctx: unknown, args: unknown[]): Promise<Answer> {
+async function answerCall(env: ScreenEnv, method: MethodName, caller: Caller, ctx: unknown, args: unknown[]): Promise<Counted> {
   const row: MethodRow | undefined = methodRows().find((r) => r.method === method);
-  if (!row) return refuse("unknown_method");
+  if (!row) return refusal("unknown_method");
   if (caller === "app") {
     const tier = typeof ctx === "object" && ctx !== null ? (ctx as { tier?: unknown }).tier : undefined;
-    if (!isCtxTier(tier)) return refuse("bad_ctx");
-    if (!tierAllows(tier, row.tier)) return refuse("tier");
+    if (!isCtxTier(tier)) return refusal("bad_ctx");
+    if (!tierAllows(tier, row.tier)) return refusal("tier");
   } else if (!WEBSITE_TIERS.includes(row.tier)) {
-    return refuse("tier"); // unreachable while P-T1 holds: the website class has no such method
+    return refusal("tier"); // unreachable while P-T1 holds: the website class has no such method
   }
   if (!("released" in row.firmware)) {
     // An unscheduled method never asks the release; a planned one asks it (memoised) and fails closed.
     const v = row.firmware.waitsFor === "unscheduled" ? null : await readRelease();
-    if (!releaseAllows(row.firmware, v)) return refuse("not_released");
+    if (!releaseAllows(row.firmware, v)) return refusal("not_released");
   }
   const h = HANDLERS[method];
-  return h ? h(env, args) : refuse("not_built");
+  return h ? h(env, args, caller) : refusal("not_built");
+}
+
+/**
+ * THE ONE OBJECT (D3'): the strict per-class call counter, the per-hex details store, the resolution cap and the two
+ * cfg: caches, behind ONE RPC method, `serve`. Its state is created lazily and kept beside the object rather than in
+ * a field, so the object holds nothing RPC could expose and a test can drive its prototype (test/screen-enrich.test.ts).
+ */
+const cores = new WeakMap<object, DetailsCore>();
+/** A module function, not a method: every method of the class is callable over RPC, whatever TypeScript calls it. */
+function coreOf(o: ScreenDetailsDO, env: CoreEnv, ctx: DurableObjectState): DetailsCore {
+  let c = cores.get(o);
+  if (!c) {
+    c = new DetailsCore(env, (p) => ctx.waitUntil(p));
+    cores.set(o, c);
+  }
+  return c;
+}
+export class ScreenDetailsDO extends DurableObject<CoreEnv> {
+  serve(req: CoreRequest): Promise<Counted> {
+    return coreOf(this, this.env, this.ctx).serve(req);
+  }
+  /** Writes the read-only KV wrapper has dropped: a single number, never a per-outcome count (P-H3). */
+  stats(): { kvWritesDropped: number } {
+    return { kvWritesDropped: cores.get(this)?.dropped() ?? 0 };
+  }
 }
 
 export class ScreenWebsite extends WorkerEntrypoint<ScreenEnv> {

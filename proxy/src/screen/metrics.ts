@@ -16,7 +16,11 @@
 import type { MethodName } from "./map";
 
 export type Caller = "website" | "app";
-export const OUTCOMES = ["ok", "bad_ctx", "tier", "not_released", "not_built", "unknown_method", "error"] as const;
+// Phase 1's enrich part adds 8 (P-M1, extended). `blocked` is counted but never answered (answer.ts, the P-E2b ruling).
+export const OUTCOMES = [
+  "ok", "bad_ctx", "tier", "not_released", "not_built", "unknown_method", "error",
+  "not_in_snapshot", "stale", "private", "blocked", "blocked_unknown", "place_not_allowed", "bad_model", "limited",
+] as const;
 export type Outcome = (typeof OUTCOMES)[number];
 export interface MetricsEnv { SCREEN_METRICS?: AnalyticsEngineDataset }
 

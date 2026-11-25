@@ -439,7 +439,8 @@ async function route(
 
 // The Bend site feed's Durable Object and its service-binding entrypoint (docs/bend-site-feed.md).
 // Named exports, not routes: no public request can reach BendFeed. Removable; see README "Bend site feed".
-export { BendFeed, BendSnapshotDO } from "./sitefeed/bend";
+// `SiteFeed` is the same entrypoint under a neutral name: the screen service binds it (screen.wrangler.toml).
+export { BendFeed, BendFeed as SiteFeed, BendSnapshotDO } from "./sitefeed/bend";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
