@@ -1,3 +1,5 @@
+# ARCHIVED COPY. It differs from the instrument that ran in exactly one function: token(), changed on 2026-11-25 to
+# read its token through the repo's guarded reader, tools/token_file.py. Source: docs/uk-data-r1 at 621265992ef5, blob 70ea2bdbf671.
 """R1's T and B (docs/uk-data.md A1.3, with the details pinned in A3.12), from the collection's listings.
 
     python -I r1_tb.py selftest                         the controls and sabotages, on synthetic weeks
@@ -190,11 +192,11 @@ def b_grade(today, extra):
 # ---- the offsets, from Workers Logs -----------------------------------------------------------------------------------
 
 def token(name):
-    for line in open(os.path.expanduser("~/.config/blipscope/tokens"), encoding="utf-8"):
-        k, _, v = line.strip().partition("=")
-        if k == name and v:
-            return v
-    raise SystemExit(f"{name} absent from the token file")
+    import importlib.util as _ilu
+    _s = _ilu.spec_from_file_location("token_file", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "tools", "token_file.py"))
+    tf = _ilu.module_from_spec(_s)
+    _s.loader.exec_module(tf)
+    return tf.token(name)
 
 
 def offsets_from_logs():
