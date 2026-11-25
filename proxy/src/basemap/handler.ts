@@ -26,13 +26,37 @@ export const BASEMAP_REV = 1;
  *  query. A 503 not_configured or a 400 returns before any branch and carries none. */
 export type BasemapBranch = "304-known" | "304-kv" | "hit" | "stored" | "stored-error" | "known-miss" | "in-flight" | "unknown-store" | "guarded";
 
-export interface BasemapEnv { BASEMAP?: Fetcher; BASEMAP_PKG?: R2Bucket; BASEMAP_NAME_KEY?: string; ENRICH_KV?: KVNamespace }
+export interface BasemapEnv {
+  BASEMAP?: Fetcher; BASEMAP_PKG?: R2Bucket; BASEMAP_NAME_KEY?: string; ENRICH_KV?: KVNamespace;
+  /** STAGING ONLY (wrangler.toml [env.staging.vars]; SW8 keeps it out of every other section): the longest in-line wait a
+   *  request may ask for with SYNC_WAIT_HEADER. Absent -> the header is refused. */
+  BASEMAP_SYNC_WAIT_MAX_MS?: string;
+}
 
 /** A1's constants, as ruled (Q-A1c). SYNC_WAIT_MS is set from the 2.5 s target (Q-SW1, docs/basemap-sync-wait.md): the
  *  target minus the pre-race work's nearest-rank p95 over the slot's ten (570 ms) minus a 330 ms margin. Mutable for
  *  tests only, which shorten the waits. */
 export const SYNC_WAIT_MS = 1_600, RETRY_AFTER_S = 15, LOCK_STALE_MS = 45_000;
 export const basemapTiming = { syncWaitMs: SYNC_WAIT_MS, lockStaleMs: LOCK_STALE_MS };
+/** A MEASUREMENT AID, staging only (SW1-SW8): a request may ask the cold path's race to wait longer than
+ *  the default, up to the env's BASEMAP_SYNC_WAIT_MAX_MS, so a heavy build is awaited IN-LINE (an HTTP-triggered Worker has
+ *  no duration limit while its client is connected) instead of finishing under waitUntil's 30 s. No firmware sends the
+ *  header. It is REFUSED, never ignored or clamped: an ignored flag is a statement the caller believes took effect, and a
+ *  clamp turns an impossible ask into a plausible one. */
+export const SYNC_WAIT_HEADER = "x-basemap-sync-wait-ms", SYNC_WAIT_CAP_MS = 120_000;
+const MS_DIGITS = /^[0-9]{1,9}$/;
+export type SyncWait = { ok: true; ms: number } | { ok: false; code: "sync_wait_not_enabled" | "bad_sync_wait" };
+/** The race's wait for this request: the default with no header; else the header's ms, or why it is refused. */
+export function syncWaitOf(header: string | null, max: string | undefined): SyncWait {
+  const base = basemapTiming.syncWaitMs;
+  if (header === null) return { ok: true, ms: base };
+  const m = max !== undefined && MS_DIGITS.test(max) ? Number(max) : NaN;
+  if (!(m > base && m <= SYNC_WAIT_CAP_MS)) return { ok: false, code: "sync_wait_not_enabled" };
+  if (!MS_DIGITS.test(header)) return { ok: false, code: "bad_sync_wait" };
+  const h = Number(header);
+  if (h < base || h > m) return { ok: false, code: "bad_sync_wait" };
+  return { ok: true, ms: h };
+}
 /** The retry-storm guard: after a build fails, or dies without releasing its lock (a cut-off or a cancelled waitUntil leaves
  *  no other trace), its place waits N before another build is tried. N(count) = GUARD_BASE_MS x 2^(count-1), capped at
  *  GUARD_MAX_MS. An ask inside N answers 503 basemap_retry_later with Retry-After = the seconds left, and builds nothing.
@@ -168,6 +192,8 @@ export async function handleBasemap(request: Request, env: BasemapEnv, ctx: Exec
   if (!env.BASEMAP) return errorResponse(503, "not_configured");
   const p = parseQuery(new URL(request.url));
   if (!p.ok) return errorResponse(400, p.code);
+  const wait = syncWaitOf(request.headers.get(SYNC_WAIT_HEADER), env.BASEMAP_SYNC_WAIT_MAX_MS);
+  if (!wait.ok) return errorResponse(400, wait.code); // before any store read or build
   const q: Query = p.q;
   const inm = request.headers.get("if-none-match");
   const cache = (caches as unknown as { default: Cache }).default;
@@ -224,7 +250,7 @@ export async function handleBasemap(request: Request, env: BasemapEnv, ctx: Exec
       // This request builds, raced against the wait: the answer when it is quick, else 202 and waitUntil finishes it
       const work = buildAndKeep(env, q, pkg, digest, id, true, lock === "takeover");
       ctx.waitUntil(work.then(() => undefined, () => undefined));
-      const quick = await Promise.race([work, sleep(basemapTiming.syncWaitMs).then(() => null)]);
+      const quick = await Promise.race([work, sleep(wait.ms).then(() => null)]);
       if (quick === null) return accepted();
       return quick instanceof Response ? quick : answerBuilt(quick, q, inm, cache, ctx, nameKey);
     }

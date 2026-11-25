@@ -122,6 +122,10 @@ BUILD_COMMIT = "\"UNSTAMPED\""
 SITE_FEED_BEND = "on"                     # Bend site feed switch (docs/bend-site-feed.md); anything else = off
 # The activation gate (docs/device-activation.md, "Watch mode"): staging ENFORCES. A missing or unknown value enforces.
 ACTIVATION_GATE = "enforce"
+# /basemap's in-line wait, a MEASUREMENT AID (basemap/handler.ts SYNC_WAIT_HEADER): the longest a request may ask the cold
+# path to await its build in-line with x-basemap-sync-wait-ms. STAGING ONLY: absent anywhere else, so production refuses the
+# header (400); no firmware sends it. basemap-endpoint.test.ts SW8 fails if it appears in any other section.
+BASEMAP_SYNC_WAIT_MAX_MS = "120000"
 # Turnstile sitekey for the device-enrolment page (see src/enrollpage.ts).
 #
 # A VAR, NOT A SECRET, and the distinction is not cosmetic: the sitekey is
