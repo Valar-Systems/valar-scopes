@@ -1875,7 +1875,7 @@ and said never.** It was reversed deliberately, by Daniel, and the reversal is
 recorded rather than edited away so the next person does not read the new code as
 a violation of an old rule and revert it.
 
-**What is collected now.** Anonymous counts of feature use, at most hourly, on a
+**What is collected now.** Counts of feature use, at most hourly, on a
 request the device already makes: detail-card opens, screen switches per screen,
 logbook claims, whether Follow is configured (a boolean), and uptime hours. Eight
 integers. See [include/UsageReport.h](include/UsageReport.h).
