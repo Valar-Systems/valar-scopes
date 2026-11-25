@@ -1954,7 +1954,7 @@ principle ("Final at R4's review"), with its own predictions frozen in that PR b
 
 ### A3.19 The ruling on #521's and #522's count, verbatim (source: the reviewer chat, pasted by the owner, 2026-11-04 ~19:15Z)
 
-> #521 and #522: (a). The count is re-registered at 41 on both: 38 passed, plus firmware.yml's `version`, `promote` and
+> #521 and #522: (a). The count is re-registered at 41 on both: 38 passed, plus the release workflow's `version`, `promote` and
 > `ship-alert`, skipped. `ship-alert` and `version` need `build`, and `promote` needs `version`, so their checks exist
 > only once the build matrix finishes; your baseline was read before that. The miss is kept on both PRs. Lesson
 > accepted, with one addition: count only from a finished run, and a job behind `needs:` shows up only when what it
