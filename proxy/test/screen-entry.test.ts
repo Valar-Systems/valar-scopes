@@ -2,7 +2,7 @@
 // STRUCTURAL. ScreenWebsite carries only free- and cloud-tier methods and takes no tier; ScreenApp carries every
 // method and takes ctx.tier, fail-closed. Both are checked AGAINST THE ONE MAP (P-F4), method names read from each
 // class's own prototype, so a method added to a class without a row, or a row without a method, is red.
-// The pure gates are graded in plain Node by scripts/check-screen.mts; here they are only seen through the classes.
+// The pure gates are graded in plain Node by scripts/check-screen.ts; here they are only seen through the classes.
 import { env, fetchMock } from "cloudflare:test";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { RELEASE_URL, SCREEN_MAP } from "../src/screen/map";
@@ -70,7 +70,7 @@ describe("P-H1: the one public route", () => {
   });
 });
 
-describe("the gates, seen through the classes (graded in full by check-screen.mts)", () => {
+describe("the gates, seen through the classes (graded in full by check-screen.ts)", () => {
   it("6 ScreenApp with NO ctx is refused as bad_ctx (fail-closed)", async () => {
     expect(await callApp("snapshot")).toEqual({ ok: false, reason: "bad_ctx" });
   });
