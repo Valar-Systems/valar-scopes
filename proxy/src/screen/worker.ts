@@ -24,6 +24,7 @@ import { type Answer, type Counted, type Refusal, refusal } from "./answer";
 import { isHex6, normHex } from "./classes";
 import { type CoreEnv, type CoreRequest, DetailsCore, parseModel, parsePlace } from "./details";
 import { isCtxTier, releaseAllows, tierAllows } from "./gate";
+import { installLogGuard } from "./logguard";
 import { type MethodName, type MethodRow, RELEASE_URL, WEBSITE_TIERS, mapCounts, methodRows } from "./map";
 import { type Caller, countError, countRequest } from "./metrics";
 import { releaseMemo, releasedVersion } from "./release";
@@ -32,6 +33,7 @@ export type { Answer, Refusal } from "./answer";
 // TEST SEAMS ONLY, re-exported so a test reaches them through this module; no RPC method calls either.
 export { __setClock as __setClockForTests } from "./clock";
 export { __tapEnrichRequest as __tapEnrichRequestForTests } from "./details";
+export { __bypassLogGuard as __bypassLogGuardForTests, __uninstallLogGuard as __uninstallLogGuardForTests } from "./logguard";
 export { __observeDayKey as __observeDayKeyForTests, __setPrivateBlockSize as __setPrivateBlockSizeForTests } from "./privateids";
 
 /** P-B2's marker: present exactly once in this script's bundle, and never in the boards'. */
@@ -107,6 +109,7 @@ const readRelease = () => releasedVersion(() => fetch(RELEASE_URL), Date.now());
 
 /** Every call goes through here: answered, then counted, whatever the path. */
 async function dispatch(env: ScreenEnv, method: MethodName, caller: Caller, ctx: unknown, args: unknown[]): Promise<Answer> {
+  installLogGuard(); // logs-nosubject: this isolate's console carries counts, never subjects (logguard.ts)
   let c: Counted;
   try {
     c = await answerCall(env, method, caller, ctx, args);
@@ -157,6 +160,8 @@ function coreOf(o: ScreenDetailsDO, env: CoreEnv, ctx: DurableObjectState): Deta
 }
 export class ScreenDetailsDO extends DurableObject<CoreEnv> {
   serve(req: CoreRequest): Promise<Counted> {
+    /*P-NS3*/
+    installLogGuard(); // the enrich path runs HERE, in the object's own isolate: the install that matters (logguard.ts)
     return coreOf(this, this.env, this.ctx).serve(req);
   }
   /** Writes the read-only KV wrapper has dropped: a single number, never a per-outcome count (P-H3). */
@@ -189,6 +194,7 @@ export default {
   // /health reads no binding, so it takes its env as unknown: typed ScreenEnv (all optional, a "weak" type), any env
   // sharing none of its members -- the test pool's -- is a type error, for a value this handler never reads.
   async fetch(request: Request, _env: unknown): Promise<Response> {
+    installLogGuard();
     const url = new URL(request.url);
     if (request.method !== "GET" || url.pathname !== "/health") return new Response("not found", { status: 404 });
     const version = await readRelease();

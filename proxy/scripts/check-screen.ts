@@ -30,14 +30,20 @@
 //         must be one of four CONTENT patterns in details.ts (the type field, the unbound-throw, the readOnlyKv( wrap,
 //         the enrichEnv key that replaces it), each exactly once. P-K1's tests see only the paths they exercise; this
 //         sees a second path around the wrapper wherever it is written. No line number is used.
+//   P-NS1 (logs-nosubject) every console call in the screen's bundle -- src/screen/worker.ts and every .ts it imports
+//         at run time, walked as P-K2 walks -- is DECIDED in src/screen/logallow.ts: a JSON line whose evt it allows or
+//         drops, or a text line whose first word it drops. A new console line anywhere on that path (the boards' enrich
+//         path included) fails here until someone decides it, rather than passing or vanishing unremarked.
+//   P-NS2 (logs-nosubject) no screen env configures observability TRACES: a trace records subrequest URLs, and the
+//         enrich path's carry the hex and the callsign. The premise the log guard rests on, asserted where it lives.
 //
 //   npx tsx scripts/check-screen.ts              exit 0 PASS, 1 FAIL, 2 BLIND (an input the check cannot read)
 //   npx tsx scripts/check-screen.ts --selftest   the real check must PASS; then each sabotage, on a TEMP COPY that
 //        is asserted to differ from its source, must FAIL exactly as predicted (F1s, F3s, F2s, T2s, P3s, O1s, O2s, O4s,
-//        Ws, K2s, K3r, K3s).
+//        Ws, K2s, K3r, K3s, NS1s, NS2s).
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const PROXY = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -51,6 +57,8 @@ const WATCH = join(REPO, ".github", "workflows", "screen-logs-watch.yml");
 const BOARDS_TOML = join(PROXY, "wrangler.toml");
 const ENRICH = join(PROXY, "src", "enrich.ts");
 const SCREEN_DIR = join(PROXY, "src", "screen");
+const SCREEN_ENTRY = join(SCREEN_DIR, "worker.ts");
+const LOGALLOW = join(SCREEN_DIR, "logallow.ts");
 
 type Tier = "free" | "cloud" | "plus";
 type Firmware = { released: number } | { waitsFor: number | "unscheduled" };
@@ -65,6 +73,7 @@ interface ReleaseMod {
   __resetReleaseMemoForTests(): void;
 }
 interface Result { verdict: "PASS" | "FAIL" | "BLIND"; lines: string[]; failures: string[] }
+interface LogAllowMod { LOG_ALLOW: Readonly<Record<string, unknown>>; LOG_DROP: { json: readonly string[]; text: readonly string[] } }
 
 /** The boards' routes, from index.ts's text. Keys: "blips", "enrich/*", "edition:weatherscope". */
 export function routesFromIndex(src: string): string[] {
@@ -418,14 +427,73 @@ function screenSources(): Map<string, string> {
   return out;
 }
 
+/** P-NS1. Every console call in a source, comments blanked: a text line by its first word, a JSON line by its evt.
+ *  The argument is read to the statement's first `;` (no producer on the path has one inside its argument). */
+const CONSOLE_CALL = /\bconsole\.(?:log|info|warn|error|debug)\s*\(/g;
+export function consoleCalls(src: string): Array<{ line: number; kind: "json" | "text" | "unread"; name: string }> {
+  const code = stripComments(src);
+  const out: Array<{ line: number; kind: "json" | "text" | "unread"; name: string }> = [];
+  for (const m of code.matchAll(CONSOLE_CALL)) {
+    const start = (m.index ?? 0) + m[0].length;
+    const semi = code.indexOf(";", start);
+    const arg = code.slice(start, semi < 0 ? start + 600 : Math.min(semi, start + 600));
+    const line = code.slice(0, m.index).split("\n").length;
+    const text = /^\s*[`'"]([a-z_]+)\b/.exec(arg);
+    const json = /\bevt:\s*"([a-z_]+)"/.exec(arg);
+    out.push(text ? { line, kind: "text", name: text[1] } : json ? { line, kind: "json", name: json[1] } : { line, kind: "unread", name: "" });
+  }
+  return out;
+}
+function checkConsole(bundle: ReadonlyMap<string, string>, la: LogAllowMod): Result {
+  const failures: string[] = [];
+  let n = 0;
+  let allowed = 0;
+  let dropped = 0;
+  for (const [rel, src] of bundle) {
+    for (const c of consoleCalls(src)) {
+      n++;
+      /*P-NS1*/
+      if (c.kind === "json" && Object.hasOwn(la.LOG_ALLOW, c.name)) allowed++;
+      else if (c.kind === "json" && la.LOG_DROP.json.includes(c.name)) dropped++;
+      else if (c.kind === "text" && la.LOG_DROP.text.includes(c.name)) dropped++;
+      else if (c.kind === "unread") failures.push(`P-NS1: ${rel}:${c.line} a console call with no evt or first word this check can read`);
+      else failures.push(`P-NS1: ${rel}:${c.line} logs ${c.kind} "${c.name}", which logallow.ts neither allows nor drops`);
+    }
+  }
+  if (n === 0) return { verdict: "BLIND", lines: ["P-NS1: no console call found in the screen's bundle"], failures: ["P-NS1 blind"] };
+  return {
+    verdict: failures.length ? "FAIL" : "PASS",
+    lines: [`P-NS1: ${n} console calls in ${bundle.size} files of the screen's bundle (${allowed} allowed, ${dropped} dropped)${failures.length ? "" : "; every one decided"}`],
+    failures,
+  };
+}
+/** P-NS2. A traces table, or a traces key, anywhere in screen.wrangler.toml (a comment line does not start so). */
+function checkTraces(tomlSrc: string): Result {
+  /*P-NS2*/
+  const hits = [...tomlSrc.matchAll(/^[ \t]*\[([^\]\n]*\bobservability\.traces)\]|^[ \t]*(traces)[ \t]*=/gm)].map((m) => m[1] ?? m[2]);
+  const failures = hits.map((h) => `P-NS2: screen.wrangler.toml configures traces (${h})`);
+  return {
+    verdict: failures.length ? "FAIL" : "PASS",
+    lines: [failures.length
+      ? `P-NS2: traces configured ${hits.length} time(s)`
+      : "P-NS2: no env configures observability traces (their subrequest URLs would carry the hex)"],
+    failures,
+  };
+}
+/** The screen's bundle, as P-NS1 reads it: worker.ts and its run-time imports, keyed by their path from proxy/. */
+function bundleSources(): Map<string, string> {
+  return new Map(enrichPathFiles(SCREEN_ENTRY).map((f) => [relative(PROXY, f).split("\\").join("/"), readFileSync(f, "utf8")]));
+}
+
 interface Inputs {
   indexSrc: string; otaSrc: string; gatePath: string; releasePath: string; tomlSrc: string; workflowSrc: string | null;
-  boardsTomlSrc: string; screenSrcs: ReadonlyMap<string, string>;
+  boardsTomlSrc: string; screenSrcs: ReadonlyMap<string, string>; bundleSrcs: ReadonlyMap<string, string>;
 }
 async function runAll(inp: Inputs): Promise<Result> {
   const mapMod = await import(pathToFileURL(join(PROXY, "src", "screen", "map.ts")).href) as { SCREEN_MAP: readonly Row[]; RELEASE_URL: string };
   const gate = await import(pathToFileURL(inp.gatePath).href) as GateMod;
   const rel = await import(pathToFileURL(inp.releasePath).href) as ReleaseMod;
+  const la = await import(pathToFileURL(LOGALLOW).href) as LogAllowMod;
   const parts = [
     checkParity(inp.indexSrc, mapMod.SCREEN_MAP),
     checkUrl(inp.otaSrc, mapMod.RELEASE_URL),
@@ -439,6 +507,8 @@ async function runAll(inp: Inputs): Promise<Result> {
     checkWatch(inp.tomlSrc, inp.workflowSrc),
     checkVars(inp.tomlSrc, inp.boardsTomlSrc, enrichPathFiles(ENRICH)),
     checkEnrichKv(inp.screenSrcs),
+    checkConsole(inp.bundleSrcs, la),
+    checkTraces(inp.tomlSrc),
   ];
   const verdict = parts.some((p) => p.verdict === "BLIND") ? "BLIND" : parts.some((p) => p.verdict === "FAIL") ? "FAIL" : "PASS";
   return { verdict, lines: parts.flatMap((p) => p.lines), failures: parts.flatMap((p) => p.failures) };
@@ -447,7 +517,7 @@ async function runAll(inp: Inputs): Promise<Result> {
 const real = (): Inputs => ({
   indexSrc: readFileSync(INDEX, "utf8"), otaSrc: readFileSync(OTA, "utf8"), gatePath: GATE, releasePath: RELEASE,
   tomlSrc: readFileSync(TOML, "utf8"), workflowSrc: existsSync(WATCH) ? readFileSync(WATCH, "utf8") : null,
-  boardsTomlSrc: readFileSync(BOARDS_TOML, "utf8"), screenSrcs: screenSources(),
+  boardsTomlSrc: readFileSync(BOARDS_TOML, "utf8"), screenSrcs: screenSources(), bundleSrcs: bundleSources(),
 });
 
 /** A sabotaged copy of one source file, written to a temp dir; refuses if the edit did not change the text. */
@@ -544,6 +614,17 @@ async function selftest(): Promise<number> {
     // K3s (the orchestrator's): a raw read planted in worker.ts -- a second path around the read-only view.
     const k3s = withEdit("worker.ts", (s) => `${s}\nexport const leak = (env: any) => env.ENRICH_KV.get("k");\n`);
     expect("K3s", await runAll({ ...real(), screenSrcs: k3s }), ["P-K3: src/screen/worker.ts:"]);
+    // NS1s: a new console line on the boards' enrich path, carrying a hex -- undecided, so it must fail.
+    const bundle = bundleSources();
+    const enrichSrc = bundle.get("src/enrich.ts");
+    if (enrichSrc === undefined) throw new Error("sabotage NS1s: src/enrich.ts is not in the screen's bundle");
+    const ns1 = new Map(bundle);
+    ns1.set("src/enrich.ts", `${enrichSrc}\nexport const leakLog = (hex: string) => console.log(JSON.stringify({ evt: "new_thing", hex }));\n`);
+    expect("NS1s", await runAll({ ...real(), bundleSrcs: ns1 }), ["P-NS1: src/enrich.ts:"]);
+    // NS2s: production traces switched on in a copy of screen.wrangler.toml.
+    expect("NS2s", await runAll({ ...real(), tomlSrc: `${toml}\n[env.production.observability.traces]\nenabled = true\n` }), [
+      "P-NS2: screen.wrangler.toml configures traces",
+    ]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -558,7 +639,7 @@ async function main(): Promise<number> {
   r.failures.forEach((f) => console.log(`FAIL ${f}`));
   const routes = routesFromIndex(readFileSync(INDEX, "utf8")).length;
   console.log(r.verdict === "PASS"
-    ? `PASS (P-F1 ${routes} routes; P-F3 URL + ${PARSE_CASES.length} parser cases; P-F2 ${FW_ROWS.length * READS.length}; P-T2 ${CTXS.length * TIERS.length}; memo 3; P-O1 ${observabilityEnvs(readFileSync(TOML, "utf8")).size} envs; P-O2; P-O3; P-O4 ${Object.keys(METRICS_DATASETS).length} envs; P-W; P-K2; P-K3)`
+    ? `PASS (P-F1 ${routes} routes; P-F3 URL + ${PARSE_CASES.length} parser cases; P-F2 ${FW_ROWS.length * READS.length}; P-T2 ${CTXS.length * TIERS.length}; memo 3; P-O1 ${observabilityEnvs(readFileSync(TOML, "utf8")).size} envs; P-O2; P-O3; P-O4 ${Object.keys(METRICS_DATASETS).length} envs; P-W; P-K2; P-K3; P-NS1; P-NS2)`
     : r.verdict);
   return r.verdict === "PASS" ? 0 : r.verdict === "BLIND" ? 2 : 1;
 }

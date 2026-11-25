@@ -95,6 +95,26 @@ export function __tapEnrichRequest(f: ((r: Request) => void | Promise<void>) | u
   tap = f;
 }
 
+/**
+ * The ctx handleEnrich is given (logs-nosubject L-D2). handleEnrich's own background work goes to `waitUntil`, and a
+ * promise that rejects there reaches the runtime WITH ITS MESSAGE: free text on a path the screen does not write.
+ * Nothing on the path rejects today (enrich.ts hands waitUntil an allSettled), but that is a premise about code this
+ * file does not edit, so the shim catches every promise and logs the error's CLASS only.
+ */
+export function enrichCtx(waitUntil: (p: Promise<unknown>) => void): { waitUntil(p: Promise<unknown>): void; passThroughOnException(): void; props: object } {
+  return {
+    waitUntil: (p: Promise<unknown>) =>
+      waitUntil(
+        /*P-NS5*/
+        p.catch((e: unknown) => {
+          console.error(JSON.stringify({ evt: "screen_bg_error", name: e instanceof Error ? e.name : "unknown" }));
+        }),
+      ),
+    passThroughOnException: () => undefined,
+    props: {},
+  };
+}
+
 export class DetailsCore {
   private readonly ro: ReadOnlyKv;
   private readonly enrichEnv: Env;
@@ -264,7 +284,7 @@ export class DetailsCore {
     const request = new Request(u.toString(), { headers: { "X-Blip-Model": model, "X-Blip-FW": String(FULLBLEED_MIN_FW) } });
     await tap?.(request);
     const meta: RequestMetric = { ep: "screen-enrich", status: 0, ms: 0, model, colo: "" };
-    const ctx = { waitUntil: (p: Promise<unknown>) => this.waitUntil(p), passThroughOnException: () => undefined, props: {} };
+    const ctx = enrichCtx((p) => this.waitUntil(p));
     const res = await handleEnrich(request, this.enrichEnv, ctx as unknown as ExecutionContext, hex, meta);
     if (res.status !== 200) throw new Error(`handleEnrich answered ${res.status}`);
     return (await res.json()) as Details;

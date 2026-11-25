@@ -30,12 +30,15 @@
 // two locations) P-L1b P-T1 P-V1 P-D1 P-J1 P-G2 P-G3 P-M1 (the 8 new outcomes) P-T1g (the test seams reach no RPC
 // surface) P-H3 (no per-outcome counts exposed); and G1-G3 (ruled 15:21-15:23Z): P-P1-P-P4 (private rows redacted at the
 // source, the site's daily-ID construction with a UTC day), P-B3 ("~" stripped for the block check), P-V2 (v1: null
-// dbFlags is flagged).
+// dbFlags is flagged). And the logs-nosubject rows (GO 2026-11-25): P-NS3, P-NS3a, P-NS3b, P-NS5 -- the screen's console
+// carries no hex and no callsign; the pure half (P-NS4, P-NS6) is test/screen-logs.test.ts.
 import { env, fetchMock } from "cloudflare:test";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { pointerKey } from "../src/photolicense";
 import { RELEASE_URL } from "../src/screen/map";
 import { __resetReleaseMemoForTests } from "../src/screen/release";
+import { enrichCtx } from "../src/screen/details";
+import { installLogGuard } from "../src/screen/logguard";
 import * as W from "../src/screen/worker";
 import { __resetBreakersForTests } from "../src/upstreams/types";
 import { apiRequest, call as deviceCall, hexBody, makeAc } from "./helpers";
@@ -50,6 +53,8 @@ const X = W as unknown as {
   __tapEnrichRequestForTests?: (f: ((r: Request) => void | Promise<void>) | undefined) => void;
   __setPrivateBlockSizeForTests?: (n: number | undefined) => void;
   __observeDayKeyForTests?: (f: ((raw: Uint8Array) => void) | undefined) => void;
+  __bypassLogGuardForTests?: (on: boolean) => void;
+  __uninstallLogGuardForTests?: () => void;
 };
 
 const LOL = "https://api.adsb.lol";
@@ -68,6 +73,7 @@ const H = {
   V1: "a8a8a1", GAP: "a9a9a1", GAP2: "a9a9a2", S3: "a0a0a3", E: "a0a0ae", T1: "a0a0a1",
   INBLOCK: "210000", // a PUBLIC hex inside the private-ID block (0x210000-0x22ffff): G1 must never hand it out
   MILPIA: "ae0f01", // military (US block, db 1) AND flagged PIA (db 4): the flag decides -- hidden
+  NS1: "a9b9c1", NS2: "a9b9c2", // logs-nosubject: a name gap + a stale route, and a photo gap (P-NS3)
 } as const;
 const PRIVATE_ID = /^~2[12][0-9a-f]{4}$/;
 
@@ -90,6 +96,10 @@ const FIXTURE = [
 const T1_AC = ac(H.T1, "TST125"); // P-T1's own: its upstream answer is delayed, so it is in no other test's snapshot
 const TILDE_BLK = ac(`~${H.BLK}`, "TST131"); // G2: the blocked airframe relayed under a non-ICAO "~" id
 const INBLOCK_AC = ac(H.INBLOCK, "TST132"); // G1: a public aircraft whose hex the private-ID block contains
+// P-NS3's own pair, in no other test's snapshot: NS1's type has no name (a `name` gap) and its callsign has a mirror row
+// seeded stale for the position (route_stale); NS2 has no photo (a `photo` gap). Both lines carry a subject.
+const NS1_AC = ac(H.NS1, "TST141", { t: "ZZ9Z", desc: null });
+const NS2_AC = ac(H.NS2, "TST142");
 /** A served row's fixture hex, by its unique altitude: a redacted private row has no hex of its own (G1). */
 const ALT_HEX = new Map([...FIXTURE, T1_AC, TILDE_BLK, INBLOCK_AC].map((a) => [a.alt_ft as number, a.hex as string]));
 const fixtureHexByAlt = (row: Record<string, unknown>) => ALT_HEX.get(row.alt_ft as number) ?? "?";
@@ -191,7 +201,9 @@ function harness(opts: { vars?: Record<string, string>; feed?: Record<string, un
   const settle = async () => { while (pending.length) await Promise.allSettled(pending.splice(0)); };
   const stats = async () => (await DO.stats.call(doSelf)).kvWritesDropped;
   live.push({ settle });
-  return { feed, kvRec, gaps, counter, pending, doCalls, loc: location(), location, settle, stats };
+  // The details object ALONE, as RPC reaches it, with no Worker in front (P-NS3: the install that matters is its own).
+  const direct = async (req: unknown) => structuredClone(await DO.serve.call(doSelf, structuredClone(req))) as { answer: Answer; outcome: string };
+  return { feed, kvRec, gaps, counter, pending, doCalls, loc: location(), location, settle, stats, direct };
 }
 type Self = { env: object };
 const site = (self: Self, name: "snapshot" | "enrich", args?: unknown) =>
@@ -210,6 +222,8 @@ beforeAll(() => {
   for (const a of FIXTURE) mockHex(a.hex as string, MOCK_EXTRA[a.hex as string]);
   mockHex(H.T1);
   mockHex(H.INBLOCK);
+  mockHex(H.NS1, { t: "ZZ9Z" });
+  mockHex(H.NS2);
 });
 beforeEach(() => {
   routesetPosts = 0;
@@ -225,6 +239,7 @@ afterEach(async () => {
   X.__tapEnrichRequestForTests?.(undefined);
   X.__setPrivateBlockSizeForTests?.(undefined);
   X.__observeDayKeyForTests?.(undefined);
+  X.__bypassLogGuardForTests?.(false);
   vi.restoreAllMocks();
 });
 afterAll(() => {
@@ -759,7 +774,8 @@ describe("the counter and what is exposed (P-M1, P-H3)", () => {
     }
     expect(Object.keys(W.default)).toEqual(["fetch"]);
     const seams = W as unknown as Record<string, unknown>;
-    for (const name of ["__setClockForTests", "__tapEnrichRequestForTests", "__setHandlerForTests", "__setPrivateBlockSizeForTests", "__observeDayKeyForTests"]) {
+    for (const name of ["__setClockForTests", "__tapEnrichRequestForTests", "__setHandlerForTests", "__setPrivateBlockSizeForTests", "__observeDayKeyForTests",
+      "__bypassLogGuardForTests", "__uninstallLogGuardForTests"]) {
       expect(typeof seams[name], name).toBe("function"); // CONTROL: the seams exist, so their absence below means something
       expect((seams[name] as { fetch?: unknown }).fetch, name).toBeUndefined();
     }
@@ -788,5 +804,71 @@ describe("the counter and what is exposed (P-M1, P-H3)", () => {
     for (const a of answers) expect(counts(a)).toEqual([]);
     await h.settle();
     tally(h);
+  });
+});
+
+describe("the screen's logs carry no subject (P-NS3, P-NS3a, P-NS3b, P-NS5)", () => {
+  // WHAT IS CAPTURED: what reaches the console methods UNDERNEATH the guard -- i.e. what the runtime would write.
+  // The guard is uninstalled first, so the only install in play is the details object's own (serve): in production the
+  // object runs in its own isolate, and an install in the Worker's dispatch would not cover it. Driving the object
+  // directly (h.direct) keeps dispatch's install out of this test, where it would otherwise mask a missing one.
+  const LEVELS = ["log", "info", "warn", "error", "debug"] as const;
+  function underneath(): string[] {
+    X.__uninstallLogGuardForTests!();
+    const lines: string[] = [];
+    for (const m of LEVELS) {
+      vi.spyOn(console, m).mockImplementation((...a: unknown[]) => {
+        lines.push(a.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join(" "));
+      });
+    }
+    return lines;
+  }
+  async function sweep(bypass: boolean): Promise<string[]> {
+    const lines = underneath();
+    X.__bypassLogGuardForTests!(bypass);
+    await env.ENRICH_KV.put("rt:TST141", JSON.stringify({ o: "SEA", d: "BUR" })); // a mirror row for NS1's callsign...
+    await env.ENRICH_KV.put("ap:SEA", JSON.stringify([47.4489, -122.3094])); // ...whose route is nowhere near London
+    await env.ENRICH_KV.put("ap:BUR", JSON.stringify([34.2007, -118.3587]));
+    const h = harness({ feed: feedAnswer([NS1_AC, NS2_AC]) });
+    for (const hex of [H.NS1, H.NS2]) {
+      const r = await h.direct({ method: "enrich", caller: "website", model: "s3-128", hex });
+      expect(r.answer.ok, hex).toBe(true);
+    }
+    await h.settle();
+    expect(hexFetches[H.NS1]).toBe(1); // CONTROL: a real resolution of each, through the boards' handleEnrich
+    expect(hexFetches[H.NS2]).toBe(1);
+    tally(h);
+    return lines;
+  }
+  const SUBJECTS = [H.NS1, H.NS2, "tst141", "tst142"]; // a hex covers its "~" spelling; compared lowercased
+
+  it("P-NS3a CONTROL A: with the guard bypassed, the sweep DOES write the hex and the callsign", async () => {
+    const lines = await sweep(true);
+    expect(lines.some((l) => l.includes("\"evt\":\"enrich_gap\"") && l.includes(H.NS1))).toBe(true);
+    expect(lines.some((l) => l.startsWith("route_stale cs=TST141 "))).toBe(true);
+  });
+
+  it("P-NS3: guarded, nothing the runtime receives holds a hex or a callsign", async () => {
+    const lines = await sweep(false);
+    expect(lines.length).toBeGreaterThan(0); // CONTROL: something was written, so its silence below means something
+    for (const l of lines) for (const s of SUBJECTS) expect(l.toLowerCase(), l).not.toContain(s);
+  });
+
+  it("P-NS3b CONTROL B: guarded, the subject lines are REPLACED and an allowed line still passes", async () => {
+    const lines = await sweep(false);
+    expect(lines).toContain(JSON.stringify({ evt: "screen_log_dropped", from: "enrich_gap" }));
+    expect(lines).toContain(JSON.stringify({ evt: "screen_log_dropped", from: "text" }));
+    expect(lines.some((l) => l.startsWith("{\"evt\":\"upstream\","))).toBe(true);
+  });
+
+  it("P-NS5: a rejected background promise from handleEnrich's ctx is caught; its class is logged, never its message", async () => {
+    const lines = underneath();
+    installLogGuard();
+    const got: Promise<unknown>[] = [];
+    const ctx = enrichCtx((p) => { got.push(p); });
+    ctx.waitUntil(Promise.reject(new TypeError(`planted ${H.NS1}`)));
+    expect(got.length).toBe(1); // CONTROL: the shim handed the promise on
+    await expect(got[0]).resolves.toBeUndefined();
+    expect(lines).toEqual([JSON.stringify({ evt: "screen_bg_error", name: "TypeError" })]);
   });
 });
