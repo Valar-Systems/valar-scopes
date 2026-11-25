@@ -42,6 +42,21 @@
 #include "WxSweepLut.h"     // P5 1b: the lit wedge's colour as one table, for both sweep blends
 #include "MarkerDraw.h"     // P5 W: the marker's geometry, shared by the marker and the outline's mask
 #include "OutlineW.h"       // P5 W: the rain outline drawn once, as the 8 copies' union
+// THE FRAME BENCH BEGIN
+#if defined(FRAME_BENCH) && defined(FRAME_PROFILE_GAINS) && FRAME_PROFILE_GAINS == 12
+// REG-W-sep (Corrections 3 and 4): W's three separate copies, one body (src/WsepCopy.inc) in three objects:
+// src/WsepA.cpp and src/WsepB.cpp in flash, src/WsepI.cpp whole in IRAM (scripts/wsep_iram.ld). The arms and W-CHECK
+// reach them ONLY through kCopy, indexed by framebench::OutlineWVariant(); E-CTRL reads the table from the ELF.
+namespace wsepA { void WContact(BandCanvas&, int, int, const TrackedAircraft&, int, bool); }
+namespace wsepB { void WContact(BandCanvas&, int, int, const TrackedAircraft&, int, bool); }
+namespace wsepI { void WContact(BandCanvas&, int, int, const TrackedAircraft&, int, bool); }
+namespace wsep {
+using CopyFn = void (*)(BandCanvas&, int, int, const TrackedAircraft&, int, bool);
+extern const CopyFn kCopy[3];
+const CopyFn kCopy[3] = {&wsepA::WContact, &wsepB::WContact, &wsepI::WContact};
+}  // namespace wsep
+#endif
+// THE FRAME BENCH END
 // THE MAP FETCH BEGIN
 #ifdef BLIPSCOPE_MAP_FETCH
 #include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task
@@ -5019,6 +5034,15 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
                         else backbuffer.fillCircle(x + ox, y + oy, 3, 0u);
                     }
             }
+#if FRAME_PROFILE_GAINS == 12
+            {   // REG-W-sep: the copy this arm names (Wa, Wb or Wi); the shipping else-branch then ends the span
+                const int wv = framebench::OutlineWVariant();
+                if (outline && wv >= 0) {
+                    outlineW = false;
+                    wsep::kCopy[wv](backbuffer, x, y, tracked, radarUpDeg, displayTriangles);
+                }
+            }
+#endif
 #endif
             // THE FRAME BENCH END
             if (outlineW) {
@@ -6527,6 +6551,28 @@ void AircraftManager::WCheckContact(int x, int y, const TrackedAircraft& tracked
             if (displayTriangles) DrawAircraftTriangle(ca, x + ox, y + oy, tracked, 0u);
             else ca.fillCircle(x + ox, y + oy, 3, 0u);
         }
+#if FRAME_PROFILE_GAINS == 12
+    {   // REG-W-sep: Wa, Wb and Wi through wsep::kCopy, each into the second sprite from the same start. This contact's
+        // 32 x 32 window (exactly the mask's extent, so all a copy can draw) is restored after each, then W0 draws as
+        // before, so W0's count keeps the W row's form.
+        static uint16_t keep[32 * 32];
+        const int wy0 = std::max(0, y - 16), wy1 = std::min((int)SCREEN_SIZE, y + 16);
+        const int wx0 = std::max(0, x - 16), wx1 = std::min((int)SCREEN_SIZE, x + 16);
+        for (int yy = wy0; yy < wy1; ++yy)
+            for (int xx = wx0; xx < wx1; ++xx) keep[(yy - wy0) * 32 + (xx - wx0)] = pb[(size_t)yy * SCREEN_SIZE + xx];
+        for (int v = 0; v < 3; ++v) {
+            wsep::kCopy[v](cb, x, y, tracked, radarUpDeg, displayTriangles);
+            uint32_t bad = 0;
+            for (int yy = wy0; yy < wy1; ++yy)
+                for (int xx = wx0; xx < wx1; ++xx) {
+                    const size_t i = (size_t)yy * SCREEN_SIZE + xx;
+                    if (pa[i] != pb[i]) ++bad;
+                    pb[i] = keep[(yy - wy0) * 32 + (xx - wx0)];
+                }
+            fb.wsMismatch[v] += bad;
+        }
+    }
+#endif
     (void)outlinew::Draw(   // W, the radar's copy calls, into the second; no marker
         cb, x, y, 0u,
         [&](outlinew::Mask& m, int cx, int cy) {

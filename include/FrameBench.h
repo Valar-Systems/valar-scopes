@@ -35,9 +35,10 @@
 #include "variants/Variant.h"   // BLIPSCOPE_PUSH_TASK is a variant HEADER's: included here so every file sees one kScenes
 #include "BasemapPackage.h"     // the port: bmpk::Validate reads the fixture's own centre (the home)
 
-// THE PORT builds the profile's lists 10 and 11 and nothing else (PORT-SPEC b8c558fe87b9).
-#if !defined(FRAME_PROFILE) || !defined(FRAME_PROFILE_GAINS) || (FRAME_PROFILE_GAINS != 10 && FRAME_PROFILE_GAINS != 11)
-#error "bench/fp-port builds the frame profile's lists 10 and 11 only (PORT-SPEC b8c558fe87b9)"
+// THE PORT builds the profile's lists 10 and 11 (PORT-SPEC b8c558fe87b9), and bench/fp-port-wsep list 12 (REG-W-sep).
+#if !defined(FRAME_PROFILE) || !defined(FRAME_PROFILE_GAINS) || \
+    (FRAME_PROFILE_GAINS != 10 && FRAME_PROFILE_GAINS != 11 && FRAME_PROFILE_GAINS != 12)
+#error "bench/fp-port builds the frame profile's lists 10, 11 and 12 only (PORT-SPEC b8c558fe87b9; REG-W-sep)"
 #endif
 
 namespace framebench {
@@ -45,8 +46,11 @@ namespace framebench {
 // The port's kinds (PORT-SPEC amendment 1 B): SWEEP_OLD blends the wedge with the per-pixel reference in BOTH sweep
 // paths (wxsweep::Blend / mapsweep::Blend(pct, ..)), SWEEP_LUT is main's shared table; OUTLINE_8COPY is today's 8-copy
 // loop, OUTLINE_W main's W path, OUTLINE_WCHECK draws both and counts the pixels that differ (untimed; W only).
+// REG-W-sep (list 12): OUTLINE_WA / WB / WI call W's three separate copies (src/WsepCopy.inc), Wa and Wb in flash at two
+// addresses and Wi whole in IRAM; then, as on OUTLINE_8COPY, the shipping else-branch ends the span and draws the marker.
 enum Kind : uint8_t { C1 = 0, C1_PUSH10 = 1, C1_PUSH60 = 2, C1_LOOP10 = 3, SWEEP_OLD = 4, SWEEP_LUT = 5,
-                      OUTLINE_8COPY = 6, OUTLINE_W = 7, OUTLINE_WCHECK = 8, kKinds };
+                      OUTLINE_8COPY = 6, OUTLINE_W = 7, OUTLINE_WCHECK = 8, OUTLINE_WA = 9, OUTLINE_WB = 10,
+                      OUTLINE_WI = 11, kKinds };
 constexpr int kLevel = 40;      // C1's level: a scene's default, and Level() outside a scene
 constexpr int kTableMax = 60;   // the rows TBL-HOST verifies (tbl_host_lv.py: i < 60); Allocate() refuses a level above
 struct Scene {
@@ -65,9 +69,10 @@ static const Scene kScenes[] = {{C1}};   // image A: A1, and A2 after B
 #endif
 constexpr int kNumScenes = sizeof(kScenes) / sizeof(kScenes[0]);
 static const char* const kKindName[] = {"C1",        "C1+push10",     "C1+push60", "C1+loop10",    "sweep-old",
-                                        "sweep-lut", "outline-8copy", "outline-w", "outline-wcheck"};
+                                        "sweep-lut", "outline-8copy", "outline-w", "outline-wcheck",
+                                        "outline-wa", "outline-wb",    "outline-wi"};
 static_assert(sizeof(kKindName) / sizeof(kKindName[0]) == kKinds, "kKindName needs one entry per Kind");
-constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0};
+constexpr uint32_t kPushDelayMs[] = {0, 10, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 static_assert(sizeof(kPushDelayMs) / sizeof(kPushDelayMs[0]) == kKinds, "kPushDelayMs needs one entry per Kind");
 
 // THE HOME (PORT-SPEC amendments 1 and 2b): the embedded public fixture ksfo.bmpk's own centre (its header's
@@ -167,6 +172,8 @@ struct State {
     // W-CHECK (list 11's S0): the scratch pair noised this frame; the scene's frames, contacts and mismatched pixels
     bool wcNoised = false;
     uint32_t wcFrames = 0, wcContacts = 0, wcMismatch = 0;
+    // REG-W-sep (list 12's S0): the mismatched pixels of the copies Wa, Wb and Wi, over the same contacts as W0's
+    uint32_t wsMismatch[3] = {0, 0, 0};
     bool noting = false;
     int nNoted = 0;
     Noted noted[kMaxKeys];
@@ -289,6 +296,14 @@ inline bool MapOff() { return false; }
 inline bool SweepOld() { return InScene() && kScenes[S().scene].kind == SWEEP_OLD; }
 inline bool OutlineOld() { return InScene() && kScenes[S().scene].kind == OUTLINE_8COPY; }
 inline bool OutlineWCheck() { return InScene() && kScenes[S().scene].kind == OUTLINE_WCHECK; }
+// REG-W-sep: the copy this scene's kind names, 0 (Wa), 1 (Wb) or 2 (Wi), the index into wsep::kCopy; -1 otherwise
+static_assert(OUTLINE_WB == OUTLINE_WA + 1 && OUTLINE_WI == OUTLINE_WA + 2, "the copies' kinds index wsep::kCopy");
+inline int OutlineWVariant()
+{
+    if (!InScene()) return -1;
+    const Kind k = kScenes[S().scene].kind;
+    return (k >= OUTLINE_WA && k <= OUTLINE_WI) ? (int)(k - OUTLINE_WA) : -1;
+}
 
 // The table's synthetic hexes (fb0000 up to the list's largest level) never leave the board: the enrichment scan's
 // region skips them. The LARGEST level, never the current one: after a scene drops from 60 to 20, fb0014 .. fb003b stay
@@ -557,6 +572,14 @@ inline void EndMeasure()
     if (kScenes[s.scene].kind == OUTLINE_WCHECK) {   // W-CHECK's one line, at its scene's end (REG-W amendment 1 item 3)
         Serial.printf("[speed-p5] outline W-CHECK frames %lu contacts %lu mismatched-px %lu\n", (unsigned long)s.wcFrames,
                       (unsigned long)s.wcContacts, (unsigned long)s.wcMismatch);
+#if FRAME_PROFILE_GAINS == 12
+        static const char* const kCopyName[3] = {"Wa", "Wb", "Wi"};   // REG-W-sep: one line per copy, K = 0 each
+        for (int v = 0; v < 3; ++v) {
+            Serial.printf("[wsep] W-CHECK %s frames %lu contacts %lu mismatched-px %lu\n", kCopyName[v],
+                          (unsigned long)s.wcFrames, (unsigned long)s.wcContacts, (unsigned long)s.wsMismatch[v]);
+            s.wsMismatch[v] = 0;
+        }
+#endif
         s.wcFrames = s.wcContacts = s.wcMismatch = 0;
     }
     s.endMapFrames = s.mapFrames;

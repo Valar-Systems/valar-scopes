@@ -12,7 +12,8 @@
 #include <cstring>
 
 namespace framebench {
-enum Kind : uint8_t { C1 = 0, SWEEP_OLD = 4, SWEEP_LUT = 5, OUTLINE_8COPY = 6, OUTLINE_W = 7, OUTLINE_WCHECK = 8 };
+enum Kind : uint8_t { C1 = 0, SWEEP_OLD = 4, SWEEP_LUT = 5, OUTLINE_8COPY = 6, OUTLINE_W = 7, OUTLINE_WCHECK = 8,
+                      OUTLINE_WA = 9, OUTLINE_WB = 10, OUTLINE_WI = 11 };   // 9-11: REG-W-sep's list 12
 struct Scene {   // map-client's shape at bench/frame-bench-levels 40f02c0fa812
     Kind kind;
     uint8_t level = 40;

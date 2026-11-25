@@ -34,8 +34,23 @@ constexpr bool kLabelsPlant[] = {false, false, false, false, false, false};
 constexpr bool kSweepPlant[] = {false, false, false, false, false, false};
 constexpr bool kOutlinePlant[] = {false, true, false, false, false, false};
 constexpr bool kGMap = false;
+#elif FRAME_PROFILE_GAINS == 12
+// W-SEP (bench/fp-port-wsep, REG-W-sep Corrections 1 to 4): W-CHECK untimed first (K = 0 for each of W0, Wa, Wb and Wi
+// against the 8 copies); O-CTRL (OUTLINE_8COPY with +2.0 ms inside the outline span, as list 11's); then OLD, W0 (W as
+// built), Wa, Wb, Wi, and the same five again. Every arm level 40, weather on, the map not forced, as the W row.
+static const Scene kScenes[] = {
+    {OUTLINE_WCHECK, 40, true}, {OUTLINE_8COPY, 40, true},
+    {OUTLINE_8COPY, 40, true},  {OUTLINE_W, 40, true}, {OUTLINE_WA, 40, true}, {OUTLINE_WB, 40, true}, {OUTLINE_WI, 40, true},
+    {OUTLINE_8COPY, 40, true},  {OUTLINE_W, 40, true}, {OUTLINE_WA, 40, true}, {OUTLINE_WB, 40, true}, {OUTLINE_WI, 40, true},
+};
+static const char* const kArmName[] = {"W-CHECK", "O-CTRL", "OLD1", "W0-1", "Wa1", "Wb1",
+                                       "Wi1",     "OLD2",   "W0-2", "Wa2",  "Wb2", "Wi2"};
+constexpr bool kLabelsPlant[] = {false, false, false, false, false, false, false, false, false, false, false, false};
+constexpr bool kSweepPlant[] = {false, false, false, false, false, false, false, false, false, false, false, false};
+constexpr bool kOutlinePlant[] = {false, true, false, false, false, false, false, false, false, false, false, false};
+constexpr bool kGMap = false;
 #else
-#error "the port's lists are 10 (1b-MAP) and 11 (W)"
+#error "the port's lists are 10 (1b-MAP), 11 (W) and 12 (W-SEP)"
 #endif
 
 // THE DRAWING KEYS (docs/frame-profile.md section 0 (e)): the keys that touch a phase P5/P6 targets (outline, labels,
