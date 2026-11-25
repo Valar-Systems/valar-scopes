@@ -1089,6 +1089,12 @@ void AircraftManager::Initialise()
     // The map's request, from the STORED distance and the unit's exact factor (units::ToKm of 1 is the factor itself,
     // exactly), never from the view's float radii; the ladder just rebuilt above says which steps exist (step A, 1).
     MapConfigure(distance, units::ToKm(1.0, cfgUnit));
+#ifdef BLIPSCOPE_WEB_RENDERER
+    // The web build's own off switch (REG-web-terrain, TD6): a device has none, since its map is on wherever the switch
+    // compiles it in. A page turns the map on only with the key below exactly "true"; web_config keeps it "false" in
+    // writing until terrain's re-attach. Read only here, so the key exists in no device image.
+    webMapLayer = configServer.GetStoredString("map-layer") == "true";
+#endif
 #endif
     // THE MAP FETCH END
 #endif
@@ -3590,6 +3596,9 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
 
 bool AircraftManager::MapEnabled() const
 {
+#ifdef BLIPSCOPE_WEB_RENDERER
+    if (!webMapLayer) return false;   // the web build's off switch (TD6): no fetch, no allocation, no draw
+#endif
     return useCloudSource && !cloudUrl.isEmpty() && hasLocation && !mapAllocFailed;
 }
 
@@ -3695,6 +3704,9 @@ void AircraftManager::ConsumeBasemap(int status, size_t len, size_t claimed, con
     if (o == mappolicy::Outcome::Accepted) {
         mapPkg = pk;
         mapHeldLen = len;
+#ifdef BLIPSCOPE_WEB_RENDERER
+        lgfx::ArmFramePlane();   // the web build: the map writes the frame through getBuffer() (REG-web-terrain, TD2)
+#endif
         // THE MAP DRAW BEGIN
         ++mapPkgSeq;   // a new package: the names reload and the map rebuilds (CB4 package)
         // THE MAP DRAW END

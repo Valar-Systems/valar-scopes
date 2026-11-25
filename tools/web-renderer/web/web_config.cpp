@@ -33,6 +33,9 @@ std::map<std::string, std::string>& settings()
                                      // plane now (REG-web-weather D1), and weather reaches the website only with its own
                                      // re-attach after the release that ships it (parity). check_wx_off.mjs refuses
                                      // removing this, and its --pairing refuses "true" without the plane.
+        {"map-layer", "false"},      // the web build's own map switch (REG-web-terrain, TD6): a device's map has none.
+                                     // "false" in writing until terrain's re-attach (parity); check_wx_off.mjs refuses
+                                     // removing it, and its --pairing refuses "true" without the plane.
     };
     return m;
 }

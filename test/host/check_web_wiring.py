@@ -3,7 +3,9 @@ The host rows grade the helpers; this grades that AircraftManager actually calls
 call sites cannot be run on a host:
   - CurrentPollIntervalMs returns through pollcadence::IntervalMs and keeps no copy of the rule;
   - the weekly-reboot block tests pollcadence::PreventiveRebootDue;
-  - "kiosk" is read exactly once, through pollcadence::KioskOn, inside #ifdef BLIPSCOPE_WEB_RENDERER.
+  - "kiosk" is read exactly once, through pollcadence::KioskOn, inside #ifdef BLIPSCOPE_WEB_RENDERER;
+  - "map-layer", the web build's own map switch, is read exactly once, inside #ifdef BLIPSCOPE_WEB_RENDERER
+    (_handoffs/p4/web-terrain/REG-web-terrain.txt, TD6, A2.4).
 --selftest plants each failure in a copy of the text and requires KW1 to refuse it.
     python -I test/host/check_web_wiring.py <repo root> [--selftest]      exit 0 ok, 1 off, 2 rig"""
 import re
@@ -46,7 +48,17 @@ def kw1(src):
             why.append('the "kiosk" read does not go through pollcadence::KioskOn')
         if opened < 0 or closed > opened:
             why.append('the "kiosk" read is not inside #ifdef BLIPSCOPE_WEB_RENDERER')
-    return not why, "; ".join(why) or "through IntervalMs and PreventiveRebootDue; one kiosk read, web-only, through KioskOn"
+    maps = [m.start() for m in re.finditer(r'"map-layer"', src)]
+    if len(maps) != 1:
+        why.append(f'"map-layer" appears {len(maps)} times, not once')
+    else:
+        at = maps[0]
+        opened = src.rfind("#ifdef BLIPSCOPE_WEB_RENDERER", 0, at)
+        closed = src.rfind("#endif", 0, at)
+        if opened < 0 or closed > opened:
+            why.append('the "map-layer" read is not inside #ifdef BLIPSCOPE_WEB_RENDERER')
+    return not why, "; ".join(why) or ("through IntervalMs and PreventiveRebootDue; one kiosk read, web-only, through "
+                                       "KioskOn; one map-layer read, web-only")
 
 
 PLANTS = [
@@ -59,6 +71,9 @@ PLANTS = [
     ("the kiosk read not through KioskOn",
      lambda s: s.replace('pollcadence::KioskOn(configServer.GetStoredString("kiosk").c_str())',
                          'configServer.GetStoredString("kiosk") == "true"')),
+    ("the map-layer read outside the web fence",
+     lambda s: s.replace("#ifdef BLIPSCOPE_WEB_RENDERER\n    // The web build's own off switch",
+                         "#if 1\n    // The web build's own off switch")),
 ]
 
 

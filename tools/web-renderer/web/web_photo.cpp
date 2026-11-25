@@ -31,7 +31,9 @@ constexpr size_t kSeenMax = 8;
 std::map<int, lgfx::LGFX_Sprite*> g_rasters;    // id -> the sprite holding those pixels
 int g_nextId = 1;
 std::string g_shown;                            // the photo path the last presented frame carried, or ""
-bool g_wrapped = false;                         // the firmware's own setBuffer has run (wx-layer on): the frame may plane
+// The frame may plane: the firmware's own setBuffer has run (wx-layer on), or a map package was accepted
+// (lgfx::ArmFramePlane; REG-web-terrain TD2). With neither, every sprite behaves as #799's.
+bool g_armed = false;
 
 [[noreturn]] void Refuse(const char* what)
 {
@@ -173,8 +175,10 @@ void lgfx::LGFX_Sprite::setBuffer(void* buffer, int32_t w, int32_t h, uint8_t bp
     depth_ = 16;
     created_ = true;
     dl_.refuse = true;
-    g_wrapped = true;
+    g_armed = true;
 }
+
+void lgfx::ArmFramePlane() { g_armed = true; }
 
 void* lgfx::LGFX_Sprite::handOut() const
 {
@@ -182,9 +186,10 @@ void* lgfx::LGFX_Sprite::handOut() const
     LGFX_Sprite* self = const_cast<LGFX_Sprite*>(this);
     if (px_.empty()) {
         if (!created_) return nullptr;
-        // The plane: only the panel's own sprite, and only once the firmware's own setBuffer has run (A2.2, A3.2). A
-        // null check on any other sprite, the photo's included, gets the token it always got.
-        if (!g_wrapped || parent_ == nullptr || !parent_->isPanel() || depth_ != 16) return self;
+        // The plane: only the panel's own sprite, and only once the firmware's own setBuffer has run or a map package
+        // was accepted (weather A2.2, A3.2; terrain TD2). A null check on any other sprite, the photo's included, gets
+        // the token it always got.
+        if (!g_armed || parent_ == nullptr || !parent_->isPanel() || depth_ != 16) return self;
         if (!OnlyAFill(dl_.ops)) RefusePlane("handed out over vector content");
         const uint16_t seed = dl_.ops.empty() ? 0 : Swapped(From888(dl_.ops[2]));
         self->px_.assign((size_t)w_ * (size_t)h_, seed);

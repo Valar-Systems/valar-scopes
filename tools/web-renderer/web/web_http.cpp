@@ -25,39 +25,42 @@
 #include <string>
 
 // ---- the page's half (render.js may install Module.blipscopeFetch; the default is a same-origin fetch) ----
-// A page's own fetch gets the init as its second argument (A1.2) and answers { status, body, etag, maxAge }; an etag or
-// maxAge it leaves out reads as "", as an absent header does on the device (A4.1). The default reads the ETag and
-// X-Wx-Max-Age headers for the weather crop only: no other request's headers are read.
-EM_JS(int, js_fetch_start, (const char* url, int wx), {
+// A page's own fetch gets the init as its second argument (A1.2) and answers { status, body, etag, maxAge, retryAfter };
+// one it leaves out reads as "", as an absent header does on the device (A4.1). `kind` is 0 for an ordinary request, 1
+// for the weather crop and 2 for the map package (REG-web-terrain TD4, A2.3): only those two are fetched with
+// cache "no-cache", and only their ETag, X-Wx-Max-Age and Retry-After are read. No other request's headers are read.
+EM_JS(int, js_fetch_start, (const char* url, int kind), {
     const u = UTF8ToString(url);
     Module._webFetches = Module._webFetches || new Map();
     Module._webFetchId = (Module._webFetchId || 0) + 1;
     const id = Module._webFetchId;
-    const rec = { done: false, status: 0, body: new Uint8Array(0), etag: "", maxAge: "" };
+    const rec = { done: false, status: 0, body: new Uint8Array(0), etag: "", maxAge: "", retryAfter: "" };
     Module._webFetches.set(id, rec);
-    const init = { credentials: "omit", cache: wx ? "no-cache" : "no-store" };
+    const init = { credentials: "omit", cache: kind ? "no-cache" : "no-store" };
     const run = Module.blipscopeFetch || ((x, i) => fetch(x, i)
         .then(async (r) => {
-            const h = (n) => (wx && r.headers && typeof r.headers.get === "function" && r.headers.get(n)) || "";
-            return { status: r.status, body: new Uint8Array(await r.arrayBuffer()), etag: h("ETag"), maxAge: h("X-Wx-Max-Age") };
+            const h = (n) => (kind && r.headers && typeof r.headers.get === "function" && r.headers.get(n)) || "";
+            return { status: r.status, body: new Uint8Array(await r.arrayBuffer()), etag: h("ETag"), maxAge: h("X-Wx-Max-Age"),
+                     retryAfter: h("Retry-After") };
         }));
     Promise.resolve().then(() => run(u, init)).then((r) => {
         rec.status = r.status | 0;
         rec.body = r.body instanceof Uint8Array ? r.body : new TextEncoder().encode(String(r.body || ""));
         rec.etag = typeof r.etag === "string" ? r.etag : "";
         rec.maxAge = typeof r.maxAge === "string" ? r.maxAge : "";
+        rec.retryAfter = typeof r.retryAfter === "string" ? r.retryAfter : "";
         rec.done = true;
     }, () => { rec.status = 0; rec.done = true; });
     return id;
 });
-// A finished fetch's ETag (which 0) or X-Wx-Max-Age (which 1), whole: its byte length first, then the bytes.
+// A finished fetch's ETag (which 0), X-Wx-Max-Age (1) or Retry-After (2), whole: its byte length first, then the bytes.
 EM_JS(int, js_fetch_meta_len, (int id, int which), {
     const rec = Module._webFetches.get(id);
-    return rec ? new TextEncoder().encode(which ? rec.maxAge : rec.etag).length : 0;
+    return rec ? new TextEncoder().encode([rec.etag, rec.maxAge, rec.retryAfter][which] || "").length : 0;
 });
 EM_JS(void, js_fetch_meta, (int id, int which, char* dst, int len), {
     const rec = Module._webFetches.get(id);
-    if (rec) HEAPU8.set(new TextEncoder().encode(which ? rec.maxAge : rec.etag).subarray(0, len), dst);
+    if (rec) HEAPU8.set(new TextEncoder().encode([rec.etag, rec.maxAge, rec.retryAfter][which] || "").subarray(0, len), dst);
 });
 EM_JS(int, js_fetch_poll, (int id), {
     const rec = Module._webFetches && Module._webFetches.get(id);
@@ -78,7 +81,8 @@ namespace web {
 String g_cloudBase;                 // web_config.cpp: the firmware's "cloud-url", which only this file reads
 bool g_airportsRemote = false;      // web_config.cpp: the page's "airports-remote", off unless exactly "true"
 std::string g_apiBase;              // the page's apiBase ("" = the page's own origin)
-struct NetStats { uint32_t blips = 0, enrich = 0, local404 = 0, posts = 0, timeouts = 0, fromLoop = 0, photos = 0, wx = 0; } g_net;
+struct NetStats { uint32_t blips = 0, enrich = 0, local404 = 0, posts = 0, timeouts = 0, fromLoop = 0, photos = 0, wx = 0,
+                  maps = 0; } g_net;
 }
 
 namespace {
@@ -128,24 +132,28 @@ std::string Meta(int id, int which)
     return s;
 }
 
-// Fetch on the page's origin; yields the calling task's fiber until the answer arrives. `wx` marks the weather crop:
-// its init asks the browser to revalidate (A4.3), and its ETag and X-Wx-Max-Age come back through etag and maxAge.
-int Fetch(const std::string& target, std::string& body, bool wx = false, std::string* etag = nullptr,
-          std::string* maxAge = nullptr)
+// Fetch on the page's origin; yields the calling task's fiber until the answer arrives. `kind` is 0 for an ordinary
+// request, 1 for the weather crop and 2 for the map package: those two ask the browser to revalidate (weather A4.3,
+// terrain TD4), and their ETag, X-Wx-Max-Age and Retry-After come back through the pointers. The map waits as long as
+// the device's map does (MapPolicy kReplyTimeoutMs, 60 s: "the package can near 1 MB"); everything else, 15 s.
+int Fetch(const std::string& target, std::string& body, int kind = 0, std::string* etag = nullptr,
+          std::string* maxAge = nullptr, std::string* retryAfter = nullptr)
 {
     if (xTaskGetCurrentTaskHandle() == nullptr) {   // the frame loop cannot wait; the firmware never asks it to
         web::g_net.fromLoop++;
         return 0;
     }
-    const int id = js_fetch_start(target.c_str(), wx ? 1 : 0);
+    const int id = js_fetch_start(target.c_str(), kind);
     const unsigned long t0 = millis();
+    const unsigned long timeoutMs = kind == 2 ? 60000UL : FETCH_TIMEOUT_MS;
     int st;
     while ((st = js_fetch_poll(id)) < 0) {
-        if (millis() - t0 > FETCH_TIMEOUT_MS) { js_fetch_drop(id); web::g_net.timeouts++; return 0; }
+        if (millis() - t0 > timeoutMs) { js_fetch_drop(id); web::g_net.timeouts++; return 0; }
         vTaskDelay(10);
     }
     if (etag) *etag = Meta(id, 0);
     if (maxAge) *maxAge = Meta(id, 1);
+    if (retryAfter) *retryAfter = Meta(id, 2);
     const int n = js_fetch_len(id);
     body.assign((size_t)n, '\0');
     js_fetch_take(id, n ? &body[0] : nullptr, n);
@@ -222,7 +230,9 @@ HttpResult HttpRequestManager::Get(const String& url, const std::vector<std::pai
 //   - 304: a success with no body; any other non-200: a "success" carrying the status, nothing read -- the caller
 //     reads statusCode, as on the device;
 //   - 200: refused ("body over cap", len 0) when the body is over bodycap::Fits, else copied whole;
-//   - ETag and X-Wx-Max-Age are handed back whenever there was an answer.
+//   - ETag, X-Wx-Max-Age and Retry-After are handed back whenever there was an answer (the device's kCollectHeaders;
+//     Retry-After for the map's MapPolicy, CA4/CA5: REG-web-terrain A2.3).
+// It takes the weather crop (/wx/) and the map package (/basemap, REG-web-terrain TD4), and nothing else.
 // NAMED DIFFERENCE (A4.2): the browser has de-chunked already, so the cap is tested on the delivered length, and a
 // close-delimited body -- which the device refuses -- cannot be told apart here.
 HttpResult HttpRequestManager::GetBytes(const String& url, const std::vector<std::pair<String, String>>& params,
@@ -232,15 +242,16 @@ HttpResult HttpRequestManager::GetBytes(const String& url, const std::vector<std
     len = 0;
     etag = String();
     maxAge = String();
-    const bool wx = !web::g_cloudBase.isEmpty() && url.startsWith(web::g_cloudBase) &&
-                    webroute::IsWx(url.substring(web::g_cloudBase.length()).str());
+    const std::string path = !web::g_cloudBase.isEmpty() && url.startsWith(web::g_cloudBase)
+                                 ? url.substring(web::g_cloudBase.length()).str() : std::string();
+    const int kind = webroute::IsWx(path) ? 1 : webroute::IsBasemap(path) ? 2 : 0;
     bool isBlips = false;
-    const std::string target = wx ? Route(url, params, isBlips) : std::string();
+    const std::string target = kind ? Route(url, params, isBlips) : std::string();
     if (target.empty()) { web::g_net.local404++; return Answer(404, ""); }
-    web::g_net.wx++;
+    (kind == 1 ? web::g_net.wx : web::g_net.maps)++;
     const unsigned long t0 = millis();
-    std::string body, e, m;
-    const int status = Fetch(target, body, true, &e, &m);
+    std::string body, e, m, ra;
+    const int status = Fetch(target, body, kind, &e, &m, &ra);
     HttpResult r{};
     r.statusCode = status;
     if (status <= 0) {
@@ -248,6 +259,7 @@ HttpResult HttpRequestManager::GetBytes(const String& url, const std::vector<std
     } else {
         etag = String(e);
         maxAge = String(m);
+        r.retryAfter = String(ra);
         if (status == 304 || status != 200) {
             r.success = true;   // 304: no body, by definition; any other status: the caller reads it
         } else {
@@ -288,11 +300,11 @@ extern "C" EMSCRIPTEN_KEEPALIVE int web_http_probe(const char* url)
 
 extern "C" EMSCRIPTEN_KEEPALIVE const uint32_t* web_net_stats()
 {
-    // s[6], photos, and s[7], the weather crops forwarded (REG-web-weather, A4.4), were appended: every reader of the
-    // earlier entries reads what it always read.
-    static uint32_t s[8];
+    // s[6], photos, s[7], the weather crops forwarded (REG-web-weather, A4.4), and s[8], the map packages forwarded
+    // (REG-web-terrain), were appended: every reader of the earlier entries reads what it always read.
+    static uint32_t s[9];
     s[0] = web::g_net.blips; s[1] = web::g_net.enrich; s[2] = web::g_net.local404;
     s[3] = web::g_net.posts; s[4] = web::g_net.timeouts; s[5] = web::g_net.fromLoop;
-    s[6] = web::g_net.photos; s[7] = web::g_net.wx;
+    s[6] = web::g_net.photos; s[7] = web::g_net.wx; s[8] = web::g_net.maps;
     return s;
 }

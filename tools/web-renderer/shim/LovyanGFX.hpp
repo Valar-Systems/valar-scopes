@@ -391,6 +391,11 @@ class LGFX_Sprite : public LGFXBase
     bool planeOut_ = false;                // the plane was handed out through getBuffer() this frame
 };
 
+// The frame's plane arms on the firmware's own setBuffer (the weather layer) or on this call, made by the web build at
+// the map package's acceptance (src/AircraftManager.cpp, ConsumeBasemap; REG-web-terrain TD2, A2.2): the map writes the
+// frame through getBuffer() with or without the weather layer. web/web_photo.cpp.
+void ArmFramePlane();
+
 // The touch chip on its I2C bus, as TouchWatchdog probes it: always present and awake, answering the
 // CST816T's chip id (0xB6) at 0xA7. So the watchdog reads a healthy chip and never "recovers" it.
 namespace i2c {

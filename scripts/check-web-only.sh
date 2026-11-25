@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# The web build's own keys are in no device image (docs/web-kiosk-airfield.md, KI4; ruled 2026-11-08 ~20:01Z). "kiosk"
-# and "airports-remote" are read only under BLIPSCOPE_WEB_RENDERER or in the web shim, so a device image that carries
-# either has a path the design says it cannot have. Run on every firmware build in CI.
+# The web build's own keys are in no device image (docs/web-kiosk-airfield.md, KI4; ruled 2026-11-08 ~20:01Z). "kiosk",
+# "airports-remote" and "map-layer" (the web's own map switch, _handoffs/p4/web-terrain/REG-web-terrain.txt TD6, A2.4)
+# are read only under BLIPSCOPE_WEB_RENDERER or in the web shim, so a device image that carries one has a path the
+# design says it cannot have. Run on every firmware build in CI.
 #
 # THE CHECK HAS TO BE ABLE TO SEE. Every scan first requires an ANCHOR the file is known to carry ("[build] env=" in a
 # device image); no anchor = BLIND = exit 2, never a pass.
@@ -15,7 +16,7 @@
 
 set -u
 
-STRINGS=( "kiosk" "airports-remote" )
+STRINGS=( "kiosk" "airports-remote" "map-layer" )
 ANCHOR="[build] env="
 
 anchored() {

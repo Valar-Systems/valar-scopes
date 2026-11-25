@@ -16,6 +16,14 @@ inline void* heap_caps_malloc(size_t n, uint32_t) { return std::malloc(n); }
 inline void* heap_caps_calloc(size_t n, size_t s, uint32_t) { return std::calloc(n, s); }
 inline void* heap_caps_realloc(void* p, size_t n, uint32_t) { return std::realloc(p, n); }
 inline void heap_caps_free(void* p) { std::free(p); }
+// ESP-IDF's aligned allocation, freed by heap_caps_free as on the device: the map's own allocator asks it
+// (AircraftManager::MapAlloc; _handoffs/p4/web-terrain/REG-web-terrain.txt). The alignment is raised to a pointer's
+// size where smaller, as posix_memalign requires; the map asks 8.
+inline void* heap_caps_aligned_alloc(size_t alignment, size_t n, uint32_t)
+{
+    void* p = nullptr;
+    return posix_memalign(&p, alignment < sizeof(void*) ? sizeof(void*) : alignment, n) == 0 ? p : nullptr;
+}
 inline size_t heap_caps_get_free_size(uint32_t caps) { return (caps & MALLOC_CAP_SPIRAM) ? 7000000 : 180000; }
 inline size_t heap_caps_get_largest_free_block(uint32_t caps) { return (caps & MALLOC_CAP_SPIRAM) ? 7000000 : 110000; }
 inline size_t heap_caps_get_minimum_free_size(uint32_t caps) { return (caps & MALLOC_CAP_SPIRAM) ? 6900000 : 150000; }

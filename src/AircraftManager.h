@@ -32,10 +32,11 @@
 #include "WxSweep.h"  // the sweep over the weather, looks 3 and 4 (pure; WD6)
 // THE MAP FETCH BEGIN
 // The map package under the radar (docs/blipscope-map-client-steps.md, step A). BUILT ONLY UNDER THE ONE SWITCH, like
-// the weather (WxLayerSwitch.h: weather and maps ship together), and NEVER INTO THE WEB RENDERER: the website draws no
-// raw-buffer layer and its GetBytes is a dead socket (tools/web-renderer/web/web_http.cpp), so asking there would only
-// hold a visitor's memory for a package that cannot arrive. Every map site tests this one macro, never the flags.
-#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)
+// the weather (WxLayerSwitch.h: weather and maps ship together). The web renderer builds it too: it carries the frame's
+// plane and forwards /basemap (_handoffs/p4/web-terrain/REG-web-terrain.txt, TD1), and keeps the map off with its own
+// web-only "map-layer" until terrain's re-attach (TD6). Every map site here tests this one macro; CloudFeed's BasemapUrl
+// repeats its condition in CloudFeed.h and CloudFeed.cpp, and must change with it.
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS)
 #define BLIPSCOPE_MAP_FETCH 1
 #include "BasemapPackage.h" // bmpk::Package: the gate's accepted package, pointing into the landing buffer
 #include "MapPolicy.h"      // when to ask, and what each answer means (pure; CA4-CA11)
@@ -724,6 +725,9 @@ private:
     bool mapAllocFailed = false;       // the map stays off until the next config change
     size_t mapHeldLen = 0;             // the held package's length; 0 when none is held
     bmpk::Package mapPkg;              // the gate's accepted package, pointing into mapLanding
+#ifdef BLIPSCOPE_WEB_RENDERER
+    bool webMapLayer = false;          // the web build only: "map-layer" exactly "true" (REG-web-terrain, TD6)
+#endif
 #endif
     // THE MAP FETCH END
     // THE MAP DRAW BEGIN

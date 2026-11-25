@@ -19,6 +19,11 @@
 // caller's buffer (web/web_photo.cpp), and (c) handOut creates the frame's plane. #799's getBuffer() means no plane.
 // It is the rule weather's re-attach will lean on when it flips the map; until then PARITY above keeps it "false".
 //
+// The radar's map (REG-web-terrain, TD5, TD6, A1.3) gets the same two rules for its own web switch, "map-layer": PARITY
+// refuses it on, AND refuses it removed (the web build reads an absent key as off, but the ruling is the writing);
+// PAIRING refuses it "true" unless the tree carries (a) and (c) above, (d) lgfx::ArmFramePlane's arming body in
+// web_photo.cpp, and (e) its one call in src/AircraftManager.cpp, read at the repo's depth from this directory.
+//
 //   node tools/web-renderer/check_wx_off.mjs [<web-renderer dir>]             PARITY: exit 0 off; 1 on; 2 cannot tell
 //   node tools/web-renderer/check_wx_off.mjs --pairing [<web-renderer dir>]   PAIRING: exit 0 paired or off; 1 on
 //                                                                             without a plane; 2 cannot tell
@@ -66,51 +71,74 @@ export function check(dir) {
   if (on.length)
     return { code: 1, why: `the web config turns wx-layer on (${on.map(([, v]) => JSON.stringify(v)).join(", ")}): ` +
                            "weather on the website waits for its re-attach registration (REG-web-weather, D5)" };
-  return { code: 0, why: `wx-layer "false" in the web config's map (${entries.length} entries); ` +
+  // The map's own web switch (REG-web-terrain, TD6, A1.3): "false" in writing, ruled; its removal is refused as wx-layer's
+  // is, though the web build reads an absent key as off -- the rule is the writing, not the default.
+  const mp = entries.filter(([k]) => k === "map-layer");
+  if (mp.length !== 1 || mp[0][1] !== "false")
+    return { code: 1, why: `the web config's map-layer is ${mp.length ? JSON.stringify(mp.map(([, v]) => v).join(",")) : "absent"}, ` +
+                           "not one \"false\": the map on the website waits for terrain's re-attach (REG-web-terrain, TD6)" };
+  return { code: 0, why: `wx-layer and map-layer "false" in the web config's map (${entries.length} entries); ` +
                          "getBuffer() is the form this check reads" };
 }
 
-// PAIRING's two lines in web/web_photo.cpp, each compared whole (trimmed), each required exactly once.
-const WRAPS = "ext_ = static_cast<uint16_t*>(buffer);";   // (b): setBuffer makes the sprite its caller's buffer
-const PLANES = "self->plane_ = true;";                     // (c): handOut makes the frame's plane
+// PAIRING's lines, each compared whole (trimmed, comments stripped), each required exactly once.
+const WRAPS = "ext_ = static_cast<uint16_t*>(buffer);";        // (b): setBuffer makes the sprite its caller's buffer
+const PLANES = "self->plane_ = true;";                          // (c): handOut makes the frame's plane
+const ARMS = "void lgfx::ArmFramePlane() { g_armed = true; }";   // (d): the map's arming path (REG-web-terrain TD2)
+const HOOK = "lgfx::ArmFramePlane();";                          // (e): its one call, in src/AircraftManager.cpp
 
 export function pairing(dir) {
-  let shim, config, photo;
+  let shim, config, photo, firmware;
   try {
     shim = fs.readFileSync(path.join(dir, "shim", "LovyanGFX.hpp"), "utf8");
     config = fs.readFileSync(path.join(dir, "web", "web_config.cpp"), "utf8");
     photo = fs.readFileSync(path.join(dir, "web", "web_photo.cpp"), "utf8");
+    firmware = fs.readFileSync(path.join(dir, "..", "..", "src", "AircraftManager.cpp"), "utf8");
   } catch (e) {
     return { code: 2, why: `cannot read the sources: ${e.message}` };
   }
   const map = config.match(/static std::map<std::string, std::string> m = \{([\s\S]*?)\n\s*\};/);
   if (!map) return { code: 2, why: "the web config's settings map was not found: re-derive" };
-  const wx = [...map[1].matchAll(/\{\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\}/g)].filter((m) => m[1] === "wx-layer").map((m) => m[2]);
-  if (wx.length === 1 && wx[0] === "false") return { code: 0, why: "wx-layer \"false\": nothing to pair" };
-  const said = wx.length ? `wx-layer ${JSON.stringify(wx.join(","))}` : "no wx-layer entry (the firmware reads it as ON)";
+  const valuesOf = (key) => [...map[1].matchAll(/\{\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\}/g)].filter((m) => m[1] === key).map((m) => m[2]);
+  const wx = valuesOf("wx-layer"), mp = valuesOf("map-layer");
+  const wxOff = wx.length === 1 && wx[0] === "false";
+  const mapOff = mp.length === 0 || (mp.length === 1 && mp[0] === "false");   // the web reads an absent map-layer as off
+  if (wxOff && mapOff) return { code: 0, why: "wx-layer and map-layer off: nothing to pair" };
+  const said = [!wxOff ? (wx.length ? `wx-layer ${JSON.stringify(wx.join(","))}` : "no wx-layer entry (the firmware reads it as ON)") : "",
+                !mapOff ? `map-layer ${JSON.stringify(mp.join(","))}` : ""].filter(Boolean).join(" and ");
   const getBuffers = shim.split(/\r?\n/).map((l) => l.replace(/\/\/.*$/, "").trim()).filter((l) => /\bgetBuffer\s*\(/.test(l));
   if (getBuffers.length === 1 && getBuffers[0] === PHOTO_ONLY)
     return { code: 1, why: `${said}, and getBuffer() is #799's form: the shim has no plane` };
   if (getBuffers.length !== 1 || getBuffers[0] !== STAND_IN)
     return { code: 2, why: `the shim's getBuffer() is not a form this check reads (${JSON.stringify(getBuffers)}): re-derive` };
-  const lines = photo.split(/\r?\n/).map((l) => l.replace(/\/\/.*$/, "").trim());
-  const count = (s) => lines.filter((l) => l === s).length;
-  const missing = [[WRAPS, "(b) setBuffer wraps"], [PLANES, "(c) handOut planes"]].filter(([s]) => count(s) !== 1).map(([, n]) => n);
-  if (missing.length) return { code: 1, why: `${said}, but web_photo.cpp lacks ${missing.join(" and ")}: no plane` };
-  return { code: 0, why: `${said}, paired with the plane: (a) getBuffer, (b) setBuffer wraps, (c) handOut planes` };
+  const linesOf = (s) => s.split(/\r?\n/).map((l) => l.replace(/\/\/.*$/, "").trim());
+  const photoLines = linesOf(photo), firmwareLines = linesOf(firmware);
+  const count = (lines, s) => lines.filter((l) => l === s).length;
+  const need = [[photoLines, PLANES, "(c) handOut planes"]];
+  if (!wxOff) need.push([photoLines, WRAPS, "(b) setBuffer wraps"]);
+  if (!mapOff) need.push([photoLines, ARMS, "(d) ArmFramePlane arms"], [firmwareLines, HOOK, "(e) the firmware's ArmFramePlane call"]);
+  const missing = need.filter(([lines, s]) => count(lines, s) !== 1).map(([, , n]) => n);
+  if (missing.length) return { code: 1, why: `${said}, but the tree lacks ${missing.join(" and ")}: no plane for it` };
+  return { code: 0, why: `${said}, paired with the plane: (a) getBuffer, ${need.map(([, , n]) => n).join(", ")}` };
 }
 
 function sha(p) { return crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex"); }
 
 function selftest() {
-  const files = [["shim", "LovyanGFX.hpp"], ["web", "web_config.cpp"], ["web", "web_photo.cpp"]];
+  // The firmware file is read by PAIRING's (e), at the repo's depth from this directory, so each copy keeps that depth.
+  const files = [["shim", "LovyanGFX.hpp"], ["web", "web_config.cpp"], ["web", "web_photo.cpp"],
+                 ["..", "..", "src", "AircraftManager.cpp"]];
   const before = files.map((f) => sha(path.join(HERE, ...f)));
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "check-wx-off-"));
   let bad = 0;
   try {
     const copy = (name) => {
-      const d = path.join(tmp, name);
-      for (const f of files) { fs.mkdirSync(path.join(d, f[0]), { recursive: true }); fs.copyFileSync(path.join(HERE, ...f), path.join(d, ...f)); }
+      const d = path.join(tmp, name, "tools", "web-renderer");
+      for (const f of files) {
+        const dst = path.join(d, ...f);
+        fs.mkdirSync(path.dirname(dst), { recursive: true });
+        fs.copyFileSync(path.join(HERE, ...f), dst);
+      }
       return d;
     };
     const cases = [];
@@ -165,6 +193,26 @@ function selftest() {
     const p3 = copy("pair-planes"); mapTrue(p3);
     edit(p3, ["web", "web_photo.cpp"], `        ${PLANES}\n`, "        /* PLANT: the plane removed */\n");
     pairCases.push(["pairing plant: map \"true\", (c) handOut's plane removed", p3, 1]);
+
+    // THE MAP'S OWN SWITCH (REG-web-terrain, TD5, TD6, A1.3): PARITY refuses it on or removed; PAIRING needs, for it,
+    // (a), (c), (d) the arming function and (e) the firmware's one call to it.
+    const mapEntry = '{"map-layer", "false"},';
+    const mlOn = copy("map-on");
+    edit(mlOn, ["web", "web_config.cpp"], mapEntry, '{"map-layer", "true"},   // PLANT');
+    cases.push(['plant: {"map-layer", "true"} in a copy of the web config', mlOn, 1]);
+    const mlGone = copy("map-absent");
+    edit(mlGone, ["web", "web_config.cpp"], mapEntry, "/* PLANT: the map-layer entry removed */");
+    cases.push(["plant: the map-layer entry removed from a copy of the web config", mlGone, 1]);
+    pairCases.push(["pairing CONTROL: map-layer \"true\" with the real tree (parity says 1 for it, above)", mlOn, 0]);
+    const m1 = copy("map-arms"); edit(m1, ["web", "web_config.cpp"], mapEntry, '{"map-layer", "true"},   // PLANT');
+    edit(m1, ["web", "web_photo.cpp"], ARMS, "/* PLANT: the arming function removed */");
+    pairCases.push(["pairing plant: map-layer \"true\", (d) ArmFramePlane's body removed", m1, 1]);
+    const m2 = copy("map-hook"); edit(m2, ["web", "web_config.cpp"], mapEntry, '{"map-layer", "true"},   // PLANT');
+    edit(m2, ["..", "..", "src", "AircraftManager.cpp"], "        lgfx::ArmFramePlane();", "        /* PLANT: the hook removed */");
+    pairCases.push(["pairing plant: map-layer \"true\", (e) the firmware's call removed", m2, 1]);
+    const m3 = copy("map-getbuffer"); edit(m3, ["web", "web_config.cpp"], mapEntry, '{"map-layer", "true"},   // PLANT');
+    edit(m3, ["shim", "LovyanGFX.hpp"], STAND_IN, `${PHOTO_ONLY}   // PLANT`);
+    pairCases.push(["pairing plant: map-layer \"true\" with #799's getBuffer()", m3, 1]);
 
     for (const [label, dir, want] of cases) {
       const r = check(dir);
