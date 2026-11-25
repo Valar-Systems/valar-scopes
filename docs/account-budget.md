@@ -1141,3 +1141,14 @@ listed, a whole id in a label).
 section, which put every namespace's duration on `proxy`. Over 2026-11-18..25, about 21.7% of the account's GB-s sat in
 namespaces only the kiosk calls. Those rows' `do_gb_s` therefore includes the kiosk's, and they are not re-attributed here.
 Attribution changes which product a GB-s lands on, never the account's total.
+
+## 14. Workers outside Blipscope, excluded (2026-11-25)
+
+**1 non-Blipscope Worker excluded (the owner's).** The account runs one Worker that is not part of Blipscope. Its name is held
+only in an optional local file outside every git tree, whose path `BLIPSCOPE_BUDGET_EXCLUDE` gives per shell; this repository
+never names it. `tools/budget/budget_read.py` refuses a list file that sits inside a git work tree.
+
+A listed Worker's groups are written as product `non-blipscope`, state `excluded`. They are still rows, so a read's totals
+still anchor, but they are summed into no product's budget. The console prints only how many Workers the list held.
+`budget_read.py --selftest` (E1-E4) holds the rule. `tools/budget/sabotage_account_budget.py` turns it red two ways: the list
+never consulted, and the git-tree refusal removed. Without the list a run reads as before: the Worker is `unattributed`.

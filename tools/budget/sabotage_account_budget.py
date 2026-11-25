@@ -85,6 +85,10 @@ READER_PLANTS = [
      '        p, st = "proxy", "now"\n', {"D2", "D3", "D4", "D-ALL"}),
     ("S-DO-FIRST attributed by the first caller listed", "        if len(c) == 1:\n", "        if len(c) >= 1:\n", {"D2", "D-ALL"}),
     ("S-DO-IDS the label carries the whole id", 'f"{ns[:6]}... (', 'f"{ns}... (', {"D5", "D-ALL"}),
+    # Section 14 (registered 2026-11-25 before its code): the owner's non-Blipscope Workers, from a local list.
+    ("S-EX-IGNORE the list never consulted", '    if s in _EXCLUDED:\n        return "non-blipscope", "excluded"\n', "", {"E2"}),
+    ("S-EX-OPEN the git-tree refusal removed", '        if os.path.exists(os.path.join(d, ".git")):\n            raise SystemExit(',
+     '        if False:\n            raise SystemExit(', {"E3"}),
 ]
 
 
@@ -93,7 +97,7 @@ def failed_controls(out):
     for line in out.splitlines():
         if not line.startswith("FAIL "):
             continue
-        m = re.match(r"FAIL ((?:P|M|R|K|D)[\w-]*):", line)   # P1..P6, P-ONE(-ctl|-steady|-none), M1..M3, R1, R2; K0..K10; D1..D5, D-ALL
+        m = re.match(r"FAIL ((?:P|M|R|K|D|E)[\w-]*):", line)   # P1..P6, P-ONE(-ctl|-steady|-none), M1..M3, R1, R2; K0..K10; D1..D5, D-ALL; E1..E4
         if m:
             got.add(m.group(1))
         elif line.startswith("FAIL CONTROL: the clean budget's flags"):

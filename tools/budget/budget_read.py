@@ -64,7 +64,32 @@ def gql(q, a, b):
     return d["data"]["viewer"]["accounts"][0]
 
 
+# Workers that are NOT part of Blipscope (docs/account-budget.md section 14): named only in an OPTIONAL local file outside any
+# git tree, whose path BLIPSCOPE_BUDGET_EXCLUDE gives per shell, so no such name is ever committed. A listed Worker is written as
+# product "non-blipscope", state "excluded": still a row, so a read's totals still anchor, and summed into no product's budget.
+EXCLUDE_ENV = "BLIPSCOPE_BUDGET_EXCLUDE"
+_EXCLUDED = frozenset()
+
+
+def load_excluded(path):
+    """The listed Worker names: one per line, "#" comments and blank lines ignored. A file inside a git work tree is REFUSED,
+    so the list cannot be committed by accident."""
+    ap = os.path.abspath(path)
+    d = os.path.dirname(ap)
+    while True:
+        if os.path.exists(os.path.join(d, ".git")):
+            raise SystemExit(f"{EXCLUDE_ENV} names a file inside a git work tree; keep the list outside every repository")
+        up = os.path.dirname(d)
+        if up == d:
+            break
+        d = up
+    with open(ap, encoding="utf-8") as fh:
+        return frozenset(n for n in (line.split("#", 1)[0].strip() for line in fh) if n)
+
+
 def script_product(s, opera_state):
+    if s in _EXCLUDED:
+        return "non-blipscope", "excluded"
     if s.startswith("blipscope-wx-ingest-op"):
         return "opera-ten", opera_state
     if s in SCRIPT_STATE:
@@ -106,6 +131,8 @@ def main():
         raise SystemExit("take must be rest, opera or all")
     hours = (datetime.fromisoformat(b.replace("Z", "+00:00")) - datetime.fromisoformat(a.replace("Z", "+00:00"))).total_seconds() / 3600
     k = 30 * 24 / hours
+    global _EXCLUDED
+    _EXCLUDED = load_excluded(os.environ[EXCLUDE_ENV]) if os.environ.get(EXCLUDE_ENV) else frozenset()
     acc, unknown = {}, []   # (product, state, allowance) -> value in the window
 
     def add(p, st, al, v, name, opera_dependent=False):
@@ -203,12 +230,14 @@ def main():
         print(f"  {row['product']:20s} {row['state']:8s} {row['allowance']:14s} {row['value']:>14,}")
     print("TOTALS:", json.dumps(totals))
     print("UNATTRIBUTED:", unknown or "none")
+    print(f"EXCLUDED (non-blipscope): {len(_EXCLUDED)} Worker(s), from the local list")   # a count, never a name
     return 0
 
 
 def selftest():
-    """Offline, on canned groups (section 13): the per-window caller attribution. Synthetic namespace ids, never real ones.
-    D1 is the control; D2-D5 and D-ALL are the rows the sabotage driver must turn red. Exit 0 only if every row passes."""
+    """Offline, on canned groups: the per-window caller attribution (section 13) and the local exclusion list (section 14).
+    Synthetic ids and names, never real ones. D1 and E1 are the controls; the rest are the rows the sabotage driver must
+    turn red. Exit 0 only if every row passes."""
     A, B, C, D = ("a" * 32), ("b" * 32), ("c" * 32), ("d" * 32)
     inv = [{"dimensions": {"scriptName": "blipscope-proxy", "namespaceId": A}},
            {"dimensions": {"scriptName": "blipscope-proxy", "namespaceId": B}},
@@ -229,6 +258,34 @@ def selftest():
         ("D4", by_ns.get("cccccc", ("?",))[0] == "screen", "a namespace whose only caller is blipscope-screen lands on screen"),
         ("D5", not any(re.search(r"[0-9a-f]{7,}", lab) for _, _, _, lab in got), "every label is a 6-hex prefix, never a whole id"),
         ("D-ALL", got == want, "the whole per-namespace list equals the expected list"),
+    ]
+    # Section 14: the owner's non-Blipscope Workers, from a local list. Synthetic names only.
+    import tempfile
+    global _EXCLUDED
+    saved = _EXCLUDED
+    try:
+        _EXCLUDED = frozenset()
+        e1 = script_product("example-site", "silent") == ("unattributed", "now")
+        with tempfile.TemporaryDirectory() as t:
+            lst = os.path.join(t, "exclude.txt")
+            with open(lst, "w", encoding="utf-8") as fh:
+                fh.write("# the owner's other sites\n\nexample-site   # a note\n")
+            names = load_excluded(lst)
+            _EXCLUDED = names
+            e2 = script_product("example-site", "silent") == ("non-blipscope", "excluded")
+            os.mkdir(os.path.join(t, ".git"))
+            try:
+                load_excluded(lst)
+                refused = False
+            except SystemExit:
+                refused = True
+    finally:
+        _EXCLUDED = saved
+    rows += [
+        ("E1", e1, "CONTROL: with no list, a Worker the tables do not know is unattributed (as before)"),
+        ("E2", e2, "a listed Worker is product non-blipscope, state excluded"),
+        ("E3", refused and names == frozenset({"example-site"}), "a list inside a git work tree is refused; outside it, it loads"),
+        ("E4", names == frozenset({"example-site"}), "comments and blank lines are ignored: the list loads exactly its name"),
     ]
     for rid, ok, what in rows:
         print(f"{'ok  ' if ok else 'FAIL'} {rid}: {what}" + ("" if ok else f" -- got {got}"))
