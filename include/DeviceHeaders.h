@@ -36,7 +36,7 @@ inline __attribute__((always_inline)) std::vector<std::pair<String, String>> Bui
     // "Telemetry"). It rides a request the device was making anyway: no extra traffic, no endpoint of its own.
     if (!otaMem.isEmpty())
         h.push_back({ "X-Blip-OTA-Mem", otaMem });
-    // Anonymous feature-use counts, at most once an hour (README "Telemetry"). Counts only: digits and commas by
+    // Feature-use counts, at most once an hour (README "Telemetry"). Counts only: digits and commas by
     // construction, asserted in test/host/test_usage_report.cpp.
     if (!usage.isEmpty())
         h.push_back({ "X-Blip-Usage", usage });

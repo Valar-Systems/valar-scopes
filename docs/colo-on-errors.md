@@ -58,3 +58,15 @@ twice. The dashboard test's list of rejected families gains `err5xx`, so this st
 `git checkout -- src/metrics.ts`. That restored the **committed** file, from before the uncommitted change, not the
 pre-plant one. **The sha256 check refused it ("NOT restored").** The change was then re-applied by the same exact-once
 edit; its diff is only the `err5xx` block, and the suite passes on it.
+
+## Correction, 2026-11-17 (appended below the frozen text)
+
+**The point this doc built is as described:** it carries the data centre and no device id, and K1-K3 still hold.
+
+**The sentence it added to the README and the support page was not.** That sentence said a failed request is logged
+"with the Cloudflare data centre that served it, and nothing that identifies your device". But the same request also
+passes through our request logs, which can hold the device's identifier and its network address.
+
+#747 replaced the sentence in both places with what the request logs may hold and for how long, and
+`scripts/check_privacy_text.py` keeps the old wording from coming back. The title above describes the point, not the
+logs.

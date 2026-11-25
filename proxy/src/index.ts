@@ -395,7 +395,7 @@ async function route(
   recordFleetFirmware(env, ctx, meta);
 
   recordOtaMem(env, request.headers.get("X-Blip-OTA-Mem"), meta.model, meta.dev);
-  // Anonymous feature-use counts, at most hourly per device, on the same
+  // Feature-use counts, kept against the device's identifier, at most hourly per device, on the same
   // already-authenticated request and behind the same rate limiting for the same
   // reason: an anonymous caller must never be able to spend our Analytics Engine
   // budget. Counts only -- what a device DOES, never what it does it to. See

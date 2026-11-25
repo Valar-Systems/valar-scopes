@@ -569,6 +569,163 @@ from constants, so it does not follow traffic. No other check reads `/v1/blips`.
   T4 exists for. Rule 1 applies, and its second result appears only with that FAIL.
   - Beside T4's verdict, at S0 and at C4, the report prints the aircraft count and the non-empty-tile count T4 saw.
 
+#### 7g. Corrections C5-C14: how the rows are read with the fixed stored-log reader (ruled 2026-11-19; appended below 7b-7f)
+
+**Why.** On Thursday 2026-11-19 the BEFORE windows were read twice. The first read's controls all read as
+predicted. The second returned estimated counts (`sampleInterval` above 1) and HTTP 500s, so the two reads disagreed,
+controls included, and the step stopped before any deploy. A third read, which saved the API's statistics, showed the
+query-time ABR level varying from one query to the next. The reader has since been fixed, and its design was accepted
+by the reviewer. These corrections say how each touched row of sections 5, 5a and 6 is read under it.
+
+- **No frozen line is edited.** Every correction is appended here.
+- **No predicted value changes.** C13 changes one check's status.
+- C1-C4 are 5a's, so these continue the numbering.
+- The reader's change M4 touches no line of this plan.
+- C15 is written only if the reader's A/B probe of its OR-group queries (PAB26) reads B, and before the new slot.
+
+Line numbers are this file's at sha256 328e83431c52. Everything they cite sits above this section.
+
+**C5. A count is a reading only at full resolution, per query.** This governs section 5's counts:
+- L131-132;
+- the "0" and "> 0" predictions at L142 (a), L145 (d), L146 (e) and L147 (f);
+- the predicted list at L208-217.
+
+A count is certified only by a query that returned HTTP 200 with a statistics block whose `abr_level` is PRESENT and
+equal to 1, and with every `sampleInterval` equal to 0 or 1. A zero-count row at full resolution carries 0 (the
+reader design's Amendment 1, ruled before its A/B probe ran). An absent `abr_level` is not taken as 1. A "= 0" is exact only
+from such a query, and one query's resolution proves nothing about another's.
+
+**C6. Section 6 gains a cause of BLIND.** It sits beside L281's "any control = 0". A control, or a graded row, that is
+not a value under C5 after C7's re-asks is **BLIND: no verdict; stop.** Before this correction, such a graded row fell
+under L282's "outside the set".
+
+**C7. A bounded re-ask; the read times are unchanged.** The reads stay at window close +10 and +20 minutes (L131).
+- A query that is not a value under C5 is asked up to twice more, 30 s apart.
+- The re-ask is chosen by the query's resolution only, never by its count. The first attempt that is a value is taken,
+  and every attempt is recorded.
+- A read can therefore take up to about a minute longer per row.
+
+**C8. The plants are read as arrivals, each half on its own.** This replaces two controls: (f)'s `ep` IP-shaped count
+>= 1 (L199, L201-202) and 5a C2's IPv6 control (L248-251). They are read as two exact-match counts in every window, each
+a value under C5:
+- the IPv4 plant: `evt:"req"` lines with `ep` equal to `"/192.0.2.1"`, at least 1;
+- the IPv6 plant: `evt:"req"` lines with `ep` equal to `"/2001:db8::1"`, at least 1.
+
+A plant that reads 0, or is not a value, makes **its own half of (f)** BLIND: the IPv4 half or the IPv6 half, not the
+whole of (f). These counts prove the planted requests arrived. That 5a C1's patterns match those values is proven
+offline, by the reader's own selftest, and on the day by C10's local match over `ep`'s values.
+
+**C9. (e)'s (B) by presence; the shape is checked locally.** 5a C4's (B) (L257-263: "a `devl` matching
+`^[0-9a-f]{8}$`") becomes the device-authenticated `evt:"req"` lines on which `devl` EXISTS, with no server-side
+pattern. A - B = 0 is still graded, with A > 0 (L146). The shape, exactly 8 lowercase hex, is checked by C10's local
+match over `devl`'s values.
+
+**C10. (f) is read from the values endpoint and matched locally.** (f)'s mechanism (L147, L171-175; 5a C1 L225-234;
+section 6 L278) changes:
+- **Before:** a server-side regex count.
+- **After:** the API's list of unique values for each of the eight graded fields over the window. 5a C1's two patterns,
+  and C9's 8-hex shape for `devl`, are applied locally and in memory, counts only. No value is printed or saved.
+
+Its gates, each required:
+1. the plants' `ep` values appear in `ep`'s list (the positive control);
+2. each list is shorter than the endpoint's limit, or absence is not proven;
+3. the endpoint is shown complete by its own registered probe first.
+
+If any gate fails, (f) is **UNPROVEN**, and that is not a pass. **Section 6 gains a row:** "(f) UNPROVEN: no verdict
+on (f); stop and report."
+
+**C11. `model` is not read.** This replaces 5a's line "`ep` and `model` stay information" (L234). `model` is no longer
+read at all; `ep` is read by C8 and C10. The finding recorded at L236-246, the frozen lookaround patterns failing
+silently, stands as written. No graded row changes.
+
+**C12. Two reads: "not comparable" is BLIND; "disagree" is outside the set.** This is how L132 ("a count still moving
+between them is not a reading") and L282 ("the two reads disagree": outside the set) are read:
+- Every control must be a value under C5 in BOTH reads. Otherwise it is BLIND: stop, never graded OFF or as predicted.
+- The comparison runs only over rows that are values in both reads. A disagreement among those rows is outside the set.
+
+**C13. (d)(ii) is UNPROVEN unless the keys endpoint is shown complete.** (Changed by the reviewer from the reader's
+mapping, which proposed "information".)
+- The keys endpoint returns no statistics block, and on 2026-11-19 production's keys count moved between two reads of
+  the same closed window. So (d)(ii) (L168-170, with its future-window control in 5a C3, L253-256) cannot be certified under C5.
+- It is **UNPROVEN**: neither passed nor information. That holds unless the keys endpoint is shown complete by its own
+  registered probe, with a positive control (a planted key name that must appear) and repeat-stability frozen first.
+- An UNPROVEN (d)(ii) is named in the step's verdict line. (d)(i) carries (d)'s grade.
+- **Why it is not demoted to information:** (d)(ii) is the only check that catches an envelope field name NOT on the
+  reader's list.
+- If (d)(ii) is still UNPROVEN when the new slot is proposed, the owner is told in that same question: the step would
+  prove the listed names gone, not unknown ones.
+
+**C14. (g) needs the W2 line found at full resolution.** (g) (L148; section 6 L279-280) reads the W2 request's
+`devl` from the W2 line, which is found by an events query. Under sampling that query can return no line. So (g) is
+read only when the events query that finds the W2 line is a value under C5. Otherwise (g) is BLIND, never "not equal".
+If the events query returns no `abr_level`, (g) cannot be certified under C5 and is BLIND by construction. Whether it
+does is to be shown before the new slot.
+
+#### 7h. The gates as read before the new slot (2026-11-19; appended below 7g, which stays the rules)
+
+7g says how each row is read. This section records what the fixed reader's own registered probes found on 2026-11-19,
+before any new slot was proposed. Each line names the correction it applies to.
+
+- **C14: MET on both services.** The events query that finds the W2 line returns `abr_level` on staging and on
+  production. So (g) is read under C5, with C7's re-ask, and is not BLIND by construction. The events query samples too:
+  one repeat came back below full resolution. So C5 and C7 apply to it exactly as written.
+- **C10's gate 3: NOT MET.** The values endpoint was incomplete on both services. Under this reader, (f) is
+  **UNPROVEN**, and the step's verdict line names it.
+- **C9, (e)'s shape: UNPROVEN.** C9 checks the 8-hex shape by C10's local match over `devl`'s values, which rides the
+  same values endpoint. (e)'s presence half, A - B = 0 with `devl` existing and read at full resolution, is still
+  certifiable.
+- **C13, production: (d)(ii) UNPROVEN.** The keys endpoint was not shown complete for production.
+- **C13, staging: (d)(ii) UNPROVEN** (the keys probe read INCOMPLETE). The keys endpoint, asked three times about the
+  same closed staging window, listed a planted name twice, then returned a much shorter list without it. So a keys "0"
+  cannot be trusted.
+
+**For the step's verdict line under this reader, as the gates read on 2026-11-19:**
+- **certifiable:** (a), (b)/(c), (d)(i), (e)'s presence, (g), and both plants by exact match;
+- **UNPROVEN:** (d)(ii) on both services, (f), and (e)'s shape.
+
+#### 7i. Moved by a later registered probe (EVP26b, 2026-11-19; appended below 7h, which stays as read)
+
+7h records the gates as they first read. A later registered probe of the reader, EVP26b, read as predicted on
+2026-11-19, and it moves the three items 7h left UNPROVEN. Neither 7g's rules nor 7h's record is edited; this section
+records the move.
+
+**The method: the events view, behind a completeness gate.**
+- The window's events are fetched from the API's events view by cursor pages. Every page must be a value under C5
+  (`abr_level` present and equal to 1).
+- **The gate.** Both legs are required:
+  - every page is at full resolution;
+  - the number of events fetched equals the number of unique event ids, which equals the calculations count of the same
+    filter. That count is itself a value under C5, and independent of the paging.
+- An earlier events-view probe was not taken as a gate: its count proved to be per page rather than for the whole
+  window. EVP26b's count is the independent one.
+- Everything else is done locally, in memory, counts only. No event, field value or key value is printed or saved.
+
+**The three items, GRADED through it on both services:**
+- **(f):** our own `evt:"req"` lines in the window are fetched behind the gate, and their own fields are tested
+  locally against 5a C1's IP patterns. The plants' lines must be among those fetched; that is the positive control.
+  - (f)'s fetch carries the same server-side exclusions (`dev`, `x-blip-device`, `x-blip-key`), so no device value is
+    fetched. The completeness count uses the same filter.
+- **(e)'s shape:** the 8-lowercase-hex shape of `devl` is tested locally on the same fetched lines, so it inherits (f)'s
+  exclusions. (e)'s presence half is read as C9 says.
+- **(d)(ii):** every event of any type in the window is fetched behind the same gate, and its key NAMES are checked
+  locally against the five envelope prefixes. The probe's control showed that a fetched event carries its envelope
+  field names when they exist (seen on staging).
+  - **One exclusion, made on the server:** the fetch leaves out any event that carries a `dev` field or the device-id or
+    device-key header name (`x-blip-device`, `x-blip-key`). So no device value is ever fetched.
+  - No coverage is lost. Both header names are on (d)(i)'s listed names, so an event carrying either is still counted
+    by (d)(i). W2 and P also count each name directly. (Read from the reader's pinned name list three times: by its
+    owner, by the reviewer and by this plan's owner, each with a control.)
+- If the gate fails at the slot, each of the three falls back to UNPROVEN as C10 and C13 say, and is named in the
+  step's verdict line.
+
+**Scope.** An event type the events view never returns is outside this check. The calculations count is the guard
+against a short fetch.
+
+**For the step's verdict line under this reader, after EVP26b (2026-11-19):**
+- **certifiable behind the gate:** (a), (b)/(c), (d)(i), (d)(ii), (e)'s presence and shape, (f), (g), and both plants by
+  exact match;
+- **UNPROVEN:** none, unless the gate fails at the slot.
+
 ## 8. The label code, red first
 
 **Registration (this commit): the tests and a STUB `src/devlabel.ts`, both of whose functions throw.**
@@ -652,3 +809,8 @@ the file changed, then restored from a byte copy with its sha256 checked; the tr
 ## 9. Record
 
 _Filled in after the slot, below this line, without editing anything above it._
+
+- **Record note, 2026-11-24: the two IP addresses in this document are documentation addresses.** `192.0.2.1` (the
+  (f) plant in section 5, and S-NEWFIELD in section 8) is in RFC 5737's TEST-NET-1 block. `2001:db8::1` (C2 in section
+  5a) is in RFC 3849's documentation prefix. Neither is routable on the internet, and neither belongs to any device or
+  person: they were chosen so that a plant could never be mistaken for a real address.

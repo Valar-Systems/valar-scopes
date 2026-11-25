@@ -3,6 +3,11 @@
     python -I tools/weatherscope/s1/s1.py build    <clone> <ref> <label> <out> [--sabotage] [--bench-oldname] [--epoch N] <env>...
     python -I tools/weatherscope/s1/s1.py compare  <out> <step>      (S1 v1, A5.2; its result is A5.4)
     python -I tools/weatherscope/s1/s1.py compare2 <out>             (S1 v2, A5.6: explicit R1/R2 list, calibration first)
+    python -I tools/weatherscope/s1/s1.py selftest <old s1.py>       (checkout_lf's rows, offline, in temporary repos)
+
+CHECKOUT (2026-11-22, the s1.py LF PR): every git call runs with -c core.autocrlf=false -c core.eol=lf, and build()
+checks out through checkout_lf, which refuses a clone already checked out CRLF, a tree that is not clean, and a
+checkout that lands any file CRLF over an LF index. selftest grades it against the old s1.py given as its argument.
 
 S1 v2 (docs/weatherscope-stage3.md A5.6): every measured build gets --epoch (SOURCE_DATE_EPOCH) after a warm-up
 build of every env; --bench-oldname builds the head's bench under its old env name (A5.4's D2 method); compare2
@@ -39,14 +44,48 @@ BENCH_BASE, BENCH_HEAD = "weatherscope-s3-128", "weatherscope-bench-s3-128"
 
 
 def git(clone, *args):
-    return subprocess.run(["git", "-C", clone, *args], capture_output=True, text=True, check=True).stdout.strip()
+    # Per command, and writing no config: the machine's own core.autocrlf (system-wide true on Git for Windows) must
+    # not decide the bytes compiled. Both flags are needed: under `* text=auto` a text file's working-tree EOL comes
+    # from core.eol when autocrlf is false, and core.eol's default, native, is CRLF on Git for Windows.
+    return subprocess.run(["git", "-c", "core.autocrlf=false", "-c", "core.eol=lf", "-C", clone, *args],
+                          capture_output=True, text=True, check=True).stdout.strip()
 
 
-def build(clone, ref, label, out, sabotage, envs, epoch=None, bench_oldname=False):
+def eol_offenders(clone):
+    """Paths whose index is LF but whose working-tree bytes are CRLF or mixed (`git ls-files --eol` reads the bytes,
+    whatever the stat cache says). Files committed CRLF (i/crlf) and -text files are left alone."""
+    bad = []
+    for entry in git(clone, "ls-files", "--eol", "-z").split("\0"):
+        if "\t" not in entry:
+            continue
+        info, path = entry.split("\t", 1)
+        fields = info.split()
+        i = next((f[2:] for f in fields if f.startswith("i/")), "")
+        w = next((f[2:] for f in fields if f.startswith("w/")), "")
+        attr = next((f[5:] for f in fields if f.startswith("attr/")), "")
+        if i == "lf" and w in ("crlf", "mixed") and "-text" not in attr:
+            bad.append(path)
+    return bad
+
+
+def checkout_lf(clone, ref):
+    """Checks out <ref> detached, LF, and returns its sha. Refuses a clone already checked out CRLF, a tree that is not
+    clean, and a checkout that lands any file CRLF over an LF index."""
+    bad = eol_offenders(clone)
+    if bad:
+        sys.exit(f"REFUSED: the clone is checked out CRLF ({len(bad)} file(s)); re-create it with "
+                 f"git -c core.autocrlf=false -c core.eol=lf clone\n  " + "\n  ".join(bad[:5]))
     if git(clone, "status", "--porcelain"):
         sys.exit("REFUSED: the clone's tree is not clean")
     git(clone, "checkout", "-q", "--detach", ref)
-    sha = git(clone, "rev-parse", "HEAD")
+    bad = eol_offenders(clone)
+    if bad:
+        sys.exit(f"REFUSED: {len(bad)} file(s) checked out CRLF over an LF index\n  " + "\n  ".join(bad[:5]))
+    return git(clone, "rev-parse", "HEAD")
+
+
+def build(clone, ref, label, out, sabotage, envs, epoch=None, bench_oldname=False):
+    sha = checkout_lf(clone, ref)
     benv = dict(os.environ)
     if epoch is not None:
         benv["SOURCE_DATE_EPOCH"] = str(epoch)    # S1 v2 (A5.6): fixes __DATE__/__TIME__ in every compile
@@ -245,6 +284,261 @@ def compare2(out):
     return 0 if ok_all else 1
 
 
+# ---- selftest: checkout_lf's rows, offline (no pio, no network, no board), each in its own temporary repo ------------
+
+class RigError(Exception):
+    """The selftest's own setup failed: not a row result."""
+
+
+_FLAGS_NEEDLE = '"-c", "core.autocrlf=false", "-c", ' + '"core.eol=lf", '     # in git(); built so each needle
+                                                                                 # occurs once in this file
+_EOL_NEEDLE = '"-c", ' + '"core.eol=lf", '
+_GUARD_NEEDLE = "def eol_offenders(clone):" + "\n"
+_GUARD_NEUTERED = _GUARD_NEEDLE + "    return []   # SELFTEST PLANT: the guard neutered\n"
+_SETUP_FLAGS = ["-c", "core.autocrlf=false", "-c", "core.eol=lf"]
+_OLDCLONE_LINE = ("REFUSED: the clone is checked out CRLF (3 file(s)); re-create it with "
+                  "git -c core.autocrlf=false -c core.eol=lf clone")
+_POST_LINE = "REFUSED: 1 file(s) checked out CRLF over an LF index"
+_DIRTY_LINE = "REFUSED: the clone's tree is not clean"
+
+# The predictions (registration 351774478223, section 3 and Amendment 1), as whole dicts. `cr` is the CR count in
+# a.txt, the file the head changes (2 lines at head, 1 at base); `c_cr` is c.txt's.
+SELFTEST_ROWS = [
+    ("L-RED",       {"refused": False, "first_line": None, "cr": 2}),
+    ("L-FIX",       {"refused": False, "first_line": None, "cr": 0, "sha_is_head": True}),
+    ("L-NOENV",     {"refused": False, "first_line": None, "cr": 0}),
+    ("L-SAB-FLAGS", {"refused": True, "first_line": _POST_LINE, "cr": 2}),
+    ("L-SAB-BOTH",  {"refused": False, "first_line": None, "cr": 2}),
+    ("L-EOL",       {"refused": True, "first_line": _POST_LINE, "cr": 2}),
+    ("L-DELIB",     {"refused": False, "first_line": None, "cr": 0, "c_cr": 2}),
+    ("L-DIRTY",     {"refused": True, "first_line": _DIRTY_LINE, "cr": 0, "head_unmoved": True}),
+    ("L-S32",       {"checkout_args": 0, "checkout_lf_calls": 1, "s1_checkout_lf_calls": 1}),
+    ("L-OLDCLONE",  {"refused": True, "first_line": _OLDCLONE_LINE, "paths": [".gitattributes", "a.txt", "b.txt"],
+                     "head_unmoved": True, "cr": 1}),
+]
+
+
+def _load_module(name, path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _plant_module(name, plants, tmp):
+    """This file's source with each (old, new) applied; refuses unless every anchor occurs exactly once, and asserts
+    the written module differs from the source."""
+    src = open(os.path.abspath(__file__), "rb").read()
+    text = src.decode("utf-8")
+    for old, new in plants:
+        if text.count(old) != 1:
+            raise RigError(f"plant {name}: its anchor occurs {text.count(old)} times, not once")
+        mutated = text.replace(old, new)
+        if mutated == text:
+            raise RigError(f"plant {name}: the replacement changed nothing")
+        text = mutated
+    path = os.path.join(tmp, name + ".py")
+    open(path, "wb").write(text.encode("utf-8"))
+    if open(path, "rb").read() == src:
+        raise RigError(f"plant {name}: the planted file equals the source")
+    return _load_module(name, path)
+
+
+def _sg(repo, *args):
+    """The rig's own git: fixed flags, independent of the code under test."""
+    r = subprocess.run(["git", *_SETUP_FLAGS, "-C", repo, *args], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RigError(f"setup git {' '.join(args)}: exit {r.returncode}: {r.stderr.strip()}")
+    return r.stdout.strip()
+
+
+def _write(repo, rel, data):
+    open(os.path.join(repo, rel), "wb").write(data)
+
+
+def _cr(repo, rel):
+    return open(os.path.join(repo, rel), "rb").read().count(b"\r")
+
+
+def _repo(root, name, delib=False):
+    """`* text=auto`; a.txt and b.txt committed LF at base; head changes a.txt only; checked out at base, LF."""
+    d = os.path.join(root, name)
+    os.makedirs(d)
+    _sg(d, "init", "-q", "-b", "main")
+    _write(d, ".gitattributes", b"* text=auto\n" + (b"c.txt -text\n" if delib else b""))
+    _write(d, "a.txt", b"alpha\n")
+    _write(d, "b.txt", b"bravo\n")
+    if delib:
+        _write(d, "c.txt", b"charlie\r\ndelta\r\n")
+    _sg(d, "add", "-A")
+    _sg(d, "commit", "-q", "-m", "base")
+    base = _sg(d, "rev-parse", "HEAD")
+    _sg(d, "checkout", "-q", "-b", "work")
+    _write(d, "a.txt", b"alpha\nbeta\n")
+    _sg(d, "commit", "-q", "-am", "head")
+    head = _sg(d, "rev-parse", "HEAD")
+    _sg(d, "checkout", "-q", "main")
+    if _cr(d, "a.txt") or _cr(d, "b.txt") or _sg(d, "status", "--porcelain") or _sg(d, "rev-parse", "HEAD") != base:
+        raise RigError(f"{name}: the repo is not at base, LF and clean after setup")
+    if delib and _cr(d, "c.txt") != 2:
+        raise RigError(f"{name}: c.txt does not hold its 2 committed CRs")
+    return d, base, head
+
+
+def _attempt(fn, repo, ref):
+    try:
+        return {"refused": False, "first_line": None, "sha": fn(repo, ref), "rest": []}
+    except SystemExit as e:
+        lines = str(e.code).splitlines()
+        return {"refused": True, "first_line": lines[0] if lines else "", "sha": None,
+                "rest": [l.strip() for l in lines[1:]]}
+
+
+def selftest(old_path):
+    import hashlib
+    import stat
+    import tempfile
+    sys.dont_write_bytecode = True
+    old_bytes = open(old_path, "rb").read()
+    blob = hashlib.sha1(b"blob %d\0" % len(old_bytes) + old_bytes).hexdigest()
+    gv = subprocess.run(["git", "--version"], capture_output=True, text=True).stdout.strip()
+    print(f"s1 selftest: old s1.py {old_path} (git blob {blob[:12]}); {gv}; python {sys.version.split()[0]}")
+    snapshot = dict(os.environ)
+    root = tempfile.mkdtemp(prefix="s1-selftest-")
+    results, verdicts = {}, {}
+    rig = None
+    try:
+        home = os.path.join(root, "home")
+        os.makedirs(home)
+        gcfg = os.path.join(root, "gitconfig-empty")
+        open(gcfg, "wb").close()
+        base_env = {k: v for k, v in snapshot.items() if not k.upper().startswith("GIT_")}
+        base_env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": gcfg, "HOME": home,
+                         "GIT_AUTHOR_NAME": "s1 selftest", "GIT_AUTHOR_EMAIL": "selftest@example.invalid",
+                         "GIT_COMMITTER_NAME": "s1 selftest", "GIT_COMMITTER_EMAIL": "selftest@example.invalid"})
+        crlf_env = dict(base_env, GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="core.autocrlf", GIT_CONFIG_VALUE_0="true")
+
+        def use(env):
+            os.environ.clear()
+            os.environ.update(env)
+
+        def cfg(key):
+            r = subprocess.run(["git", "-C", root, "config", "--get", key], capture_output=True, text=True)
+            return r.returncode, r.stdout.strip()
+
+        # The isolation control: no autocrlf or eol anywhere in the base env, and autocrlf=true in the planted env.
+        use(base_env)
+        iso = (cfg("core.autocrlf"), cfg("core.eol"))
+        use(crlf_env)
+        planted = cfg("core.autocrlf")
+        print(f"isolation control: base env core.autocrlf {iso[0]}, core.eol {iso[1]}; planted env core.autocrlf "
+              f"{planted} (predicted (1, ''), (1, ''); (0, 'true'))")
+        if iso != ((1, ""), (1, "")) or planted != (0, "true"):
+            raise RigError("the isolation control failed: the rows would not run in the env they name")
+
+        old = _load_module("s1_old_selftest", os.path.abspath(old_path))
+        sab_flags = _plant_module("s1_plant_flags", [(_FLAGS_NEEDLE, "")], root)
+        sab_both = _plant_module("s1_plant_both", [(_FLAGS_NEEDLE, ""), (_GUARD_NEEDLE, _GUARD_NEUTERED)], root)
+        sab_eol = _plant_module("s1_plant_eol", [(_EOL_NEEDLE, "")], root)
+        print("plants applied and asserted: flags out of git(); flags out + the guard neutered; core.eol out")
+
+        def old_replay(repo, ref):    # build()'s status-then-checkout, through the OLD blob's own git()
+            if old.git(repo, "status", "--porcelain"):
+                sys.exit(_DIRTY_LINE)
+            old.git(repo, "checkout", "-q", "--detach", ref)
+            return old.git(repo, "rev-parse", "HEAD")
+
+        def row_checkout(name, fn, env, delib=False, dirty=False):
+            use(base_env)
+            repo, b, h = _repo(root, name, delib)
+            if dirty:
+                _write(repo, "b.txt", b"bravo\ncharlie\n")
+            use(env)
+            a = _attempt(fn, repo, h)
+            use(base_env)
+            at = _sg(repo, "rev-parse", "HEAD")
+            got = {"refused": a["refused"], "first_line": a["first_line"], "cr": _cr(repo, "a.txt")}
+            return got, a, at, b, h
+
+        def run_row(name):
+            if name == "L-RED":
+                got, *_ = row_checkout(name, old_replay, crlf_env)
+            elif name == "L-FIX":
+                got, a, at, b, h = row_checkout(name, checkout_lf, crlf_env)
+                got["sha_is_head"] = a["sha"] == h and at == h
+            elif name == "L-NOENV":
+                got, *_ = row_checkout(name, checkout_lf, base_env)
+            elif name == "L-SAB-FLAGS":
+                got, *_ = row_checkout(name, sab_flags.checkout_lf, crlf_env)
+            elif name == "L-SAB-BOTH":
+                got, *_ = row_checkout(name, sab_both.checkout_lf, crlf_env)
+            elif name == "L-EOL":
+                got, *_ = row_checkout(name, sab_eol.checkout_lf, crlf_env)
+            elif name == "L-DELIB":
+                got, *_ = row_checkout(name, checkout_lf, crlf_env, delib=True)
+                got["c_cr"] = _cr(os.path.join(root, name), "c.txt")
+            elif name == "L-DIRTY":
+                got, a, at, b, h = row_checkout(name, checkout_lf, crlf_env, dirty=True)
+                got["head_unmoved"] = at == b
+            elif name == "L-S32":
+                src = open(os.path.join(HERE, "..", "s32", "s32.py"), "rb").read().decode("utf-8")
+                got = {"checkout_args": src.count('"checkout"'), "checkout_lf_calls": src.count("checkout_lf("),
+                       "s1_checkout_lf_calls": src.count("s1.checkout_lf(")}
+            elif name == "L-OLDCLONE":
+                use(base_env)
+                src, b, h = _repo(root, name + "-src")
+                dst = os.path.join(root, name)
+                use(crlf_env)            # a clone CREATED under autocrlf=true, with no flags: its tree lands CRLF
+                r = subprocess.run(["git", "clone", "-q", src, dst], capture_output=True, text=True)
+                use(base_env)
+                if r.returncode != 0:
+                    raise RigError(f"L-OLDCLONE's clone: exit {r.returncode}: {r.stderr.strip()}")
+                if _cr(dst, "a.txt") != 1 or _cr(dst, "b.txt") != 1 or _cr(dst, ".gitattributes") != 1:
+                    raise RigError("L-OLDCLONE: the plant did not plant (the clone's tree is not CRLF)")
+                a = _attempt(checkout_lf, dst, h)
+                got = {"refused": a["refused"], "first_line": a["first_line"], "paths": a["rest"],
+                       "head_unmoved": _sg(dst, "rev-parse", "HEAD") == b, "cr": _cr(dst, "a.txt")}
+            return got
+
+        for name, want in SELFTEST_ROWS:
+            try:
+                got = run_row(name)
+            except RigError:
+                raise
+            except subprocess.CalledProcessError as e:
+                got = {"error": f"git {' '.join(e.cmd[1:])}: exit {e.returncode}: {(e.stderr or '').strip()[:200]}"}
+            except Exception as e:      # noqa: BLE001 -- outside the set, reported as the row's result
+                got = {"error": repr(e)[:300]}
+            results[name] = got
+            verdicts[name] = got == want
+            print(f"{name:12s} got  {got}")
+            print(f"{'':12s} want {want} -> {'as predicted' if verdicts[name] else 'OFF-PREDICTION'}")
+    except RigError as e:
+        rig = str(e)
+    finally:
+        os.environ.clear()
+        os.environ.update(snapshot)
+
+        def onexc(func, path, _exc):
+            os.chmod(path, stat.S_IWRITE)
+            func(path)
+        try:
+            try:
+                shutil.rmtree(root, onexc=onexc)
+            except TypeError:
+                shutil.rmtree(root, onerror=onexc)
+        except OSError as e:
+            print(f"(cleanup: could not remove {root}: {e})")
+    if rig is not None:
+        print(f"RIG: {rig} -- not a result; stop")
+        return 2
+    n_ok = sum(verdicts.values())
+    print(f"selftest: {n_ok}/{len(SELFTEST_ROWS)} rows as predicted -> "
+          f"{'ALL AS PREDICTED' if n_ok == len(SELFTEST_ROWS) else 'OFF-PREDICTION: STOP'}")
+    return 0 if n_ok == len(SELFTEST_ROWS) else 1
+
+
 def main(argv):
     if len(argv) >= 7 and argv[1] == "build":
         sabotage = "--sabotage" in argv
@@ -263,6 +557,8 @@ def main(argv):
         return compare(argv[2], argv[3])
     if len(argv) == 3 and argv[1] == "compare2":
         return compare2(argv[2])
+    if len(argv) == 3 and argv[1] == "selftest":
+        return selftest(argv[2])
     print(__doc__)
     return 2
 

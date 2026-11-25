@@ -71,7 +71,13 @@ ALLOWANCES = {   # tools/wx/account_cost_read.py PRICE and ROUND_UP (Cloudflare'
     "kv_delete": {"label": "KV deletes", "included": 1e6, "price": 5.0, "unit": 1e6, "round_up": False},
     "cpu_ms": {"label": "Workers CPU (ms)", "included": 30e6, "price": 0.02, "unit": 1e6, "round_up": False},
     "requests": {"label": "Workers requests", "included": 10e6, "price": 0.30, "unit": 1e6, "round_up": False},
-    "logs_events": {"label": "Workers Logs events (November prices)", "included": 20e6, "price": 0.60, "unit": 1e6, "round_up": False},
+    "logs_events": {"label": "Workers Logs events (November prices)", "included": 20e6, "price": 0.60, "unit": 1e6, "round_up": False,
+                    "months": {"until": "2026-11"}},   # docs/account-budget.md section 11: per event until November
+    # Section 11: from 2026-12 Workers Logs is billed by the GB (5.2). No round-up is assumed: the cited pricing states none.
+    "logs_ingest_gb": {"label": "Workers Logs ingested (GB, from 2026-12)", "included": 50, "price": 0.25, "unit": 1,
+                       "round_up": False, "months": {"from": "2026-12"}},
+    "logs_storage_gb": {"label": "Workers Logs stored (GB-month, from 2026-12)", "included": 10, "price": 0.10, "unit": 1,
+                        "round_up": False, "per_month": True, "months": {"from": "2026-12"}},
     "do_requests": {"label": "Durable Object requests", "included": 1e6, "price": 0.15, "unit": 1e6, "round_up": True},
     "do_gb_s": {"label": "Durable Object GB-s", "included": 400e3, "price": 12.50, "unit": 1e6, "round_up": True},
 }
@@ -94,6 +100,31 @@ PRODUCTS = {
     "unattributed": {"label": "UNATTRIBUTED: a script, bucket or namespace the mapping does not name (stop and report)", "states": ["now"]},
     "cref+opera-ten": {"label": "blipscope-wx Class A in a running window (cref and the ten together; derivation input only)", "states": ["now"]},
 }
+
+
+LOGS_BYTES = {"proxy": 1742.60, "ingests": 819.47}   # section 11: 5.5's three-hour means, API bytes per event (invocation logs on)
+LOGS_CLASS = {"proxy": "proxy", "proxy-staging": "proxy", "kiosk": "proxy", "basemap-staging": "proxy",   # unmeasured: the proxy's mean (5.4)
+              "cref": "ingests", "opera-ten": "ingests", "shsr": "ingests", "wx-dev": "ingests"}
+LOGS_GB_READ = {"tool": "section 11: each logs_events row x 5.5's API bytes per event (proxy 1,742.60; ingests 819.47) / 1e9; "
+                        "storage = ingest x 7/30", "window": [], "totals": {}}
+
+
+def derive_logs_gb(rows):
+    """Section 11: an ingest-GB row and a storage-GB row for each logs_events row, under read derived-logs-gb. A
+    logs_events row whose product is in neither bytes class stops the build (exit 5): its bytes were never measured."""
+    out = []
+    for r in rows:
+        if r["allowance"] != "logs_events":
+            continue
+        cls = LOGS_CLASS.get(r["product"])
+        if cls is None:
+            stop(5, f"section 11: a logs_events row for {r['product']}, which is in neither bytes class")
+        gb = r["value"] * LOGS_BYTES[cls] / 1e9
+        for al, v, how in (("logs_ingest_gb", gb, f"{r['value']:,} events x {LOGS_BYTES[cls]} B ({cls}, 5.5) / 1e9"),
+                           ("logs_storage_gb", gb * 7 / 30, f"ingest {gb:.4f} GB x 7/30 (seven days' retention)")):
+            out.append({"product": r["product"], "state": r["state"], "allowance": al, "value": round(v, 6),
+                        "read": "derived-logs-gb", "basis": "derived", "cadence": "steady", "how": how})
+    return out
 
 
 def scenarios():
@@ -418,6 +449,8 @@ def main():
         if r["allowance"] == "requests" and r["state"] != "excluded":
             rows.append({"product": r["product"], "state": r["state"], "allowance": "logs_events", "value": round(r["value"] * EV_PER_INV),
                          "read": "derived-logs", "basis": "derived", "cadence": "steady", "how": f"{r['read']}'s requests x {EV_PER_INV}"})
+    reads["derived-logs-gb"] = dict(LOGS_GB_READ)
+    rows += derive_logs_gb(rows)
     b = {"version": 2, "built_at": MTD[1], "tool": "tools/budget/build_budget.py", "month": MONTH,
          "allowances": ALLOWANCES, "products": PRODUCTS, "scenarios": scenarios(), "reads": reads, "rows": rows}
     with open(out_path, "w", encoding="utf-8", newline="\n") as fh:

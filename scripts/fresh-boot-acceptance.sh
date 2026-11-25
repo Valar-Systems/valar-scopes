@@ -117,10 +117,10 @@ if [ "$MODE" = "selftest" ]; then
 10:04:00 [capture] port dropped (SerialException) -- NOT reopening: steps 5-6 are graded over the network
 L
   }
-  probe_ok='probe 10:02:05 claim=E75L claim_line=8 ip=192.0.2.10 http=200 verdict=CLAIMED first=yes'
-  s5_ok='step5 cut=1000 back=1030 at=1050 claim=E75L ip=192.0.2.10 http=200 verdict=CLAIMED tries=2'
+  probe_ok='probe 10:02:05 claim=E75L claim_line=8 ip=set http=200 verdict=CLAIMED first=yes'
+  s5_ok='step5 cut=1000 back=1030 at=1050 claim=E75L ip=set http=200 verdict=CLAIMED tries=2'
   s6_ok='step6 at=1200 claim=E75L logbook=OFF http=200/200 verdict=CLAIMED'
-  bt_ok='boots from=1000 to=1200 n=1 reasons=POWERON anchor=1 dev=0000 verdict=ONE_POWERON'
+  bt_ok='boots from=1000 to=1200 n=1 reasons=POWERON anchor=1 dev=set verdict=ONE_POWERON'
   mk() { # name, sed-or-empty, probe, [step5], [step6], [boots]   (empty = the passing line; NONE = no file)
     base | { if [ -n "$2" ]; then sed "$2"; else cat; fi; } > "$T/$1.log"
     [ "$3" = NONE ] || printf '%s\n' "$3" > "$T/$1.log.probe"
@@ -150,12 +150,12 @@ L
   # An empty verdict is a broken probe, and must not read as the v16 failure (2026-10-08, P1).
   mk noverdict "" "${probe_ok/verdict=CLAIMED/verdict=}"
   mk lost5 "" "$probe_ok" "${s5_ok/verdict=CLAIMED/verdict=ABSENT}"
-  mk nocut "" "$probe_ok" "step5 cut=- back=- at=1050 claim=E75L ip=192.0.2.10 http=- verdict=NOCUT tries=0"
+  mk nocut "" "$probe_ok" "step5 cut=- back=- at=1050 claim=E75L ip=set http=- verdict=NOCUT tries=0"
   mk no5 "" "$probe_ok" NONE
   mk stillon "" "$probe_ok" "" "${s6_ok/logbook=OFF/logbook=ON}"
   mk discarded "" "$probe_ok" "" "${s6_ok/verdict=CLAIMED/verdict=ABSENT}"
-  mk twoboots "" "$probe_ok" "" "" "boots from=1000 to=1200 n=2 reasons=POWERON,USB anchor=1 dev=0000 verdict=WRONG"
-  mk noboots "" "$probe_ok" "" "" "boots from=1000 to=1200 n=0 reasons=- anchor=1 dev=0000 verdict=NONE"
+  mk twoboots "" "$probe_ok" "" "" "boots from=1000 to=1200 n=2 reasons=POWERON,USB anchor=1 dev=set verdict=WRONG"
+  mk noboots "" "$probe_ok" "" "" "boots from=1000 to=1200 n=0 reasons=- anchor=1 dev=set verdict=NONE"
   mk blindboots "" "$probe_ok" "" "" "boots verdict=UNTRUSTWORTHY why=query-failed"
   case_ good 0 "" ""
   case_ stale 1 "$S4" "had it UNCLAIMED"
@@ -322,6 +322,79 @@ L
   env -u FBA_DEVICE_IP FBA_POLL_S=0 FBA_CUT_WAIT_S=1 FBA_BACK_WAIT_S=1 FBA_LB_WAIT_S=1 bash "$0" --grade-cut "$T/a6.log" >/dev/null 2>&1
   v="$(rvf "$T/a6.log.step5")"
   arow "A6 control: grade-cut with no claim -> NOCLAIM (got ${v:-<none>})" "$([ "$v" = NOCLAIM ] && echo 0 || echo 1)"
+  # N1-N5 (fb-noaddr, accepted 2026-11-21): nothing the probe or the step-5 grader writes or prints carries the board's
+  # address. A planted RFC 5737 TEST-NET-2 address (documentation only, never a LAN one) rides in the capture's
+  # CONNECTED line, and each case counts it in its stdout, its stderr and every file it wrote, the input log excluded.
+  # Counts are printed, never a line. N5: the driver's guard (fresh-boot-auto.sh GUARD_MARKER) still finds its prefix.
+  NA=198.51.100.77
+  ncase() { # name, mode, keep-claim(yes|no), env assignments...  -> nn (occurrences), nv (the result file's verdict)
+    local name="$1" mode="$2" keep="$3" d f r; shift 3; d="$T/n-$name"; mkdir -p "$d"
+    if [ "$keep" = yes ]; then base | sed "s/192\.0\.2\.10/$NA/" > "$d/x.log"
+    else base | sed "s/192\.0\.2\.10/$NA/; /\[claim\]/d" > "$d/x.log"; fi
+    env -u FBA_DEVICE_IP FBA_POLL_S=0 FBA_CUT_WAIT_S=3 FBA_BACK_WAIT_S=3 FBA_LB_WAIT_S=1 "$@" \
+      bash "$0" "$mode" "$d/x.log" > "$d/out" 2> "$d/err"
+    nn=0; for f in "$d"/*; do [ "$f" = "$d/x.log" ] && continue; nn=$((nn + $(grep -o -F "$NA" "$f" | wc -l))); done
+    r="$d/x.log.probe"; [ "$mode" = --grade-cut ] && r="$d/x.log.step5"; nv="$(rvf "$r")"
+  }
+  ncase c1 --probe-claim yes FBA_PROBE_BODY="$T/claimed.json"
+  arow "N1 probe, a claim: the address 0 times (got $nn), verdict CLAIMED (got ${nv:-<none>})" \
+    "$([ "$nn" -eq 0 ] && [ "$nv" = CLAIMED ] && echo 0 || echo 1)"
+  # Each grade-cut row gets its OWN sequence: alive()'s seam consumes FBA_ALIVE_SEQ in place, and cut-good has
+  # already run $T/seq-good down to its last line (2026-11-21: N2 read NOCUT from exactly that).
+  printf '1\n1\n0\n0\n0\n1\n' > "$T/seq-n2"
+  ncase c2 --grade-cut yes FBA_ALIVE_SEQ="$T/seq-n2" FBA_LOGBOOK_BODY="$T/claimed.json"
+  arow "N2 grade-cut, a claim: the address 0 times (got $nn), verdict CLAIMED (got ${nv:-<none>})" \
+    "$([ "$nn" -eq 0 ] && [ "$nv" = CLAIMED ] && echo 0 || echo 1)"
+  ncase c3 --probe-claim no FBA_PROBE_BODY="$T/claimed.json"
+  arow "N3 probe, no claim: the address 0 times (got $nn), verdict NOCLAIM (got ${nv:-<none>})" \
+    "$([ "$nn" -eq 0 ] && [ "$nv" = NOCLAIM ] && echo 0 || echo 1)"
+  printf '1\n1\n0\n0\n0\n1\n' > "$T/seq-n4"
+  ncase c4 --grade-cut no FBA_ALIVE_SEQ="$T/seq-n4" FBA_LOGBOOK_BODY="$T/claimed.json"
+  arow "N4 grade-cut, no claim: the address 0 times (got $nn), verdict NOCLAIM (got ${nv:-<none>})" \
+    "$([ "$nn" -eq 0 ] && [ "$nv" = NOCLAIM ] && echo 0 || echo 1)"
+  n5="$(grep -c 'step 5: watching' "$T/n-c2/out")"
+  arow "N5 N2's stdout holds the guard prefix 'step 5: watching' exactly once (got $n5)" "$([ "$n5" = 1 ] && echo 0 || echo 1)"
+  # N6 (AMENDMENT 1): the sabotage pre-flight's refusal when the device id cannot be read. It refuses before any reset,
+  # as the preflight rows above do, so no FBA_NO_RESET.
+  d="$T/n-c5"; mkdir -p "$d"; base | sed "s/192\.0\.2\.10/$NA/" > "$d/x.log"
+  printf '%s\n' "$s5_ok" > "$d/x.log.step5"; printf '%s\n' "$s6_ok" > "$d/x.log.step6"
+  env -u FBA_DEVICE_ID -u FBA_DEVICE_IP FBA_POLL_S=0 FBA_ID_TRIES=2 FBA_ID_RETRY_S=0 FBA_CONFIG_BODY="$T/cfg-noid.html" \
+    FBA_BOOT_ROWS="$T/rows-two" bash "$0" --sabotage-extra-reset COM99 "$d/x.log" > "$d/out" 2> "$d/err"; nx=$?
+  nn=0; for f in "$d"/*; do [ "$f" = "$d/x.log" ] && continue; nn=$((nn + $(grep -o -F "$NA" "$f" | wc -l))); done
+  nw="$(sed -n 's/.* why=\([a-z-]*\).*/\1/p' "$d/x.log.boots.sabotage" 2>/dev/null)"
+  arow "N6 sabotage pre-flight, no device id: the address 0 times (got $nn), exit 3 (got $nx), why preflight-no-device-id (got ${nw:-<none>})" \
+    "$([ "$nn" -eq 0 ] && [ "$nx" -eq 3 ] && [ "$nw" = preflight-no-device-id ] && echo 0 || echo 1)"
+  # I1-I3 (fb-nodevid, accepted 2026-11-21): no device-id FRAGMENT in any result file or output. A planted fake id
+  # (scripts/device-id-allowlist.txt) is counted whole (iF) and as its 4-character prefix outside the whole (iP) in each
+  # case's stdout, stderr and every file it wrote, the input log excluded. Counts are printed, never a line. Each case
+  # has its OWN rows and sequence files: the alive seam consumes its file in place (N2, 2026-11-21).
+  NI=dead0000beef1111
+  icount() { # case dir -> iF, iP over every file but x.log
+    local f; iF=0; iP=0
+    for f in "$1"/*; do
+      [ "$f" = "$1/x.log" ] && continue
+      iF=$((iF + $(grep -o -F "$NI" "$f" | wc -l))); iP=$((iP + $(sed "s/$NI//g" "$f" | grep -o -F "${NI:0:4}" | wc -l)))
+    done
+  }
+  icase() { # name -> d, a case dir holding the log and the step5/step6 fixtures
+    d="$T/i-$1"; mkdir -p "$d"; base > "$d/x.log"; printf '%s\n' "$s5_ok" > "$d/x.log.step5"; printf '%s\n' "$s6_ok" > "$d/x.log.step6"
+  }
+  icase v1; printf '500 SW\n1040 POWERON\n' > "$T/rows-i1"
+  env FBA_POLL_S=0 FBA_DEVICE_ID="$NI" FBA_BOOT_ROWS="$T/rows-i1" bash "$0" --grade-boots "$d/x.log" > "$d/out" 2> "$d/err"
+  icount "$d"; v="$(rvf "$d/x.log.boots")"
+  arow "I1 grade-boots: the id 0 times (got $iF), its prefix 0 times (got $iP), verdict ONE_POWERON (got ${v:-<none>})" \
+    "$([ "$iF" -eq 0 ] && [ "$iP" -eq 0 ] && [ "$v" = ONE_POWERON ] && echo 0 || echo 1)"
+  icase v2; printf '500 SW\n1040 POWERON\n1100 USB\n' > "$T/rows-i2"; printf '0\n0\n1\n' > "$T/seq-i2"
+  env FBA_POLL_S=0 FBA_LEAVE_WAIT_S=2 FBA_BACK_WAIT_S=2 FBA_NO_RESET=1 FBA_DEVICE_ID="$NI" FBA_ALIVE_SEQ="$T/seq-i2" \
+    FBA_BOOT_ROWS="$T/rows-i2" bash "$0" --sabotage-extra-reset COM99 "$d/x.log" > "$d/out" 2> "$d/err"; nx=$?
+  icount "$d"; v="$(rvf "$d/x.log.boots.sabotage")"
+  arow "I2 sabotage: the id 0 times (got $iF), its prefix 0 times (got $iP), exit 0 (got $nx), verdict WRONG (got ${v:-<none>})" \
+    "$([ "$iF" -eq 0 ] && [ "$iP" -eq 0 ] && [ "$nx" -eq 0 ] && [ "$v" = WRONG ] && echo 0 || echo 1)"
+  icase v3; rm -f "$d/x.log.step6"; printf '500 SW\n1040 POWERON\n1100 USB\n' > "$T/rows-i3"
+  env FBA_POLL_S=0 FBA_DEVICE_ID="$NI" FBA_BOOT_ROWS="$T/rows-i3" bash "$0" --grade-sabotage "$d/x.log" 1500 > "$d/out" 2> "$d/err"
+  icount "$d"; v="$(rvf "$d/x.log.boots.regrade")"
+  arow "I3 grade-sabotage: the id 0 times (got $iF), its prefix 0 times (got $iP), verdict WRONG (got ${v:-<none>})" \
+    "$([ "$iF" -eq 0 ] && [ "$iP" -eq 0 ] && [ "$v" = WRONG ] && echo 0 || echo 1)"
   rm -rf "$T"
   [ "$st" -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED"
   exit "$st"
@@ -411,6 +484,10 @@ start_capture() {
 # anyone opens the page, and records whether the claimed type is marked claimed. That is the
 # customer's first view, measured.
 PROBE_FILE() { printf '%s.probe' "$LOG"; }
+# The result files record only WHETHER an identifier was known -- the board's address (ip=) or its device id (dev=) --
+# never the value or any part of it: nothing this script writes or prints may carry either (fb-noaddr-registration.md
+# and fb-nodevid-registration.md, accepted 2026-11-21). No reader parses ip= or dev= back.
+ipmark() { [ -n "$1" ] && printf 'set' || printf -- '-'; }
 
 # What the owner's Collection page says about TYPE, from a saved /logbook.json body. Read from
 # stdin, so a Windows interpreter never has to resolve an MSYS path. Only three answers are
@@ -440,7 +517,7 @@ probe_claim() {
   # No claim and no ADDRESS are different failures, and only the first is about the claim (fix 4, Addendum 3). On
   # 2026-11-16 a claim with no address wrote NOPROBE first=no, which --assert-only read as "not the first fetch".
   if [ -z "$type" ]; then
-    printf 'probe claim=- claim_line=0 ip=%s http=0 verdict=NOCLAIM first=no\n' "${ip:--}" > "$(PROBE_FILE)"
+    printf 'probe claim=- claim_line=0 ip=%s http=0 verdict=NOCLAIM first=no\n' "$(ipmark "$ip")" > "$(PROBE_FILE)"
     echo "  probe: no claim in the log yet" >&2; return 1
   fi
   if [ -z "$ip" ]; then
@@ -464,7 +541,7 @@ probe_claim() {
   verdict="$(lb_verdict "$LOG.probe.json" "$type")"
   [ "$code" = "200" ] || verdict=NOFETCH
   printf 'probe %s claim=%s claim_line=%s ip=%s http=%s verdict=%s first=%s\n' \
-    "$(date +%H:%M:%S)" "$type" "$cl" "$ip" "$code" "$verdict" "$first" > "$(PROBE_FILE)"
+    "$(date +%H:%M:%S)" "$type" "$cl" "$(ipmark "$ip")" "$code" "$verdict" "$first" > "$(PROBE_FILE)"
   echo "  probe: first /logbook.json after the claim of $type -> $verdict (http $code, first=$first)"
 }
 
@@ -511,14 +588,14 @@ grade_cut() {
   local ip type miss=0 first_miss="" t_cut="" t_back="" code="" verdict="" tries=0 dl
   ip="$(dev_ip)"; type="$(claim_type)"
   if [ -z "$type" ]; then
-    printf 'step5 claim=- ip=%s verdict=NOCLAIM\n' "${ip:--}" > "$LOG.step5"
+    printf 'step5 claim=- ip=%s verdict=NOCLAIM\n' "$(ipmark "$ip")" > "$LOG.step5"
     echo "  step 5: no claim in the log" >&2; return 1
   fi
   if [ -z "$ip" ]; then   # a claim is there: this is the instrument's gap, never "no claim" (fix 4)
     printf 'step5 claim=%s ip=- verdict=NOIP\n' "$type" > "$LOG.step5"
     echo "  step 5: the claim of $type is in the log, but the board's address is unknown: nothing to watch" >&2; return 1
   fi
-  echo "  step 5: watching $ip for the power cut..."
+  echo "  step 5: watching the board (address withheld) for the power cut..."
   dl=$(( $(date +%s) + CUT_WAIT_S ))
   while [ "$(date +%s)" -lt "$dl" ]; do
     if alive "$ip"; then miss=0; first_miss=""
@@ -552,7 +629,7 @@ grade_cut() {
     fi
   fi
   printf 'step5 cut=%s back=%s at=%s claim=%s ip=%s http=%s verdict=%s tries=%s\n' \
-    "${t_cut:--}" "${t_back:--}" "$(date +%s)" "$type" "$ip" "${code:--}" "$verdict" "$tries" > "$LOG.step5"
+    "${t_cut:--}" "${t_back:--}" "$(date +%s)" "$type" "$(ipmark "$ip")" "${code:--}" "$verdict" "$tries" > "$LOG.step5"
   echo "  step 5: $type on the owner's Collection page after the cut -> $verdict (tries $tries)"
 }
 
@@ -576,7 +653,7 @@ grade_off() {
 }
 
 # The device id the Worker files boot rows under: FBA_DEVICE_ID, else the board's own config page
-# (window.BP_DEVID). Never printed; the result records a 4-character prefix.
+# (window.BP_DEVID). Never printed, and no part of it is recorded: the result says only dev=set or dev=-.
 dev_id() {
   [ -n "${FBA_DEVICE_ID:-}" ] && { printf '%s' "$FBA_DEVICE_ID"; return 0; }
   # Read once, BEFORE any reset (the sabotage pre-flight sets DEV_CACHED): the id cannot change, and on
@@ -640,7 +717,7 @@ grade_boots() { # [until-epoch] [result-suffix]
   elif [ "$n" -eq 1 ] && [ "$reasons" = POWERON ]; then verdict=ONE_POWERON
   elif [ "$n" -eq 0 ]; then verdict=NONE
   else verdict=WRONG; fi
-  printf 'boots from=%s to=%s n=%s reasons=%s anchor=%s dev=%s verdict=%s\n' "$t0" "$t1" "$n" "${reasons:--}" "$anchor" "${dev:0:4}" "$verdict" > "$out"
+  printf 'boots from=%s to=%s n=%s reasons=%s anchor=%s dev=%s verdict=%s\n' "$t0" "$t1" "$n" "${reasons:--}" "$anchor" "$(ipmark "$dev")" "$verdict" > "$out"
   echo "  boots at the Worker, cut to end of step 6: n=$n (${reasons:-none}); anchor rows before the cut: $anchor -> $verdict"
 }
 
@@ -674,11 +751,11 @@ if [ "$MODE" = "sabotage" ]; then
     exit 3
   }
   DEV_CACHED="$(dev_id)"
-  [ -n "$DEV_CACHED" ] || preflight_refuse preflight-no-device-id "The device id could not be read from ${ip:-<no ip>}."
+  [ -n "$DEV_CACHED" ] || preflight_refuse preflight-no-device-id "The device id could not be read from the board (address: $(ipmark "$ip"))."
   t0_pre="$(sed -n 's/.* cut=\([0-9]*\) .*/\1/p' "$LOG.step5")"
   rows_pre="$(boot_rows "$DEV_CACHED" $((t0_pre - 3600)) "$t0_pre" "$LOG.boots.sabotage.preflight.err")" \
     || preflight_refuse preflight-query-failed "The boot-row query failed (token? see $LOG.boots.sabotage.preflight.err)."
-  echo "  pre-flight: device id read (${DEV_CACHED:0:4}...); the boot-row query answered: $(printf '%s\n' "$rows_pre" | awk 'NF==2' | wc -l | tr -d ' ') row(s) in the hour before the cut"
+  echo "  pre-flight: device id read (present); the boot-row query answered: $(printf '%s\n' "$rows_pre" | awk 'NF==2' | wc -l | tr -d ' ') row(s) in the hour before the cut"
   # FBA_NO_RESET (selftest seam): skip the serial reset so the refusal below can be graded on a host.
   if [ -z "${FBA_NO_RESET:-}" ]; then
     py="$(find_py serial)" || { echo "no working python with pyserial" >&2; exit 3; }

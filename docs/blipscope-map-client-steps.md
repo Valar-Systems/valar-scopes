@@ -5791,6 +5791,135 @@ Any control off: the instrument is not trusted, and that is the row's first off 
 **CI for this push (docs-only), predicted: 35 check runs: 33 success, 2 skipped, 0 failed.** The baseline is this
 PR's own first head, `d6f469287c8a`. No workflow file has changed since.
 
+#### 6b's tool, as run (2026-11-20)
+
+**What landed:** `scripts/strings_elf.py`, standard-library Python. readelf (`-S`, `-s`, `-r`) supplies every
+structure, and bytes are read at the offsets it reports; a short read is a RIG error, never a reading. T1, T2 and T3 are
+as registered above, with the ruled text rule (Q-6b-1) and the four ruled masks (Q-6b-3), plus Q-6b-5 below. A strings
+section with an entsize other than 1 is a refusal (exit 2), not a guess.
+
+**A fact read before the predictions (read-only, the xtensa toolchain's readelf on an existing build's objects):** a
+pointer table in a RELOCATABLE xtensa object is not zero. Each slot holds its target's offset in place, under an
+`R_XTENSA_32` relocation. One 16-slot table's first bytes were `0f 00 03 07 07 10 19 1c 22 2f 3b 45 4f 58 13 5f`, each
+followed by three NULs.
+- A table of two or more slots is still rejected by the registered T2 rule: only NULs may follow the first NUL. C-PTR's
+  "0 added" stands.
+- A ONE-slot table at a printable offset reads as one character of text. Q-6b-5 closes that.
+
+| Q | the question | the ruling (the orchestrator, 2026-11-20) |
+|---|---|---|
+| Q-6b-5 | Does T2 refuse a symbol whose bytes lie under a relocation? | **YES.** Refused, COUNTED and printed (`T2 skipped for relocations`), never hidden |
+| Q-6b-6 | How does "run in CI" (Q-6b-4) reach CI? | **A `test/host/run.sh` block, which is the harness owner's.** It MUST be wrapped with `note_block`, so that its red is listed. This PR is the script plus this record |
+
+**The selftest** writes its own synthetic objects (ELF32 little-endian, relocatable, Xtensa) and reads them through the
+tool's own code path. Strings shaped like an address, an id, a MAC or a coordinate are built at run time from parts, so
+none is a literal in the file. Each row is the base plus one change, and asserts the added AND the not-linked lists
+exactly:
+- S-RE, an anchor: readelf reads back exactly what was written.
+- S-NULL, S-POS (T1), S-ARR (T2), S-ARR-DEG (a degree sign, T2), S-PTR (6 in-place slots under relocations: 0 added),
+  S-PTR1 (1 slot: 0 added, by Q-6b-5), S-ADDR, S-DEAD (1 not-linked), S-REM (1 removed).
+- S-MASK: 6 added, 4 masked, and "fw v20" and "ver 1.2.3" printed verbatim. Asserted on the whole printed lines.
+- R-BADUTF8, R-CTRL, R-C1, R-AFTER, R-NONUL and R-EMPTY: 0 added each. R-TABS: 1, the rule's positive control.
+
+**As run** (predictions `2e2dc8b4616f`, frozen first; the tool `4bfe7c15d6df`):
+
+| run | result |
+|---|---|
+| P1: selftest, WSL readelf 2.42 | 18 rows hold, `SELFTEST PASSED`, exit 0 |
+| P2: selftest, the xtensa toolchain's readelf 2.35.1 | the same 18; output byte-identical to P1's but for CR |
+| PL-1: T2 replaced by the earlier instruments' NUL-split scan, run on objects | off, exactly {S-PTR, S-PTR1, R-AFTER, R-NONUL}: `SELFTEST FAILED (4)`, exit 1 |
+| PL-2: T2's NUL rule dropped | off, exactly {R-AFTER, R-NONUL}: `SELFTEST FAILED (2)`, exit 1 |
+| PL-3: Q-6b-5's relocation test dropped | off, exactly {S-PTR1}: `SELFTEST FAILED (1)`, exit 1 |
+| the clean tool after the plants | `SELFTEST PASSED`, exit 0 |
+| P6: real objects, read-only: one existing build's 259 objects as both reference and candidate, with its own `firmware.bin` and its own toolchain's readelf (2.43.1), read twice 65 s apart | both reads: 51,010 strings a side, added 0, removed 0, not-linked 0, `T2 skipped for relocations 432`, exit 0; the two outputs byte-identical; the directory's file fingerprint unchanged before and after each read |
+
+Plants: PL-1 `e1d2a08395ea`, PL-2 `62b75f766cf3`, PL-3 `4550e45b41f7`, one asserted replacement each.
+
+**The tool's first off reading, in DETAIL only (recorded by the orchestrator).** The off rows, counts and exits all held.
+But the predictions wrote each planted string as "added", while T3 classed them "compiled, not linked": each row's
+synthetic bin holds only the base strings and that row's own extras. The one exception is ".", which T3 finds as ".\0"
+because a base literal ends in "...". Correction 1 is recorded below the frozen predictions; nothing was tuned.
+
+**A limit, recorded for the gate:** T3 cannot tell whether a one-character string is real text, because X+NUL is almost
+always somewhere in an image. Q-6b-5 is what keeps the in-place pointer bytes out of T2 in the first place.
+
+**Noted for the control-build registration (not ruled here):** C-DEAD is registered as an unused STATIC function. The
+compiler drops an unused static function at compile time, so its literal may never reach an object, and C-DEAD would
+read 0 not-linked. The registration will propose a non-static function alone in its own translation unit, collected at
+link.
+
+**Next:** the harness owner's `run.sh` block (Q-6b-6), then the six control builds, registered before any build.
+
+**CI for this PR, predicted: 35 check runs: 33 success, 2 skipped (`promote`, `version`), 0 failed.**
+- The baseline is #773's finished PR run at `5039e85eb73e`: 35 = 33/2/0. It started at 05:59:40Z, after `e3ccf6b4`
+  (#761), which is still the last change to `.github/workflows/`.
+- That PR changed only files that no path-filtered workflow matches, and so does this one (`scripts/strings_elf.py`
+  and this file). So the same four workflows run, the ones that run on every pull request.
+- The script is not yet wired into any job (Q-6b-6), so no job count changes.
+
+#### Correction 1 to 6b's tool: the C-ARR control's catch (2026-11-20)
+
+**What the control caught.** The c-arr build read
+`NOT-LINKED T1 src/main.cpp.o .debug_str "k6bArr"`: not-linked 1, against 0 predicted. That is the new array's NAME,
+in the debug strings. The added clause held (the planted text, T2). Recorded as the C-ARR row's first off reading.
+
+**The defect.** T1 took every PROGBITS section flagged M and S, without requiring A. `.debug_str` and `.comment` carry
+M and S but are not allocated, so they never reach the image. On the base build, 3,491 T1 strings came from allocated
+sections and 47,798 from non-allocated ones, 47,414 of them only there.
+- So the string counts in the table above are debug-inflated: P6's "51,010 strings a side" was mostly debug and
+  compiler-ident text. P6's added, removed and not-linked counts of 0 still held: it read one build against itself.
+- **Why nothing earlier saw it:** the selftest's synthetic objects carried no debug sections; P6 compared a build with
+  itself; C-POS adds a literal but no new name. C-ARR was the first control to add a name.
+
+**The fix (ruled F1-F5, predictions frozen first):**
+- T1 requires A, M and S (`SHF_ALLOC|SHF_MERGE|SHF_STRINGS`).
+- The selftest gains S-DEBUG: a non-allocated `.debug_str` holding a new string reads 0 added, 0 not-linked. That
+  makes 19 rows, and they hold with both readelfs.
+- PL-4 (A dropped) turns exactly S-DEBUG off; PL-1 to PL-3 keep their off rows.
+- The fixed tool re-graded C-NULL, C-POS and C-ARR with the SAME predictions: all hold, and C-ARR's not-linked reads 0.
+  It then graded C-ARR-DEG for the first time.
+- P6, re-run twice 65 s apart, reads 0/0/0 with 3,886 strings a side, the allocated sets.
+
+The table above is left as it was run.
+
+#### 6b's controls, as read (2026-11-20)
+
+**Registered before any build** (predictions `d05ec9633cc3`; Q-6bc-1 ruled YES: C-DEAD's function is non-static, alone
+in its own translation unit). The base is `cf0dce7333b0` and the env `blipscope-s3-128`, one clean build per image.
+- Each control is ONE commit off the base, on a local bench branch that is never pushed.
+- Every build ran in one worktree path, with `SOURCE_DATE_EPOCH` and the macro prefix map pinned, and its output and
+  libdeps on a second drive.
+- The C: drive was gated by a DIRECT count of the bytes written per build (PlatformIO's home and the temp folder, the
+  sessions' own scratch excluded), not by a free-space delta. The largest single build wrote 16.3 MiB.
+- Every read is the fixed tool's (Correction 1 above), with the toolchain's own readelf 2.43.1, and base-a as the
+  reference.
+
+| control | the image | read | verdict |
+|---|---|---|---|
+| C-NULL | the base, built twice | 0 added, 0 removed, 0 not-linked; objects equal; K equal (432); the two `firmware.bin` byte-identical | holds |
+| C-POS | + `Serial.println("6b-ctl C-POS planted")` | exactly 1 added, that text, T1 (`.rodata._Z5setupv.str1.1`) | holds |
+| C-ARR | + `static const char k6bArr[] = "6b-ctl C-ARR planted"` | exactly 1 added, that text, T2 (`.rodata._ZZ5setupvE6k6bArr`); 0 not-linked | holds (its first off, recorded in Correction 1, fixed) |
+| C-ARR-DEG | + an array holding "6b-ctl 21°C planted" (a degree sign) | exactly 1 added, that text, T2 | holds |
+| C-PTR | + a 6-slot `const char*` table over six literals already compiled in `setup()` | 0 added, 0 removed; all six literals present in the base; `T2 skipped for relocations` 432 -> 433, exactly the table | holds |
+| C-ADDR | + a noinline function of 256 nops, called from `setup()` | 0 added, 0 removed; the bin differs from the base's at 1,050,635 bytes (the addresses moved) | holds |
+| C-DEAD | + a non-static function alone in `src/k6b_dead.cpp`, called by nothing | 0 added; exactly 1 compiled, not linked: that text, T1 (`src/k6b_dead.cpp.o`, `.rodata._Z7k6bDeadv.str1.1`); objects + 1; the bin is 48 bytes larger than the base's (the size was not predicted) | holds |
+
+The function sections give each function its own strings section (`.rodata.<function>.str1.1`). T1 finds those by
+their flags, not their names.
+
+**What the six show, together with the selftest:**
+- the tool sees an added literal (C-POS) and an added named array (C-ARR, C-ARR-DEG);
+- it does not count a pointer table as text (C-PTR, the case both earlier instruments failed);
+- moved addresses change nothing it reads (C-ADDR);
+- and it tells a literal that was compiled but not linked from one that was linked (C-DEAD).
+
+**Next:** the gate read (v19's release against the v20 candidate, each rebuilt and proven against its published
+binary) waits on the candidate. The `run.sh` block is the harness owner's.
+
+**CI for this push (two commits: Correction 1's fix and this record), predicted: 35 check runs: 33 success, 2 skipped
+(`promote`, `version`), 0 failed.** The baseline is this PR's own first head, `1435d13c772d` (35 = 33/2/0). The same
+two files change, and no workflow file has changed since.
+
 ## Carried to later steps by the ruling
 
 | step | what the ruling fixed |

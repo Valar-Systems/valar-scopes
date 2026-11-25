@@ -73,7 +73,31 @@
    "included": 20000000.0,
    "price": 0.6,
    "unit": 1000000.0,
-   "round_up": false
+   "round_up": false,
+   "months": {
+    "until": "2026-11"
+   }
+  },
+  "logs_ingest_gb": {
+   "label": "Workers Logs ingested (GB, from 2026-12)",
+   "included": 50,
+   "price": 0.25,
+   "unit": 1,
+   "round_up": false,
+   "months": {
+    "from": "2026-12"
+   }
+  },
+  "logs_storage_gb": {
+   "label": "Workers Logs stored (GB-month, from 2026-12)",
+   "included": 10,
+   "price": 0.1,
+   "unit": 1,
+   "round_up": false,
+   "per_month": true,
+   "months": {
+    "from": "2026-12"
+   }
   },
   "do_requests": {
    "label": "Durable Object requests",
@@ -514,6 +538,11 @@
   },
   "derived-logs": {
    "tool": "requests x 3.175 events per invocation (account_cost_read.py A8)",
+   "window": [],
+   "totals": {}
+  },
+  "derived-logs-gb": {
+   "tool": "section 11: each logs_events row x 5.5's API bytes per event (proxy 1,742.60; ingests 819.47) / 1e9; storage = ingest x 7/30",
    "window": [],
    "totals": {}
   }
@@ -2128,6 +2157,206 @@
    "basis": "derived",
    "cadence": "steady",
    "how": "levers's requests x 3.175"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "logs_ingest_gb",
+   "value": 0.000913,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "524 events x 1742.6 B (proxy, 5.5) / 1e9"
+  },
+  {
+   "product": "basemap-staging",
+   "state": "now",
+   "allowance": "logs_storage_gb",
+   "value": 0.000213,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "ingest 0.0009 GB x 7/30 (seven days' retention)"
+  },
+  {
+   "product": "cref",
+   "state": "now",
+   "allowance": "logs_ingest_gb",
+   "value": 0.112463,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "137,239 events x 819.47 B (ingests, 5.5) / 1e9"
+  },
+  {
+   "product": "cref",
+   "state": "now",
+   "allowance": "logs_storage_gb",
+   "value": 0.026241,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "ingest 0.1125 GB x 7/30 (seven days' retention)"
+  },
+  {
+   "product": "kiosk",
+   "state": "now",
+   "allowance": "logs_ingest_gb",
+   "value": 0.316894,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "181,851 events x 1742.6 B (proxy, 5.5) / 1e9"
+  },
+  {
+   "product": "kiosk",
+   "state": "now",
+   "allowance": "logs_storage_gb",
+   "value": 0.073942,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "ingest 0.3169 GB x 7/30 (seven days' retention)"
+  },
+  {
+   "product": "opera-ten",
+   "state": "silent",
+   "allowance": "logs_ingest_gb",
+   "value": 0.265963,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "324,555 events x 819.47 B (ingests, 5.5) / 1e9"
+  },
+  {
+   "product": "opera-ten",
+   "state": "silent",
+   "allowance": "logs_storage_gb",
+   "value": 0.062058,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "ingest 0.2660 GB x 7/30 (seven days' retention)"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "logs_ingest_gb",
+   "value": 10.93351,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "6,274,251 events x 1742.6 B (proxy, 5.5) / 1e9"
+  },
+  {
+   "product": "proxy",
+   "state": "now",
+   "allowance": "logs_storage_gb",
+   "value": 2.551152,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "ingest 10.9335 GB x 7/30 (seven days' retention)"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "logs_ingest_gb",
+   "value": 0.065027,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "37,316 events x 1742.6 B (proxy, 5.5) / 1e9"
+  },
+  {
+   "product": "proxy-staging",
+   "state": "now",
+   "allowance": "logs_storage_gb",
+   "value": 0.015173,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "ingest 0.0650 GB x 7/30 (seven days' retention)"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "logs_ingest_gb",
+   "value": 0.008065,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "9,842 events x 819.47 B (ingests, 5.5) / 1e9"
+  },
+  {
+   "product": "wx-dev",
+   "state": "now",
+   "allowance": "logs_storage_gb",
+   "value": 0.001882,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "ingest 0.0081 GB x 7/30 (seven days' retention)"
+  },
+  {
+   "product": "opera-ten",
+   "state": "running",
+   "allowance": "logs_ingest_gb",
+   "value": 1.111496,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "1,356,360 events x 819.47 B (ingests, 5.5) / 1e9"
+  },
+  {
+   "product": "opera-ten",
+   "state": "running",
+   "allowance": "logs_storage_gb",
+   "value": 0.259349,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "ingest 1.1115 GB x 7/30 (seven days' retention)"
+  },
+  {
+   "product": "shsr",
+   "state": "built",
+   "allowance": "logs_ingest_gb",
+   "value": 0.112008,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "136,684 events x 819.47 B (ingests, 5.5) / 1e9"
+  },
+  {
+   "product": "shsr",
+   "state": "built",
+   "allowance": "logs_storage_gb",
+   "value": 0.026135,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "ingest 0.1120 GB x 7/30 (seven days' retention)"
+  },
+  {
+   "product": "shsr",
+   "state": "built-no-list",
+   "allowance": "logs_ingest_gb",
+   "value": 0.112008,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "136,684 events x 819.47 B (ingests, 5.5) / 1e9"
+  },
+  {
+   "product": "shsr",
+   "state": "built-no-list",
+   "allowance": "logs_storage_gb",
+   "value": 0.026135,
+   "read": "derived-logs-gb",
+   "basis": "derived",
+   "cadence": "steady",
+   "how": "ingest 0.1120 GB x 7/30 (seven days' retention)"
   }
  ]
 }

@@ -1541,6 +1541,102 @@ T0.3's checkout, and the choice and its reading are written in the run's record:
   EXPECT, its status must be empty including untracked files, T0.3's CRLF control must be re-run (control 2,
   `proxy/src` and `proxy/scripts` 0), and `proxy/node_modules` must be present. The same commit gives the same evidence.
 
+### 4j. The upstream check re-registered as an ancestry gate (the reviewer's ruling, 2026-11-19 22:08Z; appended below 4i, before the gate's code)
+
+**Why.** 4i's first rule before step 2 is "Upstream is re-read first. It must be 4h's pin". An early read-only reading
+(2026-11-19 22:07:10Z, an extra reading that does not replace Friday's) found it is not:
+- upstream main is `8c2510f4a8a5c77692408ecc88663854294e32f8`, committed 2026-11-19T04:49:35Z;
+- its parent is the pin. The compare `pin...main` reads `ahead`, ahead_by 1, behind_by 0, 25 files.
+
+So 4h and 4i were void as registered. Upstream's commits seen so far land at about 04:49Z (2026-11-12 04:49:37Z,
+11-18 04:49:25Z, 11-19 04:49:35Z). A pin taken any earlier day can be off again by 10:00Z, so re-pinning only moves the
+problem. Nothing ran on the route step between the reading and this section.
+
+**The ruling (the reviewer, 2026-11-19, the parts that govern this run, verbatim):** "OPTION (1), done properly as the
+RE-REGISTRATION 4i asks for, not as an edit [...] the pin stays b775753b [...] Upstream re-read at T0 is a GATE ON
+ANCESTRY: PASS only if the compare reads status "ahead" or "identical" with behind_by 0. ahead_by and the commit list
+are printed as INFORMATION. "behind", "diverged", a missing pin or an unreadable compare is a STOP."
+
+**What stays, unchanged:**
+- **The pin: `b775753b72807c8f1c8480e101eeb2edb727c55a`.** The input is `sd-b775753b.tar.gz` (sha256 `4b4add33e1e6`),
+  and the seal's `--source-date` is `2026-11-18T04:49:25Z`.
+- **Every count in 4h and 4i.** They rest on the pinned tarball and on KV, not on upstream's head. Step 2's dry run
+  re-proves them before any write, in each environment.
+- EXPECT `4a02123c`, the T-0 rows (4e), D0 by procedure (4g), the chain rule (4f, with 4i's dates), the checkout rule,
+  4i's steps 3-6 and their outside-the-set rules.
+
+**What changes: only the upstream check.** 4i's "It must be 4h's pin [...] If it has moved, 4h and this section are
+void" is replaced by the gate below. It runs **before each environment's step 2**, twice in all. A STOP at either is a
+stop before any write in that environment and in everything after it.
+
+**The gate, G-UP** (a session tool, `route_upstream_gate.py`; its sha256 is recorded with the rows below):
+- **Input:** one read of `gh api repos/vradarserver/standing-data/compare/<pin>...main`, cut down by `--jq` to `status`,
+  `ahead_by`, `behind_by`, the base and merge-base shas, and each listed commit's sha and committer date. Also gh's exit
+  status. The compare's file patches can hold standing-data rows, so they are never saved or printed.
+- **PASS (exit 0) only if ALL hold:**
+  - gh exited 0, and the extract parses with every field present;
+  - the base sha AND the merge-base sha both equal the pin, in full;
+  - `status` is `ahead` or `identical`;
+  - `behind_by` is 0.
+- On PASS it prints `ahead_by <n>` and each commit after the pin (sha12 and date) as **information**.
+- **STOP (exit 1) otherwise**, naming the condition that failed. That covers `behind`, `diverged`, a missing pin (the
+  compare does not resolve and gh exits non-zero), an unreadable or partial extract, a base or merge-base that is not
+  the pin, and any shape not foreseen here.
+
+**Stated plainly: production's routes lag upstream** by the commits after the pin, until the next weekly run. Both
+environments' `/healthz` will read `sourceCommittedAt: "2026-11-18T04:49:25Z"` (the pin's time), not upstream's
+newest. At this reading the lag is 1 commit (25 files), within a weekly refresh. The owner is told as information
+(the reviewer).
+
+**Red first: predicted here, before the gate's code exists.** Each row prints its whole output and the gate's exit code.
+
+| row | input | predicted |
+|---|---|---|
+| G1 | synthetic `behind`: ahead_by 0, behind_by 1, base = the pin, merge-base another sha | STOP, exit 1 |
+| G2 | synthetic `diverged`: ahead_by 1, behind_by 1, base = the pin, merge-base another sha | STOP, exit 1 |
+| G3 | synthetic `identical`: ahead_by 0, behind_by 0, base = merge-base = the pin, no commits | PASS, exit 0, `ahead_by 0` |
+| G4 | synthetic `ahead`, behind_by 0, base = the pin, but merge-base another sha | STOP, exit 1 (merge-base is not the pin) |
+| G5 | unreadable: gh exit 1 and an empty extract | STOP, exit 1 |
+| G6 | real, a MISSING pin: the live compare from a made-up 40-hex base | STOP, exit 1 (gh exits non-zero) |
+| G7 | real, today's compare from the pin, read when the row runs | PASS, exit 0; information `ahead_by 1` and `8c2510f4a8a5 2026-11-19T04:49:35Z` |
+
+- **G7's one foreseen variant:** if upstream commits again before G7 runs, the reading is PASS with ahead_by 2 or more
+  and `8c2510f4a8a5` first in the list. That is still as predicted, and the count is reported.
+- **Outside the set:** any other verdict, exit code or shape on any row. Stop and report. 4j is not used on Friday
+  until the rows read as predicted.
+
+#### 4j's red-first rows, as read (2026-11-19 22:29:14-22:29:17Z; appended below the frozen 4j)
+
+**The tools:** the gate `route_upstream_gate.py` (sha256 `e271c7ceb361`), the read script `route_upstream_read.sh`
+(`d1f029741e2a`) and the row driver `r4j_rows.sh` (`33f969bbebe3`). The driver read the pin from 4j as committed at
+`ab3fa9b25efa`, never typed.
+
+**The driver's first run went BLIND (22:27Z) before any row.** `MSYS_NO_PATHCONV=1` stopped the `/c/...` path given to
+native `git -C` from being converted (exit 128), so the doc did not read. Nothing ran: no gate call, no synthetic
+input, no live read. The reviewer recorded it as an instrument failure and approved one fix, `git -C "$(cygpath -m
+"$W")"` on that line (the driver's sha256 was `ae36042e1e29` before it), and one run. The gate and the read script
+were not changed.
+
+| row | read | |
+|---|---|---|
+| G1 | `G-UP STOP: status is 'behind' (ahead_by 0, behind_by 1)`, exit 1 | as predicted |
+| G2 | `G-UP STOP: status is 'diverged' (ahead_by 1, behind_by 1)`, exit 1 | as predicted |
+| G3 | `G-UP PASS: status identical, behind_by 0, base = merge-base = the pin b775753b7280`; `ahead_by 0`; exit 0 | as predicted |
+| G4 | `G-UP STOP: the merge-base is not the pin`, exit 1 | as predicted |
+| G5 | `G-UP STOP: the compare did not resolve (gh exit 1)`, exit 1 | as predicted |
+| G6 | live, a made-up base: gh exit 1 (`Not Found (HTTP 404)`); `G-UP STOP: the compare did not resolve (gh exit 1)`, exit 1 | as predicted |
+| G7 | live, from the pin: gh exit 0; `G-UP PASS: status ahead, behind_by 0, base = merge-base = the pin b775753b7280`; information `ahead_by 1` and `8c2510f4a8a5 2026-11-19T04:49:35Z`; exit 0 | as predicted |
+
+**ALL SEVEN AS PREDICTED.** At this reading the routes would lag upstream by 1 commit.
+
+**One observation, which no row predicted.** On G6's 404, gh still wrote the response's error body (125 bytes, a "Not
+Found" message) to stdout, through `--jq`. So a failed compare does not leave the extract empty. The gate stopped on
+gh's exit status, which it checks first. Reading the gate's code, the same body would also be stopped by the field
+checks: it has no `ahead_by`, and its fields are not the foreseen set.
+
+**On Friday,** G-UP runs through the read script before each environment's step 2, using the gate and the read script
+at the shas above.
+
 ## 6. PR1: a route-write Worker endpoint against the KV token, priced (a note for the rotation decision, about 90 days)
 
 **The alternative.** The workflow holds no KV token. It POSTs batches of `[key, value]` and `delete` lists to a

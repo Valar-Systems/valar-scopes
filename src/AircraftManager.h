@@ -16,7 +16,7 @@
 #include "Logbook.h"
 #include "FactoryReset.h"
 #include "MqttPublisher.h"
-#include "UsageStore.h"  // anonymous feature-use counters (README "Telemetry")
+#include "UsageStore.h"  // feature-use counters (README "Telemetry")
 #include "StarvationPolicy.h"  // the starvation watch's rule and the starved-seconds accrual
 #include "LGFX.h"
 #include "BandCanvas.h"
@@ -194,7 +194,7 @@ private:
     /// counted -- or, when that is wrong, being visibly not counted.
     void EnterScreen(Screen s);
 
-    /// Anonymous feature-use counters. Loop task only (it touches NVS).
+    /// Feature-use counters. Loop task only (it touches NVS).
     ///
     /// §17-adjacent and deliberately narrow: this object is handed COUNTS, never
     /// subjects. See include/UsageReport.h -- its report builder has no
@@ -1074,8 +1074,13 @@ private:
     // Fills idxOut/xOut/yOut/wOut with up to labellines::MAX_LINES entries and
     // returns how many. A row that cannot fit inside the disc at its height is
     // NOT returned, so a caller cannot place what the disc will not hold.
+    //
+    // P6 (docs/speed-p5p6.md section 2): through the contact's label cache (include/LabelCache.h). When the labels
+    // came from the cache, *entryOut is the entry and slotOut[k] row k's line in it, so the draw renders the cached
+    // string; otherwise *entryOut is nullptr and the caller formats, as before.
     int LabelLayout(const TrackedAircraft& tracked, int x, int y,
-                    int* idxOut, int* xOut, int* yOut, int* wOut) const;
+                    int* idxOut, int* xOut, int* yOut, int* wOut,
+                    int* slotOut = nullptr, const labelcache::Entry** entryOut = nullptr) const;
     void DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, float brightness = 1.0f) const;
     // Screen box of the info label as DrawAircraftInfo lays it out (below-right of the marker
     // at x,y). Returns false when no label is drawn. Used by the tap hit-test so a tap on the
