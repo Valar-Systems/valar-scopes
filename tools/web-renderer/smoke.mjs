@@ -5,9 +5,12 @@
 // The firmware runs at ~60 frames a second of wall time. globalThis.fetch is replaced by a recorder that answers
 // from the synthetic scene (site/scene.js), so the renderer's OWN default fetch path is the one exercised --
 // including what it sends: every call's init object is kept and checked for headers.
-//   R3  the data path: /blips with the device's query, no header, ~12 a minute, contacts drawn; /config,
-//       /airports, photos and posts never fetched; every request under /api/v1/blipscope/
-//   R4  /enrich answered 404: each hex asked at most 3 times; no type line drawn
+//   R3  the data path: /blips with the device's query, no header, ~12 a minute; labels default to the type only, so
+//       contacts are drawn with a TYPE label, no aircraft with both its type and its callsign, and the callsign in
+//       the type's place while the type is looked up; /config, /airports, photos and posts never fetched; every
+//       request under /api/v1/blipscope/
+//   R4  /enrich answered 404 (a scene with no type data, as on a board with no lookups): each hex asked at most 3
+//       times; no type line drawn; under the default, callsigns drawn (never a bare dot while the callsign is known)
 //   R5  /enrich answered: type lines drawn
 //   R6  an off-base URL: answered locally (404), no request
 //   R7  wx-layer on: the module stops at the shim's setBuffer, an abort with the shim's own line (docs/wx-device.md,
@@ -46,6 +49,7 @@ const loader = fs.readdirSync(dir).find((f) => /^blipscope-web-.*\.js$/.test(f))
 if (!loader) { console.log(`INSTRUMENT: no blipscope-web-*.js in ${dir}`); process.exit(2); }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CONFIG = { latitude: "44.06", longitude: "-121.32", radius: "40", "radius-unit": "km" };
+const CALLSIGN = /^[A-Z]{2,3}\d|^N\d/;   // a drawn string shaped like a callsign (some type codes fit it too)
 const results = [];
 const check = (id, ok, what) => { results.push(ok); console.log(`  ${ok ? "ok  " : "FAIL"} ${id} ${what}`); };
 
@@ -117,7 +121,8 @@ if (r7only) {
   verdict();
 }
 
-const types = new Set(makeScene().planes.map((p) => p[2]));
+const planes = makeScene().planes;
+const types = new Set(planes.map((p) => p[2]));
 try {
   // R3 + R5 (enrich answered), then R6 on the same module
   const a = await run("R3/R5", { enrich: true, seconds: quick ? 25 : 70 });
@@ -131,8 +136,22 @@ try {
         `no request carries a header (${a.inits.length} inits read)`);
   const perMin = (blips.length / a.seconds) * 60;
   check("R3", quick ? blips.length >= 4 : perMin >= 10 && perMin <= 14, `/blips ${blips.length} in ${a.seconds} s (${perMin.toFixed(1)} a minute)`);
-  const contacts = a.text.filter((s) => /^[A-Z]{2,3}\d|^N\d/.test(s)).length;
-  check("R3", contacts >= 15, `contacts drawn with labels: ${contacts}`);
+  // Labels default to the type only (the owner's ruling, 2026-11-25), on the website as on the device, so a contact's
+  // label is its type once /enrich answers. The firmware asks one lookup every 5 s (docs/web-renderer.md R4): a 70 s
+  // run answers 13 of the scene's 21 typed planes, 13 type lines in all 38 model-runs read before this changed. The
+  // floor keeps the old callsign check's own slack (15 of 24): 8 of 13. --quick (25 s, about 4 lookups): 2.
+  const typeLines = a.text.filter((s) => types.has(s)).length;
+  check("R3", typeLines >= (quick ? 2 : 8), `contacts drawn with a type label: ${typeLines}`);
+  // NEVER BOTH: once its type is known, an aircraft draws its type alone. Read over the planes whose type is unique in
+  // the scene (19 of 21; the two Dash 8s share DH8D), so a drawn type names exactly one plane.
+  const typeCount = {};
+  for (const p of planes) typeCount[p[2]] = (typeCount[p[2]] || 0) + 1;
+  const both = planes.filter((p) => typeCount[p[2]] === 1 && a.text.includes(p[2]) && a.text.includes(p[1])).length;
+  check("R3", both === 0, `no aircraft drawn with both its type and its callsign: ${both}`);
+  // THE FALLBACK on the cloud feed: an aircraft whose lookup has not landed yet draws its callsign in the type's place
+  // (never a bare dot while the callsign is known). A 70 s run leaves about 7 of the 20 present not yet looked up.
+  const lookedUp = a.text.filter((s) => CALLSIGN.test(s) && !types.has(s)).length;
+  check("R3", lookedUp >= 1, `callsigns drawn while their type is looked up: ${lookedUp}`);
   check("R3", a.net[2] >= 2 && a.net[5] === 0, `config and airports answered locally (${a.net[2]}), none from the loop`);
   check("R5", a.text.some((s) => types.has(s)), `type lines drawn: ${a.text.filter((s) => types.has(s)).join(" ") || "(none)"}`);
   const before = a.scene.log.length, local0 = a.mod.HEAPU32[(a.mod._web_net_stats() >> 2) + 2];
@@ -144,12 +163,16 @@ try {
 
   // R4: /enrich answered 404
   if (!quick) {
+    // The owner's own-receiver check: /enrich off is a scene with no type data, as on a board that makes no lookups.
+    // Under the default every contact still draws its callsign; with no type line drawn, every CALLSIGN match is one.
     const b = await run("R4", { enrich: false, seconds: 130 });
     const per = {};
     for (const r of b.scene.log) { const m = r.url.match(/\/enrich\/([0-9a-f]+)/); if (m) per[m[1]] = (per[m[1]] || 0) + 1; }
     const worst = Math.max(0, ...Object.values(per));
     check("R4", Object.keys(per).length > 0 && worst <= 3, `each hex asked at most 3 times (${Object.keys(per).length} hexes, most ${worst})`);
     check("R4", !b.text.some((s) => types.has(s)), "no type line drawn");
+    const shown = b.text.filter((s) => CALLSIGN.test(s)).length;
+    check("R4", shown >= 15, `no type data, the default: callsigns drawn: ${shown}`);
   }
 
   // R7, on a fresh module: last, because an abort leaves its module dead

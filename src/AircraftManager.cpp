@@ -2808,7 +2808,8 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // The 2026-08-02 scripted POST is the cause, and it did more damage than the
     // retraction above records. It wrote `false` for every checkbox absent from
     // the body -- and `info-callsign`, `info-speed` and `info-baroalt` were among
-    // them. They ship ON (see AIRCRAFT_INFO_FIELDS). The bench boards have been
+    // them. They shipped ON then (they default off since the owner's type-only
+    // ruling of 2026-11-25; see AIRCRAFT_INFO_FIELDS). The bench boards have been
     // carrying them OFF ever since, so "the honest all-on envelope is 48.0 ms" is
     // an envelope for a renderer missing its primary readout, and the 60 ms
     // budget derived from it inherits the same gap.

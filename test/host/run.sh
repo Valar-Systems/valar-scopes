@@ -2898,6 +2898,27 @@ exit "$rc"
 )
 note_block $? "P6: the label cache against today's layout"
 
+# Labels default to the type only (the owner's ruling, 2026-11-25; _handoffs/p4/typeonly/REG-type-only.txt). It reads
+# the SHIPPING field table and preset buttons from the tree at run time, so it tests them and not a copy. Its plants:
+# _handoffs/p4/typeonly/sabotage_type_only.py.
+echo
+echo "== labels default to the type only =="
+(
+if ! "$CXX" $FLAGS "$ROOT/test/host/test_type_only_default.cpp" -o "$OUT/test_type_only_default.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the type-only default test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_type_only_default.exe" "$ROOT"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the type-only default test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "labels default to the type only"
+
 echo
 echo "== strings_elf: the image-level text check's selftest (Q-6b-6) =="
 # docs/blipscope-map-client-steps.md Q-6b-4 and Q-6b-6: scripts/strings_elf.py's selftest, on synthetic objects it
