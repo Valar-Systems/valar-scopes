@@ -1,0 +1,79 @@
+# The continent's return check: is OPERA's radar fresh for the nine continental products, all day, every day?
+# The rules, the controls and the count are in tools/wx/opera_return.py's docstring.
+#
+#   read   every 15 minutes: one anonymous GET of production's public /healthz, kept as an artifact named
+#          opera-read-<UTC day of the read> for 10 days. A failed read is recorded, never dropped.
+#   grade  daily at 00:20Z: runs the grader's selftest, then grades the UTC day that just ended. RED on a FAILED
+#          day. A BLIND day is a warning: the instrument's, not OPERA's. Prints the count, "k of 7".
+#
+# READ-ONLY, with no secret: /healthz is public, and the grade job only reads this repository's artifacts with
+# GITHUB_TOKEN (actions: read). No pull_request or push trigger, so it adds no PR or push check, and it carries no PR
+# concurrency block (scripts/check_workflow_concurrency.py).
+name: opera-return
+
+on:
+  schedule:
+    - cron: "5,20,35,50 * * * *"
+    - cron: "20 0 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "read, or grade"
+        required: true
+        default: read
+        type: choice
+        options: [read, grade]
+      day:
+        description: "grade only: the UTC day, YYYY-MM-DD (empty: yesterday)"
+        required: false
+        default: ""
+
+permissions: {}
+
+jobs:
+  read:
+    if: github.event.schedule == '5,20,35,50 * * * *' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'read')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: read
+        run: python3 tools/wx/opera_return.py read out/read.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opera-read-${{ steps.read.outputs.day }}
+          path: out/read.json
+          retention-days: 10
+          if-no-files-found: error
+
+  grade:
+    if: github.event.schedule == '20 0 * * *' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'grade')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    # Its own group: a re-grade waits for the running grade, and nothing is cancelled.
+    concurrency:
+      group: opera-return-grade
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 tools/wx/opera_return.py --selftest
+      - id: grade
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DAY: ${{ inputs.day }}
+        run: python3 tools/wx/opera_return.py grade-ci out "$DAY"
+      # Uploaded on a FAILED day too: the next days' counts read it.
+      - if: always() && steps.grade.outputs.day != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: opera-grade-${{ steps.grade.outputs.day }}
+          path: out/grade.json
+          retention-days: 10
+          if-no-files-found: error
