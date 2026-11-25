@@ -802,6 +802,16 @@ contains "/credits carries the NOAA MRMS line" 200 \
 contains "/credits carries the OPERA line" 200 \
   "Weather radar outside the US: EUMETNET OPERA CIRRUS maximum-reflectivity composite, created by Meteo France, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01&deg; grid and binned to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET." "$BASE/credits"
 
+# The basemap's attribution (docs/basemap-attribution.md; renderCreditsHtml in proxy/src/photolicense.ts): the four US
+# government sources, the terrain and SRTM's notice (its bytes after the copyright sign, so this file stays ASCII).
+# Production has carried them since a deploy took D3's code; nothing checked them until 2026-11-25 (docs/basemap-deploy.md,
+# Q-D3b). test/smoke-credits.test.ts reads these lines and the template, so a needle cannot drift from the page.
+contains "/credits carries the basemap's TIGER/Line line" 200 "TIGER/Line 2024" "$BASE/credits"
+contains "/credits carries the basemap's Gazetteer and SUB-EST2024 line" 200 "Gazetteer and SUB-EST2024" "$BASE/credits"
+contains "/credits carries the basemap's GNIS line" 200 "USGS GNIS Domestic Names" "$BASE/credits"
+contains "/credits carries the basemap's terrain line" 200 "Basemap terrain from AWS Terrain Tiles (Terrarium, zoom 9)." "$BASE/credits"
+contains "/credits carries the basemap's SRTM notice" 200 "COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C." "$BASE/credits"
+
 # The self-hosted webfonts. Requested BY PATH rather than scraped out of the page
 # so this still fails loudly if the page stops asking for them (which would mean
 # the page changed, not that the fonts are fine).
