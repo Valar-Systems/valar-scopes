@@ -26,12 +26,17 @@
 //         every var the enrich path reads -- `env.NAME` in src/enrich.ts and every file it imports, walked from the
 //         source, not listed here -- that proxy/wrangler.toml sets for staging or production, screen.wrangler.toml sets
 //         to the SAME value in the same env, and production-fulllogs to production's.
+//   P-K3  (phase 1, enrich) the boards' ENRICH_KV binding is WRITABLE; the screen may hold it only through the
+//         read-only view (src/screen/rokv.ts). In src/screen/**, comments stripped, every line holding ENRICH_KV
+//         must be one of four CONTENT patterns in details.ts (the type field, the unbound-throw, the readOnlyKv( wrap,
+//         the enrichEnv key that replaces it), each exactly once. P-K1's tests see only the paths they exercise; this
+//         sees a second path around the wrapper wherever it is written. No line number is used.
 //
 //   npx tsx scripts/check-screen.ts              exit 0 PASS, 1 FAIL, 2 BLIND (an input the check cannot read)
 //   npx tsx scripts/check-screen.ts --selftest   the real check must PASS; then each sabotage, on a TEMP COPY that
 //        is asserted to differ from its source, must FAIL exactly as predicted (F1s, F3s, F2s, T2s, P3s, O1s, O2s, O4s,
-//        Ws, E3s, K2s).
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+//        Ws, E3s, K2s, K3r, K3s).
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -49,6 +54,7 @@ const MIL_GEN = join(PROXY, "src", "screen", "milranges.gen.ts");
 const PROXY_MIL = join(PROXY, "src", "military.ts");
 const BOARDS_TOML = join(PROXY, "wrangler.toml");
 const ENRICH = join(PROXY, "src", "enrich.ts");
+const SCREEN_DIR = join(PROXY, "src", "screen");
 
 type Tier = "free" | "cloud" | "plus";
 type Firmware = { released: number } | { waitsFor: number | "unscheduled" };
@@ -405,9 +411,58 @@ function checkVars(screenToml: string, boardsToml: string, files: string[]): Res
   };
 }
 
+/** P-K3. The four places ENRICH_KV may be named, by CONTENT, all in details.ts. */
+const KV_ALLOWED: ReadonlyArray<{ name: string; re: RegExp }> = [
+  { name: "the CoreEnv type field", re: /^\s*ENRICH_KV\?: KVNamespace;\s*$/ },
+  { name: "the unbound-throw", re: /^\s*if \(!env\.ENRICH_KV\) throw\b/ },
+  { name: "the readOnlyKv( wrap", re: /readOnlyKv\(env\.ENRICH_KV\)/ },
+  { name: "the enrichEnv key", re: /\bENRICH_KV: this\.ro\.kv\b/ },
+];
+/** Comments blanked with the line count kept. A line comment starts at `//` after a separator or the line's start,
+ *  so a URL's "://" is not one. */
+function stripComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+    .replace(/(^|[\s;{}(),])\/\/.*$/gm, "$1");
+}
+function checkEnrichKv(screenSrcs: ReadonlyMap<string, string>): Result {
+  const hits: Array<{ file: string; line: number; text: string }> = [];
+  for (const [file, src] of screenSrcs) {
+    stripComments(src).split("\n").forEach((text, i) => { if (/\bENRICH_KV\b/.test(text)) hits.push({ file, line: i + 1, text }); });
+  }
+  const failures: string[] = [];
+  const found = KV_ALLOWED.map(() => 0);
+  for (const h of hits) {
+    const k = h.file === "details.ts" ? KV_ALLOWED.findIndex((a) => a.re.test(h.text)) : -1;
+    if (k < 0) failures.push(`P-K3: src/screen/${h.file}:${h.line} holds ENRICH_KV outside the read-only wrap`);
+    else found[k]++;
+  }
+  KV_ALLOWED.forEach((a, k) => { if (found[k] !== 1) failures.push(`P-K3: ${a.name} found ${found[k]} time(s) in details.ts, want 1`); });
+  const files = new Set(hits.map((h) => h.file));
+  return {
+    verdict: failures.length ? "FAIL" : "PASS",
+    lines: [failures.length
+      ? `P-K3: ENRICH_KV on ${hits.length} line(s) in ${[...files].join(", ") || "no file"}: FAIL`
+      : `P-K3: ENRICH_KV on ${hits.length} line(s), all in details.ts, each an allowed pattern exactly once`],
+    failures,
+  };
+}
+/** Every .ts under src/screen, by its path relative to that folder ("/"-separated). */
+function screenSources(): Map<string, string> {
+  const out = new Map<string, string>();
+  const walk = (dir: string, rel: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(join(dir, e.name), `${rel}${e.name}/`);
+      else if (e.name.endsWith(".ts")) out.set(`${rel}${e.name}`, readFileSync(join(dir, e.name), "utf8"));
+    }
+  };
+  walk(SCREEN_DIR, "");
+  return out;
+}
+
 interface Inputs {
   indexSrc: string; otaSrc: string; gatePath: string; releasePath: string; tomlSrc: string; workflowSrc: string | null;
-  fwSrc: string; milGenPath: string; proxyMilSrc: string; boardsTomlSrc: string;
+  fwSrc: string; milGenPath: string; proxyMilSrc: string; boardsTomlSrc: string; screenSrcs: ReadonlyMap<string, string>;
 }
 async function runAll(inp: Inputs): Promise<Result> {
   const mapMod = await import(pathToFileURL(join(PROXY, "src", "screen", "map.ts")).href) as { SCREEN_MAP: readonly Row[]; RELEASE_URL: string };
@@ -426,6 +481,7 @@ async function runAll(inp: Inputs): Promise<Result> {
     checkWatch(inp.tomlSrc, inp.workflowSrc),
     await checkMil(inp.fwSrc, inp.milGenPath, inp.proxyMilSrc),
     checkVars(inp.tomlSrc, inp.boardsTomlSrc, enrichPathFiles(ENRICH)),
+    checkEnrichKv(inp.screenSrcs),
   ];
   const verdict = parts.some((p) => p.verdict === "BLIND") ? "BLIND" : parts.some((p) => p.verdict === "FAIL") ? "FAIL" : "PASS";
   return { verdict, lines: parts.flatMap((p) => p.lines), failures: parts.flatMap((p) => p.failures) };
@@ -435,7 +491,7 @@ const real = (): Inputs => ({
   indexSrc: readFileSync(INDEX, "utf8"), otaSrc: readFileSync(OTA, "utf8"), gatePath: GATE, releasePath: RELEASE,
   tomlSrc: readFileSync(TOML, "utf8"), workflowSrc: existsSync(WATCH) ? readFileSync(WATCH, "utf8") : null,
   fwSrc: readFileSync(FIRMWARE_MIL, "utf8"), milGenPath: MIL_GEN, proxyMilSrc: readFileSync(PROXY_MIL, "utf8"),
-  boardsTomlSrc: readFileSync(BOARDS_TOML, "utf8"),
+  boardsTomlSrc: readFileSync(BOARDS_TOML, "utf8"), screenSrcs: screenSources(),
 });
 
 /** A sabotaged copy of one source file, written to a temp dir; refuses if the edit did not change the text. */
@@ -457,7 +513,8 @@ async function selftest(): Promise<number> {
   const expect = (name: string, r: Result, want: string[]) => {
     const ok = r.verdict === "FAIL" && r.failures.length === want.length && want.every((w) => r.failures.some((f) => f.startsWith(w)));
     console.log(`${name}: ${r.verdict}, ${r.failures.length} failure(s) -> ${ok ? "AS PREDICTED" : "NOT AS PREDICTED"}`);
-    if (!ok) { bad++; r.failures.forEach((f) => console.log(`  ${f}`)); }
+    r.failures.forEach((f) => console.log(`  ${f}`)); // always: a sabotage's red is read by what it names, not its count
+    if (!ok) bad++;
   };
   try {
     // F1s: an invented route in a copy of index.ts.
@@ -514,6 +571,26 @@ async function selftest(): Promise<number> {
       "P-K2: production UPSTREAM_ADSB_LOL_BASE differs from the boards'",
       "P-K2: production-fulllogs UPSTREAM_ADSB_LOL_BASE differs from production's",
     ]);
+    // K3r (P-K3's red): the wrap moved OUT of details.ts into a rokv.ts helper -- the wrap's pattern is then found 0
+    // times, and the helper's line names the raw binding outside details.ts.
+    const srcs = screenSources();
+    const withEdit = (file: string, edit: (s: string) => string): Map<string, string> => {
+      const m = new Map(srcs);
+      const before = m.get(file);
+      if (before === undefined) throw new Error(`sabotage: src/screen/${file} is not read`);
+      const after = edit(before);
+      if (after === before) throw new Error(`sabotage on src/screen/${file}: the edit did not apply`);
+      m.set(file, after);
+      return m;
+    };
+    const k3r = withEdit("details.ts", (s) => s.replace("readOnlyKv(env.ENRICH_KV)", "readOnlyKv(kvOf(env))"));
+    k3r.set("rokv.ts", `${k3r.get("rokv.ts")}\nexport const kvOf = (env: { ENRICH_KV?: KVNamespace }) => env.ENRICH_KV!;\n`);
+    expect("K3r", await runAll({ ...real(), screenSrcs: k3r }), [
+      "P-K3: src/screen/rokv.ts:", "P-K3: the readOnlyKv( wrap found 0 time(s) in details.ts, want 1",
+    ]);
+    // K3s (the orchestrator's): a raw read planted in worker.ts -- a second path around the read-only view.
+    const k3s = withEdit("worker.ts", (s) => `${s}\nexport const leak = (env: any) => env.ENRICH_KV.get("k");\n`);
+    expect("K3s", await runAll({ ...real(), screenSrcs: k3s }), ["P-K3: src/screen/worker.ts:"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -528,7 +605,7 @@ async function main(): Promise<number> {
   r.failures.forEach((f) => console.log(`FAIL ${f}`));
   const routes = routesFromIndex(readFileSync(INDEX, "utf8")).length;
   console.log(r.verdict === "PASS"
-    ? `PASS (P-F1 ${routes} routes; P-F3 URL + ${PARSE_CASES.length} parser cases; P-F2 ${FW_ROWS.length * READS.length}; P-T2 ${CTXS.length * TIERS.length}; memo 3; P-O1 ${observabilityEnvs(readFileSync(TOML, "utf8")).size} envs; P-O2; P-O3; P-O4 ${Object.keys(METRICS_DATASETS).length} envs; P-W; P-E3; P-K2)`
+    ? `PASS (P-F1 ${routes} routes; P-F3 URL + ${PARSE_CASES.length} parser cases; P-F2 ${FW_ROWS.length * READS.length}; P-T2 ${CTXS.length * TIERS.length}; memo 3; P-O1 ${observabilityEnvs(readFileSync(TOML, "utf8")).size} envs; P-O2; P-O3; P-O4 ${Object.keys(METRICS_DATASETS).length} envs; P-W; P-E3; P-K2; P-K3)`
     : r.verdict);
   return r.verdict === "PASS" ? 0 : r.verdict === "BLIND" ? 2 : 1;
 }

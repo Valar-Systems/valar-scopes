@@ -27,7 +27,8 @@
 // than the two cfg: keys. A call that reaches the DO costs exactly 1 DO request; Worker-side refusals cost 0.
 //
 // Rows (predicted first, in screen-enrich-red.md): P-S1 P-S2 P-S3 P-E1 P-E2 (a-f) P-C1 P-K1 P-R1 P-G1 P-L1 (strict,
-// two locations) P-L1b P-T1 P-V1 P-D1 P-J1 P-G2 P-G3 P-M1 (the 8 new outcomes) P-H3 (no per-outcome counts exposed).
+// two locations) P-L1b P-T1 P-V1 P-D1 P-J1 P-G2 P-G3 P-M1 (the 8 new outcomes) P-T1g (the test seams reach no RPC
+// surface) P-H3 (no per-outcome counts exposed).
 import { env, fetchMock } from "cloudflare:test";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { pointerKey } from "../src/photolicense";
@@ -592,6 +593,23 @@ describe("the counter and what is exposed (P-M1, P-H3)", () => {
     expect(new Set(got.filter((o) => o !== "ok"))).toEqual(new Set(NEW_OUTCOMES));
     for (const p of h.counter.points) expect(ALL_OUTCOMES.has(p.blobs?.[2] ?? "")).toBe(true);
     tally(h);
+  });
+
+  it("P-T1g: the test seams are reachable from no RPC surface", () => {
+    // What RPC can reach: the DO's prototype methods, the two entrypoints' methods, the default export's handlers. The
+    // seams are module functions on none of them. What no test here can prove -- that no header, env var or binding
+    // reaches a seam -- holds by construction: the seams read nothing from a request or from env, and their state
+    // (clock.ts `injected`, details.ts `tap`) is assigned only inside the seam functions.
+    expect(Object.getOwnPropertyNames(X.ScreenDetailsDO!.prototype).sort()).toEqual(["constructor", "serve", "stats"]);
+    for (const cls of [W.ScreenWebsite, W.ScreenApp]) {
+      for (const n of Object.getOwnPropertyNames(cls.prototype)) expect(n.startsWith("__"), `${cls.name}.${n}`).toBe(false);
+    }
+    expect(Object.keys(W.default)).toEqual(["fetch"]);
+    const seams = W as unknown as Record<string, unknown>;
+    for (const name of ["__setClockForTests", "__tapEnrichRequestForTests", "__setHandlerForTests"]) {
+      expect(typeof seams[name], name).toBe("function"); // CONTROL: the seams exist, so their absence below means something
+      expect((seams[name] as { fetch?: unknown }).fetch, name).toBeUndefined();
+    }
   });
 
   it("P-H3: /health and every answer carry no per-outcome count (the blocked total is internal)", async () => {
