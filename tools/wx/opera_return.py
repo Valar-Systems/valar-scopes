@@ -13,7 +13,9 @@ The grading, per product and UTC day:
     and latest only moves forward);
   - the day is FRESH when all 24 hours hold a frame and every read is fresh; FAILED when a read is not fresh; BLIND
     (the instrument's, never a failure, never fresh) when an hour has no second-half read at all;
-  - a read that failed, or that does not name all ten OPERA products, is NO read (K-READ).
+  - a read that failed, or that does not name all ten OPERA products, is NO read for its hour (K-READ), exactly like a
+    missed run: it never counts as fresh, and it blinds the day only by leaving an hour with no second-half read. The
+    day's count of such reads is printed beside the verdict, so a run of transient failures is seen, not absorbed.
 The continent's day: BLIND if a control fails, or if the UK product (opuk, K-UK) is not FRESH on the same reads; else
 FAILED if any of the nine is FAILED; else BLIND if any is BLIND; else FRESH. Controls (K-STALE): on COPIES of the day's
 reads, a synthetic product at 7,200 s everywhere must grade FAILED, and a fresh synthetic one with hour 05's second
@@ -22,9 +24,10 @@ half removed must grade BLIND, so the grader is shown able to fail on the day's 
     python3 tools/wx/opera_return.py read <out.json>      one read; a failed read is recorded, exit 0
     python3 tools/wx/opera_return.py grade-ci <dir> [day]  in Actions: fetch the day's reads (GITHUB_TOKEN, never printed),
                                                           grade, read the 6 prior daily grades for the count; exit 1 on a
-                                                          FAILED continent day, a ::warning:: on BLIND
+                                                          FAILED continent day, a ::warning:: on BLIND, a ::notice:: on
+                                                          a FRESH day with failed or incomplete reads
     python3 tools/wx/opera_return.py --selftest           synthetic days only
-    python3 tools/wx/opera_return.py --sabotage           planted copies: each must red exactly its own row
+    python3 tools/wx/opera_return.py --sabotage           planted copies: each must red exactly its registered rows
 """
 import datetime
 import io
@@ -232,13 +235,31 @@ def grade_ci(outdir, day):
           f"{g['incompleteReads']} incomplete); controls {g['controls']}")
     for p in OPERA:
         print(f"  {p}: {g['products'][p]}")
-    print(f"CONTINENT {day}: {g['continent']} ({g['why']}); count {g['count']} of 7")
-    if g["continent"] == "FAILED":
-        print(f"::error title=opera-return::{day} FAILED: {g['why']}")
-        return 1
-    if g["continent"] == "BLIND":
-        print(f"::warning title=opera-return::{day} BLIND (the instrument's, not OPERA's): {g['why']}")
-    return 0
+    print(verdict_line(g))
+    print(annotation(g))
+    return 1 if g["continent"] == "FAILED" else 0
+
+
+def lost_reads(g):
+    """The day's failed or incomplete reads: each is no read for its hour (S3, ruled), and is printed beside the
+    verdict so a run of transient failures is seen, not absorbed."""
+    return (f"failed or incomplete reads {g['failedReads'] + g['incompleteReads']} of {g['reads']} "
+            f"(failed {g['failedReads']}, incomplete {g['incompleteReads']})")
+
+
+def verdict_line(g):
+    return f"CONTINENT {g['day']}: {g['continent']} ({g['why']}); {lost_reads(g)}; count {g.get('count')} of 7"
+
+
+def annotation(g):
+    d, v = g["day"], g["continent"]
+    if v == "FAILED":
+        return f"::error title=opera-return::{d} FAILED: {g['why']}; {lost_reads(g)}"
+    if v == "BLIND":
+        return f"::warning title=opera-return::{d} BLIND (the instrument's, not OPERA's): {g['why']}; {lost_reads(g)}"
+    if g["failedReads"] + g["incompleteReads"] > 0:
+        return f"::notice title=opera-return::{d} FRESH, with {lost_reads(g)}"
+    return f"{d} FRESH; {lost_reads(g)}"
 
 
 # ---- selftest and sabotage ---------------------------------------------------------------------------------------
@@ -305,6 +326,13 @@ def selftest():
     k_stale, k_hole = controls([dict(r, t=epoch_of(r["readAt"])) for r in _synth(D)], ds)
     row("R10: the controls can fail: a 7,200 s product grades FAILED, a fresh one without hour 05's second half grades BLIND",
         k_stale and k_hole)
+    # Correction 2 (the S3 ruling): one failed read in an hour another second-half read covers costs the day nothing,
+    # and is counted beside the verdict rather than absorbed.
+    g = grade_day(_synth(D, edit=lambda h, m, r: {"readAt": r["readAt"], "error": "URLError"} if (h, m) == (9, 50) else r), D)
+    g["count"] = count_fresh({D: g["continent"]}, D)
+    row("R11: one failed read at 09:50, 09:35 fresh -> FRESH, failed reads 1, printed beside the verdict",
+        g["continent"] == "FRESH" and g["failedReads"] == 1 and "failed or incomplete reads 1 of 96" in verdict_line(g)
+        and annotation(g).startswith("::notice "))
     fails = rows.count(False)
     print("SELFTEST PASSED" if not fails else f"SELFTEST FAILED: {fails}")
     return 0 if not fails else 1
@@ -315,9 +343,12 @@ PLANTS = (
      '        if "error" in r:\n            held[h] = held[h] or off % 3600 >= 1800\n            continue\n', {"R6"}),
     # P2 also fails R10's hole control on every day, so every continent reads BLIND (predict-pr.md Correction 1)
     ("P2: first-half reads counted for the hour", "        if off % 3600 >= 1800:\n", "        if off % 3600 >= 0:\n",
-     {"R1", "R2", "R4", "R7", "R8", "R10"}),
+     {"R1", "R2", "R4", "R7", "R8", "R10", "R11"}),
     ("P3: <= 1,800 counted fresh", "and a < FRESH_S\n", "and a <= FRESH_S\n", {"R8"}),
     ("P4: K-UK skipped", "    elif not k_uk:\n", "    elif False and not k_uk:\n", {"R4"}),
+    # P5 is the registration's line 40 read literally, ruled against (Append 2): a failed read blinds the day
+    ("P5: a failed read blinds the day", '        if "error" in r:\n            continue                       # a failed read is no read\n',
+     '        if "error" in r:\n            return {"verdict": "BLIND", "hoursWithoutSecondHalfRead": []}\n', {"R11"}),
 )
 
 
