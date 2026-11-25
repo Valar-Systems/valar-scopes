@@ -92,15 +92,17 @@ String fmtRoute(const TrackedAircraft& t) {
 
 } // namespace
 
-// Display order matches this table's order. The three OpenSky fields defaulting
-// to on (callsign, ground speed, barometric altitude) reproduce the original
-// fixed layout so existing devices look unchanged until the user opts into more.
+// Display order matches this table's order. THE DEFAULT IS THE TYPE ONLY (the Basic
+// preset), by the owner's ruling of 2026-11-25: "On a new set-up, aircraft labels
+// default to the type only ... Every other field stays one tick away and the
+// presets stay as they are. A saved setting is never rewritten", with NO migration.
+// A board whose owner pressed Save keeps what it saved; a board that never did shows
+// the type only after it updates, and the release notes say so. Everything else is
+// on the card you get by tapping an aircraft.
 const AircraftInfoFieldDef AIRCRAFT_INFO_FIELDS[] = {
-    { "info-callsign", "Callsign",        true,  false, fmtCallsign },
-    // TYPE AND OPERATOR SHIP ON. The store copy promises both on the card, so a
-    // factory-fresh device must show them without the customer first discovering
-    // a toggle. This is the `defaultOn` column, and it is load-bearing beyond the
-    // two lines it draws:
+    { "info-callsign", "Callsign",        false, false, fmtCallsign },
+    // TYPE SHIPS ON: it is the label's one default line, and the `defaultOn`
+    // column is load-bearing beyond the line it draws:
     //
     // `metadataNeeded` (AircraftManager::Initialise) is true only when some
     // enabled field NEEDS A LOOKUP -- and every needsLookup field used to default
@@ -114,14 +116,14 @@ const AircraftInfoFieldDef AIRCRAFT_INFO_FIELDS[] = {
     // ones shipped off, so the default configuration bought its economy by
     // disabling the product.
     { "info-type",     "Aircraft type",   true,  true,  fmtType },
-    { "info-operator", "Operator",        true,  true,  fmtOperator },
+    { "info-operator", "Operator",        false, true,  fmtOperator },
     { "info-reg",      "Registration",    false, true,  fmtReg },
     { "info-route",    "Route",           false, true,  fmtRoute },
     { "info-icao",     "ICAO address",    false, false, fmtIcao },
     { "info-country",  "Origin country",  false, false, fmtCountry },
-    { "info-speed",    "Ground speed",    true,  false, fmtSpeed },
+    { "info-speed",    "Ground speed",    false, false, fmtSpeed },
     { "info-vrate",    "Vertical rate",   false, false, fmtVerticalRate },
-    { "info-baroalt",  "Barometric alt",  true,  false, fmtBaroAlt },
+    { "info-baroalt",  "Barometric alt",  false, false, fmtBaroAlt },
     { "info-geoalt",   "Geometric alt",   false, false, fmtGeoAlt },
     { "info-heading",  "Heading",         false, false, fmtHeading },
     { "info-squawk",   "Squawk",          false, false, fmtSquawk },
