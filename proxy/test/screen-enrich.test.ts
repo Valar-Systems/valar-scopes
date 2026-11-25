@@ -383,6 +383,7 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
     expect(aircraftOf(s).map((a) => a.alt_ft)).not.toContain(TILDE_BLK.alt_ft);
     expect(await site(h.loc, "enrich", { hex: H.BLK })).toEqual({ ok: false, reason: "not_in_snapshot" });
     expect(outcomes(h.counter).slice(-1)).toEqual(["blocked"]);
+    await h.settle();
     tally(h);
   });
 
@@ -392,9 +393,11 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
     const r1 = await site(v1.loc, "snapshot");
     expect(aircraftOf(r1).map((a) => a.class)).toEqual(["private"]);
     expect(await site(v1.loc, "enrich", { hex: H.NULLDB })).toEqual({ ok: false, reason: "private" });
+    await v1.settle();
     tally(v1);
     const v2 = harness({ feed: feedAnswer([row]) });
     expect(aircraftOf(await site(v2.loc, "snapshot")).map((a) => a.class)).toEqual(["public"]); // CONTROL: v 2, as before
+    await v2.settle();
     tally(v2);
   });
 
@@ -425,6 +428,7 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
     expect(privates).toBe(4);
     const pub = aircraftOf(s).find((a) => fixtureHexByAlt(a) === H.PUB)!;
     expect([pub.hex, pub.cs]).toEqual([H.PUB, "TST101"]); // public rows keep their identity
+    await h.settle();
     tally(h);
   });
 
@@ -436,6 +440,7 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
     expect(idOf(d1b, H.PRIV)).toBe(idOf(d1a, H.PRIV));
     expect(idOf(d2, H.PRIV)).not.toBe(idOf(d1a, H.PRIV));
     expect(idOf(d1a, H.GA)).not.toBe(idOf(d1a, H.PRIV));
+    await h.settle();
     tally(h);
     // A block of TWO slots, the first of which is a PUBLIC aircraft's hex: the private aircraft can only get the second.
     X.__setPrivateBlockSizeForTests!(2);
@@ -443,6 +448,7 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
     const s = await site(g.loc, "snapshot");
     expect(idOf(s, H.INBLOCK)).toBe(H.INBLOCK); // CONTROL: the public aircraft is served under its own hex
     expect(idOf(s, H.PRIV)).toBe("~210001");
+    await g.settle();
     tally(g);
   });
 
@@ -453,6 +459,7 @@ describe("the class rules (P-E1, P-E2a-f, P-J1)", () => {
     expect(s).toEqual({ ok: false, reason: "error" });
     for (const x of [H.PRIV, H.GA]) expect(JSON.stringify(s).toLowerCase()).not.toContain(x);
     expect(outcomes(h.counter)).toEqual(["error"]);
+    await h.settle();
     tally(h);
   });
 

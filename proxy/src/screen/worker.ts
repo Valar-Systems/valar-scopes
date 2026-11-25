@@ -32,6 +32,7 @@ export type { Answer, Refusal } from "./answer";
 // TEST SEAMS ONLY, re-exported so a test reaches them through this module; no RPC method calls either.
 export { __setClock as __setClockForTests } from "./clock";
 export { __tapEnrichRequest as __tapEnrichRequestForTests } from "./details";
+export { __observeDayKey as __observeDayKeyForTests, __setPrivateBlockSize as __setPrivateBlockSizeForTests } from "./privateids";
 
 /** P-B2's marker: present exactly once in this script's bundle, and never in the boards'. */
 export const SCREEN_MARKER = "blipscope-screen:entry:v1";

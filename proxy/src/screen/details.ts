@@ -29,9 +29,10 @@ import { bucketForRadiusKm, quantizeTile } from "../schema";
 import type { Env } from "../types";
 import { type Counted, answered, refusal } from "./answer";
 import { BLOCKED_KEY, type Blocked, CachedKey, PLACES_KEY, type Places, parseBlocked, parsePlaces } from "./cfg";
-import { classify, isHex6, normHex } from "./classes";
+import { bare, classify, isHex6, normHex } from "./classes";
 import { now } from "./clock";
 import type { Caller } from "./metrics";
+import { PrivateIds, utcDay } from "./privateids";
 import { type ReadOnlyKv, readOnlyKv } from "./rokv";
 
 /** The site feed's answer, typed from the boards' own entrypoint (src/index.ts's neutral alias), never restated. */
@@ -101,6 +102,8 @@ export class DetailsCore {
   private readonly blocked = new CachedKey<Blocked>(BLOCKED_KEY, parseBlocked, { ok: false });
   private readonly store = new Map<string, { at: number; d: Details }>();
   private readonly inflight = new Map<string, Promise<Details>>();
+  /** G1: the private rows' daily IDs; the day's key lives only here (privateids.ts). */
+  private readonly privateIds = new PrivateIds();
   private window = -1;
   private calls: Record<Caller, number> = { website: 0, app: 0 };
   private resolutions = 0;
@@ -159,14 +162,27 @@ export class DetailsCore {
     if (!feed.available || feed.stale) return answered(feed); // the site feed's own answer: a stale one has no aircraft
     const bl = await this.blocked.get(this.ro.kv, t);
     if (!bl.ok) return refusal("blocked_unknown");
-    const aircraft: Array<Record<string, unknown>> = [];
+    const v2 = feed.v === 2; // G3: any other v makes a null dbFlags flagged
+    const kept: Array<{ a: SiteAircraft; hex: string; cls: "public" | "private" }> = [];
     for (const a of feed.aircraft) {
       const hex = normHex(a.hex);
-      if (bl.set.has(hex)) continue;
-      const cls = classify(a);
+      /*P-B3*/
+      if (bl.set.has(bare(hex))) continue; // G2: a "~" relay of a blocked hex is the blocked airframe
+      kept.push({ a, hex, cls: classify(a, v2) });
+    }
+    // G1: a private row's hex slot carries the day's ID, chosen never to equal a public hex of THIS snapshot.
+    const publicHexes = new Set(kept.filter((k) => k.cls === "public").map((k) => k.hex));
+    const day = utcDay(t);
+    const aircraft: Array<Record<string, unknown>> = [];
+    for (const { a, hex, cls } of kept) {
+      if (cls === "private") {
+        /*P-P1*/
+        aircraft.push({ ...a, hex: await this.privateIds.idFor(hex, day, publicHexes), cs: "", class: cls });
+        continue;
+      }
       const row: Record<string, unknown> = { ...a, class: cls };
       /*P-J1*/
-      if (cls === "public" && isHex6(hex)) {
+      if (isHex6(hex)) {
         const d = this.cached(hex, req.model, t);
         if (d) row.details = d;
         else this.background(hex, a, req.model);
@@ -184,12 +200,14 @@ export class DetailsCore {
     const bl = await this.blocked.get(this.ro.kv, t);
     if (!bl.ok) return refusal("blocked_unknown");
     /*P-S1*/
-    const a = feed.aircraft.find((x) => normHex(x.hex) === hex);
+    // An exact row first; failing that, a "~" relay of the same digits, which matters only to the block check (G2).
+    const a = feed.aircraft.find((x) => normHex(x.hex) === hex) ?? feed.aircraft.find((x) => bare(normHex(x.hex)) === hex);
     if (!a) return refusal("not_in_snapshot");
     /*P-E2b*/
     if (bl.set.has(hex)) return { answer: { ok: false, reason: "not_in_snapshot" }, outcome: "blocked" };
+    if (normHex(a.hex) !== hex) return refusal("not_in_snapshot"); // a "~" relay has no ICAO identity to resolve
     /*P-E1*/
-    if (classify(a) === "private") return refusal("private");
+    if (classify(a, feed.v === 2) === "private") return refusal("private");
     const hit = this.cached(hex, req.model, t);
     if (hit) return answered(hit);
     let p = this.inflight.get(key(hex, req.model));

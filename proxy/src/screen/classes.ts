@@ -7,9 +7,12 @@
 //   military = the hex is in the firmware's MIL_RANGES, OR dbFlags & 1
 //   flagged  = dbFlags & (4 | 8)            (PIA, LADD)
 //   PRIVATE  = flagged OR (NOT military AND the callsign is not airline-shaped)
-//   dbFlags null (not received) means 0 (A2.1, v2): an airliner with no flags is public.
+//   dbFlags null (not received) means 0 in a v2 snapshot (A2.1): an airliner with no flags is public. In a snapshot
+//   whose v is NOT 2, a null dbFlags counts as FLAGGED (G3, the site's ruling of 2026-11-04: v1 rows cannot be checked
+//   for LADD or PIA), and adds no military bit.
 //
-// BLOCKED is not here: it is a list in KV (cfg.ts, C1), never a committed file.
+// BLOCKED is not here: it is a list in KV (cfg.ts, C1), never a committed file. `bare()` is how a hex is compared with
+// it: a leading "~" (a non-ICAO relay of the same digits) is stripped, as the site does (G2).
 import { MIL_RANGES } from "./milranges.gen";
 
 export type AircraftClass = "public" | "private";
@@ -27,8 +30,15 @@ export function isMilitaryHex(hex: string): boolean {
   return MIL_RANGES.some(([lo, hi]) => n >= lo && n <= hi);
 }
 
-export function classify(a: { hex: unknown; cs: unknown; dbFlags: unknown }): AircraftClass {
-  const db = typeof a.dbFlags === "number" && Number.isInteger(a.dbFlags) ? a.dbFlags : 0;
+/** A hex for the BLOCK check (G2): a leading "~" stripped. */
+export const bare = (hex: string): string => (hex.startsWith("~") ? hex.slice(1) : hex);
+
+/** `v2` false (a snapshot whose v is not 2): a null dbFlags is flagged (G3). */
+export function classify(a: { hex: unknown; cs: unknown; dbFlags: unknown }, v2 = true): AircraftClass {
+  const known = typeof a.dbFlags === "number" && Number.isInteger(a.dbFlags);
+  /*P-V2*/
+  if (!known && !v2) return "private";
+  const db = known ? (a.dbFlags as number) : 0;
   const military = isMilitaryHex(normHex(a.hex)) || (db & 1) !== 0;
   const flagged = (db & (4 | 8)) !== 0;
   const cs = typeof a.cs === "string" ? a.cs.trim().toUpperCase() : "";
