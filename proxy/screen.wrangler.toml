@@ -37,11 +37,12 @@ workers_dev = false
 [env.production.define]
 BUILD_COMMIT = "\"UNSTAMPED\""
 
-# Workers Logs in production is the owner's call (proposed: head sampling from day one, since Logs is the largest
-# per-request cost of the app's screens). OFF until he rules.
+# Workers Logs in production: "screen service logs: sample 10%" (the owner, 2026-11-25). Every request and every error
+# is still counted unsampled in the metrics store (phase 1), and a full-logs day is a separate deploy with its own end
+# (docs/screen-logs-runbook.md). scripts/check-screen.ts's P-O1 holds this at exactly 0.1. Invocation logs stay OFF.
 [env.production.observability]
-enabled = false
-head_sampling_rate = 1
+enabled = true
+head_sampling_rate = 0.1
 
 [env.production.observability.logs]
 invocation_logs = false
