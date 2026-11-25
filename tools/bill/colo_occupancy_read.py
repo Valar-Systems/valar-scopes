@@ -1,0 +1,1450 @@
+#!/usr/bin/env python3
+"""/wx's F1: how many boards share a colo, and what a per-colo hold of `latest` would hit (docs/proxy-bill.md step 5,
+with amendments F1-R and F1-R-1).
+
+Read-only. One closed hour of the proxy's Workers Logs `evt:"req"` lines (the Workers Observability API): each line's
+`colo` and `devl` (the device LABEL). Held IN MEMORY ONLY; only a histogram leaves the process: how many colos hold k
+boards, for each k. Never a colo code, a label, an id or a line.
+
+A `dev` line (the device id) is UNREACHABLE (F1-R), not refused after the fact:
+  - every query is scoped on the server: `$metadata.service eq blipscope-proxy` AND `evt eq req`, filterCombination "and";
+  - a count-only PRE-FLIGHT (scope AND `dev exists`) refuses the hour BEFORE any events request if it is nonzero;
+  - the events query adds `dev DOES_NOT_EXIST`, so the server excludes such a line even if the count missed it;
+  - the backstop (a fetched req line holding `dev` refuses) stays, and every fetched event is counted first.
+A query is a VALUE only at ABR 1 (F1-R-1, map-server's rule (i)): HTTP 200, a statistics block, `abr_level` PRESENT and
+== 1, and for a count every aggregates[].sampleInterval 0 or 1. Anything else is BLIND, re-asked up to 2 more times
+REASK_S apart (chosen on resolution only, never on the count); still not a value -> exit 6, and F1 does not run on it.
+
+  python -X utf8 -I tools/bill/colo_occupancy_read.py ctl                       F1-CTL: the model's own control, no data
+  python -X utf8 -I tools/bill/colo_occupancy_read.py lc <out.json>             LC-1..LC-4 + LC-SUM, count only, on LC_HOUR
+  python -X utf8 -I tools/bill/colo_occupancy_read.py scan <out.json> [<last hour ISO>]   when `devl` first appears; clean?
+  python -X utf8 -I tools/bill/colo_occupancy_read.py read <hour start ISO> <out.json>
+  python -X utf8 -I tools/bill/colo_occupancy_read.py grade <read1> <read2>      the reads agree, then F1-K/H55/H115
+  python -X utf8 -I tools/bill/colo_occupancy_read.py classify <hour start ISO> <out.json>   F1 CLASSIFY: a DIAGNOSTIC
+      (registration 627dd8c67b72): the hour's no_label lines by family / status / model / authPath / five-minute bucket,
+      counts only. It walks the hour by `read`'s own path (walk_hour), and every line it prints is labelled
+      "[diagnostic after F1's no-reading; changes no reading]". The family rules' constants are PARSED from
+      proxy/src/index.ts and missileer.ts in this tree; a stale one is a RIG error before any query. Exit 3 = a BLIND row.
+  python -X utf8 -I tools/bill/colo_occupancy_read.py population <out.json>   F1 POPULATION (registration 5cf7d7288c34,
+      corrected 75213feac918): the ceiling C for D-SITE's FUTURE hold column. Count queries only, two per hour, on a
+      window fixed in this file (POP_FIRST, 24 hours across the site merge) after two anchors on known hours; every line
+      labelled as classify's. Exit 3 = stopped (an anchor off, more than 4 hours BLIND, or outside the set).
+  python -X utf8 -I tools/bill/colo_occupancy_read.py famcount <out.json>   F1 FAMILY COUNT (registration
+      ff8d7f596c0c): is the 11-22 05:00Z no-key rise the api-401-with-model family? COUNT QUERIES ONLY, never an
+      events request, so it can read a `dev`-era hour that walk_hour's pre-flight refuses (the pre-flight stays). Anchors
+      on classify's own hours first; every must-read and hour fixed in this file; every line labelled as classify's.
+      Exit 0 = IS or NOT; 3 = OUTSIDE or stopped at a must-read; 6 = BLIND.
+  python -X utf8 -I tools/bill/colo_occupancy_read.py famhours <out.json>   F1 FAMILY HOURS (registration
+      f522149ae7ac): the same family S, per hour, from FH_FIRST to the last closed hour at the start, graded against
+      the owner's lead by class (NIGHT / DAWN / DAY / DUSK, bands fixed in this file). COUNT QUERIES ONLY, as famcount;
+      anchors K1-K4, re-reads M1-M4, C-POP against the population's no-key. Every line labelled as classify's.
+      Exit 0 = FOLLOWS or DOES NOT FOLLOW; 3 = OUTSIDE or stopped; 6 = BLIND at an anchor.
+  python -X utf8 -I tools/bill/colo_occupancy_read.py popgap <out.json>   F1 POP-GAP (registration 7ee3a7a57822):
+      did the WHOLE population keep logging through FAMILY HOURS' 15-hour stop (11-24 04:00Z-18:00Z)? T (every req
+      line), N (no key) and K = T - N per hour over 02:00Z-20:00Z, after the population's anchors and two S re-reads.
+      COUNT QUERIES ONLY, as famcount; every hour, anchor and threshold fixed in this file; every line labelled as
+      classify's. Exit 0 = LOG GAP or THE FAMILY'S OWN CHANGE; 3 = OUTSIDE or stopped (a BLIND window hour stops);
+      6 = BLIND at an anchor.
+  python -X utf8 -I tools/bill/colo_occupancy_read.py popday <out.json>   F1 POP-DAY (registration 35221286d05e):
+      11-24's K (T - N) for 04Z-18Z against the same clock hours on 11-22 and 11-23. The anchors, then R-24 (11-24 re-read:
+      every pair a MUST-READ, POP-GAP's own), then the two reference days. tau = the median day-to-day spread (floor 0.10),
+      a formula fixed in this file. COUNT QUERIES ONLY; every line labelled as classify's. Exit 0 = THE FLEET'S DAILY
+      CYCLE or A PARTIAL LOSS; 3 = OUTSIDE or stopped (a moved R-24 pair or a BLIND window hour stops); 6 = BLIND anchor.
+Every command prints one `attempts <query>:` line per query on every graded exit (0, 3, 5, 6); lc and scan also write
+every attempt to <out.json> on those exits, and read writes them into its own result file (F1-R-1's recording clause;
+ruling (4)). A rig error (exit 2) prints its exception type only, and nothing else.
+
+The model (frozen in the registration): every active board polls /wx every P = 60 s at a random phase, each poll
+jittered +/-2 s; a per-colo hold of `latest` lasts T s from the miss that filled it; 200 seeded runs of one hour per
+colo size. T = 55 s and 115 s, off the poll boundary on purpose.
+Exit: 0 done/graded; 3 ESCAPE (or: no reading possible now); 4 REFUSED (reads under 60 s apart); 5 REFUSED (a `dev`
+line: pre-flight or backstop); 6 BLIND (a query never reached ABR 1); 2 the rig.
+"""
+import contextlib
+import importlib.util as _ilu
+import io
+import json
+import math
+import os
+import random
+import re
+import sys
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+
+ACCOUNT = "48822e896bb10c45aa6bfe139bcff3d1"   # proxy/wrangler.toml (public)
+SERVICE = "blipscope-proxy"
+URL = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/workers/observability/telemetry/query"
+P, JITTER, HOUR, RUNS = 60.0, 2.0, 3600.0, 200
+TS = (55.0, 115.0)
+MIN_APART_S = 60
+ATTEMPTS = 3           # F1-R-1: a query that is not a value is re-asked up to 2 more times ...
+REASK_S = 30           # ... this far apart. Only the plant harness sets it to 0.
+CALL_GAP_S = 60        # F1-R: scan and LC calls at least this far apart. Only the plant harness sets it to 0.
+SCAN_MAX_H = 6
+LC_HOUR = "2026-11-19T12:00:00Z"   # F1-R: closed, before the logs deploy, production writing `dev`
+
+LEAF_SERVICE = {"key": "$metadata.service", "operation": "eq", "type": "string", "value": SERVICE}
+LEAF_REQ = {"key": "evt", "operation": "eq", "type": "string", "value": "req"}
+DEV_EXISTS = {"key": "dev", "operation": "exists", "type": "string"}
+DEV_ABSENT = {"key": "dev", "operation": "DOES_NOT_EXIST", "type": "string"}
+DEVL_EXISTS = {"key": "devl", "operation": "exists", "type": "string"}
+IMPOSSIBLE = {"key": "evt", "operation": "eq", "type": "string", "value": "__f1r_impossible__"}
+
+_tfs = _ilu.spec_from_file_location("token_file", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token_file.py"))
+TOKEN_FILE = _ilu.module_from_spec(_tfs); _tfs.loader.exec_module(TOKEN_FILE)   # docs/token-file-python.md
+
+
+class Rig(Exception):
+    pass
+
+
+class Blind(Exception):
+    pass
+
+
+def hit_rate(k, T, runs=RUNS, seed=1):
+    """Polls that find a live entry, over `runs` seeded hours, for k boards in one colo."""
+    hits = total = 0
+    for r in range(runs):
+        rng = random.Random(seed * 100003 + k * 1009 + int(T) * 7 + r)
+        polls = []
+        for _ in range(k):
+            t = rng.uniform(0, P)
+            while t < HOUR + P:          # one warm-up period, then one hour counted
+                polls.append(t + rng.uniform(-JITTER, JITTER))
+                t += P
+        polls.sort()
+        expiry = -1.0
+        for t in polls:
+            live = t < expiry
+            if not live:
+                expiry = t + T
+            if P <= t < HOUR + P:
+                total += 1
+                hits += live
+    return hits / total if total else 0.0
+
+
+def ctl():
+    a, b, c = hit_rate(1, 55.0), hit_rate(1, 115.0), hit_rate(10, 55.0)
+    ok = a == 0.0 and abs(b - 0.5) <= 0.02 and c > 0.75
+    print("F1-CTL: k=1 T=55 %.3f (want 0); k=1 T=115 %.3f (want 0.50 +/-0.02); k=10 T=55 %.3f (want > 0.75) -> %s" % (
+        a, b, c, "HOLDS" if ok else "FAILS: the simulation is wrong; stop before any data"))
+    return 0 if ok else 3
+
+
+def post(url, body, tok):
+    req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
+                                 headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        return json.loads(r.read())
+
+
+def params(*extra, scope=True):
+    """Every filter set this reader sends (F1-R): the read and the live controls share this one form."""
+    leaves = ([LEAF_SERVICE, LEAF_REQ] if scope else [LEAF_SERVICE]) + list(extra)
+    return {"filters": [dict(x) for x in leaves], "filterCombination": "and"}
+
+
+def _num(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+
+def is_value(status, res, count):
+    """F1-R-1 (map-server's rule (i)): a query is a VALUE only at ABR 1, the level PRESENT."""
+    if status != 200 or not isinstance(res, dict):
+        return False
+    st = res.get("statistics")
+    if not (isinstance(st, dict) and "abr_level" in st and _num(st["abr_level"]) and st["abr_level"] == 1):
+        return False
+    if count:
+        calcs = res.get("calculations")
+        if not (isinstance(calcs, list) and len(calcs) == 1 and isinstance(calcs[0], dict)):
+            return False
+        aggs = calcs[0].get("aggregates")
+        if not isinstance(aggs, list):
+            return False
+        for a in aggs:
+            if not (isinstance(a, dict) and a.get("sampleInterval") in (0, 1) and _num(a.get("value"))):
+                return False
+    return True
+
+
+def count_of(res):
+    return sum(a["value"] for a in res["calculations"][0]["aggregates"])
+
+
+def ask(body, tok, count, log, label):
+    """One query, re-asked on RESOLUTION only (F1-R-1); every attempt recorded. The result when a value, else None."""
+    for i in range(ATTEMPTS):
+        if i:
+            time.sleep(REASK_S)
+        status, res, err = 0, None, None
+        try:
+            res = post(URL, body, tok).get("result")
+            status = 200
+        except urllib.error.HTTPError as e:
+            status, err = e.code, "HTTPError"
+        except Exception as e:        # the type only
+            err = type(e).__name__
+        st = res.get("statistics") if isinstance(res, dict) else None
+        rec = {"query": label, "attempt": i + 1, "status": status, "error": err,
+               "abr_present": isinstance(st, dict) and "abr_level" in st,
+               "statistics": {k: st.get(k) for k in ("abr_level", "elapsed", "rows_read", "bytes_read")} if isinstance(st, dict) else None}
+        if count and isinstance(res, dict) and isinstance(res.get("calculations"), list):
+            rec["sampleIntervals"] = sorted({str(a.get("sampleInterval")) for c in res["calculations"] if isinstance(c, dict)
+                                             for a in (c.get("aggregates") or []) if isinstance(a, dict)})
+        ok = is_value(status, res, count)
+        rec["value"] = ok
+        if ok and count:
+            rec["count"] = count_of(res)    # the count only on an attempt that is a value
+        log.append(rec)
+        if ok:
+            return res
+    return None
+
+
+def hour_bounds(h1):
+    return {"from": int(h1.timestamp() * 1000), "to": int((h1 + timedelta(hours=1)).timestamp() * 1000)}
+
+
+def count_query(h1, prm, tok, log, label):
+    body = {"queryId": "proxy-bill-colo-occupancy", "timeframe": hour_bounds(h1), "view": "calculations",
+            "parameters": dict(prm, calculations=[{"operator": "count"}])}
+    res = ask(body, tok, True, log, label)
+    if res is None:
+        raise Blind(label)
+    return count_of(res)
+
+
+def event_obj(e):
+    """An event's object, from `source` or the raw message; None if it has none."""
+    md = e.get("$metadata") or {}
+    src = e.get("source")
+    obj = src if isinstance(src, dict) else None
+    if obj is None:
+        msg = md.get("message")
+        if isinstance(msg, str) and msg.lstrip().startswith("{"):
+            try:
+                obj = json.loads(msg)
+            except ValueError:
+                obj = None
+    return obj if isinstance(obj, dict) else None
+
+
+def req_fields(e):
+    """The req line's object; None if this event is not a req line."""
+    obj = event_obj(e)
+    return obj if obj is not None and obj.get("evt") == "req" else None
+
+
+def parse_hour(s):
+    h = datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(timezone.utc)
+    if h.minute or h.second or h.microsecond:
+        raise Rig("the hour must start on a whole hour")
+    return h
+
+
+def last_closed_hour():
+    return datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+
+
+def blind(label, log):
+    n = sum(1 for a in log if a["query"] == label)
+    print("BLIND: %s never reached ABR 1 (%d attempt(s)); F1 does not run on it." % (label, n))
+    return 6
+
+
+def print_attempts(log):
+    """One line per query, every attempt on it (F1-R-1): status, abr_level, and the count only on a value."""
+    order = []
+    for a in log:
+        if a["query"] not in order:
+            order.append(a["query"])
+    for q in order:
+        parts = []
+        for a in log:
+            if a["query"] != q:
+                continue
+            abr = (a["statistics"] or {}).get("abr_level") if a["abr_present"] else "absent"
+            s = "%d: status %s abr %s" % (a["attempt"], a["status"], abr)
+            if a.get("error"):
+                s += " error %s" % a["error"]
+            if a["value"]:
+                s += (" count %d" % a["count"]) if "count" in a else ""
+                s += " (value)"
+            else:
+                s += " (not a value)"
+            parts.append(s)
+        print("  attempts %s: %s" % (q, "; ".join(parts)))
+
+
+def write_record(path, kind, extra, log):
+    """lc's and scan's record, on EVERY exit path: counts and statistics only, never an id or a line."""
+    rec = dict(extra, kind=kind, at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), attempts=log)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(rec, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+
+
+def done(rc, log, path=None, kind=None, extra=None):
+    print_attempts(log)
+    if path:
+        write_record(path, kind, extra or {}, log)
+    return rc
+
+
+def walk_hour(h1, tok, log, on_req):
+    """`read`'s and `classify`'s ONE path over an hour (F1-R), so a guard here cannot be skipped by either: the count-only
+    PRE-FLIGHT, then the `dev DOES_NOT_EXIST` events query, paged, every fetched event counted before any local test, and
+    the BACKSTOP on any fetched req line holding `dev`. on_req(o, e) is called once per req line of this service.
+    Returns (0, info) after a full walk; otherwise (rc, None) for a refusal (5) or a BLIND (6), having printed exactly the
+    lines `read` has always printed for it. On a nonzero rc the caller discards everything on_req gathered."""
+    try:
+        pre = count_query(h1, params(DEV_EXISTS), tok, log, "preflight")
+    except Blind:
+        print("fetched 0 event(s), 0 with dev; no events request was made")
+        return blind("preflight", log), None
+    print("preflight dev count %d" % pre)
+    if pre:
+        print("fetched 0 event(s), 0 with dev; no events request was made")
+        print("REFUSED (pre-flight): %d req line(s) in the hour carry the device id. Nothing fetched, nothing kept." % pre)
+        return 5, None
+    abr, offset, pages, fetched, fetched_dev = set(), None, 0, 0, 0
+    while True:
+        body = {"queryId": "proxy-bill-colo-occupancy", "timeframe": hour_bounds(h1), "view": "events", "limit": 2000,
+                "parameters": params(DEV_ABSENT)}
+        if offset:
+            body["offset"] = offset
+        label = "events page %d" % (pages + 1)
+        res = ask(body, tok, False, log, label)
+        if res is None:
+            print("fetched %d event(s), %d with dev" % (fetched, fetched_dev))
+            return blind(label, log), None
+        abr.add(res["statistics"]["abr_level"])
+        page = res["events"]["events"]
+        pages += 1
+        fetched += len(page)                                                   # counted before any local test
+        fetched_dev += sum(1 for e in page if "dev" in (event_obj(e) or {}))
+        for e in page:
+            if (e.get("$metadata") or {}).get("service") != SERVICE:
+                continue
+            o = req_fields(e)
+            if o is None:
+                continue
+            if "dev" in o:
+                print("fetched %d event(s), %d with dev" % (fetched, fetched_dev))
+                print("REFUSED (backstop): a fetched req line carries the device id. Nothing kept.")
+                return 5, None
+            on_req(o, e)
+        if len(page) < 2000:
+            break
+        offset = page[-1]["$metadata"]["id"]
+    return 0, {"pre": pre, "pages": pages, "abr": sorted(abr), "fetched": fetched, "fetched_dev": fetched_dev}
+
+
+def read(hour, path):
+    h1 = parse_hour(hour)
+    if h1 + timedelta(hours=1) > datetime.now(timezone.utc):
+        raise Rig("the hour has not closed")
+    tok = TOKEN_FILE.token("observability-read")
+    log = []
+    colos, n = {}, {"lines": 0, "no_colo": 0, "no_label": 0}
+
+    def on_req(o, e):
+        n["lines"] += 1
+        c, d = o.get("colo"), o.get("devl")
+        if not isinstance(c, str) or not c:
+            n["no_colo"] += 1
+            return
+        if not isinstance(d, str) or not d:
+            n["no_label"] += 1      # an unattributed request (a page, a refusal): not a board
+            return
+        colos.setdefault(c, set()).add(d)
+
+    rc, w = walk_hour(h1, tok, log, on_req)
+    if rc:
+        colos.clear()        # a partial histogram is discarded, never written
+        return done(rc, log)
+    hist = {}
+    for s in colos.values():
+        hist[len(s)] = hist.get(len(s), 0) + 1
+    colos.clear()          # nothing but the histogram survives
+    out = {"hour": h1.strftime("%Y-%m-%dT%H:00:00Z"), "read_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+           "pages": w["pages"], "abr": w["abr"], "req_lines": n["lines"], "no_colo": n["no_colo"], "no_label": n["no_label"],
+           "preflight_dev": w["pre"], "fetched": w["fetched"], "fetched_dev": w["fetched_dev"],
+           "histogram": {str(k): v for k, v in sorted(hist.items())}, "attempts": log}
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(out, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+    print("fetched %d event(s), %d with dev" % (w["fetched"], w["fetched_dev"]))
+    print("read %s: %d page(s), ABR %s, req lines %d, no colo %d, no label %d, histogram %s" % (
+        out["hour"], w["pages"], out["abr"], n["lines"], n["no_colo"], n["no_label"], out["histogram"]))
+    return done(0, log)
+
+
+# F1 CLASSIFY (registration 627dd8c67b72): a DIAGNOSTIC after F1's no-reading. Counts only; never an `ep`, a colo, a
+# `devl`, a `model` value or a line leaves the process.
+DIAG = "[diagnostic after F1's no-reading; changes no reading]"
+FAMILIES = ("missileer", "healthz", "enroll", "api", "notfound", "page")
+STATUS_CLASSES = ("2xx/3xx", "401", "403", "404", "429", "other4xx", "5xx")
+RULE_SHAPES = (("index.ts", 'url.pathname === "/healthz"'), ("index.ts", 'url.pathname === "/enroll"'),
+               ("index.ts", "url.pathname === `${PAGE_PREFIX}/enroll`"), ("index.ts", "pathname.startsWith(API_PREFIX)"),
+               ("index.ts", "pathname.startsWith(WEATHERSCOPE_API_PREFIX)"),
+               ("index.ts", "pathname.startsWith(API_LEGACY_PREFIX)"), ("index.ts", "if (isMissileerPath(url.pathname))"),
+               ("missileer.ts", "pathname === PAGE_PREFIX ||"), ("missileer.ts", "pathname.startsWith(`${PAGE_PREFIX}/`) ||"),
+               ("missileer.ts", "pathname.startsWith(API_PREFIX)"))
+
+
+def _const(src, name, env, where):
+    """`const NAME = "..."` or a template using only already-parsed names; found exactly once, or a RIG error."""
+    m = re.findall(r'^const %s = ("[^"\n]*"|`[^`\n]*`);$' % re.escape(name), src, re.M)
+    if len(m) != 1:
+        raise Rig("%s: const %s found %d time(s), not exactly once; the family rule cannot be derived" % (where, name, len(m)))
+    v = m[0][1:-1]
+    if m[0][0] == "`":
+        def sub(mm):
+            if mm.group(1) not in env:
+                raise Rig("%s: ${%s} in %s is not a parsed constant" % (where, mm.group(1), name))
+            return env[mm.group(1)]
+        v = re.sub(r"\$\{([A-Za-z_]+)\}", sub, v)
+    return v
+
+
+def route_rules():
+    """The families' constants, PARSED from proxy/src in this tree (index.ts and missileer.ts), never transcribed; and
+    the rule shapes classify depends on, each required to still be in the source. Anything else is a RIG error."""
+    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "proxy", "src")
+    src = {}
+    for f in ("index.ts", "missileer.ts"):
+        try:
+            src[f] = open(os.path.join(base, f), encoding="utf-8").read()
+        except OSError:
+            raise Rig("proxy/src/%s is not beside this reader; the family rule cannot be derived" % f)
+    env = {}
+    env["EDITION"] = _const(src["index.ts"], "EDITION", env, "index.ts")
+    r = {"api": tuple(_const(src["index.ts"], n, env, "index.ts")
+                      for n in ("API_PREFIX", "WEATHERSCOPE_API_PREFIX", "API_LEGACY_PREFIX")),
+         "page_prefix": _const(src["index.ts"], "PAGE_PREFIX", env, "index.ts"),
+         "m_page": _const(src["missileer.ts"], "PAGE_PREFIX", {}, "missileer.ts"),
+         "m_api": _const(src["missileer.ts"], "API_PREFIX", {}, "missileer.ts")}
+    for f, shape in RULE_SHAPES:
+        if shape not in src[f]:
+            raise Rig("%s no longer contains %s; the family rule is stale" % (f, shape))
+    return r
+
+
+def family(ep, status, r):
+    """index.ts's own order: Missileer first (:190), then /healthz, the enrolment page (above the auth gate), the API
+    (behind it), and anything else is the 404 page or a page."""
+    if ep == r["m_page"] or ep.startswith(r["m_page"] + "/") or ep.startswith(r["m_api"]): return "missileer"
+    if ep == "/healthz":
+        return "healthz"
+    if ep in (r["page_prefix"] + "/enroll", "/enroll"):
+        return "enroll"
+    if ep.startswith(r["api"]):
+        return "api"
+    return "notfound" if status == 404 else "page"
+
+
+def status_class(s):
+    """A known status class, or None (BLIND): never a default."""
+    if isinstance(s, bool) or not isinstance(s, int):
+        return None
+    if s in (401, 403, 404, 429):
+        return str(s)
+    if 200 <= s < 400:
+        return "2xx/3xx"
+    if 400 <= s < 500:
+        return "other4xx"
+    if 500 <= s < 600:
+        return "5xx"
+    return None
+
+
+def classify(hour, path):
+    h1 = parse_hour(hour)
+    r = route_rules()                    # before any query: a stale rule is a RIG error with nothing asked
+    if h1 + timedelta(hours=1) > datetime.now(timezone.utc):
+        raise Rig("the hour has not closed")
+    tok = TOKEN_FILE.token("observability-read")
+    log, h1ms, blind_rows = [], int(h1.timestamp() * 1000), set()
+    n = {"lines": 0, "no_colo": 0, "no_label": 0, "authpath": 0}
+    t = {f: {"status": {s: 0 for s in STATUS_CLASSES}, "model": 0, "total": 0, "buckets": [0] * 12} for f in FAMILIES}
+
+    def on_req(o, e):
+        n["lines"] += 1
+        c, d = o.get("colo"), o.get("devl")
+        if not isinstance(c, str) or not c:
+            n["no_colo"] += 1
+            return
+        if isinstance(d, str) and d:
+            return                        # a labelled line: a board, not classified here
+        n["no_label"] += 1
+        if "authPath" in o:
+            n["authpath"] += 1
+        ep, s = o.get("ep"), o.get("status")
+        if not isinstance(ep, str):
+            blind_rows.add("family")      # cannot be placed: the family and time tables go BLIND, never a guess
+            return
+        row = t[family(ep, s, r)]
+        row["total"] += 1
+        sc = status_class(s)
+        if sc is None:
+            blind_rows.add("status")
+        else:
+            row["status"][sc] += 1
+        m = o.get("model")
+        if isinstance(m, str) and m:
+            row["model"] += 1
+        ts = e.get("timestamp")
+        b = None
+        if isinstance(ts, (int, float)) and not isinstance(ts, bool):
+            b = int((ts - h1ms) // 300000)
+        if b is None or not 0 <= b <= 11:
+            blind_rows.add("time")        # an event outside its own hour is impossible: BLIND, never clamped
+        else:
+            row["buckets"][b] += 1
+
+    rc, w = walk_hour(h1, tok, log, on_req)
+    if rc:
+        t.clear()
+        return done(rc, log)
+    fam_blind = bool(blind_rows & {"family", "status"})
+    time_blind = bool(blind_rows & {"family", "time"})
+    print("fetched %d event(s), %d with dev" % (w["fetched"], w["fetched_dev"]))
+    print("anchor: req lines %d, no colo %d, no label %d" % (n["lines"], n["no_colo"], n["no_label"]))
+    for f in FAMILIES:
+        x = t[f]
+        print("family %s BLIND" % f if fam_blind else "family %s 2xx/3xx %d 401 %d 403 %d 404 %d 429 %d other4xx %d 5xx %d | model %d | total %d" % (
+            (f,) + tuple(x["status"][s] for s in STATUS_CLASSES) + (x["model"], x["total"])))
+    print("authPath present %d" % n["authpath"])
+    for f in FAMILIES:
+        print("buckets %s BLIND" % f if time_blind else "buckets %s %s" % (f, " ".join(str(c) for c in t[f]["buckets"])))
+    rc = 3 if blind_rows else 0
+    if blind_rows:
+        print("BLIND: %s -- no diagnostic" % ", ".join(sorted(blind_rows)))
+    out = {"label": DIAG, "kind": "classify", "exit": rc, "hour": h1.strftime("%Y-%m-%dT%H:00:00Z"),
+           "read_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "pages": w["pages"], "abr": w["abr"],
+           "req_lines": n["lines"], "no_colo": n["no_colo"], "no_label": n["no_label"], "authpath_present": n["authpath"],
+           "blind": sorted(blind_rows),
+           "families": {f: "BLIND" if fam_blind else {"status": t[f]["status"], "model": t[f]["model"], "total": t[f]["total"]}
+                        for f in FAMILIES},
+           "buckets": {f: "BLIND" if time_blind else t[f]["buckets"] for f in FAMILIES}, "attempts": log}
+    t.clear()
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(out, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+    return done(rc, log)
+
+
+# F1 POPULATION (registration 5cf7d7288c34, corrected 75213feac918): the ceiling C for D-SITE's FUTURE hold column.
+# Count queries only, two per hour; no events, so no line and no `dev` value is ever seen. The window is fixed HERE.
+DEVL_ABSENT = {"key": "devl", "operation": "DOES_NOT_EXIST", "type": "string"}
+POP_NOKEY = (DEV_ABSENT, DEVL_ABSENT)
+POP_ANCHORS = (("ANCHOR-PRE", "2026-11-19T12:00:00Z", 3695, 36),     # L: LC-1 and LC-3
+               ("ANCHOR-POST", "2026-11-23T14:00:00Z", 5553, 249))   # H0: reads A and B
+POP_FIRST = "2026-11-21T22:00:00Z"     # 24 closed hours: 12 before the site merge (2026-11-22T10:00:04Z), 12 from it
+POP_MERGE_HOUR = "2026-11-22T10:00:00Z"
+
+
+def population(path):
+    tok = TOKEN_FILE.token("observability-read")
+    log, calls, rows, blinds, zero = [], [0], [], [], []
+    first, merge = parse_hour(POP_FIRST), parse_hour(POP_MERGE_HOUR)
+    rec = {"label": DIAG, "window_first": POP_FIRST, "merge_hour": POP_MERGE_HOUR}
+    fin = lambda rc: done(rc, log, path, "population", dict(rec, exit=rc, calls=calls[0]))
+
+    def cq(h, prm, label):
+        if calls[0]:
+            time.sleep(CALL_GAP_S)
+        calls[0] += 1
+        return count_query(h, prm, tok, log, label)
+
+    for name, hs, want_req, want_nk in POP_ANCHORS:
+        h = parse_hour(hs)
+        try:
+            req = cq(h, params(), name + " req")
+            nk = cq(h, params(*POP_NOKEY), name + " no-key")
+        except Blind as b:
+            return fin(blind(str(b), log))
+        ok = (req, nk) == (want_req, want_nk)
+        print("%s %s: req %d, no-key %d (must read %d / %d) -> %s" % (
+            name, h.strftime("%Y-%m-%dT%H:00Z"), req, nk, want_req, want_nk, "HOLDS" if ok else "OFF: stop; no window hour is queried"))
+        rec.setdefault("anchors", []).append([name, req, nk, ok])
+        if not ok:
+            rec["stopped_at"] = name
+            return fin(3)
+    for i in range(24):
+        h = first + timedelta(hours=i)
+        hs = h.strftime("%Y-%m-%dT%H:00Z")
+        try:
+            req = cq(h, params(), "hour %s req" % hs)
+            nk = cq(h, params(*POP_NOKEY), "hour %s no-key" % hs)
+        except Blind:
+            blinds.append(hs)
+            print("hour %s BLIND (dropped)" % hs)
+            continue
+        if req <= 0:
+            zero.append(hs)
+            print("hour %s req %d no-key %d: no req lines" % (hs, req, nk))
+            continue
+        rows.append((h, req, nk))
+        print("hour %s req %d no-key %d share %.4f" % (hs, req, nk, nk / req))
+    rec.update(hours=[[h.strftime("%Y-%m-%dT%H:00Z"), req, nk] for h, req, nk in rows], blind=blinds, zero=zero)
+    print("window: %d hour(s) read, %d BLIND" % (len(rows), len(blinds)))
+    if len(blinds) > 4:
+        print("no population: %d hour(s) BLIND (more than 4)" % len(blinds))
+        return fin(3)
+    before = sorted(nk for h, req, nk in rows if h < merge)
+    after = sorted(nk for h, req, nk in rows if h >= merge)
+    med = lambda v: (v[(len(v) - 1) // 2] + v[len(v) // 2]) / 2.0
+    if zero or not before or not after:
+        print("verdict: OUTSIDE THE SET (%s) -- the instrument is unreliable at this scale: stop and decide" % (
+            "an hour with no req lines" if zero else "a side of the merge has no hour"))
+        return fin(3)
+    mb, ma = med(before), med(after)
+    step = ma - mb
+    shares = [nk / req for h, req, nk in rows]
+    mx, high = max(shares), sum(1 for s in shares if s >= 0.10)
+    print("median no-key before 10:00Z %.1f, from 10:00Z %.1f, step %+.1f" % (mb, ma, step))
+    print("max share %.4f" % mx)
+    rec.update(median_before=mb, median_after=ma, step=step, max_share=round(mx, 6), hours_at_10pct=high, C=None)
+    rc = 0
+    if step >= 300:
+        v = ("verdict: step %+.1f lines/h; no C -- (c) at full volume OR another source that began that hour; "
+             "the population cannot tell which" % step)
+    elif -150 < step < 150:
+        if high:
+            v = "verdict: no step, but %d hour(s) at 10%% or more; no C" % high
+        else:
+            rec["C"] = round(mx, 6)
+            v = "verdict: no step; C %.4f" % mx
+    else:
+        v = "verdict: OUTSIDE THE SET (step %+.1f) -- the instrument is unreliable at this scale: stop and decide" % step
+        rc = 3
+    print(v)
+    rec["verdict"] = v
+    return fin(rc)
+
+
+# F1 FAMILY COUNT (registration ff8d7f596c0c): is the 11-22 05:00Z rise in no-key lines the api-401-with-model family?
+# COUNT QUERIES ONLY (view calculations), never view events: no line and no `dev` value can enter the process, by
+# construction, which is what lets it read a `dev`-era hour. walk_hour's pre-flight, which refuses such an hour for any
+# events walk, stays exactly as it is. The hours and every must-read are fixed HERE.
+FC_STATUS = ({"key": "status", "operation": "eq", "type": "number", "value": 401},)   # the 401 leaf's ONE definition
+FC_200 = {"key": "status", "operation": "eq", "type": "number", "value": 200}
+FC_MODEL = {"key": "model", "operation": "neq", "type": "string", "value": ""}   # AMENDMENT 1: every req line carries
+# `model` ("" without the X-Blip-Model header, proxy/src/index.ts:452), so `exists` counted all; non-empty is classify's test
+FC_K = "2026-11-23T17:00:00Z"            # classify17's hour: no_label 232; api 218, all 401, all with a model
+FC_H = "2026-11-23T14:00:00Z"            # H0: classify's api 247, all 401, all with a model
+FC_W = ("2026-11-22T04:00:00Z", "2026-11-22T05:00:00Z", "2026-11-22T06:00:00Z")
+FC_W_NOKEY = (2, 236, 255)               # the population's reads of those hours (f1-population-result-1.md)
+FC_E1_MAX, FC_E2_MAX = 1903, 2139        # 05Z: req minus no-key, and req (the population's read)
+FC_IS, FC_NOT = (213, 230), (23, 25)     # at 05Z / 06Z: at least 90%, at most 10%, of 236 / 255
+FC_ONSET_MIN = 10
+FC_TAIL = " -- the instrument cannot answer at this scale: stop and decide"
+
+
+def fc_prefixes(r):
+    """The API prefixes as starts_with leaves. Summing one count per prefix equals classify's `api` family only if no
+    prefix is a prefix of another, none overlaps Missileer's (which family() places first), and no exact path family()
+    places before the api test starts with one. Anything else is a RIG error, before any query."""
+    api, before = list(r["api"]), (r["m_page"] + "/", r["m_api"])
+    exact = (r["m_page"], "/healthz", r["page_prefix"] + "/enroll", "/enroll")
+    for i, p in enumerate(api):
+        for q in api[i + 1:] + list(before):
+            if p.startswith(q) or q.startswith(p):
+                raise Rig("API prefix %d overlaps another family's prefix; the sum would not be the api family" % (i + 1))
+        if any(x.startswith(p) for x in exact):
+            raise Rig("API prefix %d covers a path family() places first; the sum would not be the api family" % (i + 1))
+    return [{"key": "ep", "operation": "starts_with", "type": "string", "value": p} for p in api]
+
+
+def count_span(t0, t1, prm, tok, log, label):
+    """count_query over any span (the onset buckets); count_query itself, which `read` uses, is untouched."""
+    body = {"queryId": "proxy-bill-colo-occupancy", "timeframe": {"from": int(t0.timestamp() * 1000),
+            "to": int(t1.timestamp() * 1000)}, "view": "calculations", "parameters": dict(prm, calculations=[{"operator": "count"}])}
+    res = ask(body, tok, True, log, label)
+    if res is None:
+        raise Blind(label)
+    return count_of(res)
+
+
+def famcount(path):
+    r = route_rules()                    # before any query: a stale rule is a RIG error with nothing asked
+    ap = fc_prefixes(r)
+    tok = TOKEN_FILE.token("observability-read")
+    log, calls = [], [0]
+    rec = {"label": DIAG, "steps": []}
+    fin = lambda rc: done(rc, log, path, "famcount", dict(rec, exit=rc, calls=calls[0]))
+    hk, hh = parse_hour(FC_K), parse_hour(FC_H)
+    w = [parse_hour(s) for s in FC_W]
+    hs = lambda t: t.strftime("%Y-%m-%dT%H:00Z")
+    S = POP_NOKEY + FC_STATUS + (FC_MODEL,)
+
+    def gap():
+        if calls[0]:
+            time.sleep(CALL_GAP_S)
+        calls[0] += 1
+
+    def cq(h, leaves, label):
+        gap()
+        return count_query(h, params(*leaves), tok, log, label)
+
+    def summed(h, leaves, label):
+        return sum(cq(h, tuple(leaves) + (a,), "%s p%d" % (label, i + 1)) for i, a in enumerate(ap))
+
+    def must(st, h, what, got, ok, want):
+        print("%s %s %s: %d (must read %s) -> %s" % (st, hs(h), what, got, want, "HOLDS" if ok else
+                                                     "OFF: stop; nothing after it is queried"))
+        rec["steps"].append([st, hs(h), what, got, ok])
+        return ok
+
+    def stop(at):
+        rec["stopped_at"] = at
+        v = "verdict: OUTSIDE (stopped at %s)%s" % (at, FC_TAIL)
+        print(v)
+        rec["verdict"] = v
+        return fin(3)
+
+    try:
+        for st, leaves, want in (("K1", (), 232), ("K2", FC_STATUS, 218), ("K3", (FC_MODEL,), 218)):
+            what = {"K1": "no-key", "K2": "no-key AND 401", "K3": "no-key AND model"}[st]
+            n = cq(hk, POP_NOKEY + tuple(leaves), "%s %s %s" % (st, hs(hk), what))
+            if not must(st, hk, what, n, n == want, want):
+                return stop(st)
+        for st, h, leaves, what, want in (("K4", hk, POP_NOKEY, "no-key AND api", 218), ("K5", hk, S, "S", 218),
+                                          ("H", hh, S, "S", 247)):
+            n = summed(h, leaves, "%s %s %s" % (st, hs(h), what))
+            if not must(st, h, what, n, n == want, want):
+                return stop(st)
+        n = summed(w[1], (DEV_EXISTS, FC_MODEL), "E1 %s keyed AND model AND api" % hs(w[1]))
+        if not must("E1", w[1], "keyed AND model AND api", n, 1 <= n <= FC_E1_MAX, "1..%d" % FC_E1_MAX):
+            return stop("E1")
+        n = cq(w[1], (FC_200,), "E2 %s status 200" % hs(w[1]))
+        if not must("E2", w[1], "status 200", n, 1 <= n <= FC_E2_MAX, "1..%d" % FC_E2_MAX):
+            return stop("E2")
+        ks, ss = [], []
+        for h, want in zip(w, FC_W_NOKEY):
+            k = cq(h, POP_NOKEY, "W %s no-key" % hs(h))
+            if not must("W", h, "no-key", k, k == want, want):
+                return stop("W " + hs(h))
+            s = summed(h, S, "W %s S" % hs(h))
+            print("W %s S: %d" % (hs(h), s))
+            ks.append(k)
+            ss.append(s)
+        rec["window"] = [[hs(h), k, s] for h, k, s in zip(w, ks, ss)]
+        b = []
+        for i in range(12):
+            t0 = w[1] + timedelta(minutes=5 * i)
+            gap()
+            b.append(count_span(t0, t0 + timedelta(minutes=5), params(*POP_NOKEY), tok, log,
+                                "O %s no-key" % t0.strftime("%Y-%m-%dT%H:%MZ")))
+    except Blind as e:
+        return fin(blind(str(e), log))
+    rec["buckets"] = b
+    ok = sum(b) == FC_W_NOKEY[1]
+    print("O %s buckets %s (sum %d, must read %d) -> %s" % (hs(w[1]), " ".join(str(c) for c in b), sum(b), FC_W_NOKEY[1],
+                                                           "HOLDS" if ok else "OFF: stop; nothing after it is queried"))
+    if not ok:
+        return stop("O")
+    first = next((i for i, c in enumerate(b) if c >= FC_ONSET_MIN), None)
+    if first is None:
+        print("onset: none (no five-minute bucket with 10 or more no-key lines)")
+    else:
+        rec["onset"] = (w[1] + timedelta(minutes=5 * first)).strftime("%Y-%m-%dT%H:%MZ")
+        print("onset: %s (the first five-minute bucket with 10 or more no-key lines)" % rec["onset"])
+    s05, s06 = ss[1], ss[2]
+    detail = "S %d of %d at 05:00Z, %d of %d at 06:00Z" % (s05, ks[1], s06, ks[2])
+    rc = 3
+    if any(s > k for k, s in zip(ks, ss)):
+        v = "verdict: OUTSIDE (S above no-key in an hour)" + FC_TAIL
+    elif first is None:
+        v = "verdict: OUTSIDE (no five-minute bucket with 10 or more no-key lines)" + FC_TAIL
+    elif s05 >= FC_IS[0] and s06 >= FC_IS[1]:
+        v, rc = "verdict: IS -- the 05:00Z rise is the api-401-with-model family (%s)" % detail, 0
+    elif s05 <= FC_NOT[0] and s06 <= FC_NOT[1]:
+        v, rc = "verdict: NOT -- the 05:00Z rise is not the api-401-with-model family (%s)" % detail, 0
+    else:
+        v = "verdict: OUTSIDE (between the bands, or the two hours disagree; %s)%s" % (detail, FC_TAIL)
+    print(v)
+    rec["verdict"] = v
+    return fin(rc)
+
+
+# F1 FAMILY HOURS (registration f522149ae7ac): S, the FAMILY COUNT's family as amended, for EVERY hour from FH_FIRST to
+# the last closed hour at the run's start, graded against the owner's lead (the radar asks every 15 s by day and every
+# 60 s at night; night is the sun at the saved location, 0,0 without one). COUNT QUERIES ONLY, as famcount: no line and
+# no `dev` value can enter the process. famcount's leaves are reused from their ONE definitions; famcount is untouched.
+FH_FIRST = "2026-11-21T00:00:00Z"
+FH_LAST_START = "2026-11-27T00:00:00Z"   # a later start nears the 7-day retention of Workers Logs for FH_FIRST
+FH_LEAD = (("NIGHT", 60), ("DAWN", 110), ("DAY", 240), ("DUSK", 213))   # the owner's numbers, quoted in the registration
+FH_QUIET = 5                             # the population's quiet hours read 1 to 5 no-key lines
+FH_M = (("M1", FC_K, 218), ("M2", FC_H, 247), ("M3", FC_W[1], 203), ("M4", FC_W[2], 248))   # the FAMILY COUNT's S reads
+FH_POP = (2, 5, 2, 1, 1, 2, 2, 236, 255, 249, 251, 248, 252, 250, 251, 250, 418, 295, 283, 219, 74, 80, 72, 170)   # no-key
+FH_MAX_BLIND = 4
+
+
+def fh_band(x):
+    """'about x' (the registration): x minus 12% to x plus 12%, rounded outward to whole lines, in integers."""
+    return (88 * x) // 100, -((-112 * x) // 100)
+
+
+def fh_class(h):
+    return "DAWN" if h.hour == 5 else "DAY" if 6 <= h.hour <= 16 else "DUSK" if h.hour == 17 else "NIGHT"
+
+
+def famhours(path):
+    r = route_rules()                    # before any query: a stale rule is a RIG error with nothing asked
+    ap = fc_prefixes(r)
+    first, last = parse_hour(FH_FIRST), last_closed_hour()
+    hs = lambda t: t.strftime("%Y-%m-%dT%H:00Z")
+    if last + timedelta(hours=1) >= parse_hour(FH_LAST_START):
+        raise Rig("the run starts after %s: the oldest hour nears the logs' retention" % FH_LAST_START)
+    m_hours = [parse_hour(h) for _, h, _ in FH_M]
+    if last < max(m_hours):
+        raise Rig("the window does not contain every must-read hour")
+    n_hours = int((last - first).total_seconds() // 3600) + 1
+    hours = [first + timedelta(hours=i) for i in range(n_hours)]
+    pop0 = parse_hour(POP_FIRST)
+    pop = {pop0 + timedelta(hours=i): v for i, v in enumerate(FH_POP)}
+    band = {c: fh_band(x) for c, x in FH_LEAD}
+    lead = dict(FH_LEAD)
+    tok = TOKEN_FILE.token("observability-read")
+    log, calls = [], [0]
+    rec = {"label": DIAG, "window_first": hs(first), "window_last": hs(last), "hours_n": n_hours, "steps": [],
+           "bands": {c: list(band[c]) for c, _ in FH_LEAD}}
+    fin = lambda rc: done(rc, log, path, "famhours", dict(rec, exit=rc, calls=calls[0]))
+    S = POP_NOKEY + FC_STATUS + (FC_MODEL,)
+    print("window %s to %s: %d hour(s); %d count queries" % (hs(first), hs(last), n_hours, 6 + 3 * n_hours))
+    print("bands (about = the owner's number +/-12%%, rounded outward): %s" % "; ".join(
+        "%s %d %d..%d" % (c, x, band[c][0], band[c][1]) for c, x in FH_LEAD))
+
+    def gap():
+        if calls[0]:
+            time.sleep(CALL_GAP_S)
+        calls[0] += 1
+
+    def cq(h, leaves, label):
+        gap()
+        return count_query(h, params(*leaves), tok, log, label)
+
+    def summed(h, leaves, label):
+        return sum(cq(h, tuple(leaves) + (a,), "%s p%d" % (label, i + 1)) for i, a in enumerate(ap))
+
+    def must(st, h, what, got, ok, want):
+        print("%s %s %s: %d (must read %s) -> %s" % (st, hs(h), what, got, want, "HOLDS" if ok else
+                                                     "OFF: stop; nothing after it is queried"))
+        rec["steps"].append([st, hs(h), what, got, ok])
+        return ok
+
+    def stop(at):
+        rec["stopped_at"] = at
+        v = "verdict: OUTSIDE (stopped at %s)%s" % (at, FC_TAIL)
+        print(v)
+        rec["verdict"] = v
+        return fin(3)
+
+    def cpop_ok(h, n):
+        if h in pop and n > pop[h]:
+            print("C-POP %s: S %d above the population's no-key %d -> OFF: stop; nothing after it is queried" % (hs(h), n, pop[h]))
+            return False
+        return True
+
+    vals, blinds = {}, []
+    try:
+        hk = parse_hour(FC_K)
+        for st, leaves, want in (("K1", (), 232), ("K2", FC_STATUS, 218), ("K3", (FC_MODEL,), 218)):
+            what = {"K1": "no-key", "K2": "no-key AND 401", "K3": "no-key AND model"}[st]
+            n = cq(hk, POP_NOKEY + tuple(leaves), "%s %s %s" % (st, hs(hk), what))
+            if not must(st, hk, what, n, n == want, want):
+                return stop(st)
+        n = summed(hk, POP_NOKEY, "K4 %s no-key AND api" % hs(hk))
+        if not must("K4", hk, "no-key AND api", n, n == 218, 218):
+            return stop("K4")
+        for (st, _, want), h in zip(FH_M, m_hours):
+            n = summed(h, S, "%s %s S" % (st, hs(h)))
+            if not must(st, h, "S", n, n == want, want):
+                return stop(st)
+            if not cpop_ok(h, n):
+                return stop("C-POP " + hs(h))
+            vals[h] = n
+    except Blind as e:
+        return fin(blind(str(e), log))
+    for h in hours:
+        if h in vals:
+            continue
+        try:
+            n = summed(h, S, "hour %s S" % hs(h))
+        except Blind:
+            blinds.append(h)
+            print("hour %s BLIND (dropped)" % hs(h))
+            continue
+        print("hour %s S %d" % (hs(h), n))
+        if not cpop_ok(h, n):
+            return stop("C-POP " + hs(h))
+        vals[h] = n
+    rec["hours"] = [[hs(h), vals[h]] for h in hours if h in vals]
+    rec["blind"] = [hs(h) for h in blinds]
+    print("C-POP: %d hour(s) checked, every S at most the population's no-key -> HOLDS" % sum(1 for h in vals if h in pop))
+    print("dropped (BLIND): %s" % ("%d hour(s): %s" % (len(blinds), " ".join(hs(h) for h in blinds)) if blinds else "none"))
+
+    read = [h for h in hours if h in vals]
+    in_band = lambda c, n: band[c][0] <= n <= band[c][1]
+    start = next((h for h in read if in_band("NIGHT", vals[h]) or in_band("DAY", vals[h])), None)
+    if start is None:
+        print("START: none")
+        v = "verdict: OUTSIDE (no START: no hour inside the NIGHT or DAY band)" + FC_TAIL
+        print(v)
+        rec["verdict"] = v
+        return fin(3)
+    rec["start"] = hs(start)
+    print("START: %s (the first hour inside the NIGHT or DAY band)" % hs(start))
+    onset = start - timedelta(hours=1)
+    pre = [h for h in read if h < start]
+    bad = [h for h in pre if h != onset and vals[h] > FH_QUIET]
+    print("before START: %d hour(s) read; onset hour %s; not QUIET (other than the onset hour): %s" % (
+        len(pre), ("%s S %d" % (hs(onset), vals[onset])) if onset in vals else "none",
+        " ".join("%s S %d" % (hs(h), vals[h]) for h in bad) if bad else "none"))
+
+    graded = [h for h in read if h >= start]
+    mark = lambda h: "IN" if in_band(fh_class(h), vals[h]) else ("HIGH" if vals[h] > band[fh_class(h)][1] else "LOW")
+    classes = [c for c, _ in FH_LEAD]
+
+    def tally(hl):
+        return {c: (sum(1 for h in hl if fh_class(h) == c), sum(1 for h in hl if fh_class(h) == c and mark(h) == "IN"))
+                for c in classes}
+
+    tl = tally(graded)
+    for c in classes:
+        g = [h for h in graded if fh_class(h) == c]
+        print("class %s (about %d, band %d..%d): %d graded, IN %d, HIGH %d, LOW %d" % (
+            c, lead[c], band[c][0], band[c][1], len(g), tl[c][1], sum(1 for h in g if mark(h) == "HIGH"),
+            sum(1 for h in g if mark(h) == "LOW")))
+    fmt = lambda t: ", ".join("%s %d/%d" % (c, t[c][1], t[c][0]) for c in classes) + " IN"
+    for d in sorted({h.date() for h in graded}):
+        print("day %s: %s" % (d.isoformat(), fmt(tally([h for h in graded if h.date() == d]))))
+    known = set(pop) | set(m_hours)
+    print("never read before: %s" % fmt(tally([h for h in graded if h not in known])))
+    off_hours = [h for h in graded if mark(h) != "IN"]
+    if off_hours:
+        for h in off_hours:
+            print("%s %s %s S %d" % (mark(h), hs(h), fh_class(h), vals[h]))
+    else:
+        print("HIGH and LOW hours: none")
+    runs, cur = [], None
+    for h in graded:
+        if vals[h] <= FH_QUIET:
+            if cur and h - cur[-1] == timedelta(hours=1):
+                cur.append(h)
+            else:
+                cur = [h]
+                runs.append(cur)
+        else:
+            cur = None
+    print("QUIET runs after START: %s" % ("; ".join("from %s, %d hour(s)" % (hs(x[0]), len(x)) for x in runs) if runs else "none"))
+    rec["classes"] = {c: list(tl[c]) for c in classes}
+
+    detail = fmt(tl)
+    rc = 3
+    if bad:
+        v = "verdict: OUTSIDE (an hour before START is not QUIET)" + FC_TAIL
+    elif len(blinds) > FH_MAX_BLIND:
+        v = "verdict: OUTSIDE (%d hour(s) BLIND, more than %d)%s" % (len(blinds), FH_MAX_BLIND, FC_TAIL)
+    else:
+        wrong = [c for c in classes if tl[c][0] >= 2 and 2 * tl[c][1] < tl[c][0]]
+        if wrong:
+            v, rc = "verdict: DOES NOT FOLLOW -- the lead is wrong in %s (START %s; %s)" % (" and ".join(wrong), hs(start), detail), 0
+        elif all(tl[c][0] >= 2 and 5 * tl[c][1] >= 4 * tl[c][0] for c in classes):
+            v, rc = "verdict: FOLLOWS -- the hours follow the lead (START %s; %s)" % (hs(start), detail), 0
+        else:
+            v = ("verdict: OUTSIDE (no class under 50%%, but not every class has 2 or more graded hours at 80%% or more; "
+                 "%s)%s" % (detail, FC_TAIL))
+    print(v)
+    rec["verdict"] = v
+    return fin(rc)
+
+
+# F1 POP-GAP (registration 7ee3a7a57822): did the WHOLE population keep logging through FAMILY HOURS' 15-hour stop
+# (11-24 04:00Z-18:00Z, S = 0)? COUNT QUERIES ONLY, as famcount: no line and no `dev` value can enter the process.
+# T = every req line (params()); N = T AND no key (POP_NOKEY); K = T - N, independent of the family by construction (the
+# family is no-key). The window, the anchors and every threshold are fixed HERE.
+PG_FIRST = "2026-11-24T02:00:00Z"
+PG_HOURS = 19                            # 02Z..20Z: controls 02Z, 03Z; the stop 04Z..18Z; controls 19Z, 20Z
+PG_STOP = ("2026-11-24T04:00:00Z", 15)   # FAMILY HOURS' QUIET run after START: 15 hours of S = 0
+PG_S = (("S-02", "2026-11-24T02:00:00Z", 68), ("S-03", "2026-11-24T03:00:00Z", 8))   # FAMILY HOURS' printed S
+PG_S_AFTER = ("2026-11-24T19:00:00Z", "2026-11-24T20:00:00Z")   # S read there too, grading nothing
+PG_LAST_START = "2026-11-26T06:00:00Z"   # ANCHOR-PRE (11-19 12:00Z) leaves Workers Logs' 7-day retention 11-26 12:00Z
+PG_N_HIGH = 150                          # every DAY-class stopped hour (06Z..16Z) at or above: still asking keyless
+PG_N_LOW = 50                            # every stopped hour at or below: keyless asking stopped
+
+
+def popgap(path):
+    r = route_rules()                    # before any query: a stale rule is a RIG error with nothing asked
+    ap = fc_prefixes(r)
+    hs = lambda t: t.strftime("%Y-%m-%dT%H:00Z")
+    first = parse_hour(PG_FIRST)
+    hours = [first + timedelta(hours=i) for i in range(PG_HOURS)]
+    s0 = parse_hour(PG_STOP[0])
+    stop_h = [s0 + timedelta(hours=i) for i in range(PG_STOP[1])]
+    ctl = [h for h in hours if h not in stop_h]
+    after = [parse_hour(x) for x in PG_S_AFTER]
+    if len(ctl) != 4 or any(h not in hours for h in stop_h) or any(h not in ctl for h in after):
+        raise Rig("the window's controls are not the four hours the registration names")
+    last = last_closed_hour()
+    if last < hours[-1]:
+        raise Rig("the window's last hour is not closed yet")
+    if last + timedelta(hours=1) >= parse_hour(PG_LAST_START):
+        raise Rig("the run starts after %s: ANCHOR-PRE nears the logs' retention" % PG_LAST_START)
+    tok = TOKEN_FILE.token("observability-read")
+    log, calls = [], [0]
+    rec = {"label": DIAG, "window_first": hs(hours[0]), "window_last": hs(hours[-1]), "steps": []}
+    fin = lambda rc: done(rc, log, path, "popgap", dict(rec, exit=rc, calls=calls[0]))
+    S = POP_NOKEY + FC_STATUS + (FC_MODEL,)
+    n_calls = 2 * len(POP_ANCHORS) + 3 * len(PG_S) + 2 * len(hours) + 3 * len(after)
+    print("window %s to %s: %d hour(s); controls %s; the stop %s to %s; %d count queries" % (
+        hs(hours[0]), hs(hours[-1]), len(hours), " ".join(hs(h) for h in ctl), hs(stop_h[0]), hs(stop_h[-1]), n_calls))
+
+    def gap():
+        if calls[0]:
+            time.sleep(CALL_GAP_S)
+        calls[0] += 1
+
+    def cq(h, leaves, label):
+        gap()
+        return count_query(h, params(*leaves), tok, log, label)
+
+    def summed(h, leaves, label):
+        return sum(cq(h, tuple(leaves) + (a,), "%s p%d" % (label, i + 1)) for i, a in enumerate(ap))
+
+    def stop(at):
+        rec["stopped_at"] = at
+        v = "verdict: OUTSIDE (stopped at %s)%s" % (at, FC_TAIL)
+        print(v)
+        rec["verdict"] = v
+        return fin(3)
+
+    try:
+        for name, h_s, want_t, want_n in POP_ANCHORS:
+            h = parse_hour(h_s)
+            t = cq(h, (), "%s T" % name)
+            n = cq(h, POP_NOKEY, "%s N" % name)
+            ok = (t, n) == (want_t, want_n)
+            print("%s %s: T %d, N %d (must read %d / %d) -> %s" % (name, hs(h), t, n, want_t, want_n,
+                                                                  "HOLDS" if ok else "OFF: stop; nothing after it is queried"))
+            rec["steps"].append([name, hs(h), t, n, ok])
+            if not ok:
+                return stop(name)
+        for st, h_s, want in PG_S:
+            h = parse_hour(h_s)
+            n = summed(h, S, "%s %s S" % (st, hs(h)))
+            ok = n == want
+            print("%s %s S: %d (must read %d) -> %s" % (st, hs(h), n, want, "HOLDS" if ok else
+                                                       "OFF: stop; nothing after it is queried"))
+            rec["steps"].append([st, hs(h), n, ok])
+            if not ok:
+                return stop(st)
+    except Blind as e:
+        return fin(blind(str(e), log))
+
+    vals = {}
+    for h in hours:
+        try:
+            t = cq(h, (), "hour %s T" % hs(h))
+            n = cq(h, POP_NOKEY, "hour %s N" % hs(h))
+            s = summed(h, S, "hour %s S" % hs(h)) if h in after else None
+        except Blind:
+            print("hour %s BLIND: stop; nothing after it is queried" % hs(h))
+            return stop("BLIND " + hs(h))
+        if n > t:
+            print("hour %s: N %d above T %d: stop; nothing after it is queried" % (hs(h), n, t))
+            return stop("N above T " + hs(h))
+        vals[h] = (t, n, s)
+        print("hour %s %s T %d N %d K %d%s" % (hs(h), "stop" if h in stop_h else "control", t, n, t - n,
+                                               "" if s is None else " S %d" % s))
+    rec["hours"] = [[hs(h), vals[h][0], vals[h][1], vals[h][2]] for h in hours]
+
+    K = {h: vals[h][0] - vals[h][1] for h in hours}
+    ck = sorted(K[h] for h in ctl)
+    med2 = ck[1] + ck[2]                 # twice the controls' median K; the floor test is 4 K >= med2 (K >= 50% of it)
+    print("controls: K %s; median K %.1f; floor (50%%) %.1f" % (", ".join("%d" % K[h] for h in ctl), med2 / 2.0, med2 / 4.0))
+    rng = lambda v: "%d..%d" % (min(v), max(v))
+    print("the stop: T %s, N %s, K %s" % (rng([vals[h][0] for h in stop_h]), rng([vals[h][1] for h in stop_h]),
+                                          rng([K[h] for h in stop_h])))
+    print("S after the stop (grades nothing): %s" % ", ".join("%s %d" % (hs(h), vals[h][2]) for h in after))
+
+    ctl0 = [h for h in ctl if vals[h][0] == 0]
+    zero = [h for h in stop_h if vals[h][0] == 0]
+    under = [h for h in stop_h if vals[h][0] > 0 and 4 * K[h] < med2]
+    rc = 3
+    if ctl0:
+        v = "verdict: OUTSIDE (a control hour reads T 0: %s)%s" % (" ".join(hs(h) for h in ctl0), FC_TAIL)
+    elif len(zero) == len(stop_h):
+        v, rc = "verdict: LOG GAP, (d) -- T reads 0 in all %d stopped hours and above 0 in all 4 controls" % len(stop_h), 0
+    elif zero:
+        v = "verdict: OUTSIDE (%d of %d stopped hours read T 0: %s)%s" % (len(zero), len(stop_h), " ".join(hs(h) for h in zero),
+                                                                         FC_TAIL)
+    elif under:
+        v = "verdict: OUTSIDE (K under the floor in %d stopped hour(s): %s)%s" % (len(under), " ".join(hs(h) for h in under),
+                                                                                FC_TAIL)
+    else:
+        day = [h for h in stop_h if 6 <= h.hour <= 16]
+        if day and all(vals[h][1] >= PG_N_HIGH for h in day):
+            sub = ("N-HIGH: N at least %d in every DAY-class stopped hour -- the device still asks with NO key and no longer "
+                   "matches the family: (c), or (b) through a firmware or path change; (a) excluded" % PG_N_HIGH)
+        elif all(vals[h][1] <= PG_N_LOW for h in stop_h):
+            sub = ("N-LOW: N at most %d in every stopped hour -- keyless asking stopped: (a), or (b) now keyed; "
+                   "(c) excluded" % PG_N_LOW)
+        else:
+            sub = "NOT SEPARATED"
+        rec["sub_reading"] = sub.split(":")[0]
+        v, rc = ("verdict: THE FAMILY'S OWN CHANGE, (a)-(c) -- T above 0 and K at least 50%% of the controls' median in all "
+                 "%d stopped hours; sub-reading %s" % (len(stop_h), sub)), 0
+    print(v)
+    rec["verdict"] = v
+    return fin(rc)
+
+
+# F1 POP-DAY (registration 35221286d05e): 11-24's K for 04Z-18Z against the SAME clock hours on 11-22 and 11-23. COUNT
+# QUERIES ONLY, as popgap. R-24 re-reads 11-24, every pair a MUST-READ (POP-GAP's printed pairs), so a target that moved
+# stops the run. The tolerance is a FORMULA fixed here and computed from the two reference days alone.
+PD_DAY = 24                              # 2026-11-24, the day graded
+PD_REF = (22, 23)                        # 2026-11-22 (a Sunday) and 2026-11-23 (a Monday), the reference
+PD_FIRST_H = 4                           # the clock hours 04Z..18Z
+PD_N_H = 15
+PD_R24 = ((2292, 7), (1780, 2), (1673, 15), (1703, 4), (2001, 2), (2653, 337), (2161, 8), (2677, 4),
+          (3532, 0), (4731, 9), (5152, 8), (5978, 4), (6260, 6), (6589, 9), (6212, 4))   # POP-GAP's (T, N), 04Z..18Z
+PD_TAU_FLOOR = 0.10
+PD_RUN = 3                               # PARTIAL LOSS: BELOW in a run of at least this many consecutive hours
+
+
+def popday(path):
+    hs = lambda t: t.strftime("%Y-%m-%dT%H:00Z")
+    at = lambda day, i: datetime(2026, 11, day, PD_FIRST_H + i, tzinfo=timezone.utc)
+    if len(PD_R24) != PD_N_H:
+        raise Rig("R-24 must hold one pair per hour")
+    last = last_closed_hour()
+    if last < at(PD_DAY, PD_N_H - 1):
+        raise Rig("the graded day's last hour is not closed yet")
+    if last + timedelta(hours=1) >= parse_hour(PG_LAST_START):
+        raise Rig("the run starts after %s: ANCHOR-PRE nears the logs' retention" % PG_LAST_START)
+    tok = TOKEN_FILE.token("observability-read")
+    log, calls = [], [0]
+    rec = {"label": DIAG, "steps": []}
+    fin = lambda rc: done(rc, log, path, "popday", dict(rec, exit=rc, calls=calls[0]))
+    n_calls = 2 * len(POP_ANCHORS) + 2 * PD_N_H * (1 + len(PD_REF))
+    print("hours %02dZ-%02dZ on 2026-11-%d and 2026-11-%d (the reference) and 2026-11-%d (R-24, re-read); %d count "
+          "queries; tau = the median day-to-day spread, floor %.2f" % (PD_FIRST_H, PD_FIRST_H + PD_N_H - 1, PD_REF[0],
+                                                                     PD_REF[1], PD_DAY, n_calls, PD_TAU_FLOOR))
+
+    def gap():
+        if calls[0]:
+            time.sleep(CALL_GAP_S)
+        calls[0] += 1
+
+    def cq(h, leaves, label):
+        gap()
+        return count_query(h, params(*leaves), tok, log, label)
+
+    def stop(where):
+        rec["stopped_at"] = where
+        v = "verdict: OUTSIDE (stopped at %s)%s" % (where, FC_TAIL)
+        print(v)
+        rec["verdict"] = v
+        return fin(3)
+
+    try:
+        for name, h_s, want_t, want_n in POP_ANCHORS:
+            h = parse_hour(h_s)
+            t = cq(h, (), "%s T" % name)
+            n = cq(h, POP_NOKEY, "%s N" % name)
+            ok = (t, n) == (want_t, want_n)
+            print("%s %s: T %d, N %d (must read %d / %d) -> %s" % (name, hs(h), t, n, want_t, want_n,
+                                                                  "HOLDS" if ok else "OFF: stop; nothing after it is queried"))
+            rec["steps"].append([name, hs(h), t, n, ok])
+            if not ok:
+                return stop(name)
+    except Blind as e:
+        return fin(blind(str(e), log))
+
+    def pair(h, tag):
+        """T and N for one window hour; None after printing a stop line (BLIND, or N above T)."""
+        try:
+            t = cq(h, (), "%s %s T" % (tag, hs(h)))
+            n = cq(h, POP_NOKEY, "%s %s N" % (tag, hs(h)))
+        except Blind:
+            print("%s %s BLIND: stop; nothing after it is queried" % (tag, hs(h)))
+            return "BLIND " + hs(h)
+        if n > t:
+            print("%s %s: N %d above T %d: stop; nothing after it is queried" % (tag, hs(h), n, t))
+            return "N above T " + hs(h)
+        return t, n
+
+    k24, n09 = [], {}
+    for i, (want_t, want_n) in enumerate(PD_R24):
+        h = at(PD_DAY, i)
+        got = pair(h, "R-24")
+        if isinstance(got, str):
+            return stop(got)
+        t, n = got
+        ok = (t, n) == (want_t, want_n)
+        print("R-24 %s: T %d, N %d (must read %d / %d) -> %s" % (hs(h), t, n, want_t, want_n,
+                                                                "HOLDS" if ok else "OFF: stop; nothing after it is queried"))
+        rec["steps"].append(["R-24", hs(h), t, n, ok])
+        if not ok:
+            return stop("R-24 " + hs(h))
+        k24.append(t - n)
+        if h.hour == 9:
+            n09[PD_DAY] = n
+    ref = {}
+    for day in PD_REF:
+        ks = []
+        for i in range(PD_N_H):
+            h = at(day, i)
+            got = pair(h, "ref")
+            if isinstance(got, str):
+                return stop(got)
+            t, n = got
+            if t == 0:
+                print("ref %s T 0: s_h is undefined: stop; nothing after it is queried" % hs(h))
+                return stop("ref T 0 " + hs(h))
+            print("ref %s T %d N %d K %d" % (hs(h), t, n, t - n))
+            ks.append(t - n)
+            if h.hour == 9:
+                n09[day] = n
+        ref[day] = ks
+    rec["k"] = {"2026-11-%d" % d: v for d, v in list(ref.items()) + [(PD_DAY, k24)]}
+
+    a_s, b_s = ref[PD_REF[0]], ref[PD_REF[1]]
+    s = []
+    for a, b in zip(a_s, b_s):
+        if a + b == 0:
+            print("the reference K is 0 on both days in an hour: s_h is undefined: stop")
+            return stop("reference K 0")
+        s.append(abs(a - b) / ((a + b) / 2.0))
+    med = sorted(s)[(PD_N_H - 1) // 2]
+    tau = max(PD_TAU_FLOOR, med)
+    marks = []
+    for i in range(PD_N_H):
+        a, b, k = a_s[i], b_s[i], k24[i]
+        lo, hi = math.floor(min(a, b) * (1 - tau)), math.ceil(max(a, b) * (1 + tau))
+        m = "IN" if lo <= k <= hi else ("BELOW" if k < lo else "ABOVE")
+        marks.append(m)
+        print("hour %02dZ: K 11-%d %d, 11-%d %d, s %.4f; band %d..%d; 11-%d K %d -> %s" % (
+            PD_FIRST_H + i, PD_REF[0], a, PD_REF[1], b, s[i], lo, hi, PD_DAY, k, m))
+    print("tau %.4f (the median of %d s_h is %.4f; floor %.2f)" % (tau, PD_N_H, med, PD_TAU_FLOOR))
+    print("N at 09Z (grades nothing): %s" % ", ".join("2026-11-%d %d" % (d, n09[d]) for d in sorted(n09)))
+    rec.update(tau=round(tau, 6), marks=marks)
+
+    below = [i for i, m in enumerate(marks) if m == "BELOW"]
+    above = [i for i, m in enumerate(marks) if m == "ABOVE"]
+    runs, cur = [], None
+    for i in below:
+        if cur and i == cur[-1] + 1:
+            cur.append(i)
+        else:
+            cur = [i]
+            runs.append(cur)
+    long_runs = [r for r in runs if len(r) >= PD_RUN]
+    hn = lambda i: hs(at(PD_DAY, i))
+    rc = 3
+    if not below and not above:
+        v, rc = ("verdict: THE FLEET'S DAILY CYCLE, no partial loss -- 11-24's K inside the band in all %d hours (tau %.4f)"
+                 % (PD_N_H, tau)), 0
+    elif not above and len(runs) == 1 and len(long_runs) == 1:
+        v, rc = ("verdict: A PARTIAL LOSS -- 11-24's K below the band in %d consecutive hours (%s) and above it in none "
+                 "(tau %.4f)" % (len(below), " ".join(hn(i) for i in below), tau)), 0
+    else:
+        v = "verdict: OUTSIDE (BELOW %s; ABOVE %s; runs of %d or more: %s)%s" % (
+            " ".join(hn(i) for i in below) or "none", " ".join(hn(i) for i in above) or "none", PD_RUN,
+            len(long_runs) or "none", FC_TAIL)
+    print(v)
+    rec["verdict"] = v
+    return fin(rc)
+
+
+def labelled(fn):
+    """F1 CLASSIFY: every line the diagnostic prints carries DIAG, including RIG errors and the attempts lines."""
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = fn()
+    for l in buf.getvalue().splitlines():
+        print(DIAG + " " + l)
+    return rc
+
+
+def scan(path, last=None):
+    """F1-R: when `devl` first appears, measured. Count only, newest hour first, CALL_GAP_S between calls."""
+    h = parse_hour(last) if last else last_closed_hour()
+    if h + timedelta(hours=1) > datetime.now(timezone.utc):
+        raise Rig("the hour has not closed")
+    tok = TOKEN_FILE.token("observability-read")
+    log, rows, calls = [], [], 0
+    fin = lambda rc: done(rc, log, path, "scan", {"exit": rc, "calls": calls, "rows": [
+        [t.strftime("%Y-%m-%dT%H:00Z"), dv, dl] for t, dv, dl in rows]})
+    stopped = False
+    for _ in range(SCAN_MAX_H):
+        vals = []
+        for name, leaf in (("dev", DEV_EXISTS), ("devl", DEVL_EXISTS)):
+            if calls:
+                time.sleep(CALL_GAP_S)
+            calls += 1
+            label = "scan %s %s" % (h.strftime("%Y-%m-%dT%H:00Z"), name)
+            try:
+                vals.append(count_query(h, params(leaf), tok, log, label))
+            except Blind:
+                return fin(blind(label, log))
+        rows.append((h, vals[0], vals[1]))
+        print("  %s dev %d devl %d" % (h.strftime("%Y-%m-%dT%H:00Z"), vals[0], vals[1]))
+        if vals[1] == 0:
+            stopped = True
+            break
+        h -= timedelta(hours=1)
+    print("scan: %d count call(s)" % calls)
+    fwd = list(reversed(rows))                       # oldest first
+    seen = [r for r in fwd if r[2] > 0]
+    if not seen:
+        print("devl not seen in the last closed hour: no clean hour; no reading possible now")
+        return fin(3)
+    first = seen[0][0].strftime("%Y-%m-%dT%H:00Z")
+    print(("devl first appears in the hour starting %s" if stopped else "devl first appears before %s") % first)
+    clean_at, rollback = None, False
+    for t, dv, dl in fwd:
+        if clean_at is None and dv == 0 and dl > 0:
+            clean_at = t
+        elif clean_at is not None and dv > 0:
+            rollback = True
+    print("first clean hour %s" % (clean_at.strftime("%Y-%m-%dT%H:00Z") if clean_at else "none"))
+    if rollback:
+        print("ROLLBACK: an hour with dev after a clean hour; stop and report")
+        return fin(3)
+    newest = rows[0]
+    if newest[1] == 0 and newest[2] > 0:
+        print("last closed hour %s: clean" % newest[0].strftime("%Y-%m-%dT%H:00Z"))
+        return fin(0)
+    print("last closed hour %s: not clean; wait for the next closed hour" % newest[0].strftime("%Y-%m-%dT%H:00Z"))
+    return fin(3)
+
+
+def lc(path):
+    """F1-R's live controls, count only, on LC_HOUR; each graded only as a value (ABR 1)."""
+    h1 = parse_hour(LC_HOUR)
+    tok = TOKEN_FILE.token("observability-read")
+    log, v = [], {}
+    fin = lambda rc, grades=None: done(rc, log, path, "lc", {"exit": rc, "hour": LC_HOUR, "values": v, "grades": grades})
+    rows = (("LC-1", params()), ("LC-2", params(DEV_EXISTS)), ("LC-3", params(DEV_ABSENT)),
+            ("LC-4", params(IMPOSSIBLE, scope=False)))
+    for i, (name, prm) in enumerate(rows):
+        if i:
+            time.sleep(CALL_GAP_S)
+        try:
+            v[name] = count_query(h1, prm, tok, log, name)
+        except Blind:
+            return fin(blind(name, log))
+    g = lambda ok: "HOLDS" if ok else "OFF"
+    res = [("LC-1 scope > 0", v["LC-1"] > 0),
+           ("LC-2 dev exists > 0 and <= LC-1", 0 < v["LC-2"] <= v["LC-1"]),
+           ("LC-3 dev DOES_NOT_EXIST < LC-1", v["LC-3"] < v["LC-1"]),
+           ("LC-4 impossible AND service = 0", v["LC-4"] == 0),
+           ("LC-SUM LC-2 + LC-3 = LC-1", v["LC-2"] + v["LC-3"] == v["LC-1"])]
+    print("LC hour %s, all at ABR 1: LC-1 %d, LC-2 %d, LC-3 %d, LC-4 %d" % (LC_HOUR, v["LC-1"], v["LC-2"], v["LC-3"], v["LC-4"]))
+    for name, ok in res:
+        print("  %s -> %s" % (name, g(ok)))
+    return fin(0 if all(ok for _, ok in res) else 3, {name: g(ok) for name, ok in res})
+
+
+def stamp(s):
+    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
+def grade(p1, p2):
+    d, d2 = (json.load(open(p, encoding="utf-8")) for p in (p1, p2))
+    apart = abs((stamp(d2["read_at"]) - stamp(d["read_at"])).total_seconds())
+    print("reads %s and %s, %d s apart" % (d["read_at"], d2["read_at"], apart))
+    if apart < MIN_APART_S:
+        print("REFUSED: the two reads are under %d s apart; take another" % MIN_APART_S)
+        return 4
+    if ctl() != 0:
+        return 3
+    strip = lambda x: {k: v for k, v in x.items() if k not in ("read_at", "attempts")}
+    esc = []
+    if strip(d) != strip(d2):
+        esc.append("the two reads differ")
+    if d["abr"] != [1] or d2["abr"] != [1]:       # F1-R-1: an absent level is no longer accepted
+        esc.append("a sampled hour")
+    if d["req_lines"] and (d["no_colo"] + d["no_label"]) > 0.05 * d["req_lines"]:   # F1 NL-FIX: both halves of :1413
+        esc.append("over 5% of req lines without a colo or a board key")
+    hist = {int(k): v for k, v in d["histogram"].items()}
+    boards = sum(k * v for k, v in hist.items())
+    if not boards:
+        esc.append("no board in the hour")
+    if esc:
+        print("ESCAPE: " + "; ".join(esc) + " -- stop and report, with no reading")
+        return 3
+    alone = hist.get(1, 0)
+    print("boards %d in %d colos; alone %d (%.0f%%); histogram k:colos %s" % (
+        boards, sum(hist.values()), alone, 100 * alone / boards, dict(sorted(hist.items()))))
+    g = lambda ok: "HOLDS" if ok else "FAILS"
+    print("F1-K: at least half alone -> %s" % g(alone >= boards / 2))
+    rates = {}
+    for T in TS:
+        reqs = hits = 0.0
+        for k, v in hist.items():
+            r = hit_rate(k, T)
+            reqs += v * k * 60
+            hits += v * k * 60 * r
+        rates[T] = hits / reqs
+    print("F1-H55: fleet hit rate at T=55 s %.1f%%, at most 25%% -> %s" % (100 * rates[55.0], g(rates[55.0] <= 0.25)))
+    print("F1-H115: at T=115 s %.1f%%, in [50%%, 75%%] -> %s" % (100 * rates[115.0], g(0.50 <= rates[115.0] <= 0.75)))
+    return 0
+
+
+def main(argv):
+    if argv[:1] in (["classify"], ["population"], ["famcount"], ["famhours"], ["popgap"], ["popday"]):
+        return labelled(lambda: dispatch(argv))
+    return dispatch(argv)
+
+
+def dispatch(argv):
+    try:
+        if len(argv) == 3 and argv[0] == "classify":
+            return classify(argv[1], argv[2])
+        if len(argv) == 2 and argv[0] == "population":
+            return population(argv[1])
+        if len(argv) == 2 and argv[0] == "famcount":
+            return famcount(argv[1])
+        if len(argv) == 2 and argv[0] == "famhours":
+            return famhours(argv[1])
+        if len(argv) == 2 and argv[0] == "popgap":
+            return popgap(argv[1])
+        if len(argv) == 2 and argv[0] == "popday":
+            return popday(argv[1])
+        if argv == ["ctl"]:
+            return ctl()
+        if len(argv) == 2 and argv[0] == "lc":
+            return lc(argv[1])
+        if argv[:1] == ["scan"] and len(argv) in (2, 3):
+            return scan(argv[1], argv[2] if len(argv) == 3 else None)
+        if len(argv) == 3 and argv[0] == "read":
+            return read(argv[1], argv[2])
+        if len(argv) == 3 and argv[0] == "grade":
+            return grade(argv[1], argv[2])
+        print(__doc__)
+        return 2
+    except Rig as e:
+        print("RIG: %s" % e)
+        return 2
+    except urllib.error.HTTPError as e:
+        print("RIG: HTTPError %d" % e.code)
+        return 2
+    except Exception as e:   # the type only
+        print("RIG: %s" % type(e).__name__)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
