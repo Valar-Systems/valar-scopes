@@ -45,6 +45,11 @@ REASK_S apart (chosen on resolution only, never on the count); still not a value
       COUNT QUERIES ONLY, as famcount; every hour, anchor and threshold fixed in this file; every line labelled as
       classify's. Exit 0 = LOG GAP or THE FAMILY'S OWN CHANGE; 3 = OUTSIDE or stopped (a BLIND window hour stops);
       6 = BLIND at an anchor.
+  python -X utf8 -I tools/bill/colo_occupancy_read.py popday <out.json>   F1 POP-DAY (registration 35221286d05e):
+      11-24's K (T - N) for 04Z-18Z against the same clock hours on 11-22 and 11-23. The anchors, then R-24 (11-24 re-read:
+      every pair a MUST-READ, POP-GAP's own), then the two reference days. tau = the median day-to-day spread (floor 0.10),
+      a formula fixed in this file. COUNT QUERIES ONLY; every line labelled as classify's. Exit 0 = THE FLEET'S DAILY
+      CYCLE or A PARTIAL LOSS; 3 = OUTSIDE or stopped (a moved R-24 pair or a BLIND window hour stops); 6 = BLIND anchor.
 Every command prints one `attempts <query>:` line per query on every graded exit (0, 3, 5, 6); lc and scan also write
 every attempt to <out.json> on those exits, and read writes them into its own result file (F1-R-1's recording clause;
 ruling (4)). A rig error (exit 2) prints its exception type only, and nothing else.
@@ -59,6 +64,7 @@ import contextlib
 import importlib.util as _ilu
 import io
 import json
+import math
 import os
 import random
 import re
@@ -1103,6 +1109,164 @@ def popgap(path):
     return fin(rc)
 
 
+# F1 POP-DAY (registration 35221286d05e): 11-24's K for 04Z-18Z against the SAME clock hours on 11-22 and 11-23. COUNT
+# QUERIES ONLY, as popgap. R-24 re-reads 11-24, every pair a MUST-READ (POP-GAP's printed pairs), so a target that moved
+# stops the run. The tolerance is a FORMULA fixed here and computed from the two reference days alone.
+PD_DAY = 24                              # 2026-11-24, the day graded
+PD_REF = (22, 23)                        # 2026-11-22 (a Sunday) and 2026-11-23 (a Monday), the reference
+PD_FIRST_H = 4                           # the clock hours 04Z..18Z
+PD_N_H = 15
+PD_R24 = ((2292, 7), (1780, 2), (1673, 15), (1703, 4), (2001, 2), (2653, 337), (2161, 8), (2677, 4),
+          (3532, 0), (4731, 9), (5152, 8), (5978, 4), (6260, 6), (6589, 9), (6212, 4))   # POP-GAP's (T, N), 04Z..18Z
+PD_TAU_FLOOR = 0.10
+PD_RUN = 3                               # PARTIAL LOSS: BELOW in a run of at least this many consecutive hours
+
+
+def popday(path):
+    hs = lambda t: t.strftime("%Y-%m-%dT%H:00Z")
+    at = lambda day, i: datetime(2026, 11, day, PD_FIRST_H + i, tzinfo=timezone.utc)
+    if len(PD_R24) != PD_N_H:
+        raise Rig("R-24 must hold one pair per hour")
+    last = last_closed_hour()
+    if last < at(PD_DAY, PD_N_H - 1):
+        raise Rig("the graded day's last hour is not closed yet")
+    if last + timedelta(hours=1) >= parse_hour(PG_LAST_START):
+        raise Rig("the run starts after %s: ANCHOR-PRE nears the logs' retention" % PG_LAST_START)
+    tok = TOKEN_FILE.token("observability-read")
+    log, calls = [], [0]
+    rec = {"label": DIAG, "steps": []}
+    fin = lambda rc: done(rc, log, path, "popday", dict(rec, exit=rc, calls=calls[0]))
+    n_calls = 2 * len(POP_ANCHORS) + 2 * PD_N_H * (1 + len(PD_REF))
+    print("hours %02dZ-%02dZ on 2026-11-%d and 2026-11-%d (the reference) and 2026-11-%d (R-24, re-read); %d count "
+          "queries; tau = the median day-to-day spread, floor %.2f" % (PD_FIRST_H, PD_FIRST_H + PD_N_H - 1, PD_REF[0],
+                                                                     PD_REF[1], PD_DAY, n_calls, PD_TAU_FLOOR))
+
+    def gap():
+        if calls[0]:
+            time.sleep(CALL_GAP_S)
+        calls[0] += 1
+
+    def cq(h, leaves, label):
+        gap()
+        return count_query(h, params(*leaves), tok, log, label)
+
+    def stop(where):
+        rec["stopped_at"] = where
+        v = "verdict: OUTSIDE (stopped at %s)%s" % (where, FC_TAIL)
+        print(v)
+        rec["verdict"] = v
+        return fin(3)
+
+    try:
+        for name, h_s, want_t, want_n in POP_ANCHORS:
+            h = parse_hour(h_s)
+            t = cq(h, (), "%s T" % name)
+            n = cq(h, POP_NOKEY, "%s N" % name)
+            ok = (t, n) == (want_t, want_n)
+            print("%s %s: T %d, N %d (must read %d / %d) -> %s" % (name, hs(h), t, n, want_t, want_n,
+                                                                  "HOLDS" if ok else "OFF: stop; nothing after it is queried"))
+            rec["steps"].append([name, hs(h), t, n, ok])
+            if not ok:
+                return stop(name)
+    except Blind as e:
+        return fin(blind(str(e), log))
+
+    def pair(h, tag):
+        """T and N for one window hour; None after printing a stop line (BLIND, or N above T)."""
+        try:
+            t = cq(h, (), "%s %s T" % (tag, hs(h)))
+            n = cq(h, POP_NOKEY, "%s %s N" % (tag, hs(h)))
+        except Blind:
+            print("%s %s BLIND: stop; nothing after it is queried" % (tag, hs(h)))
+            return "BLIND " + hs(h)
+        if n > t:
+            print("%s %s: N %d above T %d: stop; nothing after it is queried" % (tag, hs(h), n, t))
+            return "N above T " + hs(h)
+        return t, n
+
+    k24, n09 = [], {}
+    for i, (want_t, want_n) in enumerate(PD_R24):
+        h = at(PD_DAY, i)
+        got = pair(h, "R-24")
+        if isinstance(got, str):
+            return stop(got)
+        t, n = got
+        ok = (t, n) == (want_t, want_n)
+        print("R-24 %s: T %d, N %d (must read %d / %d) -> %s" % (hs(h), t, n, want_t, want_n,
+                                                                "HOLDS" if ok else "OFF: stop; nothing after it is queried"))
+        rec["steps"].append(["R-24", hs(h), t, n, ok])
+        if not ok:
+            return stop("R-24 " + hs(h))
+        k24.append(t - n)
+        if h.hour == 9:
+            n09[PD_DAY] = n
+    ref = {}
+    for day in PD_REF:
+        ks = []
+        for i in range(PD_N_H):
+            h = at(day, i)
+            got = pair(h, "ref")
+            if isinstance(got, str):
+                return stop(got)
+            t, n = got
+            if t == 0:
+                print("ref %s T 0: s_h is undefined: stop; nothing after it is queried" % hs(h))
+                return stop("ref T 0 " + hs(h))
+            print("ref %s T %d N %d K %d" % (hs(h), t, n, t - n))
+            ks.append(t - n)
+            if h.hour == 9:
+                n09[day] = n
+        ref[day] = ks
+    rec["k"] = {"2026-11-%d" % d: v for d, v in list(ref.items()) + [(PD_DAY, k24)]}
+
+    a_s, b_s = ref[PD_REF[0]], ref[PD_REF[1]]
+    s = []
+    for a, b in zip(a_s, b_s):
+        if a + b == 0:
+            print("the reference K is 0 on both days in an hour: s_h is undefined: stop")
+            return stop("reference K 0")
+        s.append(abs(a - b) / ((a + b) / 2.0))
+    med = sorted(s)[(PD_N_H - 1) // 2]
+    tau = max(PD_TAU_FLOOR, med)
+    marks = []
+    for i in range(PD_N_H):
+        a, b, k = a_s[i], b_s[i], k24[i]
+        lo, hi = math.floor(min(a, b) * (1 - tau)), math.ceil(max(a, b) * (1 + tau))
+        m = "IN" if lo <= k <= hi else ("BELOW" if k < lo else "ABOVE")
+        marks.append(m)
+        print("hour %02dZ: K 11-%d %d, 11-%d %d, s %.4f; band %d..%d; 11-%d K %d -> %s" % (
+            PD_FIRST_H + i, PD_REF[0], a, PD_REF[1], b, s[i], lo, hi, PD_DAY, k, m))
+    print("tau %.4f (the median of %d s_h is %.4f; floor %.2f)" % (tau, PD_N_H, med, PD_TAU_FLOOR))
+    print("N at 09Z (grades nothing): %s" % ", ".join("2026-11-%d %d" % (d, n09[d]) for d in sorted(n09)))
+    rec.update(tau=round(tau, 6), marks=marks)
+
+    below = [i for i, m in enumerate(marks) if m == "BELOW"]
+    above = [i for i, m in enumerate(marks) if m == "ABOVE"]
+    runs, cur = [], None
+    for i in below:
+        if cur and i == cur[-1] + 1:
+            cur.append(i)
+        else:
+            cur = [i]
+            runs.append(cur)
+    long_runs = [r for r in runs if len(r) >= PD_RUN]
+    hn = lambda i: hs(at(PD_DAY, i))
+    rc = 3
+    if not below and not above:
+        v, rc = ("verdict: THE FLEET'S DAILY CYCLE, no partial loss -- 11-24's K inside the band in all %d hours (tau %.4f)"
+                 % (PD_N_H, tau)), 0
+    elif not above and len(runs) == 1 and len(long_runs) == 1:
+        v, rc = ("verdict: A PARTIAL LOSS -- 11-24's K below the band in %d consecutive hours (%s) and above it in none "
+                 "(tau %.4f)" % (len(below), " ".join(hn(i) for i in below), tau)), 0
+    else:
+        v = "verdict: OUTSIDE (BELOW %s; ABOVE %s; runs of %d or more: %s)%s" % (
+            " ".join(hn(i) for i in below) or "none", " ".join(hn(i) for i in above) or "none", PD_RUN,
+            len(long_runs) or "none", FC_TAIL)
+    print(v)
+    rec["verdict"] = v
+    return fin(rc)
+
+
 def labelled(fn):
     """F1 CLASSIFY: every line the diagnostic prints carries DIAG, including RIG errors and the attempts lines."""
     buf = io.StringIO()
@@ -1240,7 +1404,7 @@ def grade(p1, p2):
 
 
 def main(argv):
-    if argv[:1] in (["classify"], ["population"], ["famcount"], ["famhours"], ["popgap"]):
+    if argv[:1] in (["classify"], ["population"], ["famcount"], ["famhours"], ["popgap"], ["popday"]):
         return labelled(lambda: dispatch(argv))
     return dispatch(argv)
 
@@ -1257,6 +1421,8 @@ def dispatch(argv):
             return famhours(argv[1])
         if len(argv) == 2 and argv[0] == "popgap":
             return popgap(argv[1])
+        if len(argv) == 2 and argv[0] == "popday":
+            return popday(argv[1])
         if argv == ["ctl"]:
             return ctl()
         if len(argv) == 2 and argv[0] == "lc":
