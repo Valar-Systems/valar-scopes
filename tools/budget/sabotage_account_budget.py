@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Red first (docs/account-budget.md section 4): each control in scripts/account_budget.py --selftest, and in
-tools/budget/build_budget.py --selftest (the kv-days refusals and --miss a, 2026-11-15), must FAIL when the logic it
-guards is broken. Every plant is applied to a COPY of its file, asserted to have applied (its needle occurs exactly once
+"""Red first (docs/account-budget.md section 4): each control in scripts/account_budget.py --selftest, in
+tools/budget/build_budget.py --selftest (the kv-days refusals and --miss a, 2026-11-15), and in tools/budget/budget_read.py
+--selftest (DO duration attributed by caller, section 13), must FAIL when the logic it guards is broken. Every plant is applied to a COPY of its file, asserted to have applied (its needle occurs exactly once
 and the text changes), and the copy's selftest must fail with EXACTLY the predicted set of controls -- a whole-set
 comparison, so an unexpected extra failure is a finding, not a pass.
 
@@ -16,6 +16,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(os.path.dirname(os.path.dirname(HERE)), "scripts", "account_budget.py")
 SRC_B = os.path.join(HERE, "build_budget.py")
+SRC_R = os.path.join(HERE, "budget_read.py")
 
 PLANTS = [  # (name, needle, replacement, the set of controls predicted to FAIL)
     ("S0 none (anchor control)", None, None, set()),
@@ -76,12 +77,27 @@ BUILDER_PLANTS = [
 ]
 
 
+# The reader's DO attribution (section 13, ruled 2026-11-25), each set predicted here before the first run.
+READER_PLANTS = [
+    ("R-S0 none (anchor control)", None, None, set()),
+    ("S-DO-PROXY every namespace's duration on proxy (the reader before section 13)",
+     '        if len(c) == 1:\n            p, st = script_product(next(iter(c)), opera_state)\n        else:\n            p, st = "unattributed", "now"\n',
+     '        p, st = "proxy", "now"\n', {"D2", "D3", "D4", "D-ALL"}),
+    ("S-DO-FIRST attributed by the first caller listed", "        if len(c) == 1:\n", "        if len(c) >= 1:\n", {"D2", "D-ALL"}),
+    ("S-DO-IDS the label carries the whole id", 'f"{ns[:6]}... (', 'f"{ns}... (', {"D5", "D-ALL"}),
+    # Section 14 (registered 2026-11-25 before its code): the owner's non-Blipscope Workers, from a local list.
+    ("S-EX-IGNORE the list never consulted", '    if s in _EXCLUDED:\n        return "non-blipscope", "excluded"\n', "", {"E2"}),
+    ("S-EX-OPEN the git-tree refusal removed", '        if os.path.exists(os.path.join(d, ".git")):\n            raise SystemExit(',
+     '        if False:\n            raise SystemExit(', {"E3"}),
+]
+
+
 def failed_controls(out):
     got = set()
     for line in out.splitlines():
         if not line.startswith("FAIL "):
             continue
-        m = re.match(r"FAIL ((?:P|M|R|K)[\w-]*):", line)   # P1..P6, P-ONE(-ctl|-steady|-none), M1..M3, R1, R2; K0..K10
+        m = re.match(r"FAIL ((?:P|M|R|K|D|E)[\w-]*):", line)   # P1..P6, P-ONE(-ctl|-steady|-none), M1..M3, R1, R2; K0..K10; D1..D5, D-ALL; E1..E4
         if m:
             got.add(m.group(1))
         elif line.startswith("FAIL CONTROL: the clean budget's flags"):
@@ -96,7 +112,8 @@ def failed_controls(out):
 def main():
     off = 0
     targets = [(SRC, "account_budget.py", [sys.executable], PLANTS),
-               (SRC_B, "build_budget.py", [sys.executable, "-I", "-B"], BUILDER_PLANTS)]
+               (SRC_B, "build_budget.py", [sys.executable, "-I", "-B"], BUILDER_PLANTS),
+               (SRC_R, "budget_read.py", [sys.executable, "-I", "-B"], READER_PLANTS)]
     sources = {path: open(path, encoding="utf-8").read() for path, _, _, _ in targets}
     runs = [(sources[path], base, py, plant) for path, base, py, plants in targets for plant in plants]
     with tempfile.TemporaryDirectory() as d:

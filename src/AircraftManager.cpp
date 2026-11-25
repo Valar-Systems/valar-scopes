@@ -29,6 +29,7 @@
 #include "WxCrop.h"         // the WXC1 decoder: the weather crop is validated before WxPolicy sees it (WD5)
 #include "WxLayer.h"        // which crop cell each screen pixel shows, inverting ProjectAt (WD2)
 #include "WxLayerSwitch.h"  // "wx-layer": on when unset, the owner's saved choice after that
+#include "WxSweepLut.h"     // P5 1b: the lit wedge's colour as one table, for both sweep blends
 // THE MAP FETCH BEGIN
 #ifdef BLIPSCOPE_MAP_FETCH
 #include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task
@@ -3829,6 +3830,11 @@ bool AircraftManager::DrawWeatherUnder(BandCanvas& canvas)
     return true;
 }
 
+// P5 1b (REG-1b-main): ONE table of the wedge's colours for both sweep blends, DrawSweepOverWeather's and
+// DrawSweepOverMap's. wxsweeplut::For rebuilds it only when the look's percent changes; each blend is byte-identical to
+// its per-pixel reference (test/host/test_p5_blend.cpp: W5c for the weather's, W5d for the map's). Loop task only.
+static wxsweeplut::Table sweepLut;
+
 // THE MAP DRAW BEGIN
 #ifdef BLIPSCOPE_MAP_FETCH
 // The base draw with the map (docs/blipscope-map-client-steps.md, step B, the wiring). On the radar scope with a held
@@ -3983,9 +3989,10 @@ bool AircraftManager::DrawSweepOverMap(BandCanvas& canvas, int cx, int cy, int r
     const uint32_t tBlend = micros();
 #endif
     const bool withWx = mapFrameWx && wxBuffersOk && wxPixels != nullptr;
-    // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped, so swap in and out.
+    // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped, so swap in and out. P5 1b: the colours
+    // from the shared table (include/MapSweep.h, the Table overload).
     const uint32_t blended = mapsweep::Blend(
-        wxs2::Percent(wxLook), mapDraw.slice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+        wxsweeplut::For(sweepLut, wxs2::Percent(wxLook)), mapDraw.slice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
         [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
         [&](int x, int y) -> uint16_t { return __builtin_bswap16(px[(size_t)y * SCREEN_SIZE + x]); },
         [&](int x, int y) -> uint8_t { return withWx ? wxPixels[(size_t)y * SCREEN_SIZE + x] : 0; });
@@ -4035,8 +4042,9 @@ bool AircraftManager::DrawSweepOverWeather(BandCanvas& canvas, int cx, int cy, i
     const uint32_t tBlend = micros();
 #endif
     // The sprite stores LovyanGFX's swap565_t: logical RGB565 byte-swapped (colortype.hpp), so swap in and out.
-    const uint32_t blended = wxsweep::Blend(
-        wxs2::Percent(wxLook), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
+    // P5 1b: each wedge pixel's colour from the shared table (include/WxSweepLut.h).
+    const uint32_t blended = wxsweeplut::Blend(
+        wxsweeplut::For(sweepLut, wxs2::Percent(wxLook)), wxSweepSlice, SCREEN_SIZE, y0, y1, rowLo, rowHi,
         [&](int x, int y, uint16_t v) { px[(size_t)y * SCREEN_SIZE + x] = __builtin_bswap16(v); },
         [&](int x, int y) { return wxPixels[(size_t)y * SCREEN_SIZE + x]; });
 #ifdef WX_LOOK_AB
@@ -6017,60 +6025,40 @@ void AircraftManager::DrawZoomOverlay(BandCanvas& backbuffer) const
 // stack array. The table is 15 entries; 32 is headroom with the bound stated
 // rather than assumed.
 static constexpr size_t LABEL_MAX_FIELDS = 32;
+static_assert(LABEL_MAX_FIELDS == (size_t)labelcache::kMaxFields, "the label cache's field bound is this one");
 
+// The rules this function carried (ENABLED **AND** NON-EMPTY; the disc's chord per row, which the radar label was
+// once never a caller of, so a contact near the rim read "ates", "/min", "000 ft"; DROP, NEVER TRUNCATE, because a cut
+// number is a wrong number; the clamp) now live ONCE, in labelcache::LayoutToday (include/LabelCache.h), unchanged.
+// The cache's placement repeats that loop on cached widths, every frame (P6, docs/speed-p5p6.md section 2).
 int AircraftManager::LabelLayout(const TrackedAircraft& tracked, int x, int y,
-                                 int* idxOut, int* xOut, int* yOut, int* wOut) const
+                                 int* idxOut, int* xOut, int* yOut, int* wOut,
+                                 int* slotOut, const labelcache::Entry** entryOut) const
 {
     tft.setTextSize(1);
-    const int lineHeight = tft.fontHeight() + 1;
-
-    const size_t count = AIRCRAFT_INFO_FIELD_COUNT < LABEL_MAX_FIELDS
-                             ? AIRCRAFT_INFO_FIELD_COUNT : LABEL_MAX_FIELDS;
-
-    // ENABLED **AND** NON-EMPTY. A field that is ticked but formats to "" for
-    // this contact -- no squawk reported, no route known -- must not spend one
-    // of the three lines on a blank.
-    const char* keys[LABEL_MAX_FIELDS];
-    bool willDraw[LABEL_MAX_FIELDS];
-    for (size_t i = 0; i < count; ++i) {
-        keys[i] = AIRCRAFT_INFO_FIELDS[i].key;
-        const bool on = i < infoFieldEnabled.size() && infoFieldEnabled[i];
-        willDraw[i] = on && !AIRCRAFT_INFO_FIELDS[i].format(tracked).isEmpty();
+    struct Fields {   // the info fields as LabelCache.h reads them
+        const AircraftManager& m;
+        const TrackedAircraft& t;
+        int Count() const { return (int)AIRCRAFT_INFO_FIELD_COUNT; }
+        const char* FieldKey(int i) const { return AIRCRAFT_INFO_FIELDS[i].key; }
+        bool On(int i) const { return (size_t)i < m.infoFieldEnabled.size() && m.infoFieldEnabled[(size_t)i]; }
+        String Format(int i) const { return AIRCRAFT_INFO_FIELDS[i].format(t); }
+        int Width(const String& s) const { return (int)m.tft.textWidth(s); }
+        int LineHeight() const { return m.tft.fontHeight() + 1; }
+        int Chord(int rowY, int lineH) const { return ChordWidthPx(rowY, lineH); }
+        int Half() const { return SCREEN_SIZE_DIV_2; }
+        void MakeKey(labelcache::KeyBuf& k) const { LabelKey(t, k); }
+    } const f{*this, tracked};
+    if (entryOut) *entryOut = nullptr;
+    labelcache::Entry* e = tracked.labelCache.Get();
+    if (e && labelcache::Refresh(f, *e)) {
+        int slot[labelcache::kLines];
+        int* s = slotOut ? slotOut : slot;
+        const int n = labelcache::PlaceCached(f, *e, x, y, idxOut, xOut, yOut, wOut, s);
+        if (entryOut) *entryOut = e;
+        return n;
     }
-
-    int chosen[labellines::MAX_LINES];
-    const int n = labellines::Select(keys, willDraw, (int)count, chosen);
-
-    // THE DISC, WHICH THIS NEVER ASKED ABOUT BEFORE. The label was drawn at
-    // x + 5 with no bounds test of any kind, so a contact near the rim put its
-    // text off the glass and the customer read "ates", "/min", "000 ft".
-    // ChordWidthPx has said "the rule lives here, once, and every caller goes
-    // through it" for a long time; the radar label was simply never a caller.
-    // That is the second time that exact sentence has been true of it.
-    //
-    // DROP, NEVER TRUNCATE, matching the Stats rows sixteen hundred lines up:
-    // a cut number is a wrong number and an absent one is visibly absent. "ates"
-    // is precisely the lie truncation tells.
-    int placed = 0;
-    for (int k = 0; k < n; ++k) {
-        const String text = AIRCRAFT_INFO_FIELDS[chosen[k]].format(tracked);
-        const int rowY = y + 5 + lineHeight * k;
-        const int avail = ChordWidthPx(rowY, lineHeight);
-        if (avail <= 0) continue;                       // row is off the glass entirely
-        const int w = (int)tft.textWidth(text);
-        if (w > avail) continue;                        // cannot fit at this height
-        const int xMin = SCREEN_SIZE_DIV_2 - avail / 2;
-        const int xMax = SCREEN_SIZE_DIV_2 + avail / 2;
-        int lx = x + 5;
-        if (lx < xMin) lx = xMin;
-        if (lx + w > xMax) lx = xMax - w;
-        idxOut[placed] = chosen[k];
-        xOut[placed]   = lx;
-        yOut[placed]   = rowY;
-        wOut[placed]   = w;
-        ++placed;
-    }
-    return placed;
+    return labelcache::LayoutToday(f, x, y, idxOut, xOut, yOut, wOut);   // not cacheable: exactly as before
 }
 
 void AircraftManager::DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, const TrackedAircraft& tracked, float brightness) const
@@ -6080,10 +6068,13 @@ void AircraftManager::DrawAircraftInfo(BandCanvas& backbuffer, int x, int y, con
     backbuffer.setTextColor(scaleColor(lgfx::color888(0, 128, 0), brightness));
 
     int idx[labellines::MAX_LINES], lx[labellines::MAX_LINES];
-    int ly[labellines::MAX_LINES], lw[labellines::MAX_LINES];
-    const int n = LabelLayout(tracked, x, y, idx, lx, ly, lw);
-    for (int k = 0; k < n; ++k)
-        backbuffer.drawString(AIRCRAFT_INFO_FIELDS[idx[k]].format(tracked), lx[k], ly[k]);
+    int ly[labellines::MAX_LINES], lw[labellines::MAX_LINES], slot[labellines::MAX_LINES];
+    const labelcache::Entry* e = nullptr;
+    const int n = LabelLayout(tracked, x, y, idx, lx, ly, lw, slot, &e);
+    for (int k = 0; k < n; ++k) {
+        if (e) backbuffer.drawString(e->text[slot[k]], lx[k], ly[k]);   // P6: the cached string, as drawn before
+        else backbuffer.drawString(AIRCRAFT_INFO_FIELDS[idx[k]].format(tracked), lx[k], ly[k]);
+    }
 }
 
 bool AircraftManager::AircraftLabelBox(const TrackedAircraft& tracked, int x, int y,

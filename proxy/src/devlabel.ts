@@ -22,3 +22,11 @@ export async function deviceLabel(id: string): Promise<string> {
   const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(id)));
   return Array.from(d.subarray(0, 4), (b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+/** The label of an id that may not be normalised, or undefined when it is not a device id at all. For log lines that
+ *  must not fail the request they describe (the owner's "label too", 2026-11-17): a line with no label is a gap, and
+ *  JSON.stringify drops an undefined field, so the line never carries the raw value instead. */
+export async function labelOf(raw: string): Promise<string | undefined> {
+  const id = normDeviceId(raw);
+  return id === null ? undefined : deviceLabel(id);
+}

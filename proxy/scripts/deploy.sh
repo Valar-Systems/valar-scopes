@@ -33,13 +33,38 @@ set -uo pipefail
 # the FULL 40-hex commit (PROVENANCE pins it and --check checks it out), a dirty tree is refused with no ALLOW_DIRTY
 # escape (a "-dirty" stamp is not a commit, so the builder would refuse every build), and there is no /healthz to
 # confirm against (the builder has no route; D3's binding test is the proof).
+#
+# --screen deploys the screen service (screen.wrangler.toml; its phase-1 registration, R4, ruled 2026-11-25) through the
+# SAME guards, with the builder's three differences (the FULL commit as its stamp, no ALLOW_DIRTY, no /healthz) and one
+# env of its own: production-fulllogs, the full-logs day (docs/screen-logs-runbook.md), which takes --until <ISO UTC>.
+# Before the upload it runs screen-deploy-check.mjs on the env's own dry-run bundle (the counter's write, the --until
+# rules, the end's stamp). production-fulllogs IS the production script, so its deploy claim is screen:production.
 BUILDER=""
-if [ "${1:-}" = "--builder" ]; then BUILDER=1; shift; fi
+SCREEN=""
+UNTIL=""
+UNTIL_GIVEN=""
+usage() { echo "usage: $0 [--builder] <production|staging>   |   $0 --screen <staging|production|production-fulllogs> [--until <ISO UTC>]" >&2; exit 2; }
+case "${1:-}" in
+  --builder) BUILDER=1; shift ;;
+  --screen) SCREEN=1; shift ;;
+esac
 ENVIRONMENT="${1:-}"
 case "$ENVIRONMENT" in
   production|staging) ;;
-  *) echo "usage: $0 [--builder] <production|staging>" >&2; exit 2 ;;
+  production-fulllogs) [ -n "$SCREEN" ] || usage ;;
+  *) usage ;;
 esac
+# --until is the screen's alone; its value is passed through as given and judged in one place (screen-deploy-check.mjs, P-U).
+case "${SCREEN}:${2:-}" in
+  1:--until) UNTIL_GIVEN=1; UNTIL="${3:-}"; [ $# -le 3 ] || usage ;;
+  1:) ;;
+  1:*) usage ;;
+esac
+# ... and on every other path NOTHING follows the environment: any further argument is refused as usage, never silently
+# dropped (map-server's F2 and F3 on #811), because an ignored flag on a deploy is a statement the operator believes took
+# effect: `staging --dry-run` would deploy for real, `production --screen` would deploy the proxy. After the shift above,
+# so `--builder staging` counts one. scripts/check-deploy-args.sh's rows and sabotages hold this.
+[ -n "$SCREEN" ] || [ $# -le 1 ] || usage
 
 # ---- 0. the deploy claim (docs/session-claims.md) -----------------------------
 # Before any other work: one deployer at a time, across every session on this
@@ -47,6 +72,7 @@ esac
 # here runs. The claim lives outside every git tree, so no checkout can be behind
 # on it; scripts/session-claim.py is deploy machinery all the same (Q-DB1).
 CLAIM_TARGET="proxy:$ENVIRONMENT"; [ -n "$BUILDER" ] && CLAIM_TARGET="builder:$ENVIRONMENT"
+[ -n "$SCREEN" ] && CLAIM_TARGET="screen:${ENVIRONMENT%-fulllogs}"
 # The first Python that actually runs: on Windows, `python3` can be the Store's stub, which fails every call (found by CL10).
 claim_python() { local c; for c in python3 python; do command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys' >/dev/null 2>&1 && { echo "$c"; return 0; }; done; return 1; }
 CLAIM_PY="$(claim_python)" || { printf '\n\033[31mREFUSING TO DEPLOY\033[0m -- no working Python to read the deploy claim with.\n' >&2; exit 1; }
@@ -69,6 +95,36 @@ cd "$ROOT" || exit 1
 
 fatal() { printf '\n\033[31mREFUSING TO DEPLOY\033[0m -- %s\n' "$1" >&2; }
 
+# ---- 0b. the commit the plan names (docs/deploy-sha-pin.md; the owner's standing rule, 2026-11-17) -----------------
+# "Every deploy plan names the exact commit sha it ships. A merge that touches the deployed code after the plan is
+# written forces a re-check, enforced by a check in the deploy script, not by memory." So EXPECT_SHA is required and must
+# be HEAD, after the claim and before anything that deploys. ALLOW_BEHIND=1 is retired: a tree behind main may deploy
+# only past the commits the plan NAMES, in ALLOW_BEHIND_SHAS, and the named set must equal the blocking set (section 3).
+HEAD_SHA="$(git rev-parse HEAD)"
+if [ -z "${EXPECT_SHA:-}" ]; then
+  fatal "EXPECT_SHA is not set: the deploy plan names the commit it ships (docs/deploy-sha-pin.md)."; exit 1
+fi
+if ! [[ "${EXPECT_SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then
+  fatal "EXPECT_SHA must be a full 40-hex sha (got: ${EXPECT_SHA:-})"; exit 1
+fi
+if [ "$HEAD_SHA" != "$EXPECT_SHA" ]; then
+  fatal "HEAD is not EXPECT_SHA: HEAD $HEAD_SHA, the plan names $EXPECT_SHA."; exit 1
+fi
+printf 'pinned: HEAD is EXPECT_SHA (%s)\n' "$HEAD_SHA"
+if [ "${ALLOW_BEHIND:-}" = "1" ]; then
+  fatal "ALLOW_BEHIND=1 is retired: name the commits behind with ALLOW_BEHIND_SHAS=<full sha>,..."; exit 1
+fi
+NAMED=()
+if [ -n "${ALLOW_BEHIND_SHAS:-}" ]; then
+  IFS=',' read -r -a NAMED_RAW <<< "$ALLOW_BEHIND_SHAS"
+  for c in "${NAMED_RAW[@]}"; do
+    if ! [[ "$c" =~ ^[0-9a-f]{40}$ ]]; then
+      fatal "ALLOW_BEHIND_SHAS must list full 40-hex shas (got: $c)"; exit 1
+    fi
+    NAMED+=("$c")
+  done
+fi
+
 # ---- 1. the bundle's own directory must be clean ----------------------------
 # Scoped to proxy/ because that is what `main = src/index.ts` pulls in. Untracked
 # files count: an untracked .ts under src/ is every bit as importable as a tracked
@@ -78,6 +134,12 @@ if [ -n "$DIRTY" ] && [ -n "$BUILDER" ]; then
   fatal "proxy/ has uncommitted changes, and the builder's stamp must be a commit (ALLOW_DIRTY does not apply to --builder)."
   printf '\n%s\n\n' "$DIRTY" >&2
   echo "A builder stamped <sha>-dirty refuses every build (builder_unstamped). Commit, push, and deploy from a clean tree." >&2
+  exit 1
+fi
+if [ -n "$DIRTY" ] && [ -n "$SCREEN" ]; then
+  fatal "proxy/ has uncommitted changes, and the screen service's stamp must be a commit (ALLOW_DIRTY does not apply to --screen)."
+  printf '\n%s\n\n' "$DIRTY" >&2
+  echo "Commit, push, and deploy from a clean tree." >&2
   exit 1
 fi
 if [ -n "$DIRTY" ]; then
@@ -137,52 +199,58 @@ fi
 # here, so a broken probe costs a refusal, never a revert.
 git fetch -q origin main 2>/dev/null || true
 DI_TARGET=proxy; [ -n "$BUILDER" ] && DI_TARGET=builder
+[ -n "$SCREEN" ] && DI_TARGET=screen
+# deploy-inputs.mjs writes the FULL shas of the commits it blocks on to this file (docs/deploy-sha-pin.md), so the named
+# set below is compared with its own decision, not with a reading of its printed prefixes.
+DEPLOY_INPUTS_BLOCKING_OUT="$(mktemp)"; export DEPLOY_INPUTS_BLOCKING_OUT
 node "$ROOT/proxy/scripts/deploy-inputs.mjs" check "$DI_TARGET" "$ENVIRONMENT"; DI_RC=$?
-if [ "$DI_RC" -eq 1 ]; then
-  if [ "${ALLOW_BEHIND:-}" != "1" ]; then
-    fatal "this tree is behind origin/main in what the $DI_TARGET ships (the commits listed above), and wrangler ships the WORKING TREE."
-    echo "" >&2
-    echo "  git merge origin/main    (then re-run)" >&2
-    echo "  or, knowing exactly what you are reverting:  ALLOW_BEHIND=1 $0 $ENVIRONMENT" >&2
-    exit 1
+BLOCKING=""
+if [ "$DI_RC" -eq 0 ] || [ "$DI_RC" -eq 1 ]; then
+  BLOCKING="$(tr -s ' \n' '  ' < "$DEPLOY_INPUTS_BLOCKING_OUT")"
+  if [ "$DI_RC" -eq 1 ] && [ -z "${BLOCKING// /}" ]; then
+    fatal "deploy-inputs.mjs blocked but wrote no blocking commit, so the named set cannot be checked."; rm -f "$DEPLOY_INPUTS_BLOCKING_OUT"; exit 1
   fi
-  echo "ALLOW_BEHIND=1 -- deploying a tree behind origin/main; the commits listed above are being REVERTED."
-  echo ""
-fi
-BEHIND_ALL="$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)"
-BEHIND_PROXY="$(git rev-list --count HEAD..origin/main -- proxy/ 2>/dev/null || echo 0)"
-[ "$DI_RC" -ne 0 ] && [ "$DI_RC" -ne 1 ] && echo "deploy-inputs.mjs exited $DI_RC: applying today's rule here (all of proxy/)." >&2
-if [ "$DI_RC" -ne 0 ] && [ "$DI_RC" -ne 1 ] && [ "${BEHIND_PROXY:-0}" -gt 0 ]; then
-  if [ "${ALLOW_BEHIND:-}" != "1" ]; then
-    fatal "this tree is $BEHIND_PROXY commit(s) behind origin/main in proxy/, and wrangler ships the WORKING TREE."
-    echo "" >&2
-    echo "Deploying now would REVERT these from production:" >&2
-    git --no-pager log --oneline HEAD..origin/main -- proxy/ >&2
-    echo "" >&2
-    echo "  git merge origin/main    (then re-run)" >&2
-    echo "  or, knowing exactly what you are reverting:  ALLOW_BEHIND=1 $0 $ENVIRONMENT" >&2
-    exit 1
+  if [ "$DI_RC" -eq 0 ] && [ -n "${BLOCKING// /}" ]; then
+    fatal "deploy-inputs.mjs did not block but wrote blocking commits: the two disagree."; rm -f "$DEPLOY_INPUTS_BLOCKING_OUT"; exit 1
   fi
-  echo "ALLOW_BEHIND=1 -- deploying a tree behind origin/main; these are being REVERTED:"
-  git --no-pager log --oneline HEAD..origin/main -- proxy/
-  echo ""
-elif [ "$DI_RC" -ne 0 ] && [ "$DI_RC" -ne 1 ] && [ "${BEHIND_ALL:-0}" -gt 0 ]; then
-  # (today's rule only) Behind main only OUTSIDE proxy/, so it cannot reach the bundle: say it, do not block.
-  echo "note: $BEHIND_ALL commit(s) behind origin/main, none touching proxy/ (not bundled, not blocking)."
-  echo ""
+else
+  # The probe itself failed: today's rule here (all of proxy/, plus scripts/session-claim.py), so a broken probe costs
+  # a refusal unless the plan names exactly those commits, never a silent revert.
+  echo "deploy-inputs.mjs exited $DI_RC: applying today's rule here (all of proxy/, plus scripts/session-claim.py)." >&2
+  BLOCKING="$(git rev-list HEAD..origin/main -- proxy/ scripts/session-claim.py 2>/dev/null | tr '\n' ' ')"
+  BEHIND_ALL="$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)"
+  [ -z "${BLOCKING// /}" ] && [ "${BEHIND_ALL:-0}" -gt 0 ] && echo "note: $BEHIND_ALL commit(s) behind origin/main, none touching proxy/ (not bundled, not blocking)."
 fi
+rm -f "$DEPLOY_INPUTS_BLOCKING_OUT"
+inlist() { local x=$1; shift; local y; for y in "$@"; do [ "$x" = "$y" ] && return 0; done; return 1; }
+for c in $BLOCKING; do
+  if ! inlist "$c" "${NAMED[@]}"; then
+    fatal "behind and not named: ${c:0:12} (a merge after the plan; name it in ALLOW_BEHIND_SHAS, or re-plan)"; exit 1
+  fi
+done
+for c in "${NAMED[@]}"; do
+  if ! inlist "$c" $BLOCKING; then
+    fatal "named but not behind: ${c:0:12} (the plan is stale)"; exit 1
+  fi
+done
+for c in $BLOCKING; do
+  echo "named and behind: ${c:0:12} -- named in the plan's ALLOW_BEHIND_SHAS; it is not in this tree, so this deploy does not ship it"
+done
+[ -n "${BLOCKING// /}" ] && echo ""
 
 # ---- 3. stamp what is actually being shipped --------------------------------
 SHA="$(git rev-parse --short HEAD)"
 [ -n "$DIRTY" ] && SHA="${SHA}-dirty"
 # The builder's stamp is the FULL commit: its PROVENANCE names it, and --check checks it out (a dirty tree never reaches here)
 [ -n "$BUILDER" ] && SHA="$(git rev-parse HEAD)"
+[ -n "$SCREEN" ] && SHA="$(git rev-parse HEAD)"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
 printf 'deploying to \033[1m%s\033[0m\n' "$ENVIRONMENT"
 printf '  commit  %s  (%s)\n' "$SHA" "$BRANCH"
 printf '  subject %s\n\n' "$(git log -1 --format=%s)"
 [ -n "$BUILDER" ] && printf '  worker  the basemap BUILDER (basemap.wrangler.toml): no route, its R2 binding STORE\n\n'
+[ -n "$SCREEN" ] && printf '  worker  the SCREEN service (screen.wrangler.toml, env %s)%s\n\n' "$ENVIRONMENT" "${UNTIL_GIVEN:+, --until $UNTIL}"
 
 cd "$ROOT/proxy" || exit 1
 
@@ -195,6 +263,23 @@ if [ -n "$BUILDER" ]; then
   node scripts/wrangler-run.mjs deploy --config basemap.wrangler.toml --env "$ENVIRONMENT" --define BUILD_COMMIT:"\"$SHA\"" || exit 1
   printf '\nbuilder deployed to %s, stamped %s.\n' "$ENVIRONMENT" "$SHA"
   printf 'NOT YET CONFIRMED: this output is the only evidence until a bound proxy reports this commit (D3).\n'
+  exit 0
+fi
+
+# ---- the screen service: its own pre-deploy check, then deploy ---------------
+# The proxy-only steps below do not apply: the screen holds no DEVICE_KEY_SECRET, and it has no route yet, so there is
+# no /health to confirm against until its custom domain lands. The check builds the env's OWN dry-run bundle and refuses
+# unless it holds the unsampled counter's write exactly once (P-M2), the --until rules hold (P-U: production-fulllogs
+# needs an end within 24 h, no other env takes one), and the end it was given survives into that bundle (P-S). The same
+# end is stamped below as FULL_LOGS_UNTIL, which /health reports and the logs watch grades (docs/screen-logs-runbook.md).
+if [ -n "$SCREEN" ]; then
+  CHECK_ARGS=("$ENVIRONMENT"); [ -n "$UNTIL_GIVEN" ] && CHECK_ARGS+=(--until "$UNTIL")
+  node scripts/screen-deploy-check.mjs "${CHECK_ARGS[@]}" || { fatal "the screen's pre-deploy check refused (above); nothing was deployed."; exit 1; }
+  STAMP=(--define BUILD_COMMIT:"\"$SHA\"")
+  [ "$ENVIRONMENT" = production-fulllogs ] && STAMP+=(--define FULL_LOGS_UNTIL:"\"$UNTIL\"")
+  node scripts/wrangler-run.mjs deploy --config screen.wrangler.toml --env "$ENVIRONMENT" "${STAMP[@]}" || exit 1
+  printf '\nscreen service deployed to %s, stamped %s%s.\n' "$ENVIRONMENT" "$SHA" "${UNTIL_GIVEN:+, full logs until $UNTIL}"
+  printf 'NOT YET CONFIRMED: read its /health (commit, logs.rate, logs.until) once it has a route.\n'
   exit 0
 fi
 

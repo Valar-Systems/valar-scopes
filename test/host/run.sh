@@ -2463,6 +2463,39 @@ fi
 )
 note_block $? "MapFetch"
 
+# The map package's exact-cap boundary (include/BodyCap.h): GetBytes' two size-cap decisions, moved into a header so
+# this runs them: exactly cap ACCEPTED and cap + 1 REFUSED, on the Content-Length and the chunked path
+# (test_body_cap.cpp), and GetBytes read to prove it holds no cap decision of its own (check_body_cap.py). A package at
+# its cap is live (map-server, 2026-11-22). Its sabotages: python -I test/host/sabotage_body_cap.py
+echo
+echo "== BodyCap =="
+(
+  fail=0
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_body_cap.cpp" -o "$OUT/test_body_cap.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the body cap test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_body_cap.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the body cap test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+if [ -z "$PY" ]; then
+  echo "FAIL: no WORKING python found; BC-SRC cannot run."
+  fail=1
+else
+  "$PY" -I "$ROOT/test/host/check_body_cap.py" "$ROOT"
+  rc=$?
+  [ "$rc" -ge 2 ] && { echo "FAIL: BC-SRC's check did not run (exit $rc). This is the RIG."; exit 2; }
+  [ "$rc" -ne 0 ] && fail=1
+fi
+  exit "$fail"
+)
+note_block $? "BodyCap"
+
 # The Blipscope's map draw, step B (docs/blipscope-map-client-steps.md): check_map_draw.py holds CD4 (CB10's refusal is
 # present wherever a draw region is, and BLIPSCOPE_MAP_STEP_C is defined nowhere but step C's header); CD1-CD3 join it
 # with the draw files. Its sabotages: python -I test/host/sabotage_map_draw.py (run by the driver blocks below).
@@ -2804,6 +2837,34 @@ exit 2
 )
 note_block $? "image-compare selftest (#656)"
 
+# P6 (docs/speed-p5p6.md on weatherscope/speed-p5p6; bench branch bench/speed-p6): the label cache
+# (include/LabelCache.h) against today's layout, with the REAL formatters and key: src/AircraftInfoFields.{h,cpp} are
+# staged beside test/host/p6_fake/TrackedAircraft.h (as models/TrackedAircraft.h) and built with P6's String shim.
+# Its plants (test/host/sabotage_p6_labels.py) run in the drivers' passes above.
+echo
+echo "== P6: the label cache against today's layout =="
+(
+P6="$OUT/p6src"
+rm -rf "$P6" && mkdir -p "$P6/models" &&
+  cp "$ROOT/src/AircraftInfoFields.cpp" "$ROOT/src/AircraftInfoFields.h" "$P6/" &&
+  cp "$ROOT/test/host/p6_fake/TrackedAircraft.h" "$P6/models/TrackedAircraft.h" ||
+  { echo "FAIL: could not stage P6's sources. This is the RIG, not the code."; exit 2; }
+if ! "$CXX" $FLAGS -I"$ROOT/test/host/p6_shim" -I"$ROOT/include" -I"$P6" "$ROOT/test/host/test_p6_labels.cpp" \
+       "$P6/AircraftInfoFields.cpp" -o "$OUT/test_p6_labels.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the P6 label test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_p6_labels.exe"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the P6 label test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "P6: the label cache against today's layout"
+
 echo
 echo "== strings_elf: the image-level text check's selftest (Q-6b-6) =="
 # docs/blipscope-map-client-steps.md Q-6b-4 and Q-6b-6: scripts/strings_elf.py's selftest, on synthetic objects it
@@ -2871,6 +2932,35 @@ fi
 exit "$bad"
 )
 note_block $? "bench markers, from the other side"
+
+# P5 1b (REG-1b-main): both sweep blends from one table (include/WxSweepLut.h, include/MapSweep.h's Table overload)
+# against their per-pixel references: W5c the weather's at all 3,600 angles, W5d the map's over test_map_sweep's
+# populations (its W5d counts read against test_map_sweep's printed counts) and W5c's scene. Its plants
+# (test/host/sabotage_p5_blend.py) run in the drivers' passes above.
+echo
+echo "== P5 1b: the table blends against wxsweep::Blend and mapsweep::Blend =="
+(
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_p5_blend.cpp" -o "$OUT/test_p5_blend.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the P5 blend test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+# CS6's package is the file test_map_sweep.cpp reads. Its name is written there alone, so it is taken from that file's
+# one "/basemap/<name>.bmpk" literal: exactly one, or the RIG (sabotage_p5_blend.py takes it the same way).
+CS6_REL="$(grep -o '"/basemap/[A-Za-z0-9_.-]*\.bmpk"' "$ROOT/test/host/test_map_sweep.cpp" | tr -d '"')"
+if [ "$(printf '%s\n' "$CS6_REL" | grep -c .)" -ne 1 ]; then
+  echo "FAIL: test_map_sweep.cpp does not hold exactly one CS6 package literal. This is the RIG, not the code."
+  exit 2
+fi
+"$OUT/test_p5_blend.exe" "$ROOT/test/fixtures/wx$CS6_REL"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the P5 blend test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "P5 1b: the table blends against wxsweep::Blend and mapsweep::Blend"
 
 echo
 if [ -n "$RIG_BLOCKS$FAILED_BLOCKS" ]; then

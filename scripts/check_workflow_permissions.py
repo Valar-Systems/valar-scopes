@@ -30,12 +30,21 @@ REGISTERED = {
         "promote": {"contents": "write"},                     # gh release edit --prerelease=false
     },
     "no-traffic-captures": {TOP: {"contents": "read"}},
+    # Schedule and dispatch only. The top level grants nothing (contents: none is the same grant as {}, in block form);
+    # each job checks out the repository (contents: read), and grade-ci lists and downloads this workflow's own
+    # artifacts with GITHUB_TOKEN (actions: read). Nothing writes.
+    "opera-return": {
+        TOP: {"contents": "none"},
+        "read": {"contents": "read"},                         # actions/checkout
+        "grade": {"actions": "read", "contents": "read"},     # opera_return.py grade-ci: the artifacts API
+    },
     "photo-drift": {TOP: {"contents": "read", "checks": "write"}},   # gh api repos/$REPO/check-runs (a POST)
     "photos": {TOP: {"contents": "read", "checks": "write"}},        # gh api repos/$REPO/check-runs (a POST)
     "print-cards": {TOP: {"contents": "read"}},
     "provisioner": {TOP: {"contents": "read"}},
     "refresh-data": {TOP: {"contents": "read"}},
     "routes-refresh": {TOP: {"contents": "read", "issues": "write"}},  # routes-notify.ts: gh label create, gh issue
+    "screen-logs-watch": {TOP: {"contents": "read"}},   # actions/checkout of the one verdict script; no write
     "web-renderer": {TOP: {"contents": "read"}, "publish": {"contents": "write"}},   # gh release upload
     "workers": {TOP: {"contents": "read"}},
 }

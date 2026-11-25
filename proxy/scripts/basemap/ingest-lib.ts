@@ -25,7 +25,9 @@ export const PREDICATES = [
 
 /** Whether a source record passes the store's predicate for its layer. A malformed number is refused, not
  *  read as 0 or NaN-false: a record we cannot read is a finding about the file. */
-export function filterRecord(kind: FeatureKind, a: Record<string, string>): boolean {
+// The sea (kind 6) is never filtered here: its pieces come from the sea ingest's own path (scripts/basemap/sea-pieces.ts), selected by
+// area and the US containment at selection, so it has no predicate column (docs/basemap-dense-code.md, part 2, "Stored as a NEW kind").
+export function filterRecord(kind: Exclude<FeatureKind, "sea">, a: Record<string, string>): boolean {
   // A MISSING column is refused; an empty value is not. Returning false for an absent key once read a
   // pipe-delimited Gazetteer as tab-delimited and kept 0 of 32,350 places without a word.
   const need = { water: "AWATER", rivers: "FULLNAME", roads: "MTFCC", peaks: "feature_class", places: "LSAD" }[kind];
@@ -234,6 +236,17 @@ export async function sha256Hex(bytes: Uint8Array | string): Promise<string> {
 export const storeIdOf = async (manifestText: string) => (await sha256Hex(manifestText)).slice(0, 12);
 
 // ------------------------------------------------------------------------------------------------ write, verify, seal
+
+/** F1 (QW4-ID (a), docs/basemap-dense-code.md): why publishing must be refused, or null. The manifest's `builder` must name the commit of
+ *  the code that WROTE it, from a clean tree, as the dry run itself recorded; the dry run's store id must be this one; and the commit must
+ *  exist here. Extracted unchanged from d1Cmd's condition, so a test can see it refuse (MI10). */
+export function f1Refusal(run: { dirtyTree: boolean; ingestCommit: string; storeId: string }, builder: string, storeId: string, known: boolean): string | null {
+  if (run.dirtyTree) return "the dry run's tree was dirty";
+  if (run.ingestCommit !== builder) return "the manifest's builder is not the dry run's commit";
+  if (run.storeId !== storeId) return "the store id is not the dry run's";
+  if (!known) return "the manifest's builder is not a known commit";
+  return null;
+}
 
 export interface StoreBucket {
   put(key: string, bytes: Uint8Array): Promise<void>;

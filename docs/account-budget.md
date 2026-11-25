@@ -1055,3 +1055,100 @@ a stated rounding tie at the boundary.
   `docs/workers-logs-invocation-off.md` sets it out with its corrections 7g-7i.
 - So 11.1's re-read is graded after **Saturday's** deploy. Until then the December GB figures stay the upper bound
   11.1 names. No allowance, row, read or rendered cell changes here.
+
+## 12. D4's line: the map in production (registered 2026-11-24, before any read or arithmetic)
+
+**Why.** D4 binds the basemap builder in production. This budget has rows for the staging builder and the store's bucket
+only, so D4's cost cannot be read from it. The owner's rule 2 (section 0) applies: "Every cost estimate adds its line there
+and states the account total." D4's plan makes this line a prerequisite of the owner's D4 message (accepted by the
+orchestrator, 2026-11-24). This section fixes the method and its predictions. The reads, the rows and the rendered table
+come in a later commit of this PR, graded against what is frozen here.
+
+**The product, "basemap production (D4)":**
+
+| part | script or bucket | what it adds |
+|---|---|---|
+| the builder | `blipscope-basemap` | one invocation and its CPU per build; its reads of the store (`blipscope-basemap`) |
+| the package bucket | `blipscope-basemap-pkg` (new at D4) | the lock's and the package's writes; reads on a Cache API miss; storage |
+| the proxy's `/basemap` share | `blipscope-proxy` | one request per device fetch; `bm:store` reads from production `ENRICH_KV` |
+
+**States:** `off` (today: no binding, every row 0); `on, before v20` (the test identity, the smoke and the bench only);
+`on, v20` (after v20 ships to the fleet). **Scenarios added:** "today + D4 before v20" and "today + D4 with v20".
+
+**Per-build and per-fetch inputs, each read before the arithmetic, each with its source:**
+- **R2 Class A per build: 2,** read from `proxy/src/basemap/handler.ts`: the lock's conditional put and the package's put.
+  The lock's delete is `DeleteObject`, which this budget counts as free (`account_cost_read.py`, `FREE`). A 404 or 422 adds
+  one put (its `.err` record).
+- **R2 Class B per build:** the builder's `GetObject` count, read from R2's operation analytics for `blipscope-basemap` over
+  the census store's 22 fresh builds on staging (2026-11-23, 13:53-14:01Z), divided by 22. Plus the handler's package read on
+  a miss (1).
+- **CPU per build:** the builder's CPU over the same 22 builds (`workersInvocationsAdaptive`, `blipscope-basemap-staging`):
+  the median and the maximum.
+- **Package size:** the 22 packages' sizes, as served on 2026-11-24.
+- **Per fetch without a build:** 1 proxy request; R2 Class B 1 on a Cache API miss, 0 on a hit (counted as 1: the bound);
+  KV reads at most 1 (the 60 s `cacheTtl` makes the true count lower).
+- **Devices, D:** the fleet's distinct devices over the 30 days before the read (Analytics Engine, `pd6_fleet.py`'s form,
+  E2:08 and the test identity excluded, never printed).
+
+**The bands, frozen now:**
+- **Before v20:** builds a month 100, 1,000 or 3,000 (D4's proof, the daily smoke, the bench and the map client's soak);
+  fetches a month 10 times the builds.
+- **With v20:** builds a month D x 1 (low) or D x 2 (high): a package is built once per device location and radius and kept
+  30 days, so a repeat is served without a build. Fetches a month D x 30 (low) or D x 90 (high): one fetch a boot, a
+  nightly reboot a day, and power-ons. A growth row at 10 x D's high band is carried as information.
+- **Storage:** builds a month x package size, since each package lives 30 days (the lifecycle rule).
+
+**Prices:** this budget's own (`PRICE`). R2 Class A is **already over its included million (1.009 M, 101%, section 6's
+"today")**, so every added put is billed. Workers CPU is over too (201%).
+
+**Predictions, frozen before the read:**
+- **Before v20, at every band:** no allowance moves by more than 1% of its included amount, and the account's overage a
+  month changes by less than $0.05.
+- **With v20, at the high band:** Workers CPU is D4's largest line; the account's overage a month changes by less than $1;
+  R2 Class A rises by less than 1% of its million.
+- **Outside the set:** any input unreadable or blind (no builds found in the 22-build window; a count that is not a value):
+  no figure, and the owner's message waits. Any computed figure outside a bound above: stop and report it before the message.
+
+**CI for this commit, predicted before the push.** It touches `docs/account-budget.md` only, so the four pull-request
+workflows that run on every PR run, with `account-budget` and without `workers`. **Predicted: 37 check runs, 35 success, 2
+skipped (`promote`, `version`), 0 failed,** tested on the merge into main as of the push, read twice at least 65 s apart.
+Anything else: stop and read which job.
+
+## 13. Durable Object duration and the shared KV namespace: what the reader can attribute (2026-11-25)
+
+**Durable Object duration is attributed per window, by caller.** Cloudflare's duration dataset reports GB-s per Durable Object
+namespace. Its invocations dataset names the Workers that CALL each namespace, not the Worker that owns it. So
+`tools/budget/budget_read.py` attributes each namespace in each read by its callers in that same window:
+
+- **exactly one caller:** that caller's product;
+- **no caller, or more than one:** `unattributed`, printed, and never smoothed onto a guess.
+
+Each `do_gb_s` row's `how` says so: "attributed by its only caller in this window; the dataset names callers, not owners". A
+namespace that gains a second caller turns `unattributed` in that window, and the output shows it. No namespace id is written to
+this file or to `docs/account-budget.json`; the console shows only a 6-hex prefix. `budget_read.py --selftest` (D1-D5, D-ALL)
+holds the rule, and `tools/budget/sabotage_account_budget.py` turns it red three ways (all on one product, the first caller
+listed, a whole id in a label).
+
+**Two named limits.**
+
+- **Caller is not owner.** Over 2026-11-18..25 the account had six namespaces, 263.4 GB-s in all. Two had two callers each,
+  about 17.9 GB-s, or 6.8%, and those stay `unattributed`: the reader cannot tell whose they are without a listing of
+  namespace owners, which needs a Workers permission the budget's analytics token does not have.
+- **The screen's KV reads are counted under the boards.** The screen service reads the boards' `ENRICH_KV` namespace (read
+  only), and KV analytics report per namespace, so its reads land under `proxy` and `proxy-staging` and cannot be separated.
+
+**The reads already in this file are left as written.** `r-7d`, `r-silent` and `MTD-1114` came from the reader before this
+section, which put every namespace's duration on `proxy`. Over 2026-11-18..25, about 21.7% of the account's GB-s sat in
+namespaces only the kiosk calls. Those rows' `do_gb_s` therefore includes the kiosk's, and they are not re-attributed here.
+Attribution changes which product a GB-s lands on, never the account's total.
+
+## 14. Workers outside Blipscope, excluded (2026-11-25)
+
+**1 non-Blipscope Worker excluded (the owner's).** The account runs one Worker that is not part of Blipscope. Its name is held
+only in an optional local file outside every git tree, whose path `BLIPSCOPE_BUDGET_EXCLUDE` gives per shell; this repository
+never names it. `tools/budget/budget_read.py` refuses a list file that sits inside a git work tree.
+
+A listed Worker's groups are written as product `non-blipscope`, state `excluded`. They are still rows, so a read's totals
+still anchor, but they are summed into no product's budget. The console prints only how many Workers the list held.
+`budget_read.py --selftest` (E1-E4) holds the rule. `tools/budget/sabotage_account_budget.py` turns it red two ways: the list
+never consulted, and the git-tree refusal removed. Without the list a run reads as before: the Worker is `unattributed`.

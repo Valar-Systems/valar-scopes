@@ -43,18 +43,23 @@ bench Missileer, and it was the photo unit.
 | `-Board` | Product, role | Label (the MAC's last two bytes) | Rule |
 |---|---|---|---|
 | `missileer` | **Missileer**, bench | `E9:D8` (VID:PID `303A:1001`) | Flash any time without asking: game client, display work, touch measurements. |
-| `missileer-photo` | **Missileer**, photo unit | `E7:94` (VID:PID `303A:1001`) | Product photos (`env:missileer-photo`, [docs/missileer-photo-mode.md](docs/missileer-photo-mode.md)). Missileer envs only, flashed on Daniel's go (`-DanielApproved`). Ran `missileer-s3-128` v15 `no-cloud+eam` on 2026-10-12, mDNS `Missileer-E794.local`. |
-| `weatherscope` | **Weatherscope**, bench | `6E:64` (VID:PID `303A:1001`) | The Weatherscope session's board since 2026-10-20 (Daniel). Until then it was the Blipscope soak board; its last Blipscope state is in [docs/v18-reboot-cap.md](docs/v18-reboot-cap.md). **Never flash it for Blipscope or Missileer work**; ask Daniel before touching it. |
-| `blipscope-bench` | **Blipscope**, bench | `E2:08` | The Blipscope session's board (device `e5cd743f`, COM18 on 2026-10-12). **Never flash it for Missileer work**; ask Daniel before touching it. |
+| `missileer-photo` | **Missileer**, photo unit | `E7:94` (VID:PID `303A:1001`) | **YKUSH port 1.** Any firmware, flashing and power cycles, Blipscope builds included (the owner, 2026-11-22). Reserve it first; log every flash and switch. Product photos still use `env:missileer-photo` ([docs/missileer-photo-mode.md](docs/missileer-photo-mode.md)). |
+| `weatherscope` | **Weatherscope**, bench | `6E:64` (VID:PID `303A:1001`) | **YKUSH port 2.** Any firmware, flashing and power cycles (the owner, 2026-11-22). Reserve it first; log every flash and switch. Its last Blipscope state before 2026-10-20 is in [docs/v18-reboot-cap.md](docs/v18-reboot-cap.md). |
+| `blipscope-bench` | **Blipscope**, bench | `E2:08` | **YKUSH port 3.** Any firmware, flashing and power cycles (the owner, 2026-11-22). Reserve it first; log every flash and switch. |
 
 The Blipscope and Weatherscope boards are separate units, and so are the two Missileers (Daniel, 2026-10-12; the Weatherscope row since 2026-10-20).
+
+The three YKUSH boards' ports (read 2026-11-22, read-only): port 1 = E7:94, port 2 = 6E:64, port 3 = E2:08, port 4 = the
+hub's controller. A number from a newly used board counts only once it reads the same as E2:08 on the same image, within
+the bench's own noise (the owner, 2026-11-22). **A board outside this table is never touched; the closed set refuses it.**
 
 **The full serials are not in the repo** (Daniel, 2026-11-06): a MAC plus the public salt gives a device id, and a device
 name carries the MAC's last three bytes. A board is named here by its label. The serials live in one local file outside
 every repo, `~/.config/blipscope/boards` or the path in `BLIPSCOPE_BOARDS_FILE`, and `scripts/board-port.py` refuses with
 exit 4 without it. `scripts/check_macs.py` refuses a full MAC or a device-name suffix in a tracked file.
 `scripts/board-port.py` (`BOARDS`) and `scripts/bench-flash.ps1` (`-Board`) carry the
-same four rows; change all three together.
+same four rows; change all three together. `board-port.py --selftest` compares the three
+name sets whole, so a row added to one of them alone fails it, whatever the row is called.
 
 **A COM number is not an identity.** Windows numbers a port per USB interface layout, so
 the same board moves whenever its firmware's USB shape changes: the Missileer board was
@@ -67,9 +72,10 @@ the colons removed.
 - `python scripts/board-port.py --list` shows where each board is right now.
 - `scripts/bench-flash.ps1 -PioEnv <env> -Board missileer -Label <l>` resolves the port
   from the serial (and 1200-baud-touches a TinyUSB board into download mode itself), and
-  prints the board's label beside the port before it writes anything. It refuses every board
-  but `missileer` without `-DanielApproved`, refuses a `missileer-*` env on a
-  non-Missileer board, and refuses a non-Missileer env on the photo unit.
+  prints the board's label beside the port before it writes anything. Since the owner's rule
+  of 2026-11-22 the three YKUSH boards take any firmware with a reservation alone
+  (`-DanielApproved` is accepted and ignored). `-Board` is a closed set: a board outside the
+  table is refused at parameter binding, before the script runs a line.
 - A bare `pio run -t upload --upload-port COMx` is how the wrong board gets flashed:
   resolve the port first (`board-port.py missileer --upload`).
 
@@ -1869,7 +1875,7 @@ and said never.** It was reversed deliberately, by Daniel, and the reversal is
 recorded rather than edited away so the next person does not read the new code as
 a violation of an old rule and revert it.
 
-**What is collected now.** Anonymous counts of feature use, at most hourly, on a
+**What is collected now.** Counts of feature use, at most hourly, on a
 request the device already makes: detail-card opens, screen switches per screen,
 logbook claims, whether Follow is configured (a boolean), and uptime hours. Eight
 integers. See [include/UsageReport.h](include/UsageReport.h).
