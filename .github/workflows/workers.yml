@@ -119,6 +119,13 @@ jobs:
         if: matrix.worker == 'proxy'
         run: bash scripts/wx-products-lines.selftest.sh
 
+      # smoke-prod.sh's site-feed malformed-flags line (P-MF5s): whole outputs for a count of 0 (no WARN), above 0
+      # (WARN), unavailable, a body with no sitefeed block and an empty body; return 0 everywhere; and a plant (the WARN
+      # condition removed) that must change exactly the above-0 case.
+      - name: smoke's site-feed malformed-flags line (selftest)
+        if: matrix.worker == 'proxy'
+        run: bash scripts/sitefeed-line.selftest.sh
+
       # smoke-prod.sh's /basemap verdict (docs/basemap-deploy.md, Q5): seven canned answers, the whole verdict list
       # compared, and a sabotage (the validate() call skipped) that must turn exactly the kCrc case.
       - name: smoke's /basemap verdict (selftest)

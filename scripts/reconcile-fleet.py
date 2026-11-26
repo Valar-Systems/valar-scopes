@@ -497,6 +497,41 @@ def report_route_mirror(env: str) -> list:
     return warn
 
 
+# The site feed's malformed-flags count (the owner, 2026-11-25: "count every aircraft hidden for this reason, so a change
+# in the feed's format shows as a jump, not as an empty sky nobody can explain"). /healthz's flat `sitefeed` block: bad of
+# n in the last served snapshot. Here because this script is run whenever anyone asks anything about the fleet; the
+# same line is in smoke-prod.sh (sitefeed-line.sh). Graded by P-MF7 in reconcile-fleet.selftest.py.
+def sitefeed_lines(body: str | None) -> tuple:
+    """(lines, warnings) for /healthz's `sitefeed` block. Never a silent pass: an unreadable /healthz, a missing block and
+    an unavailable feed each warn, as a malformed count above zero does. A count of 0 prints and does not warn."""
+    if body is None:
+        return ["  Site feed: could not read /healthz"], ["site feed: could not read /healthz"]
+    try:
+        s = json.loads(body).get("sitefeed")
+    except (ValueError, AttributeError):
+        s = None
+    if not isinstance(s, dict):
+        return (["  Site feed: /healthz has no sitefeed field"],
+                ["site feed: /healthz has no sitefeed field (a Worker before the dbFlagsBad marker)"])
+    if s.get("available") is not True:
+        why = s.get("reason") or "unknown"
+        return ["  Site feed: unavailable (%s)" % why], ["site feed: unavailable (%s)" % why]
+    bad, n = s.get("dbFlagsBad"), s.get("n")
+    line = "  Site feed: sitefeed dbFlagsBad=%s/%s age=%ss stale=%s" % (bad, n, s.get("age_s"), json.dumps(s.get("stale")))
+    if bad != 0:
+        warn = ["site feed: %s/%s aircraft hidden for malformed dbFlags (feed format?)" % (bad, n)]
+        return [line + "  <== MALFORMED FLAGS"], warn
+    return [line], []
+
+
+def report_sitefeed(env: str) -> list:
+    lines, warn = sitefeed_lines(read_healthz(env))
+    for line in lines:
+        print(line)
+    print()
+    return warn
+
+
 def route_refresh_issue_lines(count) -> tuple:
     """W6 (docs/route-weekly-code.md): (lines, warnings) for the open `route-refresh` issues a failed or refused weekly
     run leaves (routes-notify.ts). A count only. A count that could not be read says so, and warns: never a silent 0."""
@@ -701,6 +736,7 @@ def report_instruments(env: str, errfile: Path, detail: dict, days: int, alert: 
     print()
     warn += report_ota_reader(env, detail)
     warn += report_route_mirror(env)
+    warn += report_sitefeed(env)
     warn += report_route_refresh()
     return warn
 

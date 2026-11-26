@@ -197,7 +197,10 @@ export class DetailsCore {
     for (const { a, hex, cls } of kept) {
       if (cls === "private") {
         /*P-P1*/
-        const { dbFlags: _named, ...typeOnly } = a; // "type only": dbFlags would name the program an owner joined (P-P5)
+        // "type only": dbFlags would name the program an owner joined (P-P5), and the malformed-flags marker would say
+        // WHY the row is hidden (P-MF4). Neither is served on a hidden row.
+        /*P-MF4*/
+        const { dbFlags: _named, dbFlagsBad: _why, ...typeOnly } = a;
         aircraft.push({ ...typeOnly, hex: await this.privateIds.idFor(hex, day, publicHexes), cs: "", class: cls });
         continue;
       }
