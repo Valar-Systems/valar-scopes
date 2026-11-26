@@ -8,7 +8,8 @@ v19 shipped exactly that for "wx-layer": its box renders only with the weather l
 
 The page cannot be served on a host, so this reads the source and evaluates the preprocessor for a named build:
 
-  V1  the -D names of env:blipscope-s3-128, read from platformio.ini with its ${...} resolved (the shipping radar)
+  V1  the -D names of env:blipscope-s3-128, read from platformio.ini with its ${...} resolved, WITHOUT WX_LAYER_SHIPS
+      (the radar without the switch; since the release flip the shipping env itself is V2, and the run says so)
   V2  V1 + WX_LAYER_SHIPS (the joint release's documented one-line switch, [weather] layer = -DWX_LAYER_SHIPS)
 
   SAVED       the live SaveToggle("x") names
@@ -344,12 +345,16 @@ def measure(src, defines, hboxes=frozenset()):
 # ------------------------------------------------------------------------------------------------- the check
 def run(src, ini, header, out=print):
     hboxes = header_boxes(header)
-    v1 = env_defines(ini)
-    if "WX_LAYER_SHIPS" in v1:
-        raise Rig(f"{ENV} already defines WX_LAYER_SHIPS: V1 would not be the build without weather")
+    ini_defines = env_defines(ini)
+    # The release flip (v20; docs/blipscope-map-client-steps.md, "The release flip"): the shipping env now defines
+    # WX_LAYER_SHIPS itself, through [weather] layer. Both builds are still evaluated, whichever one the ini names:
+    # V1 is the env WITHOUT the switch, V2 the env WITH it.
+    flipped = "WX_LAYER_SHIPS" in ini_defines
+    v1 = {k: v for k, v in ini_defines.items() if k != "WX_LAYER_SHIPS"}
     v2 = dict(v1); v2["WX_LAYER_SHIPS"] = "1"
-    out(f"  V1 = {ENV}, -D only ({len(v1)} names): {' '.join(sorted(v1))}")
+    out(f"  V1 = {ENV} without WX_LAYER_SHIPS, -D only ({len(v1)} names): {' '.join(sorted(v1))}")
     out(f"  V2 = V1 + WX_LAYER_SHIPS")
+    out(f"  the shipping env as platformio.ini builds it: {'V2' if flipped else 'V1'}")
     res, sets = {}, {}
     for tag, d in (("V1", v1), ("V2", v2)):
         saved, boxes, box_live = measure(src, d, hboxes)

@@ -536,13 +536,15 @@ jobs:
           # and the factory image the flasher writes -- every image that can reach a
           # customer is one of these two, and both are only built on slug-ful legs
           bash scripts/check-no-bench-hooks.sh "publish/firmware-${{ matrix.slug }}.factory.bin"
-      # Weather and maps ship together, so v19 ships without it (docs/wx-device.md, "v19 ships without weather"). Every Blipscope
-      # image that can reach a customer is scanned; the joint release's PR removes this step and turns [weather] layer on.
-      - name: No weather in a shipping Blipscope image
+      # THE RELEASE FLIP (v20; docs/blipscope-map-client-steps.md, "The release flip"): [weather] layer is on, so every
+      # Blipscope image that can reach a customer must CARRY the weather and the map. This step used to require their
+      # absence (v19 shipped without weather). Read from the built image, not the config: a flag that did not take
+      # fails here. The wxlook --expect step above stays, as the bench image's own proof.
+      - name: Weather and the map in the shipping Blipscope image
         if: matrix.slug && startsWith(matrix.env, 'blipscope-')
         run: |
           bash scripts/check-no-weather.sh --selftest
-          bash scripts/check-no-weather.sh ".pio/build/${{ matrix.env }}/firmware.bin"
+          bash scripts/check-no-weather.sh --expect ".pio/build/${{ matrix.env }}/firmware.bin"
       # The web build's own keys, kiosk and airports-remote, are in no shipping device image (docs/web-kiosk-airfield.md,
       # KI4). Their positive control is in the web workflow, on the wasm that must carry both.
       - name: No web-only key in a shipping image
