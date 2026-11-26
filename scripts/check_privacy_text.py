@@ -22,6 +22,8 @@ Each phrase in RETIRED was a public privacy statement found false, and replaced:
   - "which for the radar includes the area it asked about": the log keeps exactly what each request asked for, a
     detail card's and a photo's included;
   - "activating a device still logs": the activation record is kept until the device next activates, not only logged.
+  - "we keep that until the Blipscope next activates": the activation record no longer keeps the country and network
+    for any activation after the change (the owner, 2026-11-26: "activation: stop storing").
 This check fails if any of them comes back in any of FILES, in any letter case or line wrapping.
 
 A check that finds nothing proves nothing on its own, so each file also has two controls:
@@ -42,13 +44,16 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # path -> (the anchor proving the check reads that file's privacy text, the replacement wording that must be present)
+# ACTIVATION is the activation record's sentence (the owner, 2026-11-26: "activation: stop storing"): the record no
+# longer keeps the country and network, and both pages say so in the same change as the server.
+ACTIVATION = "our record of a blipscope's activation no longer keeps them"
 FILES = {
     "README.md": ("## privacy & telemetry",
                   ("cloudflare keeps these logs for up to seven days", "ever holds the device's key",
-                   "usage counts for each device")),
+                   "usage counts for each device", ACTIVATION)),
     "proxy/pages/support.html": ('id="privacy"',
                                  ("cloudflare keeps these logs for up to seven days", "ever holds the device's key",
-                                  "usage counts for each device")),
+                                  "usage counts for each device", ACTIVATION)),
     "proxy/pages/leaderboard.html": ("opt in from your blipscope", ("your spotter name",)),
 }
 RETIRED = (
@@ -69,6 +74,7 @@ RETIRED = (
     "when you tap an aircraft, we're sent",
     "which for the radar includes the area it asked about",
     "activating a device still logs",
+    "we keep that until the blipscope next activates",
 )
 
 
@@ -153,6 +159,8 @@ def selftest():
         cases.append((f"{path}: anchor gone", drop(path, FILES[path][0]), {rows(path)[1]}))
     for path in FILES:
         cases.append((f"{path}: replacement gone", drop(path, FILES[path][1][0]), {rows(path)[2]}))
+    for path in (readme, support):
+        cases.append((f"{path}: the activation sentence gone", drop(path, ACTIVATION), {rows(path)[2]}))
 
     off = 0
     for name, texts, want in cases:
