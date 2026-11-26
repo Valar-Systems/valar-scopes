@@ -395,6 +395,61 @@ L
   icount "$d"; v="$(rvf "$d/x.log.boots.regrade")"
   arow "I3 grade-sabotage: the id 0 times (got $iF), its prefix 0 times (got $iP), verdict WRONG (got ${v:-<none>})" \
     "$([ "$iF" -eq 0 ] && [ "$iP" -eq 0 ] && [ "$v" = WRONG ] && echo 0 || echo 1)"
+  # P-F1-P-F5 (handoff fba-flake/registration.md 49002b3805c7 + Addendum 1; the cut-good flake of 2026-11-26, #838
+  # attempt 1 NOCUT, attempt 2 CLAIMED on identical inputs): a wait loop driven by the FBA_ALIVE_SEQ seam must not
+  # depend on the runner's scheduling. A PATH stub `sed` sleeps FBA_TEST_PAUSE_S once, inside the FBA_TEST_PAUSE_AT-th
+  # seam deletion (`sed -i 1d <seq>`), and hands every other call to the real sed. Under a seconds deadline that pause
+  # outlasts the window and flips the row; counted in calls, it cannot. P-F3 reads the seam's per-call trace. P-F5 is
+  # the CONTROL that the real-board path (no seam) still waits on the wall clock. Each row first checks that its stub
+  # is what will run: a missing pause must not pass as a fixed loop, and a missing ping stub must never ping.
+  RSED="$(command -v sed)"; mkdir -p "$T/pausebin" "$T/pingbin"
+  cat > "$T/pausebin/sed" <<'PAUSE'
+#!/bin/bash
+if [ "$1" = -i ] && [ "$2" = 1d ] && [ -n "${FBA_TEST_PAUSE_FILE:-}" ] && [ "$3" = "$FBA_TEST_PAUSE_FILE" ]; then
+  n=$(( $(cat "$3.pausecount" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$3.pausecount"
+  [ "$n" = "${FBA_TEST_PAUSE_AT:-0}" ] && sleep "${FBA_TEST_PAUSE_S:-4}"
+fi
+exec __RSED__ "$@"
+PAUSE
+  "$RSED" -i "s#__RSED__#$RSED#" "$T/pausebin/sed"; chmod +x "$T/pausebin/sed"
+  printf '#!/bin/bash\necho x >> "$FBA_TEST_PING_COUNT"; echo "64 bytes: icmp_seq=1 ttl=64 time=0.1 ms"\n' > "$T/pingbin/ping"
+  chmod +x "$T/pingbin/ping"
+  stubok() { [ "$(PATH="$1:$PATH" command -v "$2")" = "$1/$2" ]; } # dir, tool
+  pfcut() { # name, seq, pause-at, want-verdict: grade-cut, paused inside one seam call
+    local name="$1" v; base > "$T/pf-$name.log"; printf "$2" > "$T/pf-$name.seq"
+    if ! stubok "$T/pausebin" sed; then arow "$name: stub not first on PATH (nothing run)" 1; return; fi
+    env PATH="$T/pausebin:$PATH" FBA_TEST_PAUSE_FILE="$T/pf-$name.seq" FBA_TEST_PAUSE_AT="$3" FBA_TEST_PAUSE_S=4 \
+      FBA_POLL_S=0 FBA_CUT_WAIT_S=3 FBA_BACK_WAIT_S=3 FBA_LB_WAIT_S=1 FBA_DEVICE_ID=0000000000000000 \
+      FBA_ALIVE_SEQ="$T/pf-$name.seq" FBA_LOGBOOK_BODY="$T/claimed.json" bash "$0" --grade-cut "$T/pf-$name.log" >/dev/null 2>&1
+    v="$(rvf "$T/pf-$name.log.step5")"
+    arow "$name: a 4 s pause inside seam call $3 -> verdict $4 (got ${v:-<none>})" "$([ "$v" = "$4" ] && echo 0 || echo 1)"
+  }
+  pfcut P-F1 '1\n1\n0\n0\n0\n1\n' 4 CLAIMED           # the cut loop: the pause comes where miss is 2
+  if stubok "$T/pausebin" sed; then                    # P-F2, the leave loop: the pause comes in call 1, where miss is 1
+    base > "$T/pf2.log"; printf '%s\n' "$s5_ok" > "$T/pf2.log.step5"; printf '%s\n' "$s6_ok" > "$T/pf2.log.step6"
+    printf '0\n0\n1\n' > "$T/pf2.seq"
+    env PATH="$T/pausebin:$PATH" FBA_TEST_PAUSE_FILE="$T/pf2.seq" FBA_TEST_PAUSE_AT=1 FBA_TEST_PAUSE_S=4 \
+      FBA_POLL_S=0 FBA_LEAVE_WAIT_S=2 FBA_BACK_WAIT_S=2 FBA_NO_RESET=1 FBA_DEVICE_ID=0000000000000000 \
+      FBA_ALIVE_SEQ="$T/pf2.seq" FBA_BOOT_ROWS="$T/rows-two" bash "$0" --sabotage-extra-reset COM99 "$T/pf2.log" >/dev/null 2>&1; ex=$?
+    v="$(rvf "$T/pf2.log.boots.sabotage")"
+    arow "P-F2: a 4 s pause inside the leave loop's seam call 1 -> exit 0, verdict WRONG (got exit $ex, ${v:-<none>})" \
+      "$([ "$ex" -eq 0 ] && [ "$v" = WRONG ] && echo 0 || echo 1)"
+  else arow "P-F2: stub not first on PATH (nothing run)" 1; fi
+  ntr=0; vtr=""
+  if [ -f "$T/seq-good.trace" ]; then ntr=$(wc -l < "$T/seq-good.trace"); vtr="$(sed -n 's/^[0-9]* [0-9]* v=\([01]\) .*/\1/p' "$T/seq-good.trace" | tr -d '\n')"; fi
+  arow "P-F3: cut-good's seam trace holds 6 calls, values 110001 (got ${ntr// /} calls, ${vtr:-<none>})" \
+    "$([ "${ntr// /}" = 6 ] && [ "$vtr" = 110001 ] && echo 0 || echo 1)"
+  pfcut P-F4 '1\n1\n0\n0\n0\n0\n1\n1\n' 6 CLAIMED     # the back loop: the cut is at call 5; the pause in call 6
+  base > "$T/pf5.log"; : > "$T/pf5.pings"
+  if stubok "$T/pingbin" ping; then                    # P-F5, the CONTROL: the real path keeps its wall-clock deadline
+    t0=$(date +%s%N)
+    env -u FBA_ALIVE_SEQ PATH="$T/pingbin:$PATH" FBA_TEST_PING_COUNT="$T/pf5.pings" FBA_SEQ_MAX_CALLS=3 \
+      FBA_POLL_S=0 FBA_CUT_WAIT_S=4 FBA_BACK_WAIT_S=1 FBA_LB_WAIT_S=1 FBA_DEVICE_ID=0000000000000000 \
+      bash "$0" --grade-cut "$T/pf5.log" >/dev/null 2>&1
+    ms=$(( ($(date +%s%N) - t0) / 1000000 )); np=$(wc -l < "$T/pf5.pings"); v="$(rvf "$T/pf5.log.step5")"
+    arow "P-F5 CONTROL: the real path waits on the wall clock -> NOCUT, >= 10 pings, >= 3000 ms (got ${v:-<none>}, ${np// /} pings, $ms ms)" \
+      "$([ "$v" = NOCUT ] && [ "${np// /}" -ge 10 ] && [ "$ms" -ge 3000 ] && echo 0 || echo 1)"
+  else arow "P-F5 CONTROL: stub not first on PATH (nothing run)" 1; fi
   rm -rf "$T"
   [ "$st" -eq 0 ] && echo "SELFTEST PASSED" || echo "SELFTEST FAILED"
   exit "$st"
