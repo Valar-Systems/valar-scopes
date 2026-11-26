@@ -260,3 +260,5 @@ exact set and the R/I outcome table are frozen in the chosen option's PR, before
 - **Q-D4c:** is the cold-build target at or under 2.5 s of wall?
 - **Q-D4d:** no firmware calls `/basemap` yet, so its future fetch's timeout is the firmware owner's decision. Should
   §1.6's finding go to them now, since a cold build cannot reach a device under today's 5 s?
+
+**Appended 2026-11-25:** this plan's scope predates A1 (`docs/basemap-a1.md`), which added the package bucket `BASEMAP_PKG`; D4's current plan is the D4 row in [basemap-deploy.md](basemap-deploy.md): both production bindings, the secret `BASEMAP_NAME_KEY` and the bucket's 30-day lifecycle rule.
