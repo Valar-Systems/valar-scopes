@@ -1032,9 +1032,10 @@ export const supportHtml = `<!DOCTYPE html>
        for a detail card, the aircraft's code, its callsign, its position at the time
        (rounded the same way) and the direction it was heading; for a photo, which photo.
        It does not include the network address it came from. Activating a Blipscope
-       records the country and network Cloudflare reports for that address, and we keep
-       that until the Blipscope next activates. A copy also sits in the request log for
-       up to seven days. Requests logged before this changed
+       records the country and network Cloudflare reports for that address in the request
+       log, for up to seven days. Our record of a Blipscope's activation no longer keeps
+       them, though the record of a Blipscope last activated before this change still
+       holds them until we delete it. Requests logged before this changed
        on 23 November also held the address and Cloudflare's estimate of its location,
        and the last of those are deleted by 1 December. Your
        browser's visits to these pages are logged too. Cloudflare keeps these logs for
