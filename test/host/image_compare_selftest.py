@@ -259,6 +259,15 @@ VTAB_CASES = ["V-base one unit per address, in front of LINK-ONLY", "V1 one vtab
               "V2 a differing mergeable string", "V3 two units cover one address", "V4 no unit covers the address"]
 # 1j, Correction 3: the CLI's refusal of an ld flags file it cannot read. It prints no verdict line (like T0's two).
 REFUSE_CASES = ["W3 a --wrap token in a form not read refuses"]
+# Amendment 1k (section 27): a local label into a merged-string section. N = 3 (entry, lsr, lcs); W = the grown one.
+LSTR_CASES = ["K-base a local label into a merged string, in front of LINK-ONLY",
+              "K1 a differing byte inside the string a local label reads",
+              "K2 a local label into a merged constant pool stays refused",
+              "K4 a differing byte before the label's addend",
+              "K5 a string behind a local label, not walked (the limit)"]
+for _l in LSTR_CASES[:4]:
+    TRUSTED[_l] = (1, 2)
+TRUSTED[LSTR_CASES[4]] = (0, 3)
 for _labels, _wu in [(CONV_CASES, (1, 2)), (WRAP_CASES, (2, 2)),
                      ([l for l in VTAB_CASES if not l.startswith("V2 ")], (1, 8)),
                      (["V2 a differing mergeable string"], (0, 9))]:
@@ -394,7 +403,7 @@ def case_label(case, allow):
 def case_labels():
     """Every case this selftest grades, by label: the list the sabotage driver holds every plant's declaration to."""
     return ([case_label(c, a) for c, a, _, _ in CASES] + [c + " relocs" for c, _, _ in RELOC_CASES] + REFUSALS
-            + LINK_CASES + CONV_CASES + WRAP_CASES + VTAB_CASES + REFUSE_CASES + T0_CASES)
+            + LINK_CASES + CONV_CASES + WRAP_CASES + VTAB_CASES + REFUSE_CASES + LSTR_CASES + T0_CASES)
 
 
 def run(mod):
@@ -973,6 +982,68 @@ def run(mod):
             "inputs: 2 loaded, 0 differ", "functions whose address moved: 0",
             RV_UN + "a read-only datum it reads cannot be compared: no unit covers vtab at 0x3f000078",
             "verdict: UNDECIDED (1)"])
+
+        # ---- amendment 1k (section 27): a local label into a merged-string section ----
+        # lsr reads .LS0+4 ("hello local string") in .rodata.lsr.str1.1; lcs reads .LC9+4 in a merged constant pool.
+        # Both relocations name the LOCAL labels (gen.sh asserts it). lsr is 11 B, lcs 10 B, in both images.
+        LS = os.path.join(STORES, "lstr")
+        LSR_LO = ("LINK-ONLY lsr [src/lsr.S.o] -- size 11 -> 13; the walk: its size differs and it has no long-call "
+                  "site; object code equal; read-only data equal: 0 section(s); call sites checked A/B: 0/0; " + TRUST)
+
+        def lstr_byte(store_dir, at, old, new):
+            """B's object: one byte of .rodata.lsr.str1.1 ("abcdhello local string") at offset `at`, asserted; resealed."""
+            obj = os.path.join(store_dir, "src", "lsr.S.o")
+            with open(obj, "rb") as f:
+                s = mod.ELFFile(f).get_section_by_name(".rodata.lsr.str1.1")
+                assert s.data() == b"abcdhello local string\0", s.data()
+                off = s["sh_offset"] + at
+            patch(obj, off, old, new)
+            reseal(store_dir, "src/lsr.S.o")
+
+        st = copy_case(tmp, "lstr/b")
+        grow(st, ["lsr"])
+        rc, lines = run_case(mod, os.path.join(LS, "a"), st, None, tmp)
+        grade("K-base a local label into a merged string, in front of LINK-ONLY", rc, lines, 0, [
+            "inputs: 2 loaded, 0 differ", LSR_LO, "functions whose address moved: 0", "verdict: NO CHANGE; LINK-ONLY: 1"])
+
+        # K1 (the orchestrator's): a byte INSIDE the string lsr reads ('h' at +4) -- read-only data that differs: a STOP
+        st = copy_case(tmp, "lstr/b")
+        lstr_byte(st, 4, b"h", b"H")
+        grow(st, ["lsr"])
+        rc, lines = run_case(mod, os.path.join(LS, "a"), st, None, tmp)
+        grade("K1 a differing byte inside the string a local label reads", rc, lines, 3, [
+            "inputs: 2 loaded, 1 differ", "  differs: src/lsr.S.o", "functions whose address moved: 0",
+            "UNDECIDED lsr: size 11 -> 13: its size differs and it has no long-call site; not LINK-ONLY: it reads "
+            "read-only data that differs: .LS0 [src/lsr.S.o]",
+            "verdict: UNDECIDED (1)"])
+
+        # K2: a local label into a merged CONSTANT pool -- not strings, so still refused (1k is no wider than strings)
+        st = copy_case(tmp, "lstr/b")
+        grow(st, ["lcs"])
+        rc, lines = run_case(mod, os.path.join(LS, "a"), st, None, tmp)
+        grade("K2 a local label into a merged constant pool stays refused", rc, lines, 3, [
+            "inputs: 2 loaded, 0 differ", "functions whose address moved: 0",
+            "UNDECIDED lcs: size 10 -> 12: its size differs and it has no long-call site; not LINK-ONLY: a read-only "
+            "datum it reads cannot be compared: the local .LC9 is not in one unit of src/lsr.S.o",
+            "verdict: UNDECIDED (1)"])
+
+        # K4: a byte BEFORE the addend ('a' at +0) -- outside the string lsr reads, so its datum is equal
+        st = copy_case(tmp, "lstr/b")
+        lstr_byte(st, 0, b"a", b"A")
+        grow(st, ["lsr"])
+        rc, lines = run_case(mod, os.path.join(LS, "a"), st, None, tmp)
+        grade("K4 a differing byte before the label's addend", rc, lines, 0, [
+            "inputs: 2 loaded, 1 differ", "  differs: src/lsr.S.o", LSR_LO, "functions whose address moved: 0",
+            "verdict: NO CHANGE; LINK-ONLY: 1"])
+
+        # K5 (the limit, filed): the same byte as K1, lsr NOT grown -- the object layer names the string by its label,
+        # so nothing compares it: NO CHANGE. A change that names local-label strings by content would move this.
+        st = copy_case(tmp, "lstr/b")
+        lstr_byte(st, 4, b"h", b"H")
+        rc, lines = run_case(mod, os.path.join(LS, "a"), st, None, tmp)
+        grade("K5 a string behind a local label, not walked (the limit)", rc, lines, 0, [
+            "inputs: 2 loaded, 1 differ", "  differs: src/lsr.S.o", "functions whose address moved: 0",
+            "verdict: NO CHANGE"])
 
         # T0, both directions
         for case, want_rc, want in [
