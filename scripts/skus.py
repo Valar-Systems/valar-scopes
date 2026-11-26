@@ -168,6 +168,7 @@ ALLOWED_MENTIONS = {
     "scripts/check_ota_identity.py",     # reads the build job's step order (--check-wiring); skus.yml via skus.load
     "docs/prebuild-patches.md",          # the pre-build patch audit; names the workflow in prose, parses nothing
     "scripts/check_workflow_concurrency.py",  # reads every workflow's on: and concurrency blocks, never the matrix
+    "docs/blipscope-map-client-steps.md",  # prose: the release flip's record quotes the ruling and names the step it replaces; it parses no matrix
 }
 
 SKIP_DIRS = (".git", ".pio", "node_modules", "bench-logs", ".venv")

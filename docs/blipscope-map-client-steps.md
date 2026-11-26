@@ -6123,3 +6123,27 @@ The merge-time row, registered now: the squash's s3-128 image differs from step 
 regions (`app_elf_sha256`, the image SHA-256, the checksum, and WiFiManager's two `__DATE__`/`__TIME__` strings),
 provided main between M_E and the squash changed no firmware source. A byte that cannot be placed means a different
 build, and the merge stops.
+
+### CI on `f1d21321f42e`, as read (written after the fact, 2026-11-26)
+
+Read twice, at 01:25:27Z and 01:26:51Z: total 38, as C2 predicted, but **34 / 3 / 1**, not 35 / 3 / 0.
+
+- **C1: OUTSIDE.**
+  - `sku-readers` (`scripts/skus.py --check-readers`) refused this doc. Its prose names the workflow file four times,
+    and one of them is inside the orchestrator's ruling, quoted verbatim.
+  - That guard keeps a second matrix parser from appearing, and its own message prescribes the escape for prose: an
+    `ALLOWED_MENTIONS` entry. That entry is this commit, with the orchestrator's ruling.
+  - **The miss was the prediction's.** The CI rows were derived from the workflows' triggers and from the steps
+    that read the image. Nothing asked which checks read the docs being added.
+- **C2:** the total of 38, as predicted.
+- **C3:** as predicted. The s3-128 leg's new step printed "carries all 7 weather strings (anchor present)". The
+  old step appears in no log. On wxlook its own `--expect` step passed, and the new step was skipped (no slug).
+- **C4:** as predicted. All 12 build legs succeeded, pro-s3-21, joindiag and cardbench among them.
+- **C5:** as predicted. Both host-tests legs print "the shipping env as platformio.ini builds it: V2", every row
+  passes, and the selftest passes.
+
+**The fix's predictions** (frozen before its commit; the registration's Amendment 2):
+- **N1:** locally, `--check-readers` exits 0 on the new tree, against exit 1 on `f1d21321f42e`, and
+  `--check-readers-selftest` exits 0.
+- **N2:** CI on the new head reads 38 = 35 / 3 / 0, `sku-readers` succeeds, and C3-C5 read as before.
+- Anything outside: report it, and run nothing again.
