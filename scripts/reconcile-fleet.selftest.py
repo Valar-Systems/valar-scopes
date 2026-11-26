@@ -565,5 +565,120 @@ else:
     off += not ok
     print("MF7-S9: %s -- red %s (want ['MF7-bad'])" % ("as predicted" if ok else "OFF-PREDICTION", g))
 
+# --- OLC: the builder's over-limit count (map-server's registration, Thursday item 5) ---------------------------------------
+# over_limit_lines is graded on rows built here, and read_builder_cpu_rows on an answer built here: no network. Whole
+# (lines, warnings) pairs are compared, never fragments. Three sabotages, each asserted applied, each with its fail set frozen.
+OLC_ROWS = ("OLC1", "OLC2", "OLC3", "OLC4", "OLC4b", "OLC5", "OLC6", "OLC7", "OLC8", "OLC9", "OLC10", "OLC11", "OLC12",
+            "OLC13")
+OLC_T = "2026-11-27T10:00:00Z"
+OLC_HEAD = "  Builder CPU over 14,530 ms (production, last 30 d; retention 90 d):"
+OLC_TAIL0 = " 0 (success 0, other 0); exceededCpu, stopped at a limit and printed apart, 0; newest none; invocations %d; rows %d"
+OLC_SAMPLED = (" UNREADABLE as a total: %d of %d row(s) sampled (sampleInterval != 1); at least %d over 14,530 ms among %d"
+               " unsampled builds (success %d, other %d; exceededCpu, apart, 0); %d sampled row(s) standing for about %d build(s)"
+               " not counted")
+OLC_SWARN = "builder over-limit count: UNREADABLE (%d of %d row(s) sampled; at least %d over among %d unsampled builds)"
+
+
+def olc_row(status="success", n=1, mn=20_000_000, mx=20_000_000, si=1, t=OLC_T):
+    return {"t": t, "status": status, "version": "EXAMPLE", "n": n, "min": mn, "max": mx, "si": si}
+
+
+def olc(mod) -> dict:
+    if not all(hasattr(mod, f) for f in ("over_limit_lines", "read_builder_cpu_rows")):
+        return {k: False for k in OLC_ROWS}
+    got = lambda rows, why="", blind=False: tuple(mod.over_limit_lines("production", rows, why, blind, "last 30 d"))
+    used = "  <== THE RAISED LIMIT WAS USED"
+    import urllib.error as _ue
+
+    class Answer:
+        def __init__(self, body):
+            self.body = body
+
+        def read(self):
+            return self.body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def via(answer):
+        real = mod.urllib.request.urlopen
+        mod.urllib.request.urlopen = answer
+        try:
+            return mod.read_builder_cpu_rows("production", "EXAMPLE-not-a-token", OLC_T, OLC_T)
+        finally:
+            mod.urllib.request.urlopen = real
+
+    def refuse(*a, **k):
+        raise _ue.HTTPError("https://example.invalid", 500, "EXAMPLE", {}, io.BytesIO(b"EXAMPLE: internal"))
+    rows7, why7 = via(refuse)
+    one = {"data": {"viewer": {"accounts": [{"workersInvocationsAdaptive": [
+        {"dimensions": {"datetime": OLC_T, "status": "success", "scriptVersion": "EXAMPLE"}, "sum": {"requests": 1},
+         "min": {"cpuTime": 20_000_000}, "max": {"cpuTime": 20_000_000}, "avg": {"sampleInterval": 1}}]}]}}}
+    rows11, why11 = via(lambda *a, **k: Answer(json.dumps(one).encode("utf-8")))
+    return {
+        "OLC1": got([olc_row()]) == ([OLC_HEAD + " 1 (success 1, other 0); exceededCpu, stopped at a limit and printed apart, 0;"
+                                      " newest %s; invocations 1; rows 1" % OLC_T + used], []),
+        "OLC2": got([olc_row(mn=5_000_000, mx=5_000_000)]) == ([OLC_HEAD + OLC_TAIL0 % (1, 1)], []),
+        # Exactly 14,530 ms is not over: the test is strictly greater.
+        "OLC3": got([olc_row(mn=14_530_000, mx=14_530_000)]) == ([OLC_HEAD + OLC_TAIL0 % (1, 1)], []),
+        "OLC4": got([olc_row(n=2, mn=3_000_000)]) == ([OLC_HEAD + " 1 (success 1, other 0); exceededCpu, stopped at a limit and"
+                                                       " printed apart, 0; newest %s; invocations 2; rows 1; a range: 1 row(s)"
+                                                       " held more than one invocation" % OLC_T + used], []),
+        "OLC4b": got([olc_row(n=3, mn=3_000_000)]) == ([OLC_HEAD + " 1-2 (success 1-2, other 0); exceededCpu, stopped at a limit"
+                                                        " and printed apart, 0; newest %s; invocations 3; rows 1; a range: 1"
+                                                        " row(s) held more than one invocation" % OLC_T + used], []),
+        # A sampled row: the TOTAL is unreadable, the known part is stated, and the sampled value is never counted.
+        "OLC5": got([olc_row(si=2)]) == ([OLC_HEAD + OLC_SAMPLED % (1, 1, 0, 0, 0, 0, 1, 1)],
+                                         [OLC_SWARN % (1, 1, 0, 0)]),
+        "OLC6": got([olc_row(mn=1_000_000, mx=1_000_000)] * 10000) == (
+            [OLC_HEAD + " UNREADABLE: the 10000-row page was full, so rows may be cut"],
+            ["builder over-limit count: UNREADABLE (the 10000-row page was full, so rows may be cut)"]),
+        "OLC7": rows7 is None and got(rows7, why7, True) == (
+            [OLC_HEAD + " BLIND: GraphQL answered 500: EXAMPLE: internal"],
+            ["builder over-limit count: BLIND (GraphQL answered 500: EXAMPLE: internal)"]),
+        # A build STOPPED at a limit is printed apart, and is not the raised limit used.
+        "OLC8": got([olc_row(status="exceededCpu", mn=14_600_000, mx=14_600_000)]) == (
+            [OLC_HEAD + " 0 (success 0, other 0); exceededCpu, stopped at a limit and printed apart, 1; newest none;"
+                        " invocations 1; rows 1"], []),
+        # The CONTROL: an empty window is a count of 0 with 0 invocations, and warns of nothing (not BLIND, not UNREADABLE).
+        "OLC9": got([]) == ([OLC_HEAD + OLC_TAIL0 % (0, 0)], []),
+        "OLC10": got(None, "BLIPSCOPE_TOKEN_FILE is not set", False) == (
+            [OLC_HEAD + " not read: BLIPSCOPE_TOKEN_FILE is not set"],
+            ["builder over-limit count: not read (BLIPSCOPE_TOKEN_FILE is not set)"]),
+        # The reader's own parse of an answer, field path by field path.
+        "OLC11": why11 == "" and rows11 == [olc_row(t=OLC_T)],
+        "OLC12": got([olc_row(), olc_row(mn=5_000_000, mx=5_000_000), olc_row(n=10, si=10, mn=5_260_295, mx=5_260_295)]) == (
+            [OLC_HEAD + OLC_SAMPLED % (1, 3, 1, 2, 1, 0, 1, 10) + used], [OLC_SWARN % (1, 3, 1, 2)]),
+        # A sampled value OVER the limit is still not counted: "at least 0".
+        "OLC13": got([olc_row(n=10, si=10)]) == ([OLC_HEAD + OLC_SAMPLED % (1, 1, 0, 0, 0, 0, 1, 10)],
+                                              [OLC_SWARN % (1, 1, 0, 0)]),
+    }
+
+
+got = olc(load(SRC))
+red = sorted(k for k, v in got.items() if not v)
+off += bool(red)
+print("OLC (the real source): %s -- red %s" % ("as predicted" if not red else "OFF-PREDICTION", red or "none"))
+for name, anchor, plant, want in (
+        ("S-OLC-si", '        is_s = r.get("si") != 1\n', "        is_s = False  # SABOTAGE S-OLC-si\n",
+         ["OLC12", "OLC13", "OLC5"]),
+        ("S-OLC-bare", '"at least %d over 14,530 ms among %d unsampled builds', '"%d over 14,530 ms among %d unsampled builds',
+         ["OLC12", "OLC13", "OLC5"]),
+        ("S-OLC-ge", "        if mx <= OLC_T_US:\n", "        if mx < OLC_T_US:  # SABOTAGE S-OLC-ge\n", ["OLC3"]),
+        ("S-OLC-trunc", "    if len(rows) >= OLC_ROW_LIMIT:\n", "    if False:  # SABOTAGE S-OLC-trunc\n", ["OLC6"])):
+    if SRC.count(anchor) != 1:
+        off += 1
+        print("%s: BLIND -- its anchor was found %d times" % (name, SRC.count(anchor)))
+        continue
+    planted = SRC.replace(anchor, plant)
+    assert planted != SRC
+    g = sorted(k for k, v in olc(load(planted)).items() if not v)
+    ok = g == want
+    off += not ok
+    print("%s: %s -- red %s (want %s)" % (name, "as predicted" if ok else "OFF-PREDICTION", g, want))
+
 print("SELFTEST PASSED" if not off else "SELFTEST: %d row(s) off" % off)
 sys.exit(1 if off else 0)
