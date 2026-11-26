@@ -223,6 +223,10 @@ L
   printf '%s' '{"types":[{"code":"E75L","claimed":false}]}' > "$T/unclaimed.json"
   printf '<label>Spotting logbook <input name="logbook" type="checkbox" checked></label>\n' > "$T/cfg-on.html"
   printf '<label>Spotting logbook <input name="logbook" type="checkbox" ></label>\n' > "$T/cfg-off.html"
+  # faildetail [seq-file] [result-file] (F2): a FAILing row's seam trace and its result line, indented. The trace holds
+  # times and 1/0 values; a step5 line marks the address set or absent, never the address.
+  faildetail() { [ -n "$1" ] && [ -f "$1.trace" ] && sed 's/^/          trace: /' "$1.trace"
+    [ -n "$2" ] && [ -f "$2" ] && head -1 "$2" | sed 's/^/          result: /'; return 0; }
   gcase() { # name, mode, result-suffix, want field=value, then env assignments
     local name="$1" mode="$2" f="$3" want="$4" got; shift 4
     base > "$T/g-$name.log"
@@ -231,7 +235,9 @@ L
       bash "$0" "$mode" "$T/g-$name.log" >/dev/null 2>&1
     got="$(grep -o " ${want%%=*}=[^ ]*" "$T/g-$name.log.$f" 2>/dev/null | head -1 | sed 's/^ //')"
     if [ "$got" = "$want" ]; then printf '  ok    %s -> %s\n' "$name" "$got"
-    else printf '  FAIL  %s: %s (want %s)\n' "$name" "${got:-<no result>}" "$want"; st=1; fi
+    else printf '  FAIL  %s: %s (want %s)\n' "$name" "${got:-<no result>}" "$want"; st=1
+      local a sq=""; for a in "$@"; do case "$a" in FBA_ALIVE_SEQ=*) sq="${a#FBA_ALIVE_SEQ=}" ;; esac; done
+      faildetail "$sq" "$([ "$f" = step5 ] && echo "$T/g-$name.log.step5")"; fi
   }
   printf '1\n1\n0\n0\n0\n1\n' > "$T/seq-good";  printf '1\n0\n1\n' > "$T/seq-blip"
   printf '1\n0\n0\n0\n1\n' > "$T/seq-lost";     printf '1\n0\n' > "$T/seq-noback"
@@ -262,7 +268,8 @@ L
       FBA_ALIVE_SEQ="$T/s-$1.seq" FBA_BOOT_ROWS="$3" bash "$0" --sabotage-extra-reset COM99 "$T/s-$1.log" >/dev/null 2>&1; ex=$?
     got="$(sed -n 's/.* verdict=\([A-Z_]*\).*/\1/p' "$T/s-$1.log.boots.sabotage" 2>/dev/null)"
     if [ "$ex" -eq "$4" ] && [ "$got" = "$5" ]; then printf '  ok    sabotage %s -> exit %s, %s\n' "$1" "$ex" "$got"
-    else printf '  FAIL  sabotage %s: exit %s verdict %s (want %s, %s)\n' "$1" "$ex" "${got:-<none>}" "$4" "$5"; st=1; fi
+    else printf '  FAIL  sabotage %s: exit %s verdict %s (want %s, %s)\n' "$1" "$ex" "${got:-<none>}" "$4" "$5"; st=1
+      faildetail "$T/s-$1.seq" ""; fi
   }
   scase never-left  '1\n'             "$T/rows-two" 3 NOT_APPLIED
   scase caught      '0\n0\n1\n' "$T/rows-two" 0 WRONG
@@ -298,7 +305,8 @@ L
   # A1-A6 (fix 4; docs/fresh-boot-automation.md Addendum 3, registered at 0170a04110ef): a missing ADDRESS is not a
   # missing CLAIM, and the probe's verdict is read before `first`. On 2026-11-16 (run 2) a claim with no address read
   # as "not the first fetch" at step 4 and "No claim in the log" at step 5: both wrong, both about the instrument.
-  arow() { if [ "$2" -eq 0 ]; then printf '  ok    %s\n' "$1"; else printf '  FAIL  %s\n' "$1"; st=1; fi; }
+  # arow name verdict [seq-file [result-file]]: on FAIL it also prints that seam's trace and the result's line (F2).
+  arow() { if [ "$2" -eq 0 ]; then printf '  ok    %s\n' "$1"; else printf '  FAIL  %s\n' "$1"; st=1; faildetail "${3:-}" "${4:-}"; fi; }
   rvf() { sed -n "s/.* verdict=\([^ ]*\).*/\1/p" "$1" 2>/dev/null; }
   base | sed '/CONNECTED/d' > "$T/a1.log"
   env -u FBA_DEVICE_IP bash "$0" --probe-claim "$T/a1.log" >/dev/null 2>&1; v="$(rvf "$T/a1.log.probe")"
@@ -344,7 +352,7 @@ L
   printf '1\n1\n0\n0\n0\n1\n' > "$T/seq-n2"
   ncase c2 --grade-cut yes FBA_ALIVE_SEQ="$T/seq-n2" FBA_LOGBOOK_BODY="$T/claimed.json"
   arow "N2 grade-cut, a claim: the address 0 times (got $nn), verdict CLAIMED (got ${nv:-<none>})" \
-    "$([ "$nn" -eq 0 ] && [ "$nv" = CLAIMED ] && echo 0 || echo 1)"
+    "$([ "$nn" -eq 0 ] && [ "$nv" = CLAIMED ] && echo 0 || echo 1)" "$T/seq-n2" "$T/n-c2/x.log.step5"
   ncase c3 --probe-claim no FBA_PROBE_BODY="$T/claimed.json"
   arow "N3 probe, no claim: the address 0 times (got $nn), verdict NOCLAIM (got ${nv:-<none>})" \
     "$([ "$nn" -eq 0 ] && [ "$nv" = NOCLAIM ] && echo 0 || echo 1)"
@@ -389,7 +397,7 @@ L
     FBA_BOOT_ROWS="$T/rows-i2" bash "$0" --sabotage-extra-reset COM99 "$d/x.log" > "$d/out" 2> "$d/err"; nx=$?
   icount "$d"; v="$(rvf "$d/x.log.boots.sabotage")"
   arow "I2 sabotage: the id 0 times (got $iF), its prefix 0 times (got $iP), exit 0 (got $nx), verdict WRONG (got ${v:-<none>})" \
-    "$([ "$iF" -eq 0 ] && [ "$iP" -eq 0 ] && [ "$nx" -eq 0 ] && [ "$v" = WRONG ] && echo 0 || echo 1)"
+    "$([ "$iF" -eq 0 ] && [ "$iP" -eq 0 ] && [ "$nx" -eq 0 ] && [ "$v" = WRONG ] && echo 0 || echo 1)" "$T/seq-i2"
   icase v3; rm -f "$d/x.log.step6"; printf '500 SW\n1040 POWERON\n1100 USB\n' > "$T/rows-i3"
   env FBA_POLL_S=0 FBA_DEVICE_ID="$NI" FBA_BOOT_ROWS="$T/rows-i3" bash "$0" --grade-sabotage "$d/x.log" 1500 > "$d/out" 2> "$d/err"
   icount "$d"; v="$(rvf "$d/x.log.boots.regrade")"
@@ -422,7 +430,8 @@ PAUSE
       FBA_POLL_S=0 FBA_CUT_WAIT_S=3 FBA_BACK_WAIT_S=3 FBA_LB_WAIT_S=1 FBA_DEVICE_ID=0000000000000000 \
       FBA_ALIVE_SEQ="$T/pf-$name.seq" FBA_LOGBOOK_BODY="$T/claimed.json" bash "$0" --grade-cut "$T/pf-$name.log" >/dev/null 2>&1
     v="$(rvf "$T/pf-$name.log.step5")"
-    arow "$name: a 4 s pause inside seam call $3 -> verdict $4 (got ${v:-<none>})" "$([ "$v" = "$4" ] && echo 0 || echo 1)"
+    arow "$name: a 4 s pause inside seam call $3 -> verdict $4 (got ${v:-<none>})" "$([ "$v" = "$4" ] && echo 0 || echo 1)" \
+      "$T/pf-$name.seq" "$T/pf-$name.log.step5"
   }
   pfcut P-F1 '1\n1\n0\n0\n0\n1\n' 4 CLAIMED           # the cut loop: the pause comes where miss is 2
   if stubok "$T/pausebin" sed; then                    # P-F2, the leave loop: the pause comes in call 1, where miss is 1
@@ -433,7 +442,7 @@ PAUSE
       FBA_ALIVE_SEQ="$T/pf2.seq" FBA_BOOT_ROWS="$T/rows-two" bash "$0" --sabotage-extra-reset COM99 "$T/pf2.log" >/dev/null 2>&1; ex=$?
     v="$(rvf "$T/pf2.log.boots.sabotage")"
     arow "P-F2: a 4 s pause inside the leave loop's seam call 1 -> exit 0, verdict WRONG (got exit $ex, ${v:-<none>})" \
-      "$([ "$ex" -eq 0 ] && [ "$v" = WRONG ] && echo 0 || echo 1)"
+      "$([ "$ex" -eq 0 ] && [ "$v" = WRONG ] && echo 0 || echo 1)" "$T/pf2.seq"
   else arow "P-F2: stub not first on PATH (nothing run)" 1; fi
   ntr=0; vtr=""
   if [ -f "$T/seq-good.trace" ]; then ntr=$(wc -l < "$T/seq-good.trace"); vtr="$(sed -n 's/^[0-9]* [0-9]* v=\([01]\) .*/\1/p' "$T/seq-good.trace" | tr -d '\n')"; fi
@@ -615,14 +624,29 @@ CUT_WAIT_S="${FBA_CUT_WAIT_S:-1800}"; BACK_WAIT_S="${FBA_BACK_WAIT_S:-300}"; LB_
 # one repeating.
 alive() {
   if [ -n "${FBA_ALIVE_SEQ:-}" ]; then
-    local v; v="$(head -1 "$FBA_ALIVE_SEQ")"
+    local v n; v="$(head -1 "$FBA_ALIVE_SEQ")"
     [ "$(wc -l < "$FBA_ALIVE_SEQ")" -gt 1 ] && sed -i '1d' "$FBA_ALIVE_SEQ"
+    # The per-call trace (F2): a FAILing selftest row prints it, so a late verdict names its cause -- a gap between two
+    # lines is a pause, a run of v=1 with no gap is a sequence that stopped advancing. Times and values only.
+    n=$(( $(cat "$FBA_ALIVE_SEQ.trace" 2>/dev/null | wc -l) + 1 ))
+    printf '%s %s v=%s left=%s\n' "$(date +%s%N)" "$n" "$v" "$(wc -l < "$FBA_ALIVE_SEQ")" >> "$FBA_ALIVE_SEQ.trace"
     [ "$v" = 1 ]; return
   fi
   case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*) ping -n 1 -w 1000 "$1" 2>/dev/null | grep -qi "ttl=" ;;
     *) ping -c 1 -W 1 "$1" 2>/dev/null | grep -qi "ttl=" ;;
   esac
+}
+
+# THE SEAM'S WAITS COUNT PASSES, NOT SECONDS (F1; the cut-good flake of 2026-11-26: #838's first attempt read NOCUT and
+# its second CLAIMED, on identical inputs). Under FBA_ALIVE_SEQ, alive() answers one line per CALL, so a wait measured
+# in seconds made a selftest row's verdict a function of the runner's scheduling: a pause longer than the window ended
+# the loop before the sequence was read. Under the seam a wait therefore ends after FBA_SEQ_MAX_CALLS passes. On a real
+# board it is EXACTLY the wall-clock test it always was (selftest P-F5 is that control). Each loop that uses it sets
+# WAIT_CALLS=0 just before it starts.
+still_waiting() { # epoch-deadline
+  if [ -n "${FBA_ALIVE_SEQ:-}" ]; then WAIT_CALLS=$((WAIT_CALLS + 1)); [ "$WAIT_CALLS" -le "${FBA_SEQ_MAX_CALLS:-40}" ]; return; fi
+  [ "$(date +%s)" -lt "$1" ]
 }
 
 # GET a page into a file and print the http code. FBA_LOGBOOK_BODY / FBA_CONFIG_BODY (selftest
@@ -651,8 +675,8 @@ grade_cut() {
     echo "  step 5: the claim of $type is in the log, but the board's address is unknown: nothing to watch" >&2; return 1
   fi
   echo "  step 5: watching the board (address withheld) for the power cut..."
-  dl=$(( $(date +%s) + CUT_WAIT_S ))
-  while [ "$(date +%s)" -lt "$dl" ]; do
+  dl=$(( $(date +%s) + CUT_WAIT_S )); WAIT_CALLS=0
+  while still_waiting "$dl"; do
     if alive "$ip"; then miss=0; first_miss=""
     else
       miss=$((miss + 1)); [ -z "$first_miss" ] && first_miss="$(date +%s)"
@@ -664,8 +688,8 @@ grade_cut() {
     verdict=NOCUT
   else
     echo "  step 5: the board went quiet; waiting for it to come back..."
-    dl=$(( $(date +%s) + BACK_WAIT_S ))
-    while [ "$(date +%s)" -lt "$dl" ]; do
+    dl=$(( $(date +%s) + BACK_WAIT_S )); WAIT_CALLS=0
+    while still_waiting "$dl"; do
       alive "$ip" && { t_back="$(date +%s)"; break; }
       sleep "$POLL_S"
     done
@@ -821,8 +845,8 @@ if [ "$MODE" = "sabotage" ]; then
   # that never reached the chip, then graded on anyway and reported "NOT CAUGHT" -- a statement about
   # the boot check, when the boot check had been handed nothing to catch. So: the board must be seen
   # LEAVING the network (two missed pings in a row) within 20 s, or this refuses with exit 3.
-  left=0; miss=0; dl=$(( $(date +%s) + ${FBA_LEAVE_WAIT_S:-20} ))
-  while [ "$(date +%s)" -lt "$dl" ]; do
+  left=0; miss=0; dl=$(( $(date +%s) + ${FBA_LEAVE_WAIT_S:-20} )); WAIT_CALLS=0
+  while still_waiting "$dl"; do
     if alive "$ip"; then miss=0; else miss=$((miss + 1)); [ "$miss" -ge 2 ] && { left=1; break; }; fi
     sleep "$POLL_S"
   done
