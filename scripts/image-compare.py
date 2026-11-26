@@ -5,6 +5,7 @@ The rules are frozen in docs/image-compare.md (sections 3-5 and amendment 1). Th
 else; where the two disagree, the doc is the registration and this file is the bug.
 
   compare A B [--allow FILE] [--cxxfilt PATH]   two build stores (see STORE below); prints every finding and a verdict
+          [--reloc-names] [--ld-flags FILE]     --ld-flags (1j, section 26): the link's --wrap list, read from that file
   t0 STORE --date "Jan  1 2026" --time 00:00:00 WiFiManager's stamped strings carry the fixed SOURCE_DATE_EPOCH stamp
   selftest                                      the fixtures in test/fixtures/image-compare, each reading exactly
 
@@ -35,6 +36,9 @@ SHF_ALLOC, SHF_EXECINSTR, SHF_MERGE, SHF_STRINGS = 0x2, 0x4, 0x10, 0x20
 R_NONE, R_32, R_ASM_EXPAND, R_ASM_SIMPLIFY, R_SLOT0_OP = 0, 1, 11, 12, 20
 ALLOWED_RELOCS = {R_NONE: "NONE", R_32: "32", R_ASM_EXPAND: "ASM_EXPAND", R_ASM_SIMPLIFY: "ASM_SIMPLIFY",
                   R_SLOT0_OP: "SLOT0_OP"}
+# 1j (section 26): `or a1, a1, a1`, the no-op the linker writes where it converts a long call in place
+# (binutils 2.43.1 bfd/elf32-xtensa.c :4745, ta_convert_longcall :5393)
+OR_A1 = bytes([0x10, 0x11, 0x20])
 
 # Section 3: compared = allocated, minus these. Literal and mergeable sections are not units (resolved by reference).
 EXCLUDED = re.compile(r"^(\.eh_frame|\.xt\.prop|\.xt\.lit|\.xtensa\.info|\.comment|\.note|\.group|\.debug)")
@@ -605,11 +609,39 @@ def split_src(src):
 
 # ---------------------------------------------------------------- the comparison
 
+WRAP_TOKEN = re.compile(r"^(?:-Wl,)?--wrap=([A-Za-z_.$][A-Za-z0-9_.$]*)$")
+
+
+class LdFlagsError(Exception):
+    """1j: an ld flags file the comparator cannot read. The instrument cannot run (exit 2); never a verdict."""
+
+
+def read_ld_flags(path):
+    """1j (section 26): the link's --wrap list from an ld flags file -- the framework's flags/ld_flags (a transcription
+    of the link's input, the weaker form: the store records no link line), or a fixture's own. -> (frozenset of names,
+    the file's sha256[:12]). A token that names --wrap in any form but `[-Wl,]--wrap=NAME` is refused, never skipped."""
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except OSError as e:
+        raise LdFlagsError("cannot read %s: %s" % (path, e))
+    names = set()
+    for tok in raw.decode("utf-8", "replace").split():
+        if "--wrap" not in tok:
+            continue
+        m = WRAP_TOKEN.match(tok)
+        if not m:
+            raise LdFlagsError("an ld flags token naming --wrap in a form the comparator does not read: %s" % tok)
+        names.add(m.group(1))
+    return frozenset(names), hashlib.sha256(raw).hexdigest()[:12]
+
+
 class Side:
     """One build: its store, and (input path, member, section name) -> (input_id, Obj, section index)."""
 
     def __init__(self, store):
         self.store = store
+        self.wraps = frozenset()  # 1j: the link's --wrap names (compare's --ld-flags); empty, nothing is redirected
 
     def locate(self, src, secname):
         path, member = split_src(src)
@@ -1001,6 +1033,21 @@ def fill_image_walk(obj, sec_i, store, addr, size, seen=None):
                     seen.append((pi, addr + pj, target))
                 i, j = i + 2, j + 2
                 continue
+            # 1j (section 26; the owner's ruling 2026-11-26 02:13Z, "filler: yes"): the linker's converted long call --
+            # its no-op, then a direct call, in the site's own six bytes. N1-N6 exactly as ruled, no wider. N5 (the same
+            # target) is 1i'''s: the site goes into `seen`, and its target must be the input relocation's.
+            if (nx == 2 and (inp[pi] >> 4) == 8 and (inp[ins_i[i + 1][0] + 1] & 0x0F) == 8   # N1 (callx8), N2 (a8)
+                    and lj == 3 and fin[pj:pj + 3] == OR_A1                                    # N3
+                    and j + 1 < len(ins_f) and ins_f[j + 1] == (pj + 3, 3)                     # N4: the next, no gap
+                    and call_n(fin[pj + 3:pj + 6]) is not None                                 # N4: a call
+                    and call_n(fin[pj + 3:pj + 6]) == nx):                                     # N6: the same window
+                target = call_target(addr + pj + 3, fin[pj + 3:pj + 6])
+                sites.append((len(sites), True, addr + pj + 3, target))  # a direct call, for the flip check
+                if seen is not None:
+                    seen.append((pi, addr + pj + 3, target))
+                r += 1
+                i, j = i + 2, j + 2
+                continue
             raise Refusal("a long-call site that is neither relaxed nor kept")
         bi, bf = inp[pi:pi + li], fin[pj:pj + lj]
         if li == lj:
@@ -1183,10 +1230,15 @@ def symbol_address(side, obj, iid, symidx, addend):
         name = sec if t == "STT_SECTION" else obj.local_name(sym)
         value = a + (0 if t == "STT_SECTION" else sym["st_value"]) + addend
     else:
-        vals = image_syms(side.store).get(sym.name, [])
+        look, shown = sym.name, sym.name
+        # 1j (section 26): ld's --wrap -- "any undefined reference to symbol will be resolved to __wrap_symbol". Only an
+        # undefined reference, only a name on the link's list. __real_NAME is not modelled: it is looked up as itself.
+        if shndx == "SHN_UNDEF" and sym.name in side.wraps:
+            look, shown = "__wrap_" + sym.name, "%s (--wrap: __wrap_%s)" % (sym.name, sym.name)
+        vals = image_syms(side.store).get(look, [])
         if len(vals) != 1:
-            raise Refusal("%s is in the image's symbol table %d times" % (sym.name, len(vals)))
-        name, value = sym.name, vals[0][0] + addend
+            raise Refusal("%s is in the image's symbol table %d times" % (look, len(vals)))
+        name, value = shown, vals[0][0] + addend
     return (name if addend == 0 else "%s%+d" % (name, addend)), value
 
 
@@ -1235,9 +1287,9 @@ def collect_sites(side, loc, ent):
     return seen
 
 
-def resolve_data(side, obj, iid, kind, nm):
-    """One named target, on one side -> ('code' | 'writable', None), ('outside', address), or ('ro', (iid, obj, sec)).
-    Refusal when it cannot be placed."""
+def resolve_data(side, obj, iid, kind, nm, add=0):
+    """One named target, on one side -> ('code' | 'writable', None), ('outside', address), ('ro', (iid, obj, sec)), or
+    (1k) ('str', bytes) for a local label into a merged-string section. Refusal when it cannot be placed."""
     if kind == "unit":
         if nm not in obj.units:
             raise Refusal("no unit %s in %s" % (nm, iid))
@@ -1245,6 +1297,19 @@ def resolve_data(side, obj, iid, kind, nm):
     elif kind == "local":
         hits = [s for s in obj.syms if s.name == nm and s["st_info"]["bind"] == "STB_LOCAL"
                 and s["st_info"]["type"] not in ("STT_SECTION", "STT_FILE")]
+        if len(hits) == 1 and isinstance(hits[0]["st_shndx"], int) and hits[0]["st_shndx"] not in obj.sec_ident:
+            s = obj.secs[hits[0]["st_shndx"]]
+            # 1k (section 27): a local label into a merged-STRING section (never a unit) names the string at label + addend,
+            # compared by content. A merged pool that is not strings, and every other non-unit section, still refuse.
+            if (s["sh_flags"] & SHF_MERGE) and (s["sh_flags"] & SHF_STRINGS):
+                data = s.data()
+                at = hits[0]["st_value"] + add
+                if not 0 <= at < len(data):
+                    raise Refusal("a string offset outside its section")
+                end = data.find(b"\0", at)
+                if end < 0:
+                    raise Refusal("an unterminated string")
+                return ("str", data[at:end])
         if len(hits) != 1 or not isinstance(hits[0]["st_shndx"], int) or hits[0]["st_shndx"] not in obj.sec_ident:
             raise Refusal("the local %s is not in one unit of %s" % (nm, iid))
         loc = (iid, obj, hits[0]["st_shndx"])
@@ -1257,12 +1322,21 @@ def resolve_data(side, obj, iid, kind, nm):
             return ("code", None)
         if not isinstance(shndx, int) or not in_image(side.store, value):
             return ("outside", value)
-        import bisect
-        kept = side.store.map["kept"]
-        k = bisect.bisect_right([e[0] for e in kept], value) - 1
-        if k < 0 or not kept[k][0] <= value < kept[k][0] + kept[k][1]:
-            raise Refusal("%s is in no input section the map places" % nm)
-        loc = side.locate(kept[k][2], kept[k][3])
+        # 1j (section 26): the ONE unit whose map range covers the address. A merged section's map line keeps its
+        # pre-merge size at an address that holds none of its bytes -- P-REDO's vtable sat under 20 such lines -- so the
+        # last entry before the address can be one of them. Units only, and exactly one.
+        units = []
+        for (a, z, src, sec) in side.store.map["kept"]:
+            if a <= value < a + z:
+                try:
+                    units.append(side.locate(src, sec))
+                except Refusal:
+                    continue
+        if not units:
+            raise Refusal("no unit covers %s at 0x%x" % (nm, value))
+        if len(units) > 1:
+            raise Refusal("%d units cover %s at 0x%x" % (len(units), nm, value))
+        loc = units[0]
     flags = loc[1].secs[loc[2]]["sh_flags"]
     if flags & SHF_EXECINSTR:
         return ("code", None)
@@ -1287,12 +1361,16 @@ def rodata_read(A, B, la, lb, sig, dm):
             if not m:
                 continue  # content names (str:, cst:, lit:0x, span:) are in the signature already; self is the function
             try:
-                ra = resolve_data(A, oa, ia, m.group(1), m.group(2))
-                rb = resolve_data(B, ob, ib, m.group(1), m.group(2))
+                ra = resolve_data(A, oa, ia, m.group(1), m.group(2), int(m.group(3)))
+                rb = resolve_data(B, ob, ib, m.group(1), m.group(2), int(m.group(3)))
             except Refusal as e:
                 return n, differ, str(e)
             if ra[0] != rb[0]:
                 return n, differ, "%s resolves differently in A and B" % m.group(2)
+            if ra[0] == "str":  # 1k: a local label's merged string, compared by content; equal is not counted
+                if ra[1] != rb[1]:   # differing bytes are never equal: the read-only datum differs
+                    differ.append("%s [%s]" % (m.group(2), ia))
+                continue
             if ra[0] == "outside" and ra[1] != rb[1]:
                 return n, differ, "%s lies outside the image at different addresses" % m.group(2)
             if ra[0] != "ro":
@@ -1401,8 +1479,13 @@ def reloc_names(obj, ident):
     return names
 
 
-def compare(path_a, path_b, allow, cxxfilt, out, reloc_print=False):
+def compare(path_a, path_b, allow, cxxfilt, out, reloc_print=False, ld_flags=None):
+    wraps, wrap_tail = frozenset(), ""
+    if ld_flags is not None:  # 1j: one list for both sides, read before anything is compared
+        wraps, wsha = read_ld_flags(ld_flags)
+        wrap_tail = "; --wrap (ld flags %s): %s" % (wsha, ", ".join(sorted(wraps)) or "none")
     A, B = Side(Store(path_a)), Side(Store(path_b))
+    A.wraps = B.wraps = wraps
     dm = demangler(cxxfilt)
     differ, undecided = same_inputs(A.store, B.store)
     out("inputs: %d loaded, %d differ" % (len(set(A.store.map["loads"])), len(differ)))
@@ -1575,7 +1658,8 @@ def compare(path_a, path_b, allow, cxxfilt, out, reloc_print=False):
         out(lo)
     out("functions whose address moved: %d" % moved)
     # 1i/1i'': the verdict counts LINK-ONLY and says how much of the image is trusted to the link
-    trust = ("; LINK-ONLY: %d" % len(linkonly) if linkonly else "") + "; " + VERDICT_TRUST % (walked, both - walked)
+    trust = (("; LINK-ONLY: %d" % len(linkonly) if linkonly else "") + "; " + VERDICT_TRUST % (walked, both - walked)
+             + wrap_tail)  # 1j: the --wrap list, and the file it came from, on every verdict that used one
 
     # 3. the verdict (section 5)
     pats = []
@@ -1734,7 +1818,7 @@ def t0(path, date, time_, out):
 def main(argv):
     out = print
     if len(argv) >= 3 and argv[0] == "compare":
-        allow = cxxfilt = None
+        allow = cxxfilt = ld_flags = None
         reloc_print = False
         rest = argv[3:]
         while rest:
@@ -1744,11 +1828,16 @@ def main(argv):
                 cxxfilt, rest = rest[1], rest[2:]
             elif rest[0] == "--reloc-names":
                 reloc_print, rest = True, rest[1:]
+            elif rest[0] == "--ld-flags" and len(rest) > 1:
+                ld_flags, rest = rest[1], rest[2:]
             else:
                 print(__doc__)
                 return 2
         try:
-            return compare(argv[1], argv[2], allow, cxxfilt, out, reloc_print)
+            return compare(argv[1], argv[2], allow, cxxfilt, out, reloc_print, ld_flags)
+        except LdFlagsError as e:  # 1j: the instrument cannot run, never a verdict
+            out("image-compare: --ld-flags: %s" % e)
+            return 2
         except Refusal as e:
             out("verdict: UNDECIDED (the instrument refused: %s)" % e)
             return 3

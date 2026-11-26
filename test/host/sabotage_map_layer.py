@@ -85,8 +85,9 @@ SABOTAGES = {
     "S-CMCEN": ([(CEN_LINES, "    const double u0 = 0 * lon0, w0 = 0 * lat0;  // SABOTAGE S-CMCEN\n")], OFFSET),
     "S-CMS1": ([("            if (near) ++bi.primaryInView;\n", "            ++bi.primaryInView;  // SABOTAGE S-CMS1\n")],
                {"CM4-5mi", "CM4-10mi"}),
-    "S-CMGAIN": ([("    const int c = (int)floor(land + (v - 128) * gain + 0.5);\n",
-                   "    const int c = (int)floor(land + (v - 128) * gain * 10 + 0.5);  // SABOTAGE S-CMGAIN\n")], {"CM5"}),
+    # step D (D3): S2's midpoint is an input, so the anchor reads (v - mid) (ruled 2026-11-19 ~02:29Z; intent unchanged)
+    "S-CMGAIN": ([("    const int c = (int)floor(land + (v - mid) * gain + 0.5);\n",
+                   "    const int c = (int)floor(land + (v - mid) * gain * 10 + 0.5);  // SABOTAGE S-CMGAIN\n")], {"CM5"}),
     "S-CMORD": (s_order, {"CM6"}),
     "S-CMR": ([("    const uint32_t rMm = pk.radiusMm;   // F4: the disc the header names\n",
                 "    const uint32_t rMm = askedMm;   // SABOTAGE S-CMR\n")], {"CM7"}),
@@ -188,7 +189,7 @@ def main():
 
 
 # --control: the unplanted run alone, each suite against this table. CASES is the one place the count lives.
-CASES = 160
+CASES = 163
 CONTROL_TABLE = {"test_map_layer": ("checks", CASES), "check_map_layer.py": ("line", "  ok   CM9")}
 
 

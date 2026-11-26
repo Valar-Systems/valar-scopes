@@ -66,7 +66,7 @@ fails over to relay-b, so the full point/hex chain is
 | 1–2 | **adsb.fi** (via relay-a / relay-b) | **PRIMARY** — staging 2026-07-30, production pending soak review | **Caching/redistribution permission granted in writing 2026-07-30.** Leads on operational grounds: ~19× the rate headroom (3600 req/h/IP vs the ~190/h where adsb.lol starts 429ing us), ~90 KB/s vs adsb.lol's ~12 KB/s anonymous cap, and an operator who answers email. Measured over a 21.3 h two-relay soak: **0 % 429 across 10,037 position fetches.** | Public limit **1 req/s per IP** — the binding scale constraint; see the rate model below. The old "adsb.fi 403s us" was Cloudflare shared egress, not policy, and the relays solve it. |
 | 3–4 | **adsb.lol** (via relay-a / relay-b) | **FALLBACK** (was primary) | **ODbL 1.0 — a right no operator can revoke**, which is worth more as a fallback than as a primary. Demoted, not dropped: the maintainer is unresponsive and has publicly flagged the public API may have to be withdrawn, so the fleet's primary path must not depend on it. Same soak: **68 % 429, with a 720 s unbroken degraded run.** | `adsb_lol_b` is deliberately the **terminal** feed — the breaker may never skip the terminal feed, so the one leg the chain can always reach is the one with the irrevocable licence. |
 | — | **airplanes.live** | **PROHIBITED** | Operator sent a **written refusal** ("do not use our data"), dated 2026-07-22. Hardcoded off in `airplanes_live.ts`; no env flip can enable it. **Removed from all reserve/failover options** — off the table, not undecided. | nothing (prohibited) |
-| — | **adsbdb** | ENABLED | Routes + type backfill only, not positions. Not part of the position-feed posture. | n/a |
+| — | **adsbdb** | **OFF** in every environment (corrected 2026-11-24: this row said ENABLED) | Routes + type backfill only, never positions. Both switches are `"false"` in every `[vars]` block of `wrangler.toml`: `ROUTE_ADSBDB_ENABLED` (the route data's rights holder refused commercial use; owner ruling 2026-11-14, docs/route-sources.md section 0a) and `TYPE_ADSBDB_ENABLED` (PlaneBase-derived, personal use only; owner ruling 2026-11-16, docs/adsbdb-off-by-default.md). Routes come from the CC0 `rt:` mirror. | n/a |
 
 **Sponsorship posture — unconditional.** Blipscope sponsors **adsb.lol at $50/month
 regardless of chain position**, and that does not change now that it is the fallback.
@@ -471,6 +471,7 @@ entrypoint = "BendFeed"
                 "t": "B738", "desc": "BOEING 737-800", "dbFlags": 0}] }
 ```
 - **`t`, `desc`, `dbFlags` (v2)** are passed through from the upstream exactly as received, under its own names: the type code, the type name, and the readsb bitfield (military 1, interesting 2, PIA 4, LADD 8). A value of the wrong type is `null`, never coerced. Registration and operator are not included. **LADD and PIA aircraft are flagged, not removed:** whether the site shows them is the site's decision.
+- **`dbFlagsBad` (v2, additive; the owner, 2026-11-25: "malformed flags: hide")** is present, and only ever `true`, when the upstream record had a `dbFlags` key whose value is not an integer in 0..15 (a string, a negative, a fraction, an explicit `null`, a bit above LADD). Its `dbFlags` is then `null`, as before. **Hide on this field, never on `null`:** readsb leaves `dbFlags` out when it is 0, and that also arrives as `null`, so `null` alone means "no flags". This feed is the last stage that can tell the two apart.
 - **When there's nothing to serve,** the answer is `{ "available": false, "reason": "empty" }`, or `"disabled"` when the switch is off.
 - **Past 120 s of age,** `stale` is `true` and `aircraft` is `[]`. The cutoff is applied here, not left to the site.
 - **Attribution:** show `attribution` with the planes, **linked to `attribution_url`**. adsb.lol's ODbL requires the credit; for adsb.fi it is a condition of the permission below.
@@ -480,13 +481,15 @@ entrypoint = "BendFeed"
 - The feed is **Bend only by construction**: one fixed snapshot, and `snapshot()` takes no place (test B12 refuses one).
 - Showing any other location needs Samuli's OK first. It is a licensing change before it is a code change.
 
-**Counts** go to Analytics Engine, on index `sitefeed`: `written`, `skipped_not_covered`, `refused_30s`, `refused_older` and `write_error`. They are counts only, with no location. `refused_30s` keeps its original name; it counts refusals by the current 10 s rule. `refused_older` counts a snapshot refused because its upstream data is older than the stored one's (keep the newest, 2026-11-05).
+**Counts** go to Analytics Engine, on index `sitefeed`: `written`, `skipped_not_covered`, `refused_30s`, `refused_older` and `write_error`. They are counts only, with no location. `refused_30s` keeps its original name; it counts refusals by the current 10 s rule. `refused_older` counts a snapshot refused because its upstream data is older than the stored one's (keep the newest, 2026-11-05). `dbflags_bad` is one point per STORED write, including 0: `doubles [bad, n]`, the marked aircraft and all aircraft in that snapshot.
+
+**The reader of that count** is `/healthz`'s flat `sitefeed` block (`available`, `stale`, `age_s`, `n`, `dbFlagsBad`, or `available: false` with a `reason`). It is printed as one line by `smoke-prod.sh` (`scripts/sitefeed-line.sh`, information only) and by `scripts/reconcile-fleet.py`, which are where a person already looks.
 
 **Removing it** (one small PR, once the website moves to the worldwide feed):
 1. Set `SITE_FEED_BEND` to anything but `"on"`. That stops every read and write without a code deploy.
-2. Delete `src/sitefeed/bend.ts` and `test/sitefeed-bend.test.ts`.
+2. Delete `src/sitefeed/bend.ts` and `test/sitefeed-bend.test.ts`; `scripts/sitefeed-line.sh`, its `.selftest.sh`, its workers.yml step and its smoke-prod.sh call; `sitefeed_lines`/`report_sitefeed` in `../scripts/reconcile-fleet.py` and their P-MF7 rows in its selftest; and the screen's P-MF3/P-MF4 (`test/screen-enrich.test.ts`), which take their input from this feed.
 3. Delete the hook in `src/blips.ts`: the `import` (`bendWriter`, `OnFetched`); the `onFetched` parameter of `buildFresh` and its one call, and of `revalidate`, which passes it on to `buildFresh`; and `siteFeed`, made once in the handler and passed in three places (two `buildFresh` calls and one `revalidate`).
-4. Delete the `export { BendFeed, BendSnapshotDO }` line in `src/index.ts`, and the two `Env` fields in `src/types.ts`.
+4. Delete the `export { BendFeed, BendSnapshotDO }` line in `src/index.ts`, its `sitefeedHealth` import and `/healthz`'s `sitefeed` field, and the two `Env` fields in `src/types.ts`.
 5. Delete the three `BEND_SNAPSHOT` bindings and the `SITE_FEED_BEND` vars in `wrangler.toml`.
 6. **Keep** the `v1-bend-snapshot` migration, because migrations are append-only, and **add** one after it: `tag = "v2-bend-snapshot-removed"`, `deleted_classes = ["BendSnapshotDO"]`. A Durable Object class is removed by a migration, never by deleting lines.
 7. Delete this section, and remove every consumer's `[[services]]` binding: `valarscopes-site`'s and `valarscopes-app`'s.

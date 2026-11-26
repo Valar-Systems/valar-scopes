@@ -199,6 +199,18 @@
     "now"
    ]
   },
+  "screen": {
+   "label": "screen service, production (blipscope-screen; no R2 bucket); no rows before its first deploy",
+   "states": [
+    "now"
+   ]
+  },
+  "screen-staging": {
+   "label": "screen service, staging (blipscope-screen-staging; no R2 bucket)",
+   "states": [
+    "now"
+   ]
+  },
   "account-level": {
    "label": "account-level R2 operations (no bucket)",
    "states": [
@@ -207,6 +219,12 @@
   },
   "unattributed": {
    "label": "UNATTRIBUTED: a script, bucket or namespace the mapping does not name (stop and report)",
+   "states": [
+    "now"
+   ]
+  },
+  "non-blipscope": {
+   "label": "a Worker outside Blipscope, excluded by the owner's local list (never named here; section 14)",
    "states": [
     "now"
    ]

@@ -9,8 +9,13 @@
 // as the weather layer's own stale test compares them (AircraftManager.cpp:3599-3601); radiusMi, the ladder step (Cap
 // and Inner); pkSeq, which the caller changes at every accepted package; airportsGen, which the caller changes when the
 // airport list or its filter changes; and the eight other fixed boxes BY VALUE, since a ring label's width follows the
-// distance-unit setting, which no view field carries. The theme and the layer mask are constants here, not inputs: a
-// runtime theme would have to change a signature, which is a visible act.
+// distance-unit setting, which no view field carries. The theme is a constant here, not an input: a runtime theme would
+// have to change a signature, which is a visible act. STEP D made that act for the two settings it adds, and only those:
+// the key gains `names` (town names, map-names) and the resolved terrain {drawn, gain, mid} (map-terrain,
+// MapTerrain.h). Off clears the terrain layer from the mask (Q-T2); the gain reaches Build in a copy of the Dark row and
+// the midpoint as Build's own input, so the theme table keeps its row. Same() compares all four, so a change rebuilds
+// exactly once (DNP2, D4). Their defaults are today's map (names on, Subtle), so a caller that sets none builds what it
+// built before step D.
 //
 // MEMORY (Q-MB1, Q-MC14): four buffers through the caller's allocator (the device's is PSRAM), every one attempted
 // before any is checked; one failure frees them all and refuses the map. No half composite (CB9). The refusal lasts until
@@ -46,7 +51,7 @@ constexpr uint8_t kLayers = maplayer::kLayersAll;
 typedef void* (*AllocFn)(size_t bytes);
 typedef void (*FreeFn)(void* p);
 typedef bool (*BuildFn)(const bmpk::Package&, const wxlayer::View&, uint32_t, uint8_t, const maplayer::Theme&,
-                        const maplayer::Scratch&, uint16_t*, maplayer::BuildInfo*, maplayer::ClockUs);
+                        const maplayer::Scratch&, uint16_t*, maplayer::BuildInfo*, maplayer::ClockUs, int);
 // The airports DrawAirports draws at this view, by its own cull: the two boxes (mapplaces::AirportObstacles) of at most
 // `maxAirports` of them into `out`, returning how many there are in all, which may be more.
 typedef int (*AirportsFn)(void* ctx, Box* out, int maxAirports);
@@ -58,6 +63,11 @@ struct Key {
     uint32_t airportsGen = 0;
     Box fixed[kFixedMax] = {};
     int nFixed = 0;
+    // Step D: the two settings a rebuild reads (see the header). Defaults: today's map.
+    bool names = true;                                                           // map-names
+    bool terrainDrawn = true;                                                    // map-terrain: false for Off
+    double terrainGain = maplayer::kThemes[maplayer::kThemeDark].terrainGain;   // Subtle's 0.075, the Dark row's
+    int terrainMid = 128;
 };
 
 struct Inputs {
@@ -113,6 +123,9 @@ inline bool SameRest(const Key& a, const Key& b)
     if (a.nFixed != b.nFixed) return false;
     for (int i = 0; i < a.nFixed && i < kFixedMax; ++i)
         if (!SameBox(a.fixed[i], b.fixed[i])) return false;
+    // Step D: a change of either setting rebuilds exactly once (DNP2, D4)
+    if (a.names != b.names || a.terrainDrawn != b.terrainDrawn) return false;
+    if (a.terrainGain != b.terrainGain || a.terrainMid != b.terrainMid) return false;
     return true;
 }
 
@@ -298,13 +311,20 @@ inline bool Rebuild(Map& m, const bmpk::Package& pk, const Key& k, const Inputs&
         m.placesSeq = k.pkSeq;
         m.placesLoaded = true;
     }
-    if (!in.build || !in.build(pk, k.view, in.askedMm, kLayers, maplayer::kThemes[maplayer::kThemeDark], m.sc, m.layer,
-                               &m.info, in.clock)) {
+    // Step D: the terrain setting's S2 inputs. The gain in a copy of the Dark row (the table keeps its row); Off clears
+    // the terrain layer (Q-T2), so nothing is sampled for it.
+    maplayer::Theme t = maplayer::kThemes[maplayer::kThemeDark];
+    t.terrainGain = k.terrainGain;
+    const uint8_t layers = k.terrainDrawn ? kLayers : (uint8_t)(kLayers & ~maplayer::kLayerTerrain);
+    if (!in.build || !in.build(pk, k.view, in.askedMm, layers, t, m.sc, m.layer, &m.info, in.clock, k.terrainMid)) {
         ++m.buildFails;
         return false;
     }
     for (size_t i = 0; i < kPixels; ++i) m.layer[i] = Swap(m.layer[i]);   // to the canvas's byte order
-    DrawNames(m, pk, k, in.airports, in.ctx);
+    if (k.names)
+        DrawNames(m, pk, k, in.airports, in.ctx);
+    else
+        m.nPlaced = 0;   // step D: town names off, the map draws without them
     m.ready = true;
     m.layerFresh = true;
     return true;

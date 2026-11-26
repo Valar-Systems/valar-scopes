@@ -86,6 +86,23 @@ struct Stats {
     long hits = 0, refills = 0, uncached = 0;
 };
 
+// What may draw, decided ONCE for both layouts (LayoutToday and Refresh): ENABLED **AND** NON-EMPTY -- a field that
+// formats to "" for this contact must not spend one of the three lines -- and then the callsign fallback
+// (labellines::FallbackField: only when the type is ticked and unknown). The cache key holds the callsign and the type
+// whatever is ticked (LabelKey), so a cached entry can never carry a fallback that no longer applies.
+template <class F>
+inline void Decide(const F& f, int count, const char** keys, bool* willDraw)
+{
+    bool on[kMaxFields];
+    for (int i = 0; i < count; ++i) {
+        keys[i] = f.FieldKey(i);
+        on[i] = f.On(i);
+        willDraw[i] = on[i] && !f.Format(i).isEmpty();
+    }
+    const int fb = labellines::FallbackField(keys, on, willDraw, count);
+    if (fb >= 0 && !f.Format(fb).isEmpty()) willDraw[fb] = true;
+}
+
 // TODAY's layout, unchanged (AircraftManager::LabelLayout before P6): the bench's OLD path, and the cache's fallback.
 template <class F>
 inline int LayoutToday(const F& f, int x, int y, int* idxOut, int* xOut, int* yOut, int* wOut)
@@ -93,13 +110,9 @@ inline int LayoutToday(const F& f, int x, int y, int* idxOut, int* xOut, int* yO
     const int lineHeight = f.LineHeight();
     const int count = f.Count() < kMaxFields ? f.Count() : kMaxFields;
 
-    // ENABLED **AND** NON-EMPTY: a field that formats to "" for this contact must not spend one of the three lines.
     const char* keys[kMaxFields];
     bool willDraw[kMaxFields];
-    for (int i = 0; i < count; ++i) {
-        keys[i] = f.FieldKey(i);
-        willDraw[i] = f.On(i) && !f.Format(i).isEmpty();
-    }
+    Decide(f, count, keys, willDraw);
 
     int chosen[kLines];
     const int n = labellines::Select(keys, willDraw, count, chosen);
@@ -150,10 +163,7 @@ inline bool Refresh(const F& f, Entry& e, Stats* st = nullptr)
     }
     const char* keys[kMaxFields];
     bool willDraw[kMaxFields];
-    for (int i = 0; i < count; ++i) {
-        keys[i] = f.FieldKey(i);
-        willDraw[i] = ((mask >> i) & 1u) && !f.Format(i).isEmpty();
-    }
+    Decide(f, count, keys, willDraw);   // `mask` above is f.On(i), bit by bit, read in this same call
     int chosen[kLines];
     const int n = labellines::Select(keys, willDraw, count, chosen);
     for (int j = 0; j < n; ++j) {

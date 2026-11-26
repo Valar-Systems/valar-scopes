@@ -32,6 +32,7 @@ import { basemapHealth, handleBasemap } from "./basemap/handler";
 import { PRODUCTS, ROUTED } from "./wx/products";
 import { handleWeatherscope, weatherscopeHealth } from "./weatherscope/handler";
 import { routesHealth } from "./routeshealth";
+import { sitefeedHealth } from "./sitefeed/bend";
 
 // Authenticate a request. Per-device keys are now the ONLY way in: an
 // HMAC-derived key that is only valid when presented with the X-Blip-Device id
@@ -99,8 +100,13 @@ async function handleHealth(env: Env): Promise<Response> {
   //
   // `routes`: the rt: mirror's age from meta:routes (src/routeshealth.ts, docs/route-mirror-age.md), never a made-up
   // age. Flat, with no arrays and no "commit" key, for the same two readers' sake as `wx` above.
+  //
+  // `sitefeed`: the site feed's last served snapshot -- n aircraft, how many carry the malformed-flags marker, its age
+  // (sitefeed/bend.ts sitefeedHealth). Until this, /healthz could not express the site feed at all. Flat, for the same
+  // two readers; never throws (a failed read is `read_error`). Printed by smoke-prod.sh (sitefeed-line.sh) and by
+  // scripts/reconcile-fleet.py, which are where a person already looks.
   return jsonResponse({ ok: true, commit: BUILD_COMMIT, upstreams: feedHealth(env), wx: await wxHealth(env, PRODUCTS, ROUTED), basemap: basemapHealth(env),
-                        weatherscope: weatherscopeHealth(), routes: await routesHealth(env) });
+                        weatherscope: weatherscopeHealth(), routes: await routesHealth(env), sitefeed: await sitefeedHealth(env) });
 }
 
 // ---- edition-namespaced URLs (see docs/web-url-convention.md) ---------------
@@ -439,7 +445,8 @@ async function route(
 
 // The Bend site feed's Durable Object and its service-binding entrypoint (docs/bend-site-feed.md).
 // Named exports, not routes: no public request can reach BendFeed. Removable; see README "Bend site feed".
-export { BendFeed, BendSnapshotDO } from "./sitefeed/bend";
+// `SiteFeed` is the same entrypoint under a neutral name: the screen service binds it (screen.wrangler.toml).
+export { BendFeed, BendFeed as SiteFeed, BendSnapshotDO } from "./sitefeed/bend";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {

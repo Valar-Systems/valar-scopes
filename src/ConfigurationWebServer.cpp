@@ -5,6 +5,11 @@
 #include "WxLegendHtml.h" // the Weather section's legend (docs/wx-device.md WD8)
 #include "WxLookSelectHtml.h" // the Weather section's look select (docs/wx-device.md K1)
 #endif
+// Step D: the map's section, under BLIPSCOPE_MAP_FETCH's own definition spelled in -D names (AircraftManager.h is not
+// included here, so that macro is never defined in this file, and check_save_vocab.py reads -D names only).
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)
+#include "MapSettingsHtml.h" // the map, town names and terrain shading controls (docs/blipscope-map-client-steps.md, (b))
+#endif
 #include "ConfigMigration.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -735,6 +740,7 @@ static const char CONFIG_HTML[] PROGMEM = R"(
                         <option value="nmi" %RADIUS_UNIT_NMI%>nmi</option>
                     </select>
                 </label>
+                %MAPCOVERS%
 
                 </div><!-- /sec -->
 
@@ -928,6 +934,7 @@ R"(
                     </span>
                 </fieldset>
                 %WXSECTION%
+                %MAPSECTION%
 
                 </div><!-- /sec -->
 
@@ -2776,6 +2783,13 @@ void ConfigurationWebServer::Initialise() {
         // The weather look (docs/wx-device.md, K1): a shipping setting since 2026-10-29, read through
         // wxs2::LookFromStored, so absence means look A, the default Daniel chose.
         const String wxLookStored = prefs.getString("wx-look", "");
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)
+        // Step D: the map's three settings, RAW ("" when absent), resolved only inside mapsettingshtml::Html through
+        // ResolveToggle and mapterrain::Classify -- the same rules AircraftManager reads (DO1, DN1, D1).
+        const String mapLayerStored = prefs.isKey("map-layer") ? prefs.getString("map-layer", "") : String();
+        const String mapNamesStored = prefs.isKey("map-names") ? prefs.getString("map-names", "") : String();
+        const String mapTerrainStored = prefs.isKey("map-terrain") ? prefs.getString("map-terrain", "") : String();
+#endif
         const String airportsEnabled = HtmlEscape(prefs.isKey("airports") ? prefs.getString("airports", "true") : "true");
         const String airportsMin = HtmlEscape(prefs.isKey("airports-min") ? prefs.getString("airports-min", "all") : "all");
         const String trailEnabled = HtmlEscape(prefs.getString("trail", "true"));
@@ -3210,6 +3224,9 @@ void ConfigurationWebServer::Initialise() {
 #ifdef FEATURE_CLOUD_FEED
              , cloudUrlCfg, cloudKeyCfg, enrolled, refused, deviceIdCfg
 #endif
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)
+             , mapLayerStored, mapNamesStored, mapTerrainStored   // step D: the map's section
+#endif
             ]
             (const String& var) -> String {
                 if (var == "LATITUDE")       return latitude;
@@ -3262,6 +3279,21 @@ void ConfigurationWebServer::Initialise() {
                          + "</fieldset>";
 #else
                 if (var == "WXSECTION")      return "";   // no weather in this build, so no section (WxLayerSwitch.h)
+#endif
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)
+                // Step D: the map's section, exactly what mapsettingshtml::Html returns (DOC2 and DNC2 grade that
+                // header), under its own gate, never nested in the weather's. Hidden, never unticked, wherever the
+                // map is not built (DO4, DN4).
+                if (var == "MAPSECTION")
+                    return String(mapsettingshtml::Html(mapLayerStored.c_str(), mapNamesStored.c_str(),
+                                                        mapTerrainStored.c_str()).c_str());
+                // D4, "clamp: map only" (the owner, 2026-11-25): one line by the radius setting. The saved radius is
+                // never shrunk; above 100 mi the ring stays and the map stops at 100 mi (MapQuery.h, MapLayer.h).
+                if (var == "MAPCOVERS")
+                    return "<span class=\"hint\">The map covers up to 100 miles.</span>";
+#else
+                if (var == "MAPSECTION")     return "";   // no map in this build, so no section
+                if (var == "MAPCOVERS")      return "";   // no map in this build, so no line about it
 #endif
                 if (var == "AIRPORTS")       return airportsEnabled == "true" ? "checked" : "";
                 if (var == "TRAIL")          return trailEnabled == "true" ? "checked" : "";
@@ -3848,6 +3880,13 @@ void ConfigurationWebServer::Initialise() {
 #endif
 #ifdef FEATURE_CLOUD_FEED
         TrySaveParam("wx-look");   // a shipping setting since 2026-10-29 (docs/wx-device.md K1); absent stays absent
+#endif
+#if defined(FEATURE_CLOUD_FEED) && defined(WX_LAYER_SHIPS) && !defined(BLIPSCOPE_WEB_RENDERER)
+        // Step D: only where the map's section renders (the same gate), so a build that never shows the boxes never
+        // counts them as "left unchanged" (DO4, DN4). Terrain is saved only if it is sent, as wx-look is.
+        SaveToggle("map-layer");
+        SaveToggle("map-names");
+        TrySaveParam("map-terrain");
 #endif
         TrySaveParam("airports-min");
         SaveToggle("trail");

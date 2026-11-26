@@ -763,3 +763,32 @@ The timer ran `n540_read.py` once, at **08:05:58Z** on 2026-11-06. Its sha256 st
   old 30 s rule's; `proxy/src/sitefeed/bend.ts`). There was no write error.
 - **N2, the first night reading of the new counter:** `refused_older` 0 in both hours. No older
   snapshot arrived after a newer one.
+
+## The malformed-flags marker (the owner, 2026-11-25): `dbFlagsBad`, its count, and its reader
+
+**The rulings** (the owner, 2026-11-25 22:38Z): "malformed flags: hide", "stale positions: drop", and "Malformed flags:
+count every aircraft hidden for this reason, so a change in the feed's format shows as a jump, not as an empty sky
+nobody can explain."
+
+**Why the marker is here.** Addendum 3 refuses a wrong-type `dbFlags` to `null`. readsb also leaves `dbFlags` OUT when
+it is 0, and that arrives as `null` too. So downstream of `passThrough`, "no flags" and "malformed" are the same value,
+and no consumer can hide one without hiding the other. This feed is the last stage that can tell them apart.
+
+- **`dbFlagsBad: true`** (v2, additive) is set on a row whose upstream record had a `dbFlags` key with a value that is
+  not an integer in **0..15**. That covers a string, a negative, a fraction, an explicit `null`, `true`, and anything
+  above 15, the four readsb bits. The 0..15 range is fe's ruling on the owner's aim: a new bit in the feed then shows as
+  a jump in the count and errs toward hidden. Its `dbFlags` stays `null`. `v` stays 2.
+- **One change for an existing reader:** a raw 16 and above passed through as itself before, and is now `null` with
+  the marker. A reader that ignores the marker reads `null` as 0, and `16 & 12` is 0 as well, so its class does not move.
+- **Consumers hide on the marker, never on `null`.** The screen service does: `classes.ts`, P-MF3. The site's narrowing
+  reads `dbFlagsBad === true`.
+- **The count:** `dbflags_bad`, one point per STORED write (the DO's 204), including 0, with `doubles [bad, n]`. A
+  missing point means "no write", never "nothing malformed". Integers only.
+- **The reader:** `/healthz`'s flat `sitefeed` block, printed by `smoke-prod.sh` (`scripts/sitefeed-line.sh`) and by
+  `scripts/reconcile-fleet.py`. Until now `/healthz` had no site-feed block at all, so it could not go red for the feed.
+- **Stale positions** were already dropped before the write: `normalizeReadsbAc` refuses `seen_pos > 60`. P-MF6 keeps
+  that true.
+
+The tests are P-MF1 to P-MF7 and P-MF5s (`test/sitefeed-bend.test.ts`, `test/screen-enrich.test.ts`,
+`scripts/sitefeed-line.selftest.sh`, `../scripts/reconcile-fleet.selftest.py`). They were red on main before the
+code, and each has a sabotage that turns exactly its own rows red.

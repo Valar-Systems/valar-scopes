@@ -33,13 +33,38 @@ set -uo pipefail
 # the FULL 40-hex commit (PROVENANCE pins it and --check checks it out), a dirty tree is refused with no ALLOW_DIRTY
 # escape (a "-dirty" stamp is not a commit, so the builder would refuse every build), and there is no /healthz to
 # confirm against (the builder has no route; D3's binding test is the proof).
+#
+# --screen deploys the screen service (screen.wrangler.toml; its phase-1 registration, R4, ruled 2026-11-25) through the
+# SAME guards, with the builder's three differences (the FULL commit as its stamp, no ALLOW_DIRTY, no /healthz) and one
+# env of its own: production-fulllogs, the full-logs day (docs/screen-logs-runbook.md), which takes --until <ISO UTC>.
+# Before the upload it runs screen-deploy-check.mjs on the env's own dry-run bundle (the counter's write, the --until
+# rules, the end's stamp). production-fulllogs IS the production script, so its deploy claim is screen:production.
 BUILDER=""
-if [ "${1:-}" = "--builder" ]; then BUILDER=1; shift; fi
+SCREEN=""
+UNTIL=""
+UNTIL_GIVEN=""
+usage() { echo "usage: $0 [--builder] <production|staging>   |   $0 --screen <staging|production|production-fulllogs> [--until <ISO UTC>]" >&2; exit 2; }
+case "${1:-}" in
+  --builder) BUILDER=1; shift ;;
+  --screen) SCREEN=1; shift ;;
+esac
 ENVIRONMENT="${1:-}"
 case "$ENVIRONMENT" in
   production|staging) ;;
-  *) echo "usage: $0 [--builder] <production|staging>" >&2; exit 2 ;;
+  production-fulllogs) [ -n "$SCREEN" ] || usage ;;
+  *) usage ;;
 esac
+# --until is the screen's alone; its value is passed through as given and judged in one place (screen-deploy-check.mjs, P-U).
+case "${SCREEN}:${2:-}" in
+  1:--until) UNTIL_GIVEN=1; UNTIL="${3:-}"; [ $# -le 3 ] || usage ;;
+  1:) ;;
+  1:*) usage ;;
+esac
+# ... and on every other path NOTHING follows the environment: any further argument is refused as usage, never silently
+# dropped (map-server's F2 and F3 on #811), because an ignored flag on a deploy is a statement the operator believes took
+# effect: `staging --dry-run` would deploy for real, `production --screen` would deploy the proxy. After the shift above,
+# so `--builder staging` counts one. scripts/check-deploy-args.sh's rows and sabotages hold this.
+[ -n "$SCREEN" ] || [ $# -le 1 ] || usage
 
 # ---- 0. the deploy claim (docs/session-claims.md) -----------------------------
 # Before any other work: one deployer at a time, across every session on this
@@ -47,6 +72,7 @@ esac
 # here runs. The claim lives outside every git tree, so no checkout can be behind
 # on it; scripts/session-claim.py is deploy machinery all the same (Q-DB1).
 CLAIM_TARGET="proxy:$ENVIRONMENT"; [ -n "$BUILDER" ] && CLAIM_TARGET="builder:$ENVIRONMENT"
+[ -n "$SCREEN" ] && CLAIM_TARGET="screen:${ENVIRONMENT%-fulllogs}"
 # The first Python that actually runs: on Windows, `python3` can be the Store's stub, which fails every call (found by CL10).
 claim_python() { local c; for c in python3 python; do command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys' >/dev/null 2>&1 && { echo "$c"; return 0; }; done; return 1; }
 CLAIM_PY="$(claim_python)" || { printf '\n\033[31mREFUSING TO DEPLOY\033[0m -- no working Python to read the deploy claim with.\n' >&2; exit 1; }
@@ -110,6 +136,12 @@ if [ -n "$DIRTY" ] && [ -n "$BUILDER" ]; then
   echo "A builder stamped <sha>-dirty refuses every build (builder_unstamped). Commit, push, and deploy from a clean tree." >&2
   exit 1
 fi
+if [ -n "$DIRTY" ] && [ -n "$SCREEN" ]; then
+  fatal "proxy/ has uncommitted changes, and the screen service's stamp must be a commit (ALLOW_DIRTY does not apply to --screen)."
+  printf '\n%s\n\n' "$DIRTY" >&2
+  echo "Commit, push, and deploy from a clean tree." >&2
+  exit 1
+fi
 if [ -n "$DIRTY" ]; then
   if [ "${ALLOW_DIRTY:-}" != "1" ]; then
     fatal "proxy/ has uncommitted changes, and wrangler bundles the working tree."
@@ -167,6 +199,7 @@ fi
 # here, so a broken probe costs a refusal, never a revert.
 git fetch -q origin main 2>/dev/null || true
 DI_TARGET=proxy; [ -n "$BUILDER" ] && DI_TARGET=builder
+[ -n "$SCREEN" ] && DI_TARGET=screen
 # deploy-inputs.mjs writes the FULL shas of the commits it blocks on to this file (docs/deploy-sha-pin.md), so the named
 # set below is compared with its own decision, not with a reading of its printed prefixes.
 DEPLOY_INPUTS_BLOCKING_OUT="$(mktemp)"; export DEPLOY_INPUTS_BLOCKING_OUT
@@ -210,12 +243,14 @@ SHA="$(git rev-parse --short HEAD)"
 [ -n "$DIRTY" ] && SHA="${SHA}-dirty"
 # The builder's stamp is the FULL commit: its PROVENANCE names it, and --check checks it out (a dirty tree never reaches here)
 [ -n "$BUILDER" ] && SHA="$(git rev-parse HEAD)"
+[ -n "$SCREEN" ] && SHA="$(git rev-parse HEAD)"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
 printf 'deploying to \033[1m%s\033[0m\n' "$ENVIRONMENT"
 printf '  commit  %s  (%s)\n' "$SHA" "$BRANCH"
 printf '  subject %s\n\n' "$(git log -1 --format=%s)"
 [ -n "$BUILDER" ] && printf '  worker  the basemap BUILDER (basemap.wrangler.toml): no route, its R2 binding STORE\n\n'
+[ -n "$SCREEN" ] && printf '  worker  the SCREEN service (screen.wrangler.toml, env %s)%s\n\n' "$ENVIRONMENT" "${UNTIL_GIVEN:+, --until $UNTIL}"
 
 cd "$ROOT/proxy" || exit 1
 
@@ -228,6 +263,23 @@ if [ -n "$BUILDER" ]; then
   node scripts/wrangler-run.mjs deploy --config basemap.wrangler.toml --env "$ENVIRONMENT" --define BUILD_COMMIT:"\"$SHA\"" || exit 1
   printf '\nbuilder deployed to %s, stamped %s.\n' "$ENVIRONMENT" "$SHA"
   printf 'NOT YET CONFIRMED: this output is the only evidence until a bound proxy reports this commit (D3).\n'
+  exit 0
+fi
+
+# ---- the screen service: its own pre-deploy check, then deploy ---------------
+# The proxy-only steps below do not apply: the screen holds no DEVICE_KEY_SECRET, and it has no route yet, so there is
+# no /health to confirm against until its custom domain lands. The check builds the env's OWN dry-run bundle and refuses
+# unless it holds the unsampled counter's write exactly once (P-M2), the --until rules hold (P-U: production-fulllogs
+# needs an end within 24 h, no other env takes one), and the end it was given survives into that bundle (P-S). The same
+# end is stamped below as FULL_LOGS_UNTIL, which /health reports and the logs watch grades (docs/screen-logs-runbook.md).
+if [ -n "$SCREEN" ]; then
+  CHECK_ARGS=("$ENVIRONMENT"); [ -n "$UNTIL_GIVEN" ] && CHECK_ARGS+=(--until "$UNTIL")
+  node scripts/screen-deploy-check.mjs "${CHECK_ARGS[@]}" || { fatal "the screen's pre-deploy check refused (above); nothing was deployed."; exit 1; }
+  STAMP=(--define BUILD_COMMIT:"\"$SHA\"")
+  [ "$ENVIRONMENT" = production-fulllogs ] && STAMP+=(--define FULL_LOGS_UNTIL:"\"$UNTIL\"")
+  node scripts/wrangler-run.mjs deploy --config screen.wrangler.toml --env "$ENVIRONMENT" "${STAMP[@]}" || exit 1
+  printf '\nscreen service deployed to %s, stamped %s%s.\n' "$ENVIRONMENT" "$SHA" "${UNTIL_GIVEN:+, full logs until $UNTIL}"
+  printf 'NOT YET CONFIRMED: read its /health (commit, logs.rate, logs.until) once it has a route.\n'
   exit 0
 fi
 

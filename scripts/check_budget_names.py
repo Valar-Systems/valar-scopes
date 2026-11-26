@@ -10,18 +10,28 @@ builder had no row, found by reading, not by a check.
   python3 scripts/check_budget_names.py              exit 0: every name attributed; 1: a finding (each printed)
   python3 scripts/check_budget_names.py --selftest   synthetic tables and configs, CB1-CB8; exit 0 only if every row passes
 
-Names come from proxy/wrangler.toml (every r2_buckets bucket_name and every Worker `name`, at the top level and in every
-env) and proxy/basemap.wrangler.toml (every Worker `name`). The reader's tables are IMPORTED from budget_read.py, never
-copied, so a change there is checked here at once. NOT_IN_ACCOUNT holds the names a config carries but the account never
-bills, each with its reason; an entry that is attributed anyway, or that no config names any more, is STALE and fails.
+Names come from EVERY *wrangler.toml under proxy/, found by walking the folder (node_modules and dot-directories skipped),
+each read for every r2_buckets bucket_name AND every Worker `name`, at the top level and in every env. The configs read are
+printed against an independent listing of the files on disk, and a difference is a finding: until 2026-11-25 this check
+read a fixed list of two files while proxy/ held five, so a new config was invisible to it. The reader's tables are
+IMPORTED from budget_read.py, never copied, so a change there is checked here at once. A NAMED LIMIT: it checks NAMES ONLY
+-- buckets and Workers -- never Analytics Engine datasets or any other binding -- AE is unbilled today (2026-11-25) and the
+budget has no allowance for it, so a dataset that one day bills needs that allowance first and then a rule here. KV
+namespaces are attributed by budget_read.py's KV_NS, and Durable Object namespaces by their callers at read time
+(docs/account-budget.md section 13); neither is checked here. NOT_IN_ACCOUNT holds
+the names a config carries but the account never bills, each with its reason; an entry that is attributed anyway, or that
+no config names any more, is STALE and fails.
 """
+import glob
 import importlib.util
 import os
 import sys
+import tempfile
 import tomllib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIGS = {"proxy/wrangler.toml": ("buckets", "workers"), "proxy/basemap.wrangler.toml": ("workers",)}
+ANCHORS = ("proxy/wrangler.toml", "proxy/basemap.wrangler.toml")   # must be among the configs read: a discovery that finds nothing fails
+SKIP_DIRS = {"node_modules"}
 NOT_IN_ACCOUNT = {
     "blipscope-basemap-pkg-dev": "the top-level (dev and test) package bucket: vitest gives an in-memory bucket "
                                  "(proxy/wrangler.toml, the top-level note), and the account has no such bucket "
@@ -68,25 +78,55 @@ def findings(bucket_names, worker_names, bucket_table, shared, script_product, e
     return sorted(out)
 
 
+def discover(root=ROOT):
+    """Every file under proxy/ whose name ends in wrangler.toml, by recursive glob (which skips dot-directories), with
+    node_modules skipped: sorted repo-relative paths with forward slashes."""
+    out = []
+    for p in glob.glob(os.path.join(root, "proxy", "**", "*wrangler.toml"), recursive=True):
+        rel = os.path.relpath(p, root).replace(os.sep, "/")
+        if not any(d in SKIP_DIRS or d.startswith(".") for d in rel.split("/")[1:-1]):
+            out.append(rel)
+    return sorted(out)
+
+
+def on_disk(root=ROOT):
+    """The same rule by os.walk, independently of discover(): what is on disk, for the count to be read against."""
+    out = []
+    for d, dirs, files in os.walk(os.path.join(root, "proxy")):
+        dirs[:] = [x for x in dirs if x not in SKIP_DIRS and not x.startswith(".")]
+        out += [os.path.relpath(os.path.join(d, f), root).replace(os.sep, "/") for f in files if f.endswith("wrangler.toml")]
+    return sorted(out)
+
+
 def collect(root=ROOT):
-    buckets, workers = [], []
-    for rel, kinds in CONFIGS.items():
-        with open(os.path.join(root, rel), "rb") as fh:
-            b, w = names_of(tomllib.load(fh))
-        if "buckets" in kinds:
-            buckets += [(n, f"{rel} {where}") for n, where in b]
-        if "workers" in kinds:
-            workers += [(n, f"{rel} {where}") for n, where in w]
-    return buckets, workers
+    """(buckets, workers, problems, configs, disk): every discovered config, read for BOTH kinds. A config that does not
+    parse, a count that differs from the disk's, or an anchor not read is a problem, never skipped."""
+    buckets, workers, problems = [], [], []
+    configs, disk = discover(root), on_disk(root)
+    for rel in configs:
+        try:
+            with open(os.path.join(root, rel), "rb") as fh:
+                b, w = names_of(tomllib.load(fh))
+        except (OSError, tomllib.TOMLDecodeError) as e:
+            problems.append(f"UNREADABLE config {rel} ({type(e).__name__})")
+            continue
+        buckets += [(n, f"{rel} {where}") for n, where in b]
+        workers += [(n, f"{rel} {where}") for n, where in w]
+    if configs != disk:
+        problems.append(f"COUNT configs read {len(configs)} of {len(disk)} on disk "
+                        f"(not read: {sorted(set(disk) - set(configs))}; read but not on disk: {sorted(set(configs) - set(disk))})")
+    problems += [f"ANCHOR {a} not read" for a in ANCHORS if a not in configs]
+    return buckets, workers, problems, configs, disk
 
 
 def main(root=ROOT, exempt=None):
     exempt = NOT_IN_ACCOUNT if exempt is None else exempt
     r = load_reader(root)
-    buckets, workers = collect(root)
-    f = findings(buckets, workers, r.BUCKET, r.SHARED_BUCKETS, r.script_product, exempt)
+    buckets, workers, problems, configs, disk = collect(root)
+    f = problems + findings(buckets, workers, r.BUCKET, r.SHARED_BUCKETS, r.script_product, exempt)
     for line in f:
         print(line)
+    print(f"configs read {len(configs)} of {len(disk)} on disk (every *wrangler.toml under proxy/)")
     print(f"budget names: {len({n for n, _ in buckets})} bucket names, {len({n for n, _ in workers})} worker names; "
           f"{len(exempt)} not in the account; findings {len(f)}; {'OK' if not f else 'FAIL'}")
     return 0 if not f else 1
@@ -122,6 +162,21 @@ def selftest():
     b, w = names_of(cfg)
     check([n for n, _ in b] == ["b1", "b2", "b3", "b4"] and [n for n, _ in w] == ["w-top", "w-st", "w-pr"],
           "CB8 CONTROL: the parser reads the top level and every env (4 buckets, 3 Worker names)")
+    with tempfile.TemporaryDirectory() as t:
+        files = {"proxy/wrangler.toml": 'name = "w-a"\n', "proxy/basemap.wrangler.toml": 'name = "w-b"\n',
+                 "proxy/sub/x.wrangler.toml": '[env.staging]\n[[env.staging.r2_buckets]]\nbinding = "B"\nbucket_name = "b-only"\n',
+                 "proxy/node_modules/pkg/wrangler.toml": 'name = "w-nm"\n', "proxy/.wrangler/tmp/wrangler.toml": 'name = "w-dot"\n',
+                 "proxy/notes.toml": 'name = "w-notes"\n'}
+        for rel, body in files.items():
+            os.makedirs(os.path.dirname(os.path.join(t, rel)), exist_ok=True)
+            with open(os.path.join(t, rel), "w", encoding="utf-8") as fh:
+                fh.write(body)
+        want = ["proxy/basemap.wrangler.toml", "proxy/sub/x.wrangler.toml", "proxy/wrangler.toml"]
+        check(discover(t) == want and on_disk(t) == want,
+              "CB9 discovery: a nested config found; node_modules, dot-directories and other .toml skipped; disk listing equal")
+        bk, wk, pr, _, _ = collect(t)
+        check([n for n, _ in bk] == ["b-only"] and sorted(n for n, _ in wk) == ["w-a", "w-b"] and pr == [],
+              "CB10 every config is read for BOTH kinds: a bucket-only config's bucket is found, no problem")
     print(f"check_budget_names selftest: {passed} of {ran}")
     return 0 if passed == ran else 1
 

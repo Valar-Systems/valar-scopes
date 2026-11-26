@@ -775,7 +775,8 @@ anchor control. That survives a rebuild; a sha does not.
 
 ## Standing practice: a default only reaches keys that were never saved
 
-**Changing a `defaultOn` in firmware reaches factory-fresh devices and nobody
+**Changing a `defaultOn` in firmware reaches factory-fresh devices and boards
+that have never pressed Save, and nobody
 else.** The config page posts the WHOLE form, and an unchecked box is simply
 absent from the body — so `SaveToggle()` writes an explicit `"false"` for it. From
 that moment the key has a value, and no future default can reach it:
@@ -784,9 +785,19 @@ that moment the key has a value, and no future default can reach it:
 infoFieldEnabled[i] = stored.isEmpty() ? defaultOn : (stored == "true");
 ```
 
-The first time a customer saves *anything*, the defaults in force that day are
-frozen into their NVS as explicit values. And they must save something — setting
-a location is a whole-form save, and a device without one shows an empty radar.
+The first time a customer presses **Save on the config page**, the defaults in
+force that day are frozen into their NVS as explicit values. The page declares
+every checkbox it renders (`cfg-toggles`), so one Save writes all of them. A Save
+from a browser without JavaScript sends no `cfg-toggles`, so it writes only the
+ticked boxes and leaves the unticked ones absent. **Setting a location is NOT
+necessarily that save.** Since v15, "Use my location" posts to `/location`, which
+writes latitude and longitude and nothing else, on purpose. An owner who only ever
+used it never froze the defaults, and a changed default DOES reach that device on
+update. So a `defaultOn` change has two populations: boards that pressed Save
+(frozen, unaffected) and boards that never did (the default reaches them).
+Configuration is not reported, so nobody knows how many of each there are. Before
+v15 a location could only be set by that Save, which is why #238 below reached no
+configured device.
 
 So #238 (aircraft type + operator ship on) could not reach a single configured
 device. It looked like a one-line fix and was inert everywhere it mattered.
@@ -1875,7 +1886,7 @@ and said never.** It was reversed deliberately, by Daniel, and the reversal is
 recorded rather than edited away so the next person does not read the new code as
 a violation of an old rule and revert it.
 
-**What is collected now.** Anonymous counts of feature use, at most hourly, on a
+**What is collected now.** Counts of feature use, at most hourly, on a
 request the device already makes: detail-card opens, screen switches per screen,
 logbook claims, whether Follow is configured (a boolean), and uptime hours. Eight
 integers. See [include/UsageReport.h](include/UsageReport.h).

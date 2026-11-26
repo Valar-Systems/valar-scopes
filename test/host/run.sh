@@ -1789,6 +1789,30 @@ fi
 )
 note_block $? "WxSweep"
 
+# The sweep's wedge, one copy (include/SweepWedge.h; the owner's "one constant", 2026-11-22): the device's FillWedge
+# against wxsweep::Rasterise at 1,272 frames, pixel for pixel, and DrawHelpers.h read to prove DrawRadarSweep goes
+# through it. Its sabotages (the device's own afterglow, a slice, the peak, main's body, the call):
+# python -I test/host/sabotage_sweep_wedge.py
+echo
+echo "== SweepWedge =="
+(
+  fail=0
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_sweep_wedge.cpp" -o "$OUT/test_sweep_wedge.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the sweep wedge test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_sweep_wedge.exe" "$ROOT/include/DrawHelpers.h"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -gt 2 ]; then
+  echo "FAIL: the binary did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+[ "$rc" -ne 0 ] && fail=1
+  exit "$fail"
+)
+note_block $? "SweepWedge"
+
 # The config page's weather legend (include/WxLegendHtml.h; docs/wx-device.md WD8): the HTML the device serves, both
 # looks, each swatch against the layer's own colour. Its sabotage (a swatch typed in by hand, one level off):
 # python -I test/host/sabotage_wx_legend_html.py. The served page: scripts/check-wx-legend.py --url.
@@ -2535,6 +2559,39 @@ exit "$rc"
 )
 note_block $? "MapCompose"
 
+# Step D (docs/blipscope-map-client-steps.md, "Step D" and "Step D's other half"): the page's map section
+# (include/MapSettingsHtml.h: DOC2, DNC2, D1's page row), the terrain setting (include/MapTerrain.h: D1; D3 against
+# test/host/ref/MapLayer_main.h, main's MapLayer.h before step D) and the town names in the composer (DNP1, DNP2) and S8C (test_map_s8: terrain never moves a line). DOC1
+# and DNC1 are in test_config_migration above. Their plants: python -I test/host/sabotage_map_settings.py.
+echo
+echo "== Step D: the map's settings =="
+(
+if ! "$CXX" $FLAGS -I"$ROOT/include" "$ROOT/test/host/test_map_settings_html.cpp" -o "$OUT/test_map_settings_html.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the map settings page test did not compile"; cat "$OUT/build.log"; exit 2
+fi
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" -I"$ROOT/test/host" "$ROOT/test/host/test_map_terrain.cpp" -o "$OUT/test_map_terrain.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the terrain setting test did not compile"; cat "$OUT/build.log"; exit 2
+fi
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_map_names.cpp" -o "$OUT/test_map_names.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the town names test did not compile"; cat "$OUT/build.log"; exit 2
+fi
+if ! "$CXX" $FLAGS -I"$ROOT/include" -I"$ROOT/src/weatherscope" "$ROOT/test/host/test_map_s8.cpp" -o "$OUT/test_map_s8.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the S8 line measure did not compile"; cat "$OUT/build.log"; exit 2
+fi
+worst=0
+for t in "test_map_settings_html.exe" "test_map_terrain.exe $ROOT/test/fixtures/wx" "test_map_names.exe $ROOT/test/fixtures/wx" "test_map_s8.exe $ROOT/test/fixtures/wx"; do
+  # shellcheck disable=SC2086
+  "$OUT/"$t
+  rc=$?
+  if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+    echo "FAIL: $t did not run as a test (exit $rc). This is the RIG, not the code."; exit 2
+  fi
+  [ "$rc" -gt "$worst" ] && worst=$rc
+done
+exit "$worst"
+)
+note_block $? "Step D"
+
 # Step C's scope addition (docs/blipscope-map-client-steps.md, "Step C's scope addition: airportsGen moves only when the
 # airports CONTENT changes", and its amendment): include/MapAirportsKey.h held to its 13 rows -- an identical refetch,
 # empty or listed, is no change; the empty list's hash is kEmptyHash and the boot value; each field the names' obstacles
@@ -2840,6 +2897,27 @@ fi
 exit "$rc"
 )
 note_block $? "P6: the label cache against today's layout"
+
+# Labels default to the type only (the owner's ruling, 2026-11-25; _handoffs/p4/typeonly/REG-type-only.txt). It reads
+# the SHIPPING field table and preset buttons from the tree at run time, so it tests them and not a copy. Its plants:
+# _handoffs/p4/typeonly/sabotage_type_only.py.
+echo
+echo "== labels default to the type only =="
+(
+if ! "$CXX" $FLAGS "$ROOT/test/host/test_type_only_default.cpp" -o "$OUT/test_type_only_default.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the type-only default test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_type_only_default.exe" "$ROOT"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the type-only default test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "labels default to the type only"
 
 echo
 echo "== strings_elf: the image-level text check's selftest (Q-6b-6) =="

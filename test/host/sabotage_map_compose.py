@@ -46,8 +46,11 @@ CASES = 28   # the suite's count: the one place it lives, read by the run path a
              # CB9 slice and CB9 spans)
 
 COMPOSE_AT = "            out[p] = wxlayer::OffDisc(x, y, kSize) ? 0 : (wx[p] != 0 ? wx[p] : layer[p]);\n"
-NAMES_AT = "    DrawNames(m, pk, k, in.airports, in.ctx);\n"
-BUILD_AT = "    if (!in.build || !in.build(pk, k.view, in.askedMm, kLayers,"
+# Step D (ruled 2026-11-19 ~02:29Z; intent unchanged): the names step is the whole `if (k.names)` block, and Build takes
+# the resolved layer mask and theme. The block as a unit, so the plant moves it whole and never leaves `if (k.names) else`.
+NAMES_AT = ("    if (k.names)\n        DrawNames(m, pk, k, in.airports, in.ctx);\n    else\n"
+            "        m.nPlaced = 0;   // step D: town names off, the map draws without them\n")
+BUILD_AT = "    if (!in.build || !in.build(pk, k.view, in.askedMm, layers,"
 SWAP_AT = "    for (size_t i = 0; i < kPixels; ++i) m.layer[i] = Swap(m.layer[i]);   // to the canvas's byte order\n"
 INIT_AT = "    m.freeFn = freeFn;\n"
 ROT_AT = "    if (a.view.rotSin != b.view.rotSin || a.view.rotCos != b.view.rotCos) return false;   // THE ROTATION\n"

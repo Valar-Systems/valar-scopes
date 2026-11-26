@@ -331,6 +331,14 @@ printf '\n===== /healthz wx, every product =====\n'
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wx-products-lines.sh"
 wx_products_section "$HEALTH_BODY"
 
+# The site feed's malformed-flags count (the owner, 2026-11-25: "count every aircraft hidden for this reason, so a
+# change in the feed's format shows as a jump"): bad/n in the last served snapshot, from the /healthz body fetched above
+# (no new request), WARN when bad is not 0 or the block is missing. Information only, like the wx lines: it touches
+# neither pass nor fail. The line and that promise are graded by sitefeed-line.selftest.sh in CI.
+printf '\n===== /healthz site feed, malformed flags =====\n'
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sitefeed-line.sh"
+sitefeed_line "$HEALTH_BODY"
+
 # The rt: route mirror's age (docs/route-mirror-age.md), from the /healthz body fetched above (no new request). The
 # limit is the body's own maxAgeDays: 10 days (the owner, 2026-11-13; docs/route-age-alert.md). FAIL mode since the
 # approved refresh of 2026-11-13 landed and was verified: a PASS counts as a pass and anything else -- stale, no age, no
@@ -802,6 +810,16 @@ contains "/credits carries the NOAA MRMS line" 200 \
 contains "/credits carries the OPERA line" 200 \
   "Weather radar outside the US: EUMETNET OPERA CIRRUS maximum-reflectivity composite, created by Meteo France, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Reprojected to a 0.01&deg; grid and binned to 5 dBZ steps by Valar Systems. Not endorsed by EUMETNET." "$BASE/credits"
 
+# The basemap's attribution (docs/basemap-attribution.md; renderCreditsHtml in proxy/src/photolicense.ts): the four US
+# government sources, the terrain and SRTM's notice (its bytes after the copyright sign, so this file stays ASCII).
+# Production has carried them since a deploy took D3's code; nothing checked them until 2026-11-25 (docs/basemap-deploy.md,
+# Q-D3b). test/smoke-credits.test.ts reads these lines and the template, so a needle cannot drift from the page.
+contains "/credits carries the basemap's TIGER/Line line" 200 "TIGER/Line 2024" "$BASE/credits"
+contains "/credits carries the basemap's Gazetteer and SUB-EST2024 line" 200 "Gazetteer and SUB-EST2024" "$BASE/credits"
+contains "/credits carries the basemap's GNIS line" 200 "USGS GNIS Domestic Names" "$BASE/credits"
+contains "/credits carries the basemap's terrain line" 200 "Basemap terrain from AWS Terrain Tiles (Terrarium, zoom 9)." "$BASE/credits"
+contains "/credits carries the basemap's SRTM notice" 200 "COPYRIGHT 2000 BY THE UNITED STATES GOVERNMENT. NO COPYRIGHT CLAIMED UNDER TITLE 17 U.S.C." "$BASE/credits"
+
 # The self-hosted webfonts. Requested BY PATH rather than scraped out of the page
 # so this still fails loudly if the page stops asking for them (which would mean
 # the page changed, not that the fonts are fine).
@@ -1039,6 +1057,18 @@ enroll_post "enroll POST, malformed id -> 400 (id shape checked before anything)
 # check. The failure was in CONTENT, and only a content check could see it.
 # =============================================================================
 
+
+# The support page's links to our own site (scripts/check-support-links.mjs; its cases are graded by its --selftest in
+# CI). INFORMATION ONLY, and deliberately not counted in PASS/FAIL/SKIPPED: the site is not the proxy, so a site outage
+# must not turn a proxy deploy's smoke red. It is here so the person deploying SEES whether the support page links to a
+# live page with the same terms. CI runs the same check only on a change to a link-bearing file.
+printf '\n===== the support page links (valarscopes.com) =====\n'
+SL_OUT="$(node "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/check-support-links.mjs" 2>&1)"; SL_RC=$?
+printf '%s\n' "$SL_OUT"
+case "$SL_RC" in
+  0) SL_V="PASS" ;; 1) SL_V="FAILED" ;; 2) SL_V="BLIND" ;; 3) SL_V="OUTSIDE" ;; *) SL_V="ERROR (exit $SL_RC)" ;;
+esac
+printf 'RESULT: INFO -- %s (information only; not counted)\n' "$SL_V"
 
 printf '\n================ SUMMARY ================\n'
 printf 'PASS: %d   FAIL: %d   SKIPPED: %d\n' "$pass" "$fail" "$skipped"

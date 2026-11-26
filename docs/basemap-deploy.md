@@ -439,6 +439,8 @@ Nothing here is code yet. The questions below decide the code, so they come firs
 - **What would happen otherwise:** the half's five checks would read FAIL on every production smoke between D3 and D4. A permanently red check gets read past.
 - **Recommended:** it lands with the production binding, in the D4 PR. MA2 holds the page's content in CI meanwhile.
 
+**Appended 2026-11-25:** Q-D3b's premise has lapsed. Production's `/credits` has carried the basemap's lines since a production deploy took D3's code (read 2026-11-25: HTTP 200, each line once). So the five checks landed in `smoke-prod.sh` in their own PR, not D4's (the orchestrator's ruling), with `test/smoke-credits.test.ts` tying each to the template.
+
 **The order, if Q-D3a and Q-D3b are ruled as recommended:**
 1. D0, in its slot.
 2. The test-identity PR, minted on staging and production.

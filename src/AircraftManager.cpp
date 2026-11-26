@@ -33,6 +33,11 @@
 // THE MAP FETCH BEGIN
 #ifdef BLIPSCOPE_MAP_FETCH
 #include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task
+// The 480 map gate: a derived constant, not a product flag. The map's composite is maplayer::kSize px, so only a screen
+// of that size fetches, builds or copies it (MapEnabled, and the static_assert beside DrawMapBase's copy).
+namespace variant {
+constexpr bool MAP_LAYER = maplayer::DrawsAt(SCREEN_SIZE);
+}
 // A 200 the gate never read (over the cap, short or stalled): logged as "unread", never as a bmpk::Status it was not.
 constexpr uint8_t kMapWhyUnread = 0xFF;
 #endif
@@ -1089,6 +1094,15 @@ void AircraftManager::Initialise()
     // The map's request, from the STORED distance and the unit's exact factor (units::ToKm of 1 is the factor itself,
     // exactly), never from the view's float radii; the ladder just rebuilt above says which steps exist (step A, 1).
     MapConfigure(distance, units::ToKm(1.0, cfgUnit));
+    // Step D: the map's settings, as the page saved them (a save applies here, as today; nothing needs a reboot). The
+    // toggles through ResolveToggle and nothing else (DO1, DN1): unset or "" is ON. Terrain through mapterrain::Resolve
+    // (D1): unset or unknown is Strong. The map off asks for nothing (MapEnabled) and leaves a held package held, so
+    // turned back on it draws at the next shown frame with no new request (Q-D3: the query key is unchanged).
+    mapLayerOn = configmigration::ResolveToggle(configServer.GetStoredString("map-layer").c_str(),
+                                                configmigration::MAP_DEFAULT_ON);
+    mapNamesOn = configmigration::ResolveToggle(configServer.GetStoredString("map-names").c_str(),
+                                                configmigration::MAP_NAMES_DEFAULT_ON);
+    mapShade = mapterrain::Resolve(configServer.GetStoredString("map-terrain").c_str());
 #endif
     // THE MAP FETCH END
 #endif
@@ -2799,7 +2813,8 @@ void AircraftManager::RecordFrameUs(uint32_t frameUs)
     // The 2026-08-02 scripted POST is the cause, and it did more damage than the
     // retraction above records. It wrote `false` for every checkbox absent from
     // the body -- and `info-callsign`, `info-speed` and `info-baroalt` were among
-    // them. They ship ON (see AIRCRAFT_INFO_FIELDS). The bench boards have been
+    // them. They shipped ON then (they default off since the owner's type-only
+    // ruling of 2026-11-25; see AIRCRAFT_INFO_FIELDS). The bench boards have been
     // carrying them OFF ever since, so "the honest all-on envelope is 48.0 ms" is
     // an envelope for a renderer missing its primary readout, and the 60 ms
     // budget derived from it inherits the same gap.
@@ -3590,7 +3605,10 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
 
 bool AircraftManager::MapEnabled() const
 {
-    return useCloudSource && !cloudUrl.isEmpty() && hasLocation && !mapAllocFailed;
+    // Step D (E3): the resolved map-layer setting is a term here, so the map off asks for nothing (ShouldFetch is passed
+    // false) and draws nothing (DrawMapBase returns false: today's path, byte for byte).
+    // The 480 gate: on a screen that is not the composite's size (blipscope-pro-s3-21) the map asks for nothing.
+    return mapLayerOn && useCloudSource && !cloudUrl.isEmpty() && hasLocation && !mapAllocFailed && variant::MAP_LAYER;
 }
 
 // At every Initialise: the request for the stored config and its key. A key that differs from the last drops the held
@@ -3849,7 +3867,9 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
     if (mapHeldLen == 0 && mapBench.which >= 0) MapBenchAccept(mapBench.which);   // built in, never fetched
 #endif
     // THE MAP BENCH END
-    if (!MapEnabled() || !IsRadarView() || !hasLocation || NightClockActive() || mapHeldLen == 0) return false;
+    // D4 FORM B: no map in a view over 100 mi (the ring and its label stay; the sweep then draws today's opaque wedge).
+    if (!MapEnabled() || !IsRadarView() || !hasLocation || NightClockActive() || mapHeldLen == 0 ||
+        !mapquery::MapDrawsInView(viewRadLat * 111.0)) return false;
     LGFX_Sprite& sp = canvas.sprite();
     uint8_t* const dst = (uint8_t*)sp.getBuffer();
     if (canvas.offsetY() != 0 || sp.width() != SCREEN_SIZE || sp.height() != SCREEN_SIZE || sp.getColorDepth() != 16 ||
@@ -3871,6 +3891,11 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
     k.nFixed = mapplaces::RingLabels(viewRadiusDisplay, rangeUnit.c_str(), k.fixed);
     k.nFixed += mapplaces::Cardinals(radarUpDeg, k.fixed + k.nFixed);
     k.fixed[k.nFixed++] = mapplaces::IndicatorRow();
+    // Step D: the two settings a rebuild reads; a change rebuilds exactly once (Same() compares them)
+    k.names = mapNamesOn;
+    k.terrainDrawn = mapShade.drawn;
+    k.terrainGain = mapShade.gain;
+    k.terrainMid = mapShade.mid;
     mapcompose::Inputs in;
     in.build = &maplayer::Build;
     in.airports = &AircraftManager::MapAirportBoxes;
@@ -3904,6 +3929,10 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
                       mapDraw.ready ? "" : ", Build refused the package");
     }
     if (b == nullptr) return false;
+    // The 480 gate's second guard: wherever the map is on, the screen IS the composite's size, so the copy below
+    // never reads past it. The implication form: a plain static_assert here would fire on 480, where MapEnabled is off.
+    static_assert(!variant::MAP_LAYER || SCREEN_SIZE == mapcompose::kSize,
+                  "the map copies SCREEN_SIZE^2 pixels from a mapcompose::kSize composite");
     memcpy(dst, b, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2);
     mapFrameDrawn = true;          // step C's gate: the background is the map's composite, copied this frame
     mapFrameWx = wx != nullptr;    // and it carries this frame's weather layer only when one was passed

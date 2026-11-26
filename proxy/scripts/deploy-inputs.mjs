@@ -17,10 +17,11 @@
 // on every run. wrangler runs through the helper, `node proxy/scripts/wrangler-run.mjs` (no shell; docs/wrangler-run.md), in proxy/, with any Cloudflare token
 // removed from its environment (a dry-run needs none).
 //
-//   node proxy/scripts/deploy-inputs.mjs set   <proxy|builder> <env>   the set, one repo-relative path per line; exit 0, or 2 refused
-//   node proxy/scripts/deploy-inputs.mjs check <proxy|builder> <env>   deploy.sh's decision over HEAD..origin/main: exit 0 nothing
+//   node proxy/scripts/deploy-inputs.mjs set   <proxy|builder|screen> <env>   the set, one repo-relative path per line; exit 0, or 2
+//                                                                      refused (env: staging|production; screen also production-fulllogs)
+//   node proxy/scripts/deploy-inputs.mjs check <proxy|builder|screen> <env>   deploy.sh's decision over HEAD..origin/main: exit 0 nothing
 //                                                                      blocks, 1 blocking commits (printed), 2 usage or internal
-//   node proxy/scripts/deploy-inputs.mjs --selftest [--inputs <json>] [--json]   DB1..DB18 (registered); the two real sets are computed
+//   node proxy/scripts/deploy-inputs.mjs --selftest [--inputs <json>] [--json]   DB1..DB18 (registered); the real sets (one per target) are computed
 //                                                                      by the guarded dry-run unless --inputs gives their raw inputs
 //   node proxy/scripts/deploy-inputs.mjs --selftest-plants             each plant, in a COPY of this file, must redden exactly its set
 //   node proxy/scripts/deploy-inputs.mjs --selftest-guard              DB18 alone, spawning nothing: run before any real dry-run
@@ -33,18 +34,26 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(process.env.DEPLOY_INPUTS_REPO ?? join(HERE, "..", ".."));
 const PROXY = join(REPO, "proxy");
-const CONFIG = { proxy: "wrangler.toml", builder: "basemap.wrangler.toml" };
+// screen: the screen service (screen.wrangler.toml; its phase-1 registration, R4, ruled 2026-11-25). deploy.sh --screen runs
+// the builder's guards plus scripts/screen-deploy-check.mjs, and has the one extra env production-fulllogs (envOk).
+const CONFIG = { proxy: "wrangler.toml", builder: "basemap.wrangler.toml", screen: "screen.wrangler.toml" };
 const PACKAGE_FILES = ["proxy/tsconfig.json", "proxy/package.json", "proxy/package-lock.json"];
 const MACHINERY_BUILDER = ["proxy/scripts/deploy.sh", "proxy/scripts/deploy-inputs.mjs", "proxy/scripts/wrangler-run.mjs", "scripts/session-claim.py"];
-const MACHINERY = { builder: MACHINERY_BUILDER, proxy: [...MACHINERY_BUILDER, "proxy/scripts/confirm-deploy.sh", "proxy/scripts/healthz-commit.sh"] };
-const TARGETS = ["proxy", "builder"];
+const MACHINERY = {
+  builder: MACHINERY_BUILDER,
+  proxy: [...MACHINERY_BUILDER, "proxy/scripts/confirm-deploy.sh", "proxy/scripts/healthz-commit.sh"],
+  screen: [...MACHINERY_BUILDER, "proxy/scripts/screen-deploy-check.mjs"],
+};
+const TARGETS = ["proxy", "builder", "screen"];
+/** staging and production for every target; production-fulllogs (the screen's full-logs day) for the screen alone. */
+const envOk = (target, env) => /^(staging|production)$/.test(env ?? "") || (target === "screen" && env === "production-fulllogs");
 const slash = (p) => p.replace(/\\/g, "/");
 const q = (s) => (/[\s"'$]/.test(s) ? JSON.stringify(s) : s);
 
 // ---- the dry-run: its argv in ONE place, and the guard immediately before the spawn ---------------------------------------------
 function dryRunArgv(target, env, outdir) {
   const wrangler = join(PROXY, "scripts", "wrangler-run.mjs");   // the helper runs node_modules/wrangler (docs/wrangler-run.md)
-  return [process.execPath, wrangler, "deploy", ...(target === "builder" ? ["--config", CONFIG.builder] : []), "--env", env,
+  return [process.execPath, wrangler, "deploy", ...(target === "proxy" ? [] : ["--config", CONFIG[target]]), "--env", env,
     "--dry-run", "--outdir", outdir, "--metafile", join(outdir, "meta.json")];
 }
 /** Spawns argv only if it holds --dry-run and --outdir; otherwise refuses and spawns NOTHING. spawnFn is spawnSync except in DB18. */
@@ -133,10 +142,17 @@ function stripComment(line) {
   }
   return line;
 }
+// Three paths: the builder's runs from line 0 to its block's `exit 0`; the screen's from line 0 to ITS block's `exit 0`
+// (the block sits after the builder's, so it passes the builder's lines, whose scripts are in its list too); the proxy's
+// is the whole file less the screen block. A screen block whose `if` is not found EXACTLY once reads as not found, so a
+// second `if [ -n "$SCREEN" ]` line cannot silently move the bounds.
 function scriptCalls(deployShText) {
   const lines = deployShText.replace(/\r/g, "").split("\n");
   const bIf = lines.findIndex((l) => /^\s*if \[ -n "\$BUILDER" \]; then\s*$/.test(l));
   const bExit = bIf < 0 ? -1 : lines.findIndex((l, i) => i > bIf && /^\s*exit 0\s*$/.test(l));
+  const sIfs = lines.map((l, i) => (/^\s*if \[ -n "\$SCREEN" \]; then\s*$/.test(l) ? i : -1)).filter((i) => i >= 0);
+  const sIf = sIfs.length === 1 ? sIfs[0] : -1;
+  const sExit = sIf < 0 ? -1 : lines.findIndex((l, i) => i > sIf && /^\s*exit 0\s*$/.test(l));
   const found = (from, to) => {
     const out = new Set();
     for (const l of lines.slice(from, to)) {
@@ -150,7 +166,12 @@ function scriptCalls(deployShText) {
     }
     return [...out].sort();
   };
-  return { builderExitLine: bExit < 0 ? null : bExit + 1, builder: bExit < 0 ? null : found(0, bExit + 1), proxy: found(0, lines.length) };
+  const proxy = sExit < 0 ? found(0, lines.length) : [...new Set([...found(0, sIf), ...found(sExit + 1, lines.length)])].sort();
+  return {
+    builderExitLine: bExit < 0 ? null : bExit + 1, builder: bExit < 0 ? null : found(0, bExit + 1),
+    screenExitLine: sExit < 0 ? null : sExit + 1, screen: sExit < 0 ? null : found(0, sExit + 1),
+    proxy,
+  };
 }
 
 // ---- the selftest: DB1..DB18 ----------------------------------------------------------------------------------------------------
@@ -195,8 +216,12 @@ function selftest(rawInputs) {
   const dsh = readFileSync(process.env.DEPLOY_INPUTS_DEPLOYSH ?? join(PROXY, "scripts", "deploy.sh"), "utf8");
   const calls = scriptCalls(dsh);
   const missB = calls.builder === null ? ["(the builder's exit 0 was not found)"] : calls.builder.filter((p) => !MACHINERY.builder.includes(p));
+  const missS = calls.screen === null ? ["(the screen block's if, or its exit 0, was not found exactly once)"] : calls.screen.filter((p) => !MACHINERY.screen.includes(p));
   const missP = calls.proxy.filter((p) => !MACHINERY.proxy.includes(p));
-  ok("DB17", missB.length === 0 && missP.length === 0, `builder path (to l.${calls.builderExitLine}): ${JSON.stringify(calls.builder)}; proxy: ${JSON.stringify(calls.proxy)}; missing ${JSON.stringify([...missB, ...missP])}`);
+  // One row PER PATH (map-server's F1 on #811): an OR of the three could not say which path saw a planted call.
+  ok("DB17-B", missB.length === 0, `builder path (to l.${calls.builderExitLine}): ${JSON.stringify(calls.builder)}; missing ${JSON.stringify(missB)}`);
+  ok("DB17-S", missS.length === 0, `screen path (to l.${calls.screenExitLine}): ${JSON.stringify(calls.screen)}; missing ${JSON.stringify(missS)}`);
+  ok("DB17-P", missP.length === 0, `proxy path (the file less the screen block): ${JSON.stringify(calls.proxy)}; missing ${JSON.stringify(missP)}`);
   const g = db18(); ok("DB18", g.good, g.why);
   return { rows, detail, raw, sets: Object.fromEntries(TARGETS.map((t) => [t, { set: sets[t].set.length, bundle: sets[t].bundle.length, ms: sets[t].ms }])) };
 }
@@ -224,8 +249,18 @@ const PLANTS = [
   ["P-NOPKG", "    const set = [...bundle, `proxy/${CONFIG[target]}`, ...PACKAGE_FILES];\n", "    const set = [...bundle, `proxy/${CONFIG[target]}`]; // PLANT P-NOPKG\n", ["DB6"]],
   ["P-NOGUARD", "  if (!argv.includes(\"--dry-run\") || !argv.includes(\"--outdir\") || argv.some((a) => a.startsWith(\"--dry-run=\"))) {\n",
     "  if (false) { // PLANT P-NOGUARD\n", ["DB18"]],
-  ["P-CALLEE", null, null, ["DB17"]], // a copy of deploy.sh calling one more script, not in any list
+  // The deploy.sh plants, one per region (map-server's F1 on #811): graded on the EXACT set, so a plant one path too
+  // many or too few reads OFF. Together they prove each path's bounds, which one OR'd row could not.
+  ["P-CALLEE", null, null, ["DB17-B", "DB17-P", "DB17-S"]], // the SHARED region, before both blocks: every path sees it
+  ["P-CALLEE-S", null, null, ["DB17-S"]], // INSIDE the screen block: the proxy path must exclude the block
+  ["P-CALLEE-P", null, null, ["DB17-P"]], // the first proxy-only line after the screen block: builder and screen stop above
 ];
+// The deploy.sh plants (a null anchor above): [the anchor in deploy.sh, exactly once; the planted call; after or before it].
+const DSH_PLANTS = {
+  "P-CALLEE": ['node "$ROOT/proxy/scripts/deploy-inputs.mjs" check "$DI_TARGET" "$ENVIRONMENT"; DI_RC=$?\n', 'bash "$ROOT/proxy/scripts/planted-extra.sh"\n', "after"],
+  "P-CALLEE-S": ['  node scripts/screen-deploy-check.mjs "${CHECK_ARGS[@]}"', "  bash scripts/planted-screen-extra.sh\n", "before"],
+  "P-CALLEE-P": ["# ---- 3b. DEVICE_KEY_SECRET must exist in the target environment -------------\n", "bash scripts/planted-proxy-extra.sh\n", "before"],
+};
 function selftestPlants() {
   const self = readFileSync(fileURLToPath(import.meta.url), "utf8");
   const work = mkdtempSync(join(tmpdir(), "deploy-inputs-plants-"));
@@ -248,11 +283,13 @@ function selftestPlants() {
     if (ctl.error || ctlRed.length) { console.log("REFUSED: the unmodified copy is not all green, so no plant can be read"); return 2; }
     for (const [name, from, to, want] of PLANTS) {
       let res;
-      if (name === "P-CALLEE") {
+      if (from === null) {
         const dsh = readFileSync(join(PROXY, "scripts", "deploy.sh"), "utf8").replace(/\r/g, "");
-        const anchor = 'node "$ROOT/proxy/scripts/deploy-inputs.mjs" check "$DI_TARGET" "$ENVIRONMENT"; DI_RC=$?\n';
+        const [anchor, call, where] = DSH_PLANTS[name];
         if (dsh.split(anchor).length !== 2) { console.log(`  ${name}: REFUSED (deploy.sh's anchor found ${dsh.split(anchor).length - 1} times)`); off++; continue; }
-        const planted = join(work, "deploy.P-CALLEE.sh"); writeFileSync(planted, dsh.replace(anchor, anchor + 'bash "$ROOT/proxy/scripts/planted-extra.sh"\n'));
+        const text = dsh.replace(anchor, where === "after" ? anchor + call : call + anchor);
+        if (text === dsh) { console.log(`  ${name}: REFUSED (the planted copy is unchanged)`); off++; continue; }
+        const planted = join(work, `deploy.${name}.sh`); writeFileSync(planted, text);
         res = runCopy(name, self, { DEPLOY_INPUTS_DEPLOYSH: planted });
       } else {
         const n = self.split(from).length - 1;
@@ -286,7 +323,7 @@ if (cmd === "--selftest") {
 }
 if (cmd === "--selftest-plants") process.exit(selftestPlants());
 if (cmd === "--selftest-guard") { const g = db18(); console.log(`  DB18: ${g.good ? "AS PREDICTED" : "OFF"} (${g.why})`); process.exit(g.good ? 0 : 1); }
-if ((cmd === "set" || cmd === "check") && TARGETS.includes(rest[0]) && /^(staging|production)$/.test(rest[1] ?? "")) {
+if ((cmd === "set" || cmd === "check") && TARGETS.includes(rest[0]) && envOk(rest[0], rest[1])) {
   const [target, env] = rest;
   const s = computeSet(target, env);
   console.log(`deploy-inputs: ${target} dry-run ${s.ms ?? "?"} ms`);
@@ -310,5 +347,5 @@ if ((cmd === "set" || cmd === "check") && TARGETS.includes(rest[0]) && /^(stagin
   }
   process.exit(0);
 }
-console.log("usage: deploy-inputs.mjs set|check <proxy|builder> <staging|production> | --selftest [--inputs <json>] [--json] | --selftest-plants");
+console.log("usage: deploy-inputs.mjs set|check <proxy|builder|screen> <staging|production> (screen also production-fulllogs) | --selftest [--inputs <json>] [--json] | --selftest-plants");
 process.exit(2);

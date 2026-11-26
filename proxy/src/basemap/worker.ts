@@ -18,11 +18,27 @@ export interface BuilderEnv { STORE: R2Bucket }
 /** What one build read from the store (BB1-BB3): counts and milliseconds, nothing from the query. */
 export interface ReadStat { reads: number; bytes: number; readMs: number; maxReadMs: number }
 
-/** The R2 binding as build.ts's StoreReader, counting and timing each read into `stat` when given one. */
+/** R2's transient internal error, as one ended a staging build on 2026-11-23 ("get: We encountered an internal error. Please
+ *  try again."): ONE retry, READ_RETRY_MS later (wall time, no CPU). A missing key is null, not an error, and is never retried;
+ *  any other error is rethrown at once; a second failure throws. NAMED LIMIT: the trigger is a match on R2's message TEXT, so
+ *  if R2 ever rewords it the retry silently stops -- which fails safe: no retry, the behaviour before this. */
+export const R2_INTERNAL = /We encountered an internal error/;
+export const READ_RETRY_MS = 50;
+
+/** The R2 binding as build.ts's StoreReader, counting and timing each read into `stat` when given one. A retried read counts
+ *  twice: the store saw two reads. */
 export const r2Reader = (b: R2Bucket, stat?: ReadStat): StoreReader => ({
   async get(key) {
     const t0 = Date.now();
-    const o = await b.get(key);
+    let o: R2ObjectBody | null;
+    try {
+      o = await b.get(key);
+    } catch (e) {
+      if (!(e instanceof Error) || !R2_INTERNAL.test(e.message)) throw e;
+      if (stat) stat.reads++;
+      await new Promise((r) => setTimeout(r, READ_RETRY_MS));
+      o = await b.get(key);
+    }
     const v = o ? new Uint8Array(await o.arrayBuffer()) : null;
     if (stat) {
       const ms = Date.now() - t0;

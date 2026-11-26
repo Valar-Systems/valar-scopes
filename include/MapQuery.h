@@ -9,7 +9,7 @@
 // exact to the mm. The radar's ladder decides only WHICH steps exist, by its count: a ladder re-derived in double misses
 // the radar's 25 nmi step at 25.5 nmi (registered 2026-11-11), and the levels exist to serve the radar's own steps.
 //
-//   Rv     = min(distance x factor, 222 km), in mm: floor(km x 1e6 + 0.5)
+//   Rv     = min(distance x factor, 160.9344 km), in mm: floor(km x 1e6 + 0.5)   D4: the map covers up to 100 mi
 //   r      = min(222, ceil(Rv_km + 0.8))                 the view plus the 2-dp offset, in whole km (F7)
 //   eps    = max(1000, floor(Rv_mm / 800 + 0.5)) mm
 //   layers = water,rivers,roads,places[,terrain]          no peaks (Q-MC7 b); terrain only with levels (the route
@@ -28,6 +28,13 @@
 namespace mapquery {
 
 constexpr double kMaxRKm = 222.0;            // MAX_R_KM in proxy/src/basemap/query.ts
+// D4, "clamp: map only" (the owner, 2026-11-25): the map covers up to 100 mi, 100 x 1.609344 km exactly. The SAVED
+// radius and the radar's rings are never touched; only what the map asks for is capped, here and nowhere else.
+constexpr double kMapCapKm = 160.9344;
+// D4 FORM B (the owner's fallback: "no map above 100 miles, ring kept, same line"): the map draws only in a view of
+// 100 mi or less. `viewRadiusKm` is the view's N-S radius as the firmware builds it (viewRadLat x KM_PER_DEGREE 111),
+// so 100 mi arrives as (160.9344 / 111) x 111; the 1e-6 km (1 mm) slack keeps that round trip a 100-mi view.
+inline bool MapDrawsInView(double viewRadiusKm) { return viewRadiusKm <= kMapCapKm + 1e-6; }
 constexpr double kMarginKm = 0.8;            // r: the view plus the 2-dp offset's 0.785 km
 constexpr double kLevelMarginMm = 800000.0;  // a level's margin past its step, the same 0.8 km
 constexpr uint32_t kEpsMinMm = 1000;
@@ -86,7 +93,12 @@ inline void Build(double distance, double kmPerUnit, const radarzoom::Ladder& la
 {
     (void)viewStep;
     *q = Request();
-    q->rvMm = Mm(distance * kmPerUnit);
+    // D4 THE CAP, ONCE: the configured radius in km, capped at 100 mi here, so Rv, r, eps and the configured step all
+    // read it, and a radius over 100 mi asks EXACTLY what a 100-mi one asks (map-server, 2026-11-25: one key per place,
+    // the shape its CPU read measured). Below the cap every Mm() argument is the one it was before D4, bit for bit.
+    const double kmIn = distance * kmPerUnit;
+    const double km = kmIn > kMapCapKm ? kMapCapKm : kmIn;
+    q->rvMm = Mm(km);
     const int r = (int)ceil(q->rvMm / 1e6 + kMarginKm);
     q->rKm = r > (int)kMaxRKm ? (int)kMaxRKm : r;
     const uint32_t eps = (uint32_t)floor(q->rvMm / kEpsDivisor + 0.5);
@@ -94,13 +106,13 @@ inline void Build(double distance, double kmPerUnit, const radarzoom::Ladder& la
 
     // The ladder's steps in the owner's unit: its first n - 1 candidates, then the configured radius (RadarZoom.h).
     const int n = ladder.n < 1 ? 0 : (ladder.n > radarzoom::MAX_STEPS ? radarzoom::MAX_STEPS : ladder.n);
-    double steps[radarzoom::MAX_STEPS] = {0};
-    for (int i = 0; i + 1 < n; ++i) steps[i] = radarzoom::CANDIDATES[i];
-    if (n > 0) steps[n - 1] = distance;
+    double stepsKm[radarzoom::MAX_STEPS] = {0};   // in km: the lower candidates (<= 50 units <= 92.6 km) as they were
+    for (int i = 0; i + 1 < n; ++i) stepsKm[i] = radarzoom::CANDIDATES[i] * kmPerUnit;
+    if (n > 0) stepsKm[n - 1] = km;   // the configured step, capped (D4)
     const int top = n - 1;   // THE LEVELS' STEPS: the ladder's top three
     for (int i = top; i >= 0 && i > top - 3; --i) {
         Level l;
-        if (q->nLevels < kLevelsMax && LevelFor(Mm(steps[i] * kmPerUnit), &l)) q->levels[q->nLevels++] = l;
+        if (q->nLevels < kLevelsMax && LevelFor(Mm(stepsKm[i]), &l)) q->levels[q->nLevels++] = l;
     }
     for (int i = 1; i < q->nLevels; ++i)   // sorted by radius, as the route stores them
         for (int j = i; j > 0 && q->levels[j].radiusMm < q->levels[j - 1].radiusMm; --j) {
