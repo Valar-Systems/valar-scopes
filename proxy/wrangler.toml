@@ -58,8 +58,8 @@ id = "0000000000000000000000000000dev0" # placeholder: tests/dev run in-memory; 
 binding = "WX"
 bucket_name = "blipscope-wx-dev"
 
-# A1's stored packages (docs/basemap-a1.md). DEV/TEST ONLY here: tests get an in-memory bucket. Staging binds its own
-# bucket below; production gets one at D4. The builder never binds it, so the store stays read-only to the builder.
+# A1's stored packages (docs/basemap-a1.md). DEV/TEST ONLY here: tests get an in-memory bucket. Staging and production
+# bind their own buckets below (production's from D4). The builder never binds it, so the store stays read-only to the builder.
 # A1 ALSO NEEDS THE SECRET BASEMAP_NAME_KEY (docs/basemap-name-key.md): a bucket without it is treated as no bucket, with no
 # error, and /healthz's basemap.keyed is what shows it. The secret goes on first.
 [[r2_buckets]]
@@ -220,15 +220,15 @@ class_name = "BendSnapshotDO"
 binding = "WX"
 bucket_name = "blipscope-wx"
 
-# The basemap builder (docs/basemap-deploy.md, D3): /basemap answers 503 not_configured without this binding. STAGING
-# ONLY until D4's PR binds production. The builder shares the sealed bucket with production's and never writes (MP2),
+# The basemap builder (docs/basemap-deploy.md, D3): /basemap answers 503 not_configured without this binding.
+# Production's is bound below, from D4. The builder shares the sealed bucket with production's and never writes (MP2),
 # so staging must never get a writing build.
 [[env.staging.services]]
 binding = "BASEMAP"
 service = "blipscope-basemap-staging"
 
-# A1's stored packages (docs/basemap-a1.md): STAGING ONLY until D4. Its own bucket, so nothing here can write where the
-# store lives; read and written by this proxy alone.
+# A1's stored packages (docs/basemap-a1.md): staging's own bucket (production's is bound below, from D4), so nothing here
+# can write where the store lives; read and written by this proxy alone.
 # Needs the secret BASEMAP_NAME_KEY too (see the note at the top-level binding).
 [[env.staging.r2_buckets]]
 binding = "BASEMAP_PKG"
@@ -431,6 +431,22 @@ class_name = "BendSnapshotDO"
 [[env.production.r2_buckets]]
 binding = "WX"
 bucket_name = "blipscope-wx"
+
+# THE MAP IN PRODUCTION (docs/basemap-deploy.md, D4). THESE TWO BINDINGS ARE THE SWITCH: without the service binding
+# /basemap answers 503 not_configured, and any production proxy deploy from a tree that holds them switches the map on.
+# So the D4 PR merges inside D4's window, as its first write.
+# The builder, reachable only through this binding (it has no route). It shares the one sealed store bucket with
+# staging's builder and never writes (MP2).
+[[env.production.services]]
+binding = "BASEMAP"
+service = "blipscope-basemap"
+
+# A1's stored packages (docs/basemap-a1.md): production's own bucket, read and written by this proxy alone. It needs the
+# secret BASEMAP_NAME_KEY in production FIRST (a bucket without it is treated as no bucket, with no error), and the
+# lifecycle rule bm-pkg-30d (30 days from upload), checked by scripts/check-pkg-lifecycle.mjs.
+[[env.production.r2_buckets]]
+binding = "BASEMAP_PKG"
+bucket_name = "blipscope-basemap-pkg"
 
 # Same per-colo reasoning as staging (RL_IP: ~3 fast devices per household IP;
 # RL_KEY: per-colo fleet ceiling). Distinct namespace_ids so prod and staging
