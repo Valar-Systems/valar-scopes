@@ -185,4 +185,19 @@ print("vtab tie in %s: vtab at 0x%x, %s" % (sys.argv[1], v, ", ".join(sorted(tie
 PY
   done
 fi
+# amendment 1k (section 27). lstr: lsr reads .LS0+4, a local label in a merged-string section; lcs reads .LC9+4, a local
+# label in a merged constant pool. The relocations must name the LOCAL labels themselves (asserted, from readelf).
+if want lstr; then
+  a=$(store lstr/a); b=$(store lstr/b)
+  for s in "$a" "$b"; do obj "$s" main_ls.c main.c; "$CC" $CFLAGS -o "$s/src/lsr.S.o" src/lsr.S; done
+  link "$a" entry "" src/main.c.o src/lsr.S.o
+  link "$b" entry "" src/main.c.o src/lsr.S.o
+  RE="$XT/xtensa-esp32s3-elf-readelf"; [ -x "$RE" ] || RE="$RE.exe"
+  for s in "$a" "$b"; do
+    r="$("$RE" -rW "$s/src/lsr.S.o")"
+    echo "$r" | grep -q '\.LS0 + 4$' && echo "$r" | grep -q '\.LC9 + 4$' \
+      || { echo "lstr: a relocation does not name .LS0 + 4 and .LC9 + 4 (the assembler used a section symbol?)" >&2; echo "$r" >&2; exit 3; }
+    echo "lstr reloc in $s: $(echo "$r" | grep -E '\.L(S0|C9) \+ 4$' | awk '{print $NF" "$(NF-2)" "$(NF-1)}' | tr '\n' ';')"
+  done
+fi
 echo "stores regenerated"

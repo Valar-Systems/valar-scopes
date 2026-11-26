@@ -329,6 +329,33 @@ assert sorted(DECL_1J) == sorted(p[0] for p in PLANTS), "every plant needs its 1
 PLANTS = [(_l, _o, _n, list(_r) + DECL_1J[_l], list(_k) + [c for c in J1 if c not in DECL_1J[_l]])
           for _l, _o, _n, _r, _k in PLANTS]
 
+# Amendment 1k (section 27): three plants, and every plant's row for the five new cases, derived case by case and filed
+# (REG-1k) before the run. P1-P39 touch none of them: their paths (the object layer's fill and signature checks, the
+# unit lookup, the --wrap list, the converted call) are not the local-label string's.
+K5L = ["K-base a local label into a merged string, in front of LINK-ONLY",
+       "K1 a differing byte inside the string a local label reads",
+       "K2 a local label into a merged constant pool stays refused",
+       "K4 a differing byte before the label's addend",
+       "K5 a string behind a local label, not walked (the limit)"]
+KB_, K1_, K2_, K4_, K5_ = K5L
+BEFORE_1K = BEFORE_1J + J1
+PLANTS += [
+    ("P40 a differing local merged string accepted",
+     "                if ra[1] != rb[1]:   # differing bytes are never equal: the read-only datum differs",
+     "                if False:", [], list(BEFORE_1K)),
+    ("P41 any merged section read as a string", "            if (s[\"sh_flags\"] & SHF_MERGE) and (s[\"sh_flags\"] & SHF_STRINGS):",
+     "            if (s[\"sh_flags\"] & SHF_MERGE):", [], list(BEFORE_1K)),
+    ("P42 the label's addend ignored", "                at = hits[0][\"st_value\"] + add",
+     "                at = hits[0][\"st_value\"]", [], list(BEFORE_1K)),
+]
+DECL_1K = {p[0]: [] for p in PLANTS}
+DECL_1K.update({"P40 a differing local merged string accepted": [K1_],
+                "P41 any merged section read as a string": [K2_],
+                "P42 the label's addend ignored": [K4_]})
+assert sorted(DECL_1K) == sorted(p[0] for p in PLANTS), "every plant needs its 1k row"
+PLANTS = [(_l, _o, _n, list(_r) + DECL_1K[_l], list(_k) + [c for c in K5L if c not in DECL_1K[_l]])
+          for _l, _o, _n, _r, _k in PLANTS]
+
 
 def case_labels(repo):
     sys.path.insert(0, os.path.join(repo, "test", "host"))
