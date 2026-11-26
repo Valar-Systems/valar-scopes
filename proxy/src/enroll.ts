@@ -56,9 +56,8 @@ export interface EnrollLedgerRow {
   enrollments: number;
   /** Siteverify's view of where the solve happened. Recorded, never enforced. */
   hostnames: string[];
-  /** Coarse origin of the most recent solve, for abuse triage. */
-  lastCountry?: string;
-  lastAsn?: string;
+  // No country or network here (the owner, 2026-11-26: "activation: stop storing"). Rows written before that ruling
+  // still carry `lastCountry`/`lastAsn` until they are cleaned up; nothing reads either field.
 }
 
 interface SiteverifyResponse {
@@ -231,6 +230,12 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
 
   // The ledger still counts every activation of the id (a reset and a re-activation
   // make two), and keeps the first one's date: the history that makes a reset legible.
+  //
+  // THE ROW HOLDS NO COUNTRY OR NETWORK (the owner, 2026-11-26: "activation: stop storing"). It used to keep the
+  // latest activation's CF-IPCountry and AS number with no expiry, and nothing read them. Both still go into the mint
+  // line below, which Workers Logs keeps for 7 days: that copy is the triage window. The row is built FRESH, never
+  // spread from `prev`, so re-activating a row written before the ruling drops its old fields too
+  // (enroll.test.ts P-AS1, P-AS2).
   const row: EnrollLedgerRow = {
     id,
     firstAt: prev?.firstAt ?? nowIso,
@@ -240,8 +245,6 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
   };
   const country = request.headers.get("CF-IPCountry");
   const asn = (request.cf as { asn?: number } | undefined)?.asn;
-  if (country) row.lastCountry = country;
-  if (asn) row.lastAsn = String(asn);
 
   await env.ENRICH_KV.put(ledgerKey(id), JSON.stringify(row));
   const dayTotal = await bumpDayCounter(env, day);
