@@ -33,6 +33,11 @@
 // THE MAP FETCH BEGIN
 #ifdef BLIPSCOPE_MAP_FETCH
 #include "MapLayer.h"       // maplayer::Load: the gate (CRC and format section 8), run on the fetch task
+// The 480 map gate: a derived constant, not a product flag. The map's composite is maplayer::kSize px, so only a screen
+// of that size fetches, builds or copies it (MapEnabled, and the static_assert beside DrawMapBase's copy).
+namespace variant {
+constexpr bool MAP_LAYER = maplayer::DrawsAt(SCREEN_SIZE);
+}
 // A 200 the gate never read (over the cap, short or stalled): logged as "unread", never as a bmpk::Status it was not.
 constexpr uint8_t kMapWhyUnread = 0xFF;
 #endif
@@ -3602,7 +3607,8 @@ bool AircraftManager::MapEnabled() const
 {
     // Step D (E3): the resolved map-layer setting is a term here, so the map off asks for nothing (ShouldFetch is passed
     // false) and draws nothing (DrawMapBase returns false: today's path, byte for byte).
-    return mapLayerOn && useCloudSource && !cloudUrl.isEmpty() && hasLocation && !mapAllocFailed;
+    // The 480 gate: on a screen that is not the composite's size (blipscope-pro-s3-21) the map asks for nothing.
+    return mapLayerOn && useCloudSource && !cloudUrl.isEmpty() && hasLocation && !mapAllocFailed && variant::MAP_LAYER;
 }
 
 // At every Initialise: the request for the stored config and its key. A key that differs from the last drops the held
@@ -3923,6 +3929,10 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
                       mapDraw.ready ? "" : ", Build refused the package");
     }
     if (b == nullptr) return false;
+    // The 480 gate's second guard: wherever the map is on, the screen IS the composite's size, so the copy below
+    // never reads past it. The implication form: a plain static_assert here would fire on 480, where MapEnabled is off.
+    static_assert(!variant::MAP_LAYER || SCREEN_SIZE == mapcompose::kSize,
+                  "the map copies SCREEN_SIZE^2 pixels from a mapcompose::kSize composite");
     memcpy(dst, b, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2);
     mapFrameDrawn = true;          // step C's gate: the background is the map's composite, copied this frame
     mapFrameWx = wx != nullptr;    // and it carries this frame's weather layer only when one was passed

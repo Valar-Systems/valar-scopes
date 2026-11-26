@@ -189,7 +189,7 @@ def main():
 
 
 # --control: the unplanted run alone, each suite against this table. CASES is the one place the count lives.
-CASES = 160
+CASES = 163
 CONTROL_TABLE = {"test_map_layer": ("checks", CASES), "check_map_layer.py": ("line", "  ok   CM9")}
 
 
