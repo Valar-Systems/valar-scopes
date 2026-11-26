@@ -331,6 +331,14 @@ printf '\n===== /healthz wx, every product =====\n'
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wx-products-lines.sh"
 wx_products_section "$HEALTH_BODY"
 
+# The site feed's malformed-flags count (the owner, 2026-11-25: "count every aircraft hidden for this reason, so a
+# change in the feed's format shows as a jump"): bad/n in the last served snapshot, from the /healthz body fetched above
+# (no new request), WARN when bad is not 0 or the block is missing. Information only, like the wx lines: it touches
+# neither pass nor fail. The line and that promise are graded by sitefeed-line.selftest.sh in CI.
+printf '\n===== /healthz site feed, malformed flags =====\n'
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sitefeed-line.sh"
+sitefeed_line "$HEALTH_BODY"
+
 # The rt: route mirror's age (docs/route-mirror-age.md), from the /healthz body fetched above (no new request). The
 # limit is the body's own maxAgeDays: 10 days (the owner, 2026-11-13; docs/route-age-alert.md). FAIL mode since the
 # approved refresh of 2026-11-13 landed and was verified: a PASS counts as a pass and anything else -- stale, no age, no

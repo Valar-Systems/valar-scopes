@@ -29,8 +29,12 @@ export const isHex6 = (h: string): boolean => /^[0-9a-f]{6}$/.test(h);
 /** A hex for the BLOCK check (G2): a leading "~" stripped. */
 export const bare = (hex: string): string => (hex.startsWith("~") ? hex.slice(1) : hex);
 
-/** `v2` false (a snapshot whose v is not 2): a null dbFlags is flagged (G3). */
-export function classify(a: { dbFlags: unknown }, v2 = true): AircraftClass {
+/** `v2` false (a snapshot whose v is not 2): a null dbFlags is flagged (G3). A row the site feed marked `dbFlagsBad`
+ *  (the upstream sent a dbFlags that is not an integer in 0..15) is HIDDEN, like G3 (the owner, 2026-11-25:
+ *  "malformed flags: hide"). The marker, never null, is what says "malformed": null also means readsb left it out (0). */
+export function classify(a: { dbFlags: unknown; dbFlagsBad?: unknown }, v2 = true): AircraftClass {
+  /*P-MF3*/
+  if (a.dbFlagsBad === true) return "private";
   const known = typeof a.dbFlags === "number" && Number.isInteger(a.dbFlags);
   /*P-V2*/
   if (!known && !v2) return "private";

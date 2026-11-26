@@ -521,5 +521,49 @@ red = sorted(k for k, v in got.items() if not v)
 off += bool(red)
 print("RC5-RC6 (the real source): %s -- red %s" % ("as predicted" if not red else "OFF-PREDICTION", red or "none"))
 
+# --- P-MF7 and MF7-S9: the site feed's malformed-flags line (the malformed-flags registration, Addendum 1) -----------
+# sitefeed_lines is run on /healthz bodies built here: no network. Whole (lines, warnings) pairs are compared, never
+# fragments. On a source without the function every row is graded red by this file's own check, not by a traceback.
+MF7_ROWS = ("MF7-none", "MF7-nofield", "MF7-unavail", "MF7-zero", "MF7-bad")
+
+
+def mf7(mod) -> dict:
+    if not hasattr(mod, "sitefeed_lines"):
+        return {k: False for k in MF7_ROWS}
+    body = lambda sf: json.dumps({"ok": True, "commit": "EXAMPLE", **({"sitefeed": sf} if sf is not None else {})})
+    got = lambda b: tuple(mod.sitefeed_lines(b))
+    zero = {"available": True, "stale": False, "age_s": 3, "n": 4, "dbFlagsBad": 0}
+    return {
+        "MF7-none": got(None) == (["  Site feed: could not read /healthz"], ["site feed: could not read /healthz"]),
+        "MF7-nofield": got(body(None)) == (
+            ["  Site feed: /healthz has no sitefeed field"],
+            ["site feed: /healthz has no sitefeed field (a Worker before the dbFlagsBad marker)"]),
+        "MF7-unavail": got(body({"available": False, "reason": "read_error"})) == (
+            ["  Site feed: unavailable (read_error)"], ["site feed: unavailable (read_error)"]),
+        # The CONTROL: a count of 0 prints its line and raises NO warning ("warns on malformed", not "on anything").
+        "MF7-zero": got(body(zero)) == (["  Site feed: sitefeed dbFlagsBad=0/4 age=3s stale=false"], []),
+        "MF7-bad": got(body(dict(zero, dbFlagsBad=1))) == (
+            ["  Site feed: sitefeed dbFlagsBad=1/4 age=3s stale=false  <== MALFORMED FLAGS"],
+            ["site feed: 1/4 aircraft hidden for malformed dbFlags (feed format?)"]),
+    }
+
+
+got = mf7(load(SRC))
+red = sorted(k for k, v in got.items() if not v)
+off += bool(red)
+print("P-MF7 (the real source): %s -- red %s" % ("as predicted" if not red else "OFF-PREDICTION", red or "none"))
+MF7_ANCHOR = '["site feed: %s/%s aircraft hidden for malformed dbFlags (feed format?)" % (bad, n)]'
+if SRC.count(MF7_ANCHOR) != 1:
+    off += 1
+    print("MF7-S9: BLIND -- its anchor was found %d times" % SRC.count(MF7_ANCHOR))
+else:
+    # MF7-S9: the bad > 0 warning removed. Exactly MF7-bad must go red; the other four rows must not move.
+    planted = SRC.replace(MF7_ANCHOR, "[]  # SABOTAGE MF7-S9")
+    assert planted != SRC
+    g = sorted(k for k, v in mf7(load(planted)).items() if not v)
+    ok = g == ["MF7-bad"]
+    off += not ok
+    print("MF7-S9: %s -- red %s (want ['MF7-bad'])" % ("as predicted" if ok else "OFF-PREDICTION", g))
+
 print("SELFTEST PASSED" if not off else "SELFTEST: %d row(s) off" % off)
 sys.exit(1 if off else 0)
