@@ -257,6 +257,7 @@ export const SHAREALIKE_NOTE =
   "the same licence as its original, named on its line.";
 /** The per-row ShareAlike clause, followed on each BY-SA row by that row's own licence. */
 export const SHAREALIKE_CLAUSE = "this adapted image is available under the same licence,";
+export const HIDE_AN_AIRCRAFT = "Asking us not to show an aircraft. If you own or operate an aircraft and would rather it not appear on our website, email support@valarsystems.com with its registration. We add it to our block list, and it is then removed from the website entirely. Aircraft in the FAA's LADD or PIA programs already appear by type only, with no registration or operator. A block does not hide an aircraft on Blipscope devices that people own: those devices show what the community networks report, and a device on its own receiver shows whatever that receiver hears.";
 
 // Render the attribution page from the manifest. Satisfies CC-BY / CC-BY-SA /
 // OGL attribution in one place and courtesy-credits the PD shots. Pure string
@@ -317,6 +318,7 @@ ${TERRAIN_CREDITS.map((t) => `<li>${esc(t)}</li>`).join("\n")}
 <p class="note">Both aircraft-data sources are credited here permanently, regardless of
 which served any given response. We sponsor adsb.fi and adsb.lol: the data is theirs and
 volunteers pay for it.</p>
+<p id="hide-an-aircraft">${HIDE_AN_AIRCRAFT}</p>
 <h2>Photo credits</h2>
 <p class="note">Aircraft images are sourced from
 <a href="https://commons.wikimedia.org" rel="noopener">Wikimedia Commons</a> and shown on
