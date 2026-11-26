@@ -1,0 +1,111 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 src/main.c.o
+ .data          0x00000000        0x0 src/main.c.o
+ .bss           0x00000000        0x0 src/main.c.o
+ .text          0x00000000        0x0 src/vt.c.o
+ .data          0x00000000        0x0 src/vt.c.o
+ .bss           0x00000000        0x0 src/vt.c.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD src/main.c.o
+LOAD src/vt.c.o
+
+.text_hi
+ *(.literal.hi_* .text.hi_*)
+
+.text_lo        0x40000000       0xc4
+ *(.literal .literal.* .text .text.*)
+ .literal.entry
+                0x40000000        0xc src/main.c.o
+                                 0x20 (size before relaxing)
+ .literal.s1    0x4000000c        0x4 src/vt.c.o
+                                  0x8 (size before relaxing)
+ .literal.s2    0x40000010        0x4 src/vt.c.o
+                                  0x8 (size before relaxing)
+ .literal.s3    0x40000014        0x4 src/vt.c.o
+                                  0x8 (size before relaxing)
+ .literal.rs    0x40000018        0x4 src/vt.c.o
+                                  0x8 (size before relaxing)
+ .literal.rv    0x4000001c        0x4 src/vt.c.o
+ .text.entry    0x40000020       0x34 src/main.c.o
+                                 0x44 (size before relaxing)
+                0x40000020                entry
+ .text.s1       0x40000054        0xd src/vt.c.o
+                                 0x10 (size before relaxing)
+                0x40000054                s1
+ *fill*         0x40000061        0x3 
+ .text.s2       0x40000064        0xd src/vt.c.o
+                                 0x10 (size before relaxing)
+                0x40000064                s2
+ *fill*         0x40000071        0x3 
+ .text.s3       0x40000074        0xd src/vt.c.o
+                                 0x10 (size before relaxing)
+                0x40000074                s3
+ *fill*         0x40000081        0x3 
+ .text.rs       0x40000084        0xd src/vt.c.o
+                                 0x10 (size before relaxing)
+                0x40000084                rs
+ *fill*         0x40000091        0x3 
+ .text.rv       0x40000094       0x18 src/vt.c.o
+                0x40000094                rv
+ .text.puts_    0x400000ac        0x8 src/main.c.o
+                0x400000ac                puts_
+ .text.t1       0x400000b4        0x7 src/vt.c.o
+                0x400000b4                t1
+ *fill*         0x400000bb        0x1 
+ .text.t2       0x400000bc        0x8 src/vt.c.o
+                0x400000bc                t2
+
+.rodata         0x3f000000       0x80
+ *(.rodata .rodata.*)
+ .rodata.ktab   0x3f000000        0x8 src/main.c.o
+                0x3f000000                ktab
+ .rodata.s1.str1.1
+                0x3f000008       0x70 src/vt.c.o
+                                 0x15 (size before relaxing)
+ .rodata.s2.str1.1
+                0x3f000078       0x1e src/vt.c.o
+ .rodata.s3.str1.1
+                0x3f000078       0x25 src/vt.c.o
+ .rodata.rs.str1.1
+                0x3f000078       0x18 src/vt.c.o
+ .rodata.vtab   0x3f000078        0x8 src/vt.c.o
+                0x3f000078                vtab
+
+.data
+ *(.data .data.*)
+
+.bss            0x3f000080        0x8
+ *(.bss .bss.* COMMON)
+ .bss.g_keep    0x3f000080        0x4 src/main.c.o
+                0x3f000080                g_keep
+ .bss.g_out     0x3f000084        0x4 src/main.c.o
+                0x3f000084                g_out
+
+.xt.lit         0x00000000       0x30
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/main.c.o
+ .xt.lit        0x00000008       0x28 src/vt.c.o
+
+.xt.prop        0x00000000      0x1bc
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x78 src/main.c.o
+ .xt.prop       0x00000078      0x144 src/vt.c.o
+OUTPUT(firmware.elf elf32-xtensa-le)
+
+.comment        0x00000000       0x2f
+ .comment       0x00000000       0x2f src/main.c.o
+                                 0x30 (size before relaxing)
+ .comment       0x0000002f       0x30 src/vt.c.o
+
+.xtensa.info    0x00000000       0x38
+ .xtensa.info   0x00000000       0x38 src/main.c.o
+ .xtensa.info   0x00000038        0x0 src/vt.c.o

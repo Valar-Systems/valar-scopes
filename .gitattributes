@@ -45,3 +45,7 @@ proxy/photos/credits.html text eol=lf
 # The region table is generated, and its --check compares bytes (proxy/scripts/gen-wx-region.mjs): a CRLF checkout
 # would read as a stale table on Windows. LF everywhere, like the shell scripts.
 proxy/src/wx/region.generated.ts text eol=lf
+
+# image-compare's wrap fixture (docs/image-compare.md section 26): gen.sh passes this file's contents to the link
+# (`$(cat ...)`), and a CRLF checkout would hand ld "--wrap=hw\r". LF everywhere.
+test/fixtures/image-compare/src/wrap_ld_flags text eol=lf

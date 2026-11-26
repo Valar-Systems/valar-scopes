@@ -4,7 +4,10 @@ its WHOLE output and its exit code -- never a fragment (CLAUDE.md: an assertion 
 The stores are test/fixtures/image-compare/stores, made by that directory's gen.sh from its src/. Mutations are made
 on copies in a temporary directory, and each one is asserted to have applied before its case is read.
 """
+import contextlib
 import hashlib
+import inspect
+import io
 import json
 import os
 import shutil
@@ -241,6 +244,28 @@ for _labels, _wu in [
         assert _l not in TRUSTED, _l
         TRUSTED[_l] = _wu
 
+# Amendment 1j (section 26): the three gaps 6a's P-REDO found. N from each pair's two images, counted read-only by
+# fixture_facts.py (STT_FUNC with a size, in both): conv 3, wrap 4, vtab 9. W: pick (conv); lo_w and __wrap_hw (wrap);
+# rv when grown (vtab). Each case's whole output below was filed before any comparator read it.
+CONV_CASES = ["C1-base conv as built (silent FILL)", "C1-CONV the converted long call, both sides",
+              "S1 or a1,a1,a1 outside a long-call site", "S2 or a2,a2,a2 at a long-call site",
+              "S2 or a1,a2,a2 at a long-call site", "S3 a converted call to a different target",
+              "S4 a converted call in a different window", "S5 or a1,a1,a1 with no call after it",
+              "S6 a converted site whose input register is a9"]
+WRAP_CASES = ["W-base --wrap with the link's flags", "W-noflag --wrap without flags (today's output)",
+              "W-LO --wrap, in front of LINK-ONLY", "W1 a wrapped call aimed at the unwrapped name",
+              "W2 flags that wrap another name"]
+VTAB_CASES = ["V-base one unit per address, in front of LINK-ONLY", "V1 one vtable relocation re-aimed, same size and bytes",
+              "V2 a differing mergeable string", "V3 two units cover one address", "V4 no unit covers the address"]
+# 1j, Correction 3: the CLI's refusal of an ld flags file it cannot read. It prints no verdict line (like T0's two).
+REFUSE_CASES = ["W3 a --wrap token in a form not read refuses"]
+for _labels, _wu in [(CONV_CASES, (1, 2)), (WRAP_CASES, (2, 2)),
+                     ([l for l in VTAB_CASES if not l.startswith("V2 ")], (1, 8)),
+                     (["V2 a differing mergeable string"], (0, 9))]:
+    for _l in _labels:
+        assert _l not in TRUSTED, _l
+        TRUSTED[_l] = _wu
+
 
 def copy_case(tmp, case):
     """A private copy per mutation: no two mutations share a directory."""
@@ -306,15 +331,28 @@ def reloc_entry_offset(mod, obj_path, relsec, want_type):
     raise AssertionError("no relocation of type %d in %s" % (want_type, relsec))
 
 
-def run_case(mod, a, b, allow, tmp, relocs=False):
+def run_case(mod, a, b, allow, tmp, relocs=False, ld_flags=None):
     lines = []
     allow_path = None
     if allow is not None:
         allow_path = os.path.join(tmp, "allow.txt")
         with open(allow_path, "w") as f:
             f.write("\n".join(allow) + "\n")
-    rc = mod.compare(a, b, allow_path, None, lines.append, relocs)
+    if ld_flags is None:
+        rc = mod.compare(a, b, allow_path, None, lines.append, relocs)
+    elif "ld_flags" not in inspect.signature(mod.compare).parameters:
+        # 1j, red first: a comparator without --ld-flags is graded, never crashed (a crash is not a red, 2026-11-04)
+        return None, ["the comparator takes no ld flags"]
+    else:
+        rc = mod.compare(a, b, allow_path, None, lines.append, relocs, ld_flags=ld_flags)
     return rc, lines
+
+
+def flags_tail(path, names):
+    """1j: the verdict line's --wrap statement. The sha is the file's bytes as read (a checkout may convert line ends)."""
+    with open(path, "rb") as f:
+        sha = hashlib.sha256(f.read()).hexdigest()[:12]
+    return "; --wrap (ld flags %s): %s" % (sha, ", ".join(names))
 
 
 # --reloc-names (map-client's P-REDO amendment 1): after each plain CHANGED function, its named targets compared.
@@ -356,7 +394,7 @@ def case_label(case, allow):
 def case_labels():
     """Every case this selftest grades, by label: the list the sabotage driver holds every plant's declaration to."""
     return ([case_label(c, a) for c, a, _, _ in CASES] + [c + " relocs" for c, _, _ in RELOC_CASES] + REFUSALS
-            + LINK_CASES + T0_CASES)
+            + LINK_CASES + CONV_CASES + WRAP_CASES + VTAB_CASES + REFUSE_CASES + T0_CASES)
 
 
 def run(mod):
@@ -364,21 +402,21 @@ def run(mod):
     total = 0
     known = case_labels()
     assert len(set(known)) == len(known), "a case label repeats"
-    assert sorted(TRUSTED) == sorted(k for k in known if k not in T0_CASES), \
+    assert sorted(TRUSTED) == sorted(k for k in known if k not in T0_CASES + REFUSE_CASES), \
         "TRUSTED must file (W, U) for exactly the cases with a verdict line"
 
-    def grade(label, rc, lines, want_rc, want_lines):
+    def grade(label, rc, lines, want_rc, want_lines, tail=""):
         nonlocal fails, total
         assert label in known, "a graded case missing from case_labels(): %s" % label
-        if label in TRUSTED:  # 1i'': the verdict line's count, as filed
+        if label in TRUSTED:  # 1i'': the verdict line's count, as filed; 1j: then the --wrap statement, if any
             assert want_lines[-1].startswith("verdict: "), label
-            want_lines = want_lines[:-1] + [want_lines[-1] + VERDICT_TRUST % TRUSTED[label]]
+            want_lines = want_lines[:-1] + [want_lines[-1] + VERDICT_TRUST % TRUSTED[label] + tail]
         total += 1
         if rc == want_rc and lines == want_lines:
             print("PASS %s" % label)
             return
         fails += 1
-        print("FAIL %s: exit %d (want %d)" % (label, rc, want_rc))
+        print("FAIL %s: exit %s (want %d)" % (label, rc, want_rc))  # %s: a graded refusal (1j) has no exit
         for ln in lines:
             print("   got  | " + ln)
         for ln in want_lines:
@@ -679,6 +717,262 @@ def run(mod):
             "inputs: 7 loaded, 0 differ",
             "functions whose address moved: 0",
             "verdict: NO CHANGE"])
+
+        # ---- amendment 1j (section 26): the converted long call, --wrap, and one unit per address ----
+        # Every number below is the fixture's own, read with objdump/nm/readelf (fixture_facts.py), never the comparator.
+        def image_bytes(elf, pc, n):
+            with open(elf, "rb") as f:
+                f.seek(elf_file_offset(mod, elf, pc))
+                return f.read(n)
+
+        def call_insn(pc, target, n=2):
+            """CALL<4n> at pc aimed at target, built here and read back with the comparator's own decoders."""
+            off = ((target - ((pc & ~3) + 4)) >> 2) & 0x3FFFF
+            c = bytes([0x05 | (n << 4) | ((off & 3) << 6), (off >> 2) & 0xFF, (off >> 10) & 0xFF])
+            assert mod.call_n(c) == n and mod.call_target(pc, c) == target, "call_insn: %s" % c.hex()
+            return c
+
+        OR111 = bytes([0x10, 0x11, 0x20])  # or a1, a1, a1: the linker's no-op (binutils 2.43.1 elf32-xtensa.c :4745)
+
+        def conv_write(store_dir, first, second):
+            """pick's site 0 (+0x20: l32r a8; callx8 a8 in every conv image) rewritten in place, six bytes."""
+            elf = os.path.join(store_dir, "firmware.elf")
+            _, _, pick = symbol_entry_offset(mod, elf, "pick")
+            old = image_bytes(elf, pick + 0x20, 6)
+            assert old[0] == 0x81 and mod.callx_n(old[3:6]) == 2 and old[4] & 0x0F == 8, \
+                "conv: pick+0x20 is not l32r a8; callx8 a8 (%s)" % old.hex()
+            patch(elf, elf_file_offset(mod, elf, pick + 0x20), old, first + second)
+
+        def converted(store_dir, target="ext", n=2, first=OR111):
+            elf = os.path.join(store_dir, "firmware.elf")
+            _, _, pick = symbol_entry_offset(mod, elf, "pick")
+            _, _, tgt = symbol_entry_offset(mod, elf, target)
+            conv_write(store_dir, first, call_insn(pick + 0x23, tgt, n))
+
+        def conv_lines(*tail):
+            return (["inputs: 2 loaded, 1 differ", "  differs: src/fp.c.o",
+                     "FILL func global pick [src/fp.c.o] -- fill bytes A/B=1/0; width swaps: none; 34 instructions",
+                     "functions whose address moved: 0"] + list(tail))
+
+        NEITHER = "UNDECIDED pick (FILL): size 94 -> 93: a long-call site that is neither relaxed nor kept"
+        st = os.path.join(STORES, "conv")
+        rc, lines = run_case(mod, os.path.join(st, "a"), os.path.join(st, "b"), None, tmp)
+        grade("C1-base conv as built (silent FILL)", rc, lines, 0, conv_lines("verdict: NO CHANGE"))
+
+        # the positive: both images' site 0 in the linker's converted form (a kept side paired with a converted one is
+        # a flip whose reach never crossed: --no-relax keeps sites that are in range)
+        st = copy_case(tmp, "conv")
+        for side in ("a", "b"):
+            converted(os.path.join(st, side))
+        rc, lines = run_case(mod, os.path.join(st, "a"), os.path.join(st, "b"), None, tmp)
+        grade("C1-CONV the converted long call, both sides", rc, lines, 0, conv_lines("verdict: NO CHANGE"))
+
+        # S1: the same three bytes over B's entry instruction (+0), where the input has no long-call site
+        st = copy_case(tmp, "conv")
+        elf = os.path.join(st, "b", "firmware.elf")
+        _, _, pick = symbol_entry_offset(mod, elf, "pick")
+        patch(elf, elf_file_offset(mod, elf, pick), bytes([0x36, 0x41, 0x00]), OR111)
+        rc, lines = run_case(mod, os.path.join(st, "a"), os.path.join(st, "b"), None, tmp)
+        grade("S1 or a1,a1,a1 outside a long-call site", rc, lines, 3, conv_lines(
+            "UNDECIDED pick (FILL): size 94 -> 93: a final instruction differs at input +0", "verdict: UNDECIDED (1)"))
+
+        # S2-S6: A carries the good converted form, B the variant -- so a plant that admits the variant reads NO CHANGE
+        for label, mutate in [
+                ("S2 or a2,a2,a2 at a long-call site", lambda d: converted(d, first=bytes([0x20, 0x22, 0x20]))),
+                ("S2 or a1,a2,a2 at a long-call site", lambda d: converted(d, first=bytes([0x20, 0x12, 0x20]))),
+                ("S4 a converted call in a different window", lambda d: converted(d, n=1)),
+                ("S5 or a1,a1,a1 with no call after it", lambda d: conv_write(d, OR111, bytes([0xF0, 0x20, 0x00])))]:
+            st = copy_case(tmp, "conv")
+            converted(os.path.join(st, "a"))
+            mutate(os.path.join(st, "b"))
+            rc, lines = run_case(mod, os.path.join(st, "a"), os.path.join(st, "b"), None, tmp)
+            grade(label, rc, lines, 3, conv_lines(NEITHER, "verdict: UNDECIDED (1)"))
+
+        # S3: B's converted call aimed at entry (0x40000018), not ext (0x40000090) -- caught by 1i'' (N5)
+        st = copy_case(tmp, "conv")
+        converted(os.path.join(st, "a"))
+        converted(os.path.join(st, "b"), target="entry")
+        rc, lines = run_case(mod, os.path.join(st, "a"), os.path.join(st, "b"), None, tmp)
+        grade("S3 a converted call to a different target", rc, lines, 3, conv_lines(
+            "UNDECIDED pick (FILL): size 94 -> 93: B's site 0 calls 0x40000018; its input names ext, at 0x40000090",
+            "verdict: UNDECIDED (1)"))
+
+        # S6 (N2): both inputs' site 0 re-registered to a9, identically (so still FILL); both images converted
+        st = copy_case(tmp, "conv")
+        for side in ("a", "b"):
+            obj = os.path.join(st, side, "src", "fp.c.o")
+            with open(obj, "rb") as f:
+                base = mod.ELFFile(f).get_section_by_name(".text.pick")["sh_offset"]
+            patch(obj, base + 0x20, bytes([0x81]), bytes([0x91]))  # l32r a8 -> a9 (its t field)
+            patch(obj, base + 0x24, bytes([0x08]), bytes([0x09]))  # callx8 a8 -> a9 (its s field)
+            reseal(os.path.join(st, side), "src/fp.c.o")
+            converted(os.path.join(st, side))
+        rc, lines = run_case(mod, os.path.join(st, "a"), os.path.join(st, "b"), None, tmp)
+        grade("S6 a converted site whose input register is a9", rc, lines, 3,
+              conv_lines(NEITHER, "verdict: UNDECIDED (1)"))
+
+        # wrap: lo_w -> hw, wrapped to __wrap_hw (A 0x40070000, relaxed; B 0x40090004, kept). __wrap_hw's own call names
+        # __real_hw, which the comparator does not model: it refuses, in every wrap case (a named limit)
+        WRAP_FLAGS = os.path.join(HERE, "..", "fixtures", "image-compare", "src", "wrap_ld_flags")
+        WRAP_HI = ("UNDECIDED __wrap_hw: size 12 -> 16: A's site 0's target cannot be placed: __real_hw is in the image's "
+                   "symbol table 0 times; B's site 0's target cannot be placed: __real_hw is in the image's symbol table 0 "
+                   "times")
+        WRAP_LO = ("UNDECIDED lo_w: size 12 -> 16: A's site 0 calls 0x40070000; its input names hw, at 0x40000024; B's "
+                   "site 0 calls 0x40090004; its input names hw, at 0x4000002c")
+        wa, wb = os.path.join(STORES, "wrap", "a"), os.path.join(STORES, "wrap", "b")
+        rc, lines = run_case(mod, wa, wb, None, tmp, ld_flags=WRAP_FLAGS)
+        grade("W-base --wrap with the link's flags", rc, lines, 3, [
+            "inputs: 3 loaded, 0 differ",
+            "RELAX lo_w: n=1 rA=1 rB=0 narrowed A/B=1/0 widened A/B=0/0 dsize=+4; site 0: call in A, reach +458720; long "
+            "in B, reach +589792",
+            "functions whose address moved: 4",
+            WRAP_HI,
+            "verdict: UNDECIDED (1)"], flags_tail(WRAP_FLAGS, ["hw"]))
+
+        rc, lines = run_case(mod, wa, wb, None, tmp)
+        grade("W-noflag --wrap without flags (today's output)", rc, lines, 3, [
+            "inputs: 3 loaded, 0 differ", "functions whose address moved: 4", WRAP_HI, WRAP_LO, "verdict: UNDECIDED (2)"])
+
+        st = copy_case(tmp, "wrap/b")
+        grow(st, ["lo_w"])
+        rc, lines = run_case(mod, wa, st, None, tmp, ld_flags=WRAP_FLAGS)
+        grade("W-LO --wrap, in front of LINK-ONLY", rc, lines, 3, [
+            "inputs: 3 loaded, 0 differ",
+            "LINK-ONLY lo_w [src/wr.c.o] -- size 12 -> 18; the walk: the walk ends 2 bytes before the function does; "
+            "object code equal; read-only data equal: 0 section(s); call sites checked A/B: 1/1; " + TRUST,
+            "functions whose address moved: 4",
+            WRAP_HI,
+            "verdict: UNDECIDED (1); LINK-ONLY: 1"], flags_tail(WRAP_FLAGS, ["hw"]))
+
+        # W1 (the orchestrator's): B's kept literal re-aimed from __wrap_hw (0x40090004) to the unwrapped hw (0x4000002c)
+        st = copy_case(tmp, "wrap/b")
+        elf = os.path.join(st, "firmware.elf")
+        _, _, lo = symbol_entry_offset(mod, elf, "lo_w")
+        insn = image_bytes(elf, lo + 6, 3)
+        assert insn[0] == 0x81, "W1: lo_w+6 is not B's l32r a8 (%s)" % insn.hex()
+        lit = mod.l32r_addr(lo + 6, insn)
+        patch(elf, elf_file_offset(mod, elf, lit), (0x40090004).to_bytes(4, "little"), (0x4000002c).to_bytes(4, "little"))
+        rc, lines = run_case(mod, wa, st, None, tmp, ld_flags=WRAP_FLAGS)
+        grade("W1 a wrapped call aimed at the unwrapped name", rc, lines, 3, [
+            "inputs: 3 loaded, 0 differ", "functions whose address moved: 4", WRAP_HI,
+            "UNDECIDED lo_w: size 12 -> 16: site 0 flipped, but its reach did not cross the call limit; not LINK-ONLY: "
+            "B's site 0 calls 0x4000002c; its input names hw (--wrap: __wrap_hw), at 0x40090004",
+            "verdict: UNDECIDED (2)"], flags_tail(WRAP_FLAGS, ["hw"]))
+
+        # W2: a flags file that wraps another name -- hw is not wrapped, so lo_w reads as without flags
+        other = os.path.join(tmp, "other_ld_flags")
+        with open(other, "wb") as f:
+            f.write(b"-Wl,--wrap=other\n")
+        rc, lines = run_case(mod, wa, wb, None, tmp, ld_flags=other)
+        grade("W2 flags that wrap another name", rc, lines, 3, [
+            "inputs: 3 loaded, 0 differ", "functions whose address moved: 4", WRAP_HI, WRAP_LO,
+            "verdict: UNDECIDED (2)"], flags_tail(other, ["other"]))
+
+        # W3 (Correction 3): ld also takes -Wl,--wrap,NAME; the comparator reads only the = form, so it refuses the file,
+        # through the CLI's own path, exit 2 -- never a silently empty list
+        bad = os.path.join(tmp, "comma_ld_flags")
+        with open(bad, "wb") as f:
+            f.write(b"-Wl,--wrap,hw\n")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = mod.main(["compare", wa, wb, "--ld-flags", bad])
+        grade("W3 a --wrap token in a form not read refuses", rc, buf.getvalue().splitlines(), 2, [
+            "image-compare: --ld-flags: an ld flags token naming --wrap in a form the comparator does not read: "
+            "-Wl,--wrap,hw"])
+
+        # vtab: rv reads vtab (0x3f000078), where the map also lists vt.c's .str1.1 sections s2, s3 and rs at their
+        # pre-merge sizes -- the firmware's tie
+        RV_LO = ("LINK-ONLY rv [src/vt.c.o] -- size 24 -> 26; the walk: its size differs and it has no long-call site; "
+                 "object code equal; read-only data equal: 1 section(s); call sites checked A/B: 0/0; " + TRUST)
+        RV_UN = "UNDECIDED rv: size 24 -> 26: its size differs and it has no long-call site; not LINK-ONLY: "
+        va = os.path.join(STORES, "vtab", "a")
+
+        def map_edit(store_dir, edit):
+            p = os.path.join(store_dir, "firmware.map")
+            with open(p, "rb") as f:
+                rows = f.read().splitlines(keepends=True)
+            new = edit(rows)
+            assert new != rows, "map_edit: the plant did not apply"
+            with open(p, "wb") as f:
+                f.write(b"".join(new))
+
+        def the_row(rows, head):
+            k = [i for i, r in enumerate(rows) if r.startswith(head)]
+            assert len(k) == 1, "map: %d rows start %r" % (len(k), head)
+            return k[0]
+
+        st = copy_case(tmp, "vtab/b")
+        grow(st, ["rv"])
+        rc, lines = run_case(mod, va, st, None, tmp)
+        grade("V-base one unit per address, in front of LINK-ONLY", rc, lines, 0, [
+            "inputs: 2 loaded, 0 differ", RV_LO, "functions whose address moved: 0", "verdict: NO CHANGE; LINK-ONLY: 1"])
+
+        # V1 (the orchestrator's): B's object -- vtab's second relocation (+4) re-aimed from t2 to t1. Same size, same
+        # bytes: only the relocation's name differs, and (b) compares relocations by name, never by image address
+        st = copy_case(tmp, "vtab/b")
+        obj = os.path.join(st, "src", "vt.c.o")
+        with open(obj, "rb") as f:
+            elf = mod.ELFFile(f)
+            syms = list(elf.get_section_by_name(".symtab").iter_symbols())
+            t1 = next(k for k, s in enumerate(syms) if s.name == "t1")
+            rsec = elf.get_section_by_name(".rela.rodata.vtab")
+            k, rel = next((k, r) for k, r in enumerate(rsec.iter_relocations())
+                          if r["r_offset"] == 4 and syms[r["r_info_sym"]].name == "t2")
+            off = rsec["sh_offset"] + k * rsec["sh_entsize"] + 4
+            old = ((rel["r_info_sym"] << 8) | rel["r_info_type"]).to_bytes(4, "little")
+            new = ((t1 << 8) | rel["r_info_type"]).to_bytes(4, "little")
+        patch(obj, off, old, new)
+        reseal(st, "src/vt.c.o")
+        grow(st, ["rv"])
+        rc, lines = run_case(mod, va, st, None, tmp)
+        grade("V1 one vtable relocation re-aimed, same size and bytes", rc, lines, 3, [
+            "inputs: 2 loaded, 1 differ", "  differs: src/vt.c.o", "functions whose address moved: 0",
+            "CHANGED data global A+B vtab [src/vt.c.o] -- OUT (named by: rv)",
+            RV_UN + "it reads read-only data that differs: vtab [src/vt.c.o]", "verdict: UNDECIDED (1)"])
+
+        # V2 (the orchestrator's): one byte of rs's string ('q' -> 'Q') -- CHANGED at the object layer, never LINK-ONLY
+        st = copy_case(tmp, "vtab/b")
+        obj = os.path.join(st, "src", "vt.c.o")
+        with open(obj, "rb") as f:
+            s = mod.ELFFile(f).get_section_by_name(".rodata.rs.str1.1")
+            assert s.data().startswith(b"quebec romeo sierra tan\0"), s.data()
+            off = s["sh_offset"]
+        patch(obj, off, b"q", b"Q")
+        reseal(st, "src/vt.c.o")
+        rc, lines = run_case(mod, va, st, None, tmp)
+        grade("V2 a differing mergeable string", rc, lines, 1, [
+            "inputs: 2 loaded, 1 differ", "  differs: src/vt.c.o", "functions whose address moved: 0",
+            "CHANGED func global A+B rs [src/vt.c.o] -- OUT", "verdict: OUT OF SCOPE: rs"])
+
+        # V3: BOTH maps also list main.c.o's ktab at vtab's address -- two units cover it (both, so a plant that takes
+        # the first unit reads clean rather than tripping on A against B)
+        st = copy_case(tmp, "vtab")
+
+        def add_ktab(rows):
+            k, v = the_row(rows, b" .rodata.ktab "), the_row(rows, b" .rodata.vtab ")
+            assert rows[k].count(b"0x3f000000") == 1, rows[k]
+            return rows[:v + 1] + [rows[k].replace(b"0x3f000000", b"0x3f000078")] + rows[v + 1:]
+        for side in ("a", "b"):
+            map_edit(os.path.join(st, side), add_ktab)
+        grow(os.path.join(st, "b"), ["rv"])
+        rc, lines = run_case(mod, os.path.join(st, "a"), os.path.join(st, "b"), None, tmp)
+        grade("V3 two units cover one address", rc, lines, 3, [
+            "inputs: 2 loaded, 0 differ", "functions whose address moved: 0",
+            RV_UN + "a read-only datum it reads cannot be compared: 2 units cover vtab at 0x3f000078",
+            "verdict: UNDECIDED (1)"])
+
+        # V4: vtab's row removed from BOTH maps -- only merged sections cover its address (both, so a plant that skips
+        # the datum reads clean)
+        st = copy_case(tmp, "vtab")
+        for side in ("a", "b"):
+            map_edit(os.path.join(st, side),
+                     lambda rows: [r for i, r in enumerate(rows) if i != the_row(rows, b" .rodata.vtab ")])
+        grow(os.path.join(st, "b"), ["rv"])
+        rc, lines = run_case(mod, os.path.join(st, "a"), os.path.join(st, "b"), None, tmp)
+        grade("V4 no unit covers the address", rc, lines, 3, [
+            "inputs: 2 loaded, 0 differ", "functions whose address moved: 0",
+            RV_UN + "a read-only datum it reads cannot be compared: no unit covers vtab at 0x3f000078",
+            "verdict: UNDECIDED (1)"])
 
         # T0, both directions
         for case, want_rc, want in [

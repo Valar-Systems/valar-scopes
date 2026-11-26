@@ -2,7 +2,11 @@
 # Regenerates image-compare's fixture stores from src/ with the firmware's own toolchain and the firmware's code flags.
 # The stores are committed; CI only reads them. Run from this directory:  XT=<toolchain bin dir> bash gen.sh
 # Each case is two stores, a/ and b/: src/*.o, firmware.elf, firmware.map (-Map) and inputs.json.
+# ONLY="conv wrap vtab" (amendment 1j) builds only those cases, removing only their stores: every other store is left
+# byte-for-byte as committed. ONLY names only cases whose block below is guarded by want(); unset, everything is rebuilt.
 set -euo pipefail
+ONLY="${ONLY:-}"
+want() { [ -z "$ONLY" ] || case " $ONLY " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 : "${XT:?set XT to the xtensa toolchain bin directory}"
 CC="$XT/xtensa-esp32s3-elf-gcc"; CXX="$XT/xtensa-esp32s3-elf-g++"; AR="$XT/xtensa-esp32s3-elf-ar"
 [ -x "$CC" ] || CC="$CC.exe"; [ -x "$CXX" ] || CXX="$CXX.exe"; [ -x "$AR" ] || AR="$AR.exe"
@@ -13,7 +17,7 @@ for cand in python3 python py; do
   if "$c" -c "pass" >/dev/null 2>&1; then PY="$c"; break; fi
 done
 [ -n "$PY" ] || { echo "gen.sh: no working python" >&2; exit 2; }
-rm -rf stores && mkdir stores
+if [ -z "$ONLY" ]; then rm -rf stores && mkdir stores; else for c in $ONLY; do rm -rf "stores/$c"; done; fi
 
 obj() {  # obj <store> <source> <canonical name>
   case "$2" in *.cpp) "$CXX" $CFLAGS -fno-exceptions -fno-rtti -o "$1/src/$3.o" "src/$2" ;;
@@ -46,6 +50,7 @@ base() {  # base <store> <f source> : main, f, g, ext, h, relax
 }
 LINKS="src/main.c.o src/f.c.o src/g.c.o src/ext.c.o src/relax.c.o src/hi.c.o src/libh.a"
 
+if [ -z "$ONLY" ]; then   # the cases before amendment 1j: built only by a full run
 for c in null body grow gc local relax; do
   case $c in body) fb=f_body.c ;; grow) fb=f_grow.c ;; gc) fb=f_gc.c ;; *) fb=f_a.c ;; esac
   fa=f_a.c; [ $c = local ] && { fa=f_local_a.c; fb=f_local_b.c; }
@@ -141,4 +146,43 @@ obj "$a" main_rr.c main.c; obj "$a" rd.c rd.c; obj "$a" rr_a.c rr.c
 obj "$b" main_rr.c main.c; obj "$b" rd.c rd.c; obj "$b" rr_b.c rr.c
 link "$a" entry "" src/main.c.o src/rd.c.o src/rr.c.o
 link "$b" entry "" src/main.c.o src/rd.c.o src/rr.c.o
+fi
+
+# amendment 1j (section 26). conv: fill's sources, linked --no-relax, so pick's four long calls to ext stay six-byte
+# l32r a8 / callx8 a8 sites in both images (the selftest rewrites one into the linker's converted form)
+if want conv; then
+  a=$(store conv/a); b=$(store conv/b)
+  obj "$a" main_fp.c main.c; obj "$a" fp.c fp.c
+  obj "$b" main_fp.c main.c; "$CC" $CFLAGS -Wa,--no-target-align -o "$b/src/fp.c.o" src/fp.c
+  link "$a" entry "-Wl,--no-relax" src/main.c.o src/fp.c.o
+  link "$b" entry "-Wl,--no-relax" src/main.c.o src/fp.c.o
+fi
+# 1j. wrap: the link's flags are read from src/wrap_ld_flags, the same file the cases pass to --ld-flags. lo_w's call to
+# hw goes to __wrap_hw in .text_hi: in call range in A (relaxed), out of it in B (kept)
+if want wrap; then
+  a=$(store wrap/a); b=$(store wrap/b)
+  WRAP="$(cat src/wrap_ld_flags)"
+  for s in "$a" "$b"; do obj "$s" main_wr.c main.c; obj "$s" wr.c wr.c; obj "$s" wr_hi.c wr_hi.c; done
+  link "$a" entry "$WRAP -Wl,--section-start=.text_hi=0x40070000" src/main.c.o src/wr.c.o src/wr_hi.c.o
+  link "$b" entry "$WRAP -Wl,--section-start=.text_hi=0x40090000" src/main.c.o src/wr.c.o src/wr_hi.c.o
+fi
+# 1j. vtab: the map lists vt.c's later .str1.1 sections at vtab's own address with their pre-merge sizes (asserted)
+if want vtab; then
+  a=$(store vtab/a); b=$(store vtab/b)
+  for s in "$a" "$b"; do obj "$s" main_vt.c main.c; obj "$s" vt.c vt.c; done
+  link "$a" entry "" src/main.c.o src/vt.c.o
+  link "$b" entry "" src/main.c.o src/vt.c.o
+  for s in "$a" "$b"; do
+    "$PY" - "$s/firmware.map" <<'PY'
+import re, sys
+text = open(sys.argv[1]).read()
+ents = re.findall(r"^ (\.rodata\.\S+)\s+0x([0-9a-f]+)\s+0x([0-9a-f]+) src/vt\.c\.o$", text, re.M)
+at = {n: (int(a, 16), int(z, 16)) for n, a, z in ents}
+v = at[".rodata.vtab"][0]
+tie = [n for n, (a, z) in at.items() if n.endswith(".str1.1") and a == v and z > at[".rodata.vtab"][1]]
+assert len(tie) >= 2, "vtab: the map does not tie a larger .str1.1 section with vtab (%s)" % sorted(at.items())
+print("vtab tie in %s: vtab at 0x%x, %s" % (sys.argv[1], v, ", ".join(sorted(tie))))
+PY
+  done
+fi
 echo "stores regenerated"
