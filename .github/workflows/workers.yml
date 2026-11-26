@@ -341,6 +341,11 @@ jobs:
         run: |
           git fetch --no-tags --depth=1 origin "$BASE_SHA"
           node scripts/check-support-links.mjs --changed-since "$BASE_SHA"
+      # The support page's text against the repo's own file (scripts/check-support-text.mjs): its cases graded here, with
+      # no network. The live check runs from smoke-prod.sh at deploy time, given the commit production ran before.
+      - name: the support page's text matches the repo (selftest)
+        if: matrix.worker == 'proxy'
+        run: node scripts/check-support-text.mjs --selftest
 
       # Every SQL statement the dashboard can issue, run against the LIVE Analytics
       # Engine endpoint. vitest never executes the SQL, and two defects reached the

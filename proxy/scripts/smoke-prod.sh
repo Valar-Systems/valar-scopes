@@ -854,6 +854,19 @@ contains "/blipscope/support (support page)" 200 "Blipscope Support" "$BASE/blip
 contains "/blipscope/support (Shopify redirect destination)" 200 "Still stuck" \
   "$BASE/blipscope/support"
 
+# The support page's TEXT against the repo's own file (scripts/check-support-text.mjs): every line changed since the
+# commit production ran BEFORE this deploy is live, no retired privacy claim is back, and the freeze phrase and the site
+# links match. COUNTED. It needs SMOKE_SUPPORT_BASE, that earlier commit (D4's D0 before-run and S4-9 pass P0); without
+# it, one SKIPPED row, because "which lines changed" has no answer. Read at least 300 s after a deploy: the page carries
+# a 300 s cache (staticPage), and a stale page reads like a FAIL. Offline, `--serve-rev <base>` computes the before-run.
+if [ -n "${SMOKE_SUPPORT_BASE:-}" ]; then
+  ST_OUT="$(node "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/check-support-text.mjs" --base "$SMOKE_SUPPORT_BASE" --url "$BASE/blipscope/support" 2>&1)"; ST_RC=$?
+  printf '\n===== /blipscope/support text vs the repo (base %s) =====\n%s\n' "${SMOKE_SUPPORT_BASE:0:12}" "$ST_OUT"
+  if [ "$ST_RC" -eq 0 ]; then printf 'RESULT: PASS\n'; pass=$((pass+1)); else printf 'RESULT: FAIL (exit %s)\n' "$ST_RC"; fail=$((fail+1)); fi
+else
+  skip "/blipscope/support text vs the repo" "SMOKE_SUPPORT_BASE is not set (the commit production ran before this deploy), so no changed lines can be named"
+fi
+
 # NO /missileer/support CHECK, and deliberately not a skip() either. Missileer is
 # still in development and does not need a support page yet, so there is nothing
 # here that went unverified -- counting it as SKIPPED would inflate the skip tally
