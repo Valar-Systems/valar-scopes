@@ -22,6 +22,7 @@ Each phrase in RETIRED was a public privacy statement found false, and replaced:
   - "which for the radar includes the area it asked about": the log keeps exactly what each request asked for, a
     detail card's and a photo's included;
   - "activating a device still logs": the activation record is kept until the device next activates, not only logged.
+  - "asks us for that aircraft's photo": a detail card's photo is of the aircraft's type (the owner, 2026-11-26).
 This check fails if any of them comes back in any of FILES, in any letter case or line wrapping.
 
 A check that finds nothing proves nothing on its own, so each file also has two controls:
@@ -69,6 +70,7 @@ RETIRED = (
     "when you tap an aircraft, we're sent",
     "which for the radar includes the area it asked about",
     "activating a device still logs",
+    "asks us for that aircraft's photo",
 )
 
 
