@@ -17,6 +17,7 @@ Every script, bucket and namespace the account reports gets a row: one this file
 """
 import json
 import os
+import re
 import sys
 import urllib.request
 from datetime import datetime
@@ -29,17 +30,27 @@ CLASS_B = {"HeadBucket", "HeadObject", "GetObject", "UsageSummary", "GetBucketEn
            "GetBucketCors", "GetBucketLifecycleConfiguration"}
 SCRIPT = {"blipscope-proxy": "proxy", "blipscope-proxy-staging": "proxy-staging", "blipscope-wx-ingest": "cref",
           "blipscope-wx-ingest-dev": "wx-dev", "blipscope-basemap-staging": "basemap-staging",
-          "valarscopes-app": "kiosk", "valarscopes-site": "kiosk"}
+          "blipscope-basemap": "basemap-production", "valarscopes-app": "kiosk", "valarscopes-site": "kiosk",
+          "blipscope-screen": "screen", "blipscope-screen-staging": "screen-staging"}
 BUCKET = {"missileer-live": "missileer-live", "missileer-clips": "missileer-clips", "blipscope-wx-dev": "wx-dev",
-          "blipscope-basemap-pkg-staging": "basemap-staging", "blipscope-basemap": "basemap-bucket", "": "account-level"}
+          "blipscope-basemap-pkg-staging": "basemap-staging", "blipscope-basemap": "basemap-bucket",
+          "blipscope-basemap-pkg": "basemap-production", "": "account-level"}
+# Buckets attributed by their own rule below, not by BUCKET (docs/account-budget.md section 2): blipscope-wx is shared by the
+# ingests and the proxy's /wx serving. scripts/check_budget_names.py reads BUCKET and this set, so both rules are checked.
+SHARED_BUCKETS = {"blipscope-wx"}
 KV_NS = {"733bf90056104f56be9492e62450a0bf": "proxy", "8b6e92ed802a4192b6b6c1399fdf96aa": "proxy-staging"}   # wrangler.toml (public)
 
 
 import importlib.util as _ilu   # the token-file helper, by path: python -I drops this folder from sys.path
-_tfs = _ilu.spec_from_file_location("token_file", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token_file.py"))
-TOKEN_FILE = _ilu.module_from_spec(_tfs); _tfs.loader.exec_module(TOKEN_FILE)   # docs/token-file-python.md
+_TOKEN_FILE = None
 def token(name):
-    return TOKEN_FILE.token(name)
+    # Loaded on first use, not at import: --selftest (and the sabotage driver's copy of this file in a temp directory) reads
+    # no token and has no ../token_file.py beside it. docs/token-file-python.md
+    global _TOKEN_FILE
+    if _TOKEN_FILE is None:
+        spec = _ilu.spec_from_file_location("token_file", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "token_file.py"))
+        _TOKEN_FILE = _ilu.module_from_spec(spec); spec.loader.exec_module(_TOKEN_FILE)
+    return _TOKEN_FILE.token(name)
 
 
 def gql(q, a, b):
@@ -53,7 +64,32 @@ def gql(q, a, b):
     return d["data"]["viewer"]["accounts"][0]
 
 
+# Workers that are NOT part of Blipscope (docs/account-budget.md section 14): named only in an OPTIONAL local file outside any
+# git tree, whose path BLIPSCOPE_BUDGET_EXCLUDE gives per shell, so no such name is ever committed. A listed Worker is written as
+# product "non-blipscope", state "excluded": still a row, so a read's totals still anchor, and summed into no product's budget.
+EXCLUDE_ENV = "BLIPSCOPE_BUDGET_EXCLUDE"
+_EXCLUDED = frozenset()
+
+
+def load_excluded(path):
+    """The listed Worker names: one per line, "#" comments and blank lines ignored. A file inside a git work tree is REFUSED,
+    so the list cannot be committed by accident."""
+    ap = os.path.abspath(path)
+    d = os.path.dirname(ap)
+    while True:
+        if os.path.exists(os.path.join(d, ".git")):
+            raise SystemExit(f"{EXCLUDE_ENV} names a file inside a git work tree; keep the list outside every repository")
+        up = os.path.dirname(d)
+        if up == d:
+            break
+        d = up
+    with open(ap, encoding="utf-8") as fh:
+        return frozenset(n for n in (line.split("#", 1)[0].strip() for line in fh) if n)
+
+
 def script_product(s, opera_state):
+    if s in _EXCLUDED:
+        return "non-blipscope", "excluded"
     if s.startswith("blipscope-wx-ingest-op"):
         return "opera-ten", opera_state
     if s in SCRIPT_STATE:
@@ -63,6 +99,30 @@ def script_product(s, opera_state):
 
 SCRIPT_STATE = {"blipscope-wx-ingest-shsr": ("shsr", "built")}   # 9.4: its product's live state, so a read attributes it
 
+# Durable Object duration (docs/account-budget.md section 13). The periodic dataset reports duration per NAMESPACE, and the
+# invocations dataset names the CALLERS of each namespace, not its owner. So a namespace is attributed per window, by its
+# callers in that same window: exactly one -> that caller's product; none, or several -> "unattributed", printed, never
+# smoothed onto a guess. No namespace id is written anywhere but the console, and there only as a 6-hex prefix.
+DO_BY_CALLER = "attributed by its only caller in this window; the dataset names callers, not owners"
+
+
+def do_gb_s_by_caller(inv, per, opera_state):
+    """One (product, state, GB-s, label) per namespace with a duration row. inv: invocation groups (dimensions scriptName,
+    namespaceId); per: periodic groups (sum activeTime in microseconds, dimensions namespaceId). GB-s = s x 0.128 GB."""
+    callers = {}
+    for g in inv:
+        callers.setdefault(g["dimensions"]["namespaceId"], set()).add(g["dimensions"]["scriptName"])
+    out = []
+    for g in per:
+        ns = g["dimensions"]["namespaceId"]
+        c = callers.get(ns, set())
+        if len(c) == 1:
+            p, st = script_product(next(iter(c)), opera_state)
+        else:
+            p, st = "unattributed", "now"
+        out.append((p, st, (g["sum"]["activeTime"] or 0) / 1e6 * 0.128, f"{ns[:6]}... ({len(c)} caller{'' if len(c) == 1 else 's'})"))
+    return out
+
 
 def main():
     rid, a, b, opera_state, take, out_path = sys.argv[1:7]
@@ -71,6 +131,8 @@ def main():
         raise SystemExit("take must be rest, opera or all")
     hours = (datetime.fromisoformat(b.replace("Z", "+00:00")) - datetime.fromisoformat(a.replace("Z", "+00:00"))).total_seconds() / 3600
     k = 30 * 24 / hours
+    global _EXCLUDED
+    _EXCLUDED = load_excluded(os.environ[EXCLUDE_ENV]) if os.environ.get(EXCLUDE_ENV) else frozenset()
     acc, unknown = {}, []   # (product, state, allowance) -> value in the window
 
     def add(p, st, al, v, name, opera_dependent=False):
@@ -93,7 +155,7 @@ def main():
         cls = "r2_class_a" if act in CLASS_A else "r2_class_b" if act in CLASS_B else None
         if cls is None:
             continue   # free operations (deletes, aborts)
-        if bk == "blipscope-wx":
+        if bk in SHARED_BUCKETS:
             # Shared (docs/account-budget.md section 2). Class A: the proxy never writes it, so it is the ingests'. In a
             # silent read that is cref alone; in any other read it is cref and the ten together, which this tool does not
             # split by guess. Class B: the ingests plus the proxy's /wx serving, which R2 cannot separate.
@@ -108,13 +170,14 @@ def main():
     for g in kv["kvOperationsAdaptiveGroups"]:
         al = "kv_" + str(g["dimensions"]["actionType"])
         add(KV_NS.get(g["dimensions"]["namespaceId"], "unattributed"), "now", al, g["sum"]["requests"], g["dimensions"]["namespaceId"])
-    do = gql("""durableObjectsInvocationsAdaptiveGroups(limit: 1000, filter: {datetime_geq: $a, datetime_lt: $b}) { sum { requests } dimensions { scriptName } }
+    do = gql("""durableObjectsInvocationsAdaptiveGroups(limit: 1000, filter: {datetime_geq: $a, datetime_lt: $b}) { sum { requests } dimensions { scriptName namespaceId } }
                 durableObjectsPeriodicGroups(limit: 1000, filter: {datetime_geq: $a, datetime_lt: $b}) { sum { activeTime } dimensions { namespaceId } }""", a, b)
     for g in do["durableObjectsInvocationsAdaptiveGroups"]:
         p, st = script_product(g["dimensions"]["scriptName"], opera_state)
         add(p, st, "do_requests", g["sum"]["requests"], g["dimensions"]["scriptName"])
-    for g in do["durableObjectsPeriodicGroups"]:
-        add("proxy", "now", "do_gb_s", (g["sum"]["activeTime"] or 0) / 1e6 * 0.128, g["dimensions"]["namespaceId"])   # the proxy's BendSnapshotDO
+    # The account's DO namespaces, each attributed per window by its callers (section 13), never all to one product.
+    for p, st, gb_s, label in do_gb_s_by_caller(do["durableObjectsInvocationsAdaptiveGroups"], do["durableObjectsPeriodicGroups"], opera_state):
+        add(p, st, "do_gb_s", gb_s, label)
     st = gql("r2StorageAdaptiveGroups(limit: 1000, filter: {datetime_geq: $a, datetime_lt: $b}) { max { payloadSize metadataSize } dimensions { bucketName } }", a, b)
     store = {}
     for g in st["r2StorageAdaptiveGroups"]:
@@ -144,9 +207,9 @@ def main():
         if al in ("kv_read", "kv_write", "kv_list", "kv_delete", "cpu_ms", "requests", "r2_class_a", "r2_class_b", "do_requests", "do_gb_s"):
             month = round(v * k)   # once per row, to the unit: the anchor's rounding allowance (9.12) assumes it
             rows.append({"product": p, "state": s, "allowance": al, "value": month, "read": rid, "basis": "measured",
-                         "how": f"{a}..{b} ({hours:g} h) x {k:g}"})
+                         "how": f"{a}..{b} ({hours:g} h) x {k:g}" + (f"; {DO_BY_CALLER}" if al == "do_gb_s" else "")})
     for bk, by in sorted(store.items()):
-        p = "blipscope-wx-reads" if bk == "blipscope-wx" else BUCKET.get(bk, "unattributed")
+        p = "blipscope-wx-reads" if bk in SHARED_BUCKETS else BUCKET.get(bk, "unattributed")
         if p == "blipscope-wx-reads":
             p = "cref+opera-ten" if opera_state != "silent" else "cref"   # storage is written by the ingests
         if p == "unattributed":
@@ -167,8 +230,69 @@ def main():
         print(f"  {row['product']:20s} {row['state']:8s} {row['allowance']:14s} {row['value']:>14,}")
     print("TOTALS:", json.dumps(totals))
     print("UNATTRIBUTED:", unknown or "none")
+    print(f"EXCLUDED (non-blipscope): {len(_EXCLUDED)} Worker(s), from the local list")   # a count, never a name
     return 0
 
 
+def selftest():
+    """Offline, on canned groups: the per-window caller attribution (section 13) and the local exclusion list (section 14).
+    Synthetic ids and names, never real ones. D1 and E1 are the controls; the rest are the rows the sabotage driver must
+    turn red. Exit 0 only if every row passes."""
+    A, B, C, D = ("a" * 32), ("b" * 32), ("c" * 32), ("d" * 32)
+    inv = [{"dimensions": {"scriptName": "blipscope-proxy", "namespaceId": A}},
+           {"dimensions": {"scriptName": "blipscope-proxy", "namespaceId": B}},
+           {"dimensions": {"scriptName": "valarscopes-app", "namespaceId": B}},
+           {"dimensions": {"scriptName": "blipscope-screen", "namespaceId": C}}]
+    per = [{"sum": {"activeTime": 1_000_000_000}, "dimensions": {"namespaceId": A}},   # 1,000 s = 128 GB-s
+           {"sum": {"activeTime": 500_000_000}, "dimensions": {"namespaceId": B}},     # 64 GB-s, two callers
+           {"sum": {"activeTime": 250_000_000}, "dimensions": {"namespaceId": C}},     # 32 GB-s, the screen alone
+           {"sum": {"activeTime": 125_000_000}, "dimensions": {"namespaceId": D}}]     # 16 GB-s, no caller this window
+    got = do_gb_s_by_caller(inv, per, "silent")
+    by_ns = {lab[:6]: (p, st, gb) for p, st, gb, lab in got}
+    want = [("proxy", "now", 128.0, "aaaaaa... (1 caller)"), ("unattributed", "now", 64.0, "bbbbbb... (2 callers)"),
+            ("screen", "now", 32.0, "cccccc... (1 caller)"), ("unattributed", "now", 16.0, "dddddd... (0 callers)")]
+    rows = [
+        ("D1", by_ns.get("aaaaaa", ("?",))[0] == "proxy", "CONTROL: a namespace with one caller (blipscope-proxy) lands on proxy"),
+        ("D2", by_ns.get("bbbbbb", ("?",))[0] == "unattributed", "a namespace with two callers lands on unattributed, never on a product"),
+        ("D3", by_ns.get("dddddd", ("?",))[0] == "unattributed", "a namespace with no caller in the window lands on unattributed"),
+        ("D4", by_ns.get("cccccc", ("?",))[0] == "screen", "a namespace whose only caller is blipscope-screen lands on screen"),
+        ("D5", not any(re.search(r"[0-9a-f]{7,}", lab) for _, _, _, lab in got), "every label is a 6-hex prefix, never a whole id"),
+        ("D-ALL", got == want, "the whole per-namespace list equals the expected list"),
+    ]
+    # Section 14: the owner's non-Blipscope Workers, from a local list. Synthetic names only.
+    import tempfile
+    global _EXCLUDED
+    saved = _EXCLUDED
+    try:
+        _EXCLUDED = frozenset()
+        e1 = script_product("example-site", "silent") == ("unattributed", "now")
+        with tempfile.TemporaryDirectory() as t:
+            lst = os.path.join(t, "exclude.txt")
+            with open(lst, "w", encoding="utf-8") as fh:
+                fh.write("# the owner's other sites\n\nexample-site   # a note\n")
+            names = load_excluded(lst)
+            _EXCLUDED = names
+            e2 = script_product("example-site", "silent") == ("non-blipscope", "excluded")
+            os.mkdir(os.path.join(t, ".git"))
+            try:
+                load_excluded(lst)
+                refused = False
+            except SystemExit:
+                refused = True
+    finally:
+        _EXCLUDED = saved
+    rows += [
+        ("E1", e1, "CONTROL: with no list, a Worker the tables do not know is unattributed (as before)"),
+        ("E2", e2, "a listed Worker is product non-blipscope, state excluded"),
+        ("E3", refused and names == frozenset({"example-site"}), "a list inside a git work tree is refused; outside it, it loads"),
+        ("E4", names == frozenset({"example-site"}), "comments and blank lines are ignored: the list loads exactly its name"),
+    ]
+    for rid, ok, what in rows:
+        print(f"{'ok  ' if ok else 'FAIL'} {rid}: {what}" + ("" if ok else f" -- got {got}"))
+    bad = sum(1 for _, ok, _ in rows if not ok)
+    print(f"budget_read selftest: {len(rows) - bad} of {len(rows)}")
+    return 1 if bad else 0
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(selftest() if sys.argv[1:2] == ["--selftest"] else main())

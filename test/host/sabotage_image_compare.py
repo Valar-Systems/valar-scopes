@@ -233,6 +233,102 @@ assert sorted(DECL_1I) == sorted(p[0] for p in PLANTS), "every plant needs its 1
 PLANTS = [(_l, _o, _n, list(_r) + DECL_1I[_l], list(_k) + [c for c in I1 if c not in DECL_1I[_l]])
           for _l, _o, _n, _r, _k in PLANTS]
 
+# Amendment 1j (section 26): twelve plants, and every plant's row for the twenty new cases, each derived case by case
+# and filed (REG-B Correction 4) before the run. The new plants touch only 1j's code, so every case before 1j is
+# unaffected by each of them.
+CV = ["C1-base conv as built (silent FILL)", "C1-CONV the converted long call, both sides",
+      "S1 or a1,a1,a1 outside a long-call site", "S2 or a2,a2,a2 at a long-call site", "S2 or a1,a2,a2 at a long-call site",
+      "S3 a converted call to a different target", "S4 a converted call in a different window",
+      "S5 or a1,a1,a1 with no call after it", "S6 a converted site whose input register is a9"]
+S1_, S2A, S2B, S3_, S4_, S5_, S6_ = CV[2:]
+WB, WN, WL, W1_, W2_ = ("W-base --wrap with the link's flags", "W-noflag --wrap without flags (today's output)",
+                        "W-LO --wrap, in front of LINK-ONLY", "W1 a wrapped call aimed at the unwrapped name",
+                        "W2 flags that wrap another name")
+W3_ = "W3 a --wrap token in a form not read refuses"
+VB, V1_, V2_, V3_, V4_ = ("V-base one unit per address, in front of LINK-ONLY",
+                          "V1 one vtable relocation re-aimed, same size and bytes", "V2 a differing mergeable string",
+                          "V3 two units cover one address", "V4 no unit covers the address")
+J1 = CV + [WB, WN, WL, W1_, W2_, W3_] + [VB, V1_, V2_, V3_, V4_]
+BEFORE_1J = OLD + I1  # every case before 1j
+PLANTS += [
+    ("P28 or a1,a1,a1 accepted in place of any instruction",
+     "            if not same:\n                raise Refusal(\"a final instruction differs at input +%d\" % pi)",
+     "            if not same and bf != OR_A1:\n                raise Refusal(\"a final instruction differs at input +%d\" % pi)",
+     [], list(BEFORE_1J)),
+    ("P29 any or accepted at a long-call site", "and lj == 3 and fin[pj:pj + 3] == OR_A1",
+     "and lj == 3 and (fin[pj] & 0x0F) == 0 and fin[pj + 2] == 0x20", [], list(BEFORE_1J)),
+    ("P30 a converted site not put in seen", "                    seen.append((pi, addr + pj + 3, target))",
+     "                    pass", [], list(BEFORE_1J)),
+    ("P31 the window not checked", "                    and call_n(fin[pj + 3:pj + 6]) == nx):", "                    and True):",
+     [], list(BEFORE_1J)),
+    ("P32 no call required after the or (N4 and N6 off)",
+     "                    and call_n(fin[pj + 3:pj + 6]) is not None                                 # N4: a call\n"
+     "                    and call_n(fin[pj + 3:pj + 6]) == nx):", "                    and True):", [], list(BEFORE_1J)),
+    ("P33 the register not checked", "(inp[pi] >> 4) == 8 and (inp[ins_i[i + 1][0] + 1] & 0x0F) == 8", "True",
+     [], list(BEFORE_1J)),
+    ("P34 the --wrap redirect not applied", "        if shndx == \"SHN_UNDEF\" and sym.name in side.wraps:",
+     "        if False:", [], list(BEFORE_1J)),
+    ("P35 the wrap list inferred from the image", "and sym.name in side.wraps:",
+     "and (\"__wrap_\" + sym.name) in image_syms(side.store):", [], list(BEFORE_1J)),
+    ("P36 read-only data compared without relocation names", "            if sa2[:3] != sb2[:3]:",
+     "            if sa2[:2] != sb2[:2]:", [], list(BEFORE_1J)),
+    ("P37 the first covering unit taken",
+     "        if len(units) > 1:\n            raise Refusal(\"%d units cover %s at 0x%x\" % (len(units), nm, value))",
+     "        pass", [], list(BEFORE_1J)),
+    ("P38 a datum no unit covers skipped", "            raise Refusal(\"no unit covers %s at 0x%x\" % (nm, value))",
+     "            return (\"code\", None)", [], list(BEFORE_1J)),
+    ("P39 a --wrap token in an unread form ignored",
+     "            raise LdFlagsError(\"an ld flags token naming --wrap in a form the comparator does not read: %s\" % tok)",
+     "            continue", [], list(BEFORE_1J)),
+]
+DECL_1J = {
+    "P1 strings named by offset": [V2_],
+    "P2 any width change accepted": [],
+    "P3 no reach-crossing check": [W1_],
+    "P4 recorded sha believed": [],
+    "P5 an unknown type allowed": [],
+    "P6 the rule as first registered (no narrowing)": [WB, WN, WL, W1_, W2_],
+    "P7 an allowed referrer not counted": [],
+    "P8 the whole instruction masked": [],
+    "P9b MOVI counted as an offset": [],
+    "P11 GC strict (no fixed point)": [],
+    "P12 a data unit's referrers not printed": [V1_],
+    "P13 the exception table not folded": [],
+    "P14 a width swap's operation not compared": [],
+    # P15: found at plant run 1j-plants.out 2e14da9560dc; mechanism read in 1j-p15-v2-diag.out 2ae8a0e9362d; not a
+    # prediction (the orchestrator's ruling). rs's only difference is a string relocation's name, which P15 stops the
+    # FILL check comparing, so rs reads FILL. V2 is held by two independent guards: this one and P1's content naming.
+    "P15 the fill walk's relocation names not compared": [V2_],
+    "P16 a missing property table read as one instruction region": [],
+    "P17 the fill counts not printed": list(CV),
+    "P18 the relocation print omitted": [],
+    "P10 the offsets label never given": [],
+    "P19 the static initializer's table not paired": [],
+    "P20 an unsplit section named by offset again": [],
+    "P21 the identical-bytes refusal off": [],
+    "P22 a call's target masked, not named": [],
+    "P23 (b) skipped": [V1_],
+    "P24 (a)'s refusal read as equal": [],
+    "P25 (c) skipped: a mismatch never refuses": [W1_],
+    "P26 a repeated local name not refused": [],
+    "P27 the finished-walk check off": [S3_, WB, WN, WL, W1_, W2_],
+    "P28 or a1,a1,a1 accepted in place of any instruction": [S1_],
+    "P29 any or accepted at a long-call site": [S2A, S2B],
+    "P30 a converted site not put in seen": [S3_],
+    "P31 the window not checked": [S4_],
+    "P32 no call required after the or (N4 and N6 off)": [S4_, S5_],
+    "P33 the register not checked": [S6_],
+    "P34 the --wrap redirect not applied": [WB, WL, W1_],
+    "P35 the wrap list inferred from the image": [WN, W2_],
+    "P36 read-only data compared without relocation names": [V1_],
+    "P37 the first covering unit taken": [V3_],
+    "P38 a datum no unit covers skipped": [V4_],
+    "P39 a --wrap token in an unread form ignored": [W3_],
+}
+assert sorted(DECL_1J) == sorted(p[0] for p in PLANTS), "every plant needs its 1j row"
+PLANTS = [(_l, _o, _n, list(_r) + DECL_1J[_l], list(_k) + [c for c in J1 if c not in DECL_1J[_l]])
+          for _l, _o, _n, _r, _k in PLANTS]
+
 
 def case_labels(repo):
     sys.path.insert(0, os.path.join(repo, "test", "host"))
@@ -310,8 +406,9 @@ def main():
             with open(os.path.join(tmp, TARGET), "w", newline="") as f:
                 f.write(planted)
             shutil.copy(os.path.join(REPO, "test", "host", "image_compare_selftest.py"), os.path.join(tmp, "test", "host"))
-            shutil.copytree(os.path.join(REPO, "test", "fixtures", "image-compare", "stores"),
-                            os.path.join(tmp, "test", "fixtures", "image-compare", "stores"))
+            # the whole fixture directory: 1j's wrap cases read src/wrap_ld_flags beside the stores
+            shutil.copytree(os.path.join(REPO, "test", "fixtures", "image-compare"),
+                            os.path.join(tmp, "test", "fixtures", "image-compare"))
             r = subprocess.run([sys.executable, os.path.join(tmp, TARGET), "selftest"], capture_output=True, text=True)
         got = red_set(r.stdout)
         crashed = "Traceback" in r.stderr or "Traceback" in r.stdout

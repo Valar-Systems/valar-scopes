@@ -3,6 +3,7 @@
 #include <cmath>
 #include "LGFX.h"
 #include "BandCanvas.h"
+#include "SweepWedge.h"
 
 // Radar sweep: a bright leading beam trailed by a soft phosphor afterglow that
 // fans out behind it, the way a PPI scope's persistence lags the rotating beam.
@@ -28,30 +29,10 @@ inline void DrawRadarSweepBeam(BandCanvas& buf, int cx, int cy, int radius, floa
 
 inline void DrawRadarSweep(BandCanvas& buf, int cx, int cy, int radius, float angle)
 {
-    constexpr float TAIL = 1.0f;   // afterglow span behind the beam, radians (~57 deg)
-    constexpr int   SEGS = 18;     // wedge slices; more = smoother fade, more fills
-    constexpr int   PEAK = 120;    // peak trail green, kept under the blips' brightness
-
-    // Leading-edge point, then walk backwards in angle filling one triangle per
-    // slice between successive rim points.
-    const int xLead = cx + (int)(std::cos(angle) * radius);
-    const int yLead = cy + (int)(std::sin(angle) * radius);
-
-    int xPrev = xLead, yPrev = yLead;
-    for (int i = 1; i <= SEGS; i++) {
-        const float frac = i / (float)SEGS;            // 0 at the beam, 1 at the tail
-        const float a = angle - frac * TAIL;
-        const int x = cx + (int)(std::cos(a) * radius);
-        const int y = cy + (int)(std::sin(a) * radius);
-
-        // quadratic fade: bright next to the beam, dark at the tail
-        const float g = 1.0f - frac;
-        const uint8_t lvl = (uint8_t)(g * g * PEAK);
-        buf.fillTriangle(cx, cy, xPrev, yPrev, x, y, lgfx::color888(0, lvl, 0));
-
-        xPrev = x;
-        yPrev = y;
-    }
+    // The wedge and its three constants live in include/SweepWedge.h, shared with the weather and map sweeps
+    // (wxsweep::Rasterise); test/host/test_sweep_wedge.cpp holds the two to the same pixels. The afterglow's length
+    // is wxsweep::kTail there, and nowhere else.
+    wxsweep::FillWedge(buf, cx, cy, radius, angle, [](uint8_t lvl) { return lgfx::color888(0, lvl, 0); });
 
     // bright leading beam with a phosphor-white head where it meets the bezel
     DrawRadarSweepBeam(buf, cx, cy, radius, angle);

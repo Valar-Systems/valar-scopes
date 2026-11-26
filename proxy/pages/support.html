@@ -503,8 +503,8 @@
        nobody but you ever has to type it, and if you think it has got out, change it
        on the config page and re-subscribe on your phone.</p>
     <p>Worth knowing either way: alerts are delivered by <b>ntfy.sh</b>, which is not
-       us. Even a device running against your own receiver, which otherwise never
-       talks to anyone, sends its alerts through them.</p>
+       us. Even a Blipscope running against your own receiver sends its alerts
+       through them.</p>
 
     <div class="note">
       <p>Every Valar Scopes edition uses this same field, so one topic and one
@@ -528,7 +528,7 @@
        never name an aircraft, never say which one you follow, and never carry your
        location. Serving you does reveal some of it: the radar asks for the aircraft
        around your location, rounded to about 1 km, and opening a detail card fetches
-       that aircraft's photo, when there is one. Those requests are logged like any other (below).</p>
+       a representative photo of its type, when there is one. Those requests are logged like any other (below).</p>
     <p><b>It does report usage counts for each device</b> — how often features are
        used, so we know what to improve. How many times a detail card was opened,
        how many times each screen was switched to, how many logbook claims, whether
@@ -537,39 +537,63 @@
        couldn't open a secure connection, which describes the device and not you.
        Counts only: numbers, never the aircraft or the callsign or the tail number they
        were about. The report is a short line of digits, sent at most once an hour
-       on a connection the device was already using. Each report is kept against the
-       device's identifier, so the counts belong to a device rather than being
-       anonymous. That identifier is a fixed code made from the device's hardware
+       on a connection the device was already using.
+       Each report is kept against the device's identifier, so the counts are tied to the device that sent them.
+       That identifier is a fixed code made from the device's hardware
        address (never the address itself), the same one the leaderboard uses.</p>
     <p>This changed in firmware 9. Earlier versions collected none of it and said so
        here; we would rather say plainly that it changed than quietly reword the old
        promise. If you would prefer not to send it, run the device against your own
-       receiver — then it never talks to us at all.</p>
+       receiver with Aircraft details set to Off — then it never talks to us at all.</p>
     <p>Our server keeps request logs, so we can tell a network fault from a problem with
        the service. A logged request may include the identifier of the device that sent
        it or a short label derived from it, its model and firmware version, which
-       Cloudflare data centre answered, and the request itself, which for the radar
-       includes the area it asked about, rounded to about 1 km. It no longer includes the
-       network address it came from; activating a device still logs the country and
-       network Cloudflare reports for that address. Requests logged before this changed
+       Cloudflare data centre answered, and the request itself, including exactly
+       what it asked for: for the radar, the area it asked about, rounded to about 1 km;
+       for a detail card, the aircraft's code, its callsign, its position at the time
+       (rounded the same way) and the direction it was heading; for a photo, which photo.
+       It does not include the network address it came from. Activating a Blipscope
+       records the country and network Cloudflare reports for that address, and we keep
+       that until the Blipscope next activates. A copy also sits in the request log for
+       up to seven days. Requests logged before this changed
        on 23 November also held the address and Cloudflare's estimate of its location,
        and the last of those are deleted by 1 December. Your
        browser's visits to these pages are logged too. Cloudflare keeps these logs for
        up to seven days. Our records that a device checked in, and on which model and
        firmware, also name the device and are kept for three months. Neither ever holds
-       the device's key.</p>
+       the device's key. When we have no details for an aircraft, we keep its code for
+       three months so the gap can be filled, never with your Blipscope's identifier. When
+       we don't have its route yet, we ask adsb.lol, sending its callsign and position and
+       nothing about your Blipscope.</p>
     <p>What a cloud device also sends is operational: that it checked in, its model and
        firmware version, after a restart the reason it restarted, and after a firmware
        update whether the update worked and how much free memory it had. These reports
        carry no location, no configuration, no serial number and no list of aircraft you
        watched. The radar's own requests carry your location, rounded as described
        above.</p>
-    <p>Run it against your own receiver and the radar never talks to us at all. The
+    <p>Run it against your own receiver with Aircraft details set to Off and it never
+       talks to us at all. With Blipscope Cloud details, it asks us about the aircraft it
+       can see, as above. The
        <a href="/blipscope/leaderboard">spotting leaderboard</a> is separate, opt-in,
        and off until you turn it on. The full detail, including exactly what the
        leaderboard submits, is in the
        <a href="https://github.com/Valar-Systems/valar-scopes#privacy--telemetry">Privacy
        &amp; telemetry</a> section of the README.</p>
+    <p><b>If you chose "adsbdb direct".</b> Until firmware 9, Aircraft details offered a
+       third choice, "adsbdb direct", which asked a public aircraft database instead of us,
+       and we said it never contacted us. When we stopped using that database, firmware 9
+       moved every Blipscope that had chosen it to "Blipscope Cloud". Since that update,
+       those Blipscopes have asked our server about the aircraft they can see, as described
+       above. You didn't choose that, and we should have told you when it happened. To
+       stop it:</p>
+    <ol>
+      <li>Open your Blipscope's config page, at the address shown on its screen
+        (<code>http://&lt;device-name&gt;.local</code>).</li>
+      <li>Go to <b>Network</b>.</li>
+      <li>Set <b>Aircraft details</b> to <b>Off — receiver data only</b>.</li>
+      <li>Press <b>Save</b>.</li>
+    </ol>
+    <p>Cards then show only what your receiver reports, and nothing reaches us.</p>
   </section>
 
   <section class="blk">

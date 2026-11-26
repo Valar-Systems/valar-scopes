@@ -1,4 +1,5 @@
-"""Step A's source checks, CA12-CA14 (docs/blipscope-map-client-steps.md, step A; registered 2026-11-11, item 6).
+"""Step A's source checks, CA12-CA14 (docs/blipscope-map-client-steps.md, step A; registered 2026-11-11, item 6),
+and the 480 map gate's CA15.
 
 The map's files are include/MapQuery.h, include/MapPolicy.h and include/MapLayer.h, and the regions of
 src/AircraftManager.h and src/AircraftManager.cpp between a line `// THE MAP FETCH BEGIN` and a line
@@ -14,9 +15,12 @@ Comments are stripped before anything is read.
         by wireloc::Center(, and at least one of each must be found. Prints how many print calls it read; none is the rig.
   CA14  GetBytes' kCollectHeaders in src/HttpRequestManager.cpp is exactly Transfer-Encoding, ETag, X-Cache,
         X-Upstream, X-Wx-Max-Age, Retry-After, in that order, and Retry-After is read into HttpResult::retryAfter.
+  CA15  the 480 map gate, in src/AircraftManager.cpp: MapEnabled()'s return carries variant::MAP_LAYER as a term,
+        and the statement right before DrawMapBase's copy is a static_assert of the implication form
+        (!variant::MAP_LAYER || ...), so a board whose screen is not the composite's size neither fetches nor copies.
 
     python -I test/host/check_map_fetch.py <repo root>    exit 0 all pass; 1 a check failed; 2 the rig (cannot read)
-Its plants are S-CA-NVS, S-CA-PRINTD and S-CA-NORA in test/host/sabotage_map_fetch.py.
+Its plants are S-CA-NVS, S-CA-PRINTD, S-CA-NORA, S-G480-WIRE and S-G480-ASSERT in test/host/sabotage_map_fetch.py.
 """
 import re
 import sys
@@ -176,6 +180,29 @@ def ca14(hrm):
     return ok, (f"kCollectHeaders {got}; Retry-After read into HttpResult::retryAfter: {read}")
 
 
+COPY = "memcpy(dst, b, (size_t)SCREEN_SIZE * SCREEN_SIZE * 2);"
+
+
+def ca15(am):
+    code = strip(am)
+    m = re.search(r"bool AircraftManager::MapEnabled\(\) const\s*\{([^}]*)\}", code)
+    if not m:
+        raise Rig("MapEnabled() not found in AircraftManager.cpp")
+    ret = re.search(r"\breturn\b([^;]*);", m.group(1))
+    if not ret:
+        raise Rig("MapEnabled() has no return")
+    wired = "variant::MAP_LAYER" in [t.strip() for t in ret.group(1).split("&&")]
+    if code.count(COPY) != 1:
+        raise Rig("DrawMapBase's copy is not in AircraftManager.cpp exactly once")
+    before = code[:code.index(COPY)].rstrip()
+    at = before.rfind("static_assert(")
+    stmt = before[at:] if at >= 0 else ""
+    guarded = (at >= 0 and stmt.endswith(");") and stmt.count(";") == 1
+               and re.sub(r"\s+", "", stmt).startswith("static_assert(!variant::MAP_LAYER||"))
+    return wired and guarded, (f"MapEnabled's return has the term variant::MAP_LAYER: {wired}; the statement "
+                               f"before the copy is static_assert(!variant::MAP_LAYER || ...): {guarded}")
+
+
 def main():
     if len(sys.argv) < 2:
         print("usage: check_map_fetch.py <repo root>")
@@ -191,7 +218,8 @@ def main():
         map_code = [src[p] for p in WHOLE]
         for p, n in REGION_COUNTS.items():
             map_code += regions(p, src[p], n)
-        rows = [("CA12", ca12(map_code)), ("CA13", ca13(map_code)), ("CA14", ca14(src["src/HttpRequestManager.cpp"]))]
+        rows = [("CA12", ca12(map_code)), ("CA13", ca13(map_code)), ("CA14", ca14(src["src/HttpRequestManager.cpp"])),
+                ("CA15", ca15(src["src/AircraftManager.cpp"]))]
     except Rig as e:
         print(f"FAIL: {e}. This is the RIG, not the code.")
         return 2

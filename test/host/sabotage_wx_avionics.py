@@ -23,7 +23,7 @@ import sabotage_common as sc   # the --anchors pass (main's #506; docs/wx-device
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TEST = os.path.join(ROOT, "test", "host", "test_wx_avionics.cpp")
-FILES = {"include/WxSweep.h": None, "include/WxS2.h": None, "include/WxAvionics.h": None,
+FILES = {"include/WxSweep.h": None, "include/SweepWedge.h": None, "include/WxS2.h": None, "include/WxAvionics.h": None,
          "src/weatherscope/WxPalette.h": None}
 CXX = os.environ.get("CXX") or os.path.expanduser("~/.platformio/packages/toolchain-gccmingw32/bin/g++.exe")
 FLAGS = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-O1", "-static-libgcc", "-static-libstdc++"]

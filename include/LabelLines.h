@@ -90,4 +90,26 @@ inline int Select(const char* const* keys, const bool* willDraw, int fieldCount,
     return n;
 }
 
+/// The callsign fallback (the owner's rule, 2026-11-25: "never a bare dot while the callsign is known"). It applies
+/// only when the type field is ticked and the type is unknown: then the callsign may draw in the type's place, and
+/// Select ranks it. Returns the callsign's index when that holds, else -1; the caller draws it only if it formats to
+/// something. A type that is NOT ticked never brings the callsign back: those lines are the owner's choice, and a
+/// bare dot under the None preset is that choice, not a missing type.
+///
+/// `on[i]`       field i is ticked
+/// `willDraw[i]` as Select takes it (ticked AND formats to something)
+inline int FallbackField(const char* const* keys, const bool* on, const bool* willDraw, int fieldCount)
+{
+    if (!keys || !on || !willDraw) return -1;
+    int type = -1, callsign = -1;
+    for (int i = 0; i < fieldCount; ++i) {
+        if (!keys[i]) continue;
+        if (std::strcmp(keys[i], "info-type") == 0) type = i;
+        else if (std::strcmp(keys[i], "info-callsign") == 0) callsign = i;
+    }
+    if (type < 0 || callsign < 0) return -1;
+    if (!on[type] || willDraw[type] || willDraw[callsign]) return -1;
+    return callsign;
+}
+
 }  // namespace labellines

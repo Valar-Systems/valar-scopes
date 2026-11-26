@@ -14,10 +14,10 @@
  * that moment the key has a value, and no future change to `defaultOn` can ever
  * reach that device again.
  *
- * So the first time a customer saves ANYTHING -- and setting a location, which
- * every device needs, is a whole-form save -- the defaults in force that day are
- * frozen into their NVS as explicit values. Changing a default in firmware
- * afterwards is a change for factory-fresh boards only.
+ * So the first time a customer presses Save on the config page (it declares
+ * every checkbox; since v15 "Use my location" writes only the location) the
+ * defaults in force that day are frozen into their NVS as explicit values. A
+ * changed default reaches only the boards that never pressed Save.
  *
  * That is why #238 (aircraft type + operator ship on) could not reach a single
  * configured device, and why it needed this rather than another default change.
@@ -50,6 +50,24 @@ constexpr int CONFIG_REV = 6;
  * the owner.
  */
 constexpr bool LOGBOOK_DEFAULT_ON = true;
+
+/**
+ * The firmware defaults for the radar's map layer and its town names (docs/blipscope-basemap-client.md section 6,
+ * DO1; docs/blipscope-map-client-steps.md, "Step D's other half", DN1).
+ *
+ * ON, Daniel's requirement: "the map layer is on by default when it ships, for every device that hasn't set it."
+ * Both keys (map-layer, map-names) are new: DO2's search (2026-11-19, outcome A) found no published image and no
+ * release tree that ever wrote either, so every device in the field reads them unset and these defaults reach it with
+ * no migration. The device and the config page read both through ResolveToggle below and nothing else. A later change
+ * of either default needs a ConfigMigration entry (CLAUDE.md: a default only reaches keys that were never saved).
+ *
+ * THE TOWN NAMES ARE OFF BY DEFAULT since the owner's look of 2026-11-25 ("towns: off": an aircraft's label printed over
+ * a town name and both were unreadable). That change needs NO migration, and the rule above still holds: v19, the
+ * published image, has no map-names key (0 hits in the v19 tag), so no device in the field has ever saved one, and
+ * the new default reaches every one of them. A saved "true" (a tick on the page) stands.
+ */
+constexpr bool MAP_DEFAULT_ON = true;
+constexpr bool MAP_NAMES_DEFAULT_ON = false;
 
 /**
  * Resolve one stored toggle against the firmware default.

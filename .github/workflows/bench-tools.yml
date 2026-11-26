@@ -34,3 +34,7 @@ jobs:
       # whole across BOARDS, bench-flash.ps1's -Board set and CLAUDE.md's board table. It touches no USB and no real
       # claim: every scratch file it writes is in a temporary directory.
       - run: python3 scripts/board-port.py --selftest
+      # tools/wx/opera_return.py, the continent's return check (.github/workflows/opera-return.yml, schedule only): its
+      # grading rules on synthetic days, then five plants on copies, each of which must turn exactly its own rows red.
+      - run: python3 tools/wx/opera_return.py --selftest
+      - run: python3 tools/wx/opera_return.py --sabotage

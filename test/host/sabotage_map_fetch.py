@@ -1,9 +1,10 @@
-"""Step A's sabotages (docs/blipscope-map-client-steps.md, step A; registered 2026-11-11, item 5): 23 plants, each in a
-COPY of the tree. Each must turn red exactly its registered set across test_map_fetch.cpp (42 cases) and
-check_map_fetch.py (CA12-CA14), no fewer and no more. The sets were computed before the code: the request plants' by the
+"""Step A's sabotages (docs/blipscope-map-client-steps.md, step A; registered 2026-11-11, item 5) and D4's S-D4 (2026-11-25,
+the 100-mi map cap) and the 480 map gate's S-G480-WIRE and S-G480-ASSERT: 27 plants, each in a COPY of the tree. Each must turn red exactly its registered set across
+test_map_fetch.cpp (43 cases) and
+check_map_fetch.py (CA12-CA15), no fewer and no more. The sets were computed before the code: the request plants' by the
 scratch reference run under each plant, the policy and source plants' by applying the registered rules row by row.
 
-  request (include/MapQuery.h)    S-CA-MARGIN, S-CA-EPSFLOOR, S-CA-FLOAT, S-CA-LEVELM, S-CA-CAP, S-CA-ZOOMFETCH
+  request (include/MapQuery.h)    S-CA-MARGIN, S-CA-EPSFLOOR, S-CA-FLOAT, S-CA-LEVELM, S-CA-CAP, S-CA-ZOOMFETCH, S-D4
   policy  (include/MapPolicy.h)   S-CA-RA, S-CA-RAZERO, S-CA-404RETRY, S-CA-FLAT, S-CA-NORESET, S-CA-NOTIMEOUT,
                                   S-CA-GATE, S-CA-GATE1, S-CA-NOSPREAD, S-CA-SPREADALL, S-CA-DMOD, S-CA-CHANGEWAIT,
                                   S-CA-KEEPPKG, S-CA-NOSEQ
@@ -63,12 +64,13 @@ PRINTD_AT = ("        mappolicy::Begin(mapState, waits, mappolicy::SpreadS(Devic
 SABOTAGES = {
     "S-CA-MARGIN": (QUERY, [("    const int r = (int)ceil(q->rvMm / 1e6 + kMarginKm);\n",
                              "    const int r = (int)ceil(q->rvMm / 1e6);  // SABOTAGE S-CA-MARGIN\n")],
-                    {"CA1", "CA1b", "CA1c", "CA2-rcover"}),
+                    {"CA1", "CA1b", "CA1c", "CA1e", "CA-D4a", "CA2-rcover"}),   # D4: a capped request reads r=161
     "S-CA-EPSFLOOR": (QUERY, [("    q->epsMm = eps < kEpsMinMm ? kEpsMinMm : eps;\n",
                                "    q->epsMm = eps;  // SABOTAGE S-CA-EPSFLOOR\n")], {"CA1f", "CA2-bounds"}),
     "S-CA-FLOAT": (QUERY, [("    return (uint32_t)floor(c * 1e6 + 0.5);\n",
                             "    volatile float f = (float)c;  // SABOTAGE S-CA-FLOAT\n"
-                            "    return (uint32_t)floor(f * 1e6 + 0.5);\n")], {"CA1", "CA1c"}),
+                            "    return (uint32_t)floor(f * 1e6 + 0.5);\n")],
+                   {"CA1", "CA1c", "CA1e", "CA-D4a"}),   # D4: 160.9344 is not exact in float (top level 162275522)
     "S-CA-LEVELM": (QUERY, [("constexpr double kLevelMarginMm = 800000.0;",
                              "constexpr double kLevelMarginMm = 700000.0;  /* SABOTAGE S-CA-LEVELM */")],
                     {"CA1b", "CA1c", "CA1d", "CA2-levels"}),
@@ -98,6 +100,13 @@ SABOTAGES = {
                                  + ");   // SABOTAGE S-CA-SPREADALL\n")],
                        {"CA9-poweron", "CA9-firstrun", "CA9-config", "CA9-touchwedge"}),
     "S-CA-DMOD": (POLICY, [("    return h % kSpreadS;\n", "    return h % 3600;   // SABOTAGE S-CA-DMOD\n")], {"CA9-dist"}),
+    # D4 (the owner, 2026-11-25, "clamp: map only"): the cap removed. CA2-rcover stays green: r still covers min(view, 100 mi).
+    "S-D4": (QUERY, [("constexpr double kMapCapKm = 160.9344;\n",
+                      "constexpr double kMapCapKm = 1e9;  // SABOTAGE S-D4: no cap\n")],
+             {"CA1e", "CA-D4a", "CA2-levels", "CA-D4b"}),   # form B: the gate reads kMapCapKm too
+    # D4 FORM B: the gate always draws
+    "S-D4B": (QUERY, [("inline bool MapDrawsInView(double viewRadiusKm) { return viewRadiusKm <= kMapCapKm + 1e-6; }\n",
+                       "inline bool MapDrawsInView(double viewRadiusKm) { (void)viewRadiusKm; return true; }  // SABOTAGE S-D4B\n")], {"CA-D4b"}),
     "S-CA-ZOOMFETCH": (QUERY, [("    const int top = n - 1;   // THE LEVELS' STEPS: the ladder's top three\n",
                                 "    const int top = viewStep;   // SABOTAGE S-CA-ZOOMFETCH\n")], {"CA10-zoom"}),
     "S-CA-CHANGEWAIT": (POLICY, [("    s.waiting = false;       // CA10: at once, whatever was pending\n",
@@ -111,6 +120,12 @@ SABOTAGES = {
                              "    // SABOTAGE S-CA-NOSEQ: no config sequence check\n")], {"CA11"}),
     "S-CA-NVS": (AMCPP, [(NVS_AT, NVS_AT + "        Preferences p; p.begin(\"map\", false);"
                           " p.putString(\"held\", \"1\");   // SABOTAGE S-CA-NVS\n")], {"CA12"}),
+    # The 480 map gate (b1/g480 registration e09d9f8abdcf): each must turn exactly CA15 red.
+    "S-G480-WIRE": (AMCPP, [(" && !mapAllocFailed && variant::MAP_LAYER;\n",
+                            " && !mapAllocFailed;   // SABOTAGE S-G480-WIRE\n")], {"CA15"}),
+    "S-G480-ASSERT": (AMCPP, [("    static_assert(!variant::MAP_LAYER || SCREEN_SIZE == mapcompose::kSize,\n",
+                              "    static_assert(/* SABOTAGE S-G480-ASSERT */ SCREEN_SIZE == mapcompose::kSize,\n")],
+                      {"CA15"}),
     "S-CA-PRINTD": (AMCPP, [(PRINTD_AT, PRINTD_AT + "        Serial.printf(\"[map] wait %lu s\\n\","
                              " (unsigned long)mappolicy::SpreadS(DeviceIdentity::LeaderboardId().c_str()));"
                              "   // SABOTAGE S-CA-PRINTD\n")], {"CA13"}),
@@ -160,7 +175,7 @@ def run_suites(tree, td, tag):
     cm = sc.COUNT.search(c.stdout)
     if c.returncode not in (0, 1) or not cm or int(cm.group(1)) != SOURCE_CHECKS:
         return None, None, f"the source check did not run as {SOURCE_CHECKS} rows (exit {c.returncode})\n" + c.stdout + c.stderr
-    red |= {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CA1[234])\b", c.stdout, re.M)}
+    red |= {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CA1[2-5])\b", c.stdout, re.M)}
     return red, int(m.group(1)), None
 
 
@@ -203,8 +218,8 @@ def main():
 
 # --control: the unplanted run alone, each suite against this table. CASES and SOURCE_CHECKS are the one place each count
 # lives, read by the full run too.
-CASES = 42
-SOURCE_CHECKS = 3   # CA12, CA13, CA14
+CASES = 44   # D4 added CA-D4a; form B CA-D4b
+SOURCE_CHECKS = 4   # CA12, CA13, CA14, CA15
 CONTROL_TABLE = {"test_map_fetch": ("checks", CASES), "check_map_fetch.py": ("checks", SOURCE_CHECKS)}
 
 
