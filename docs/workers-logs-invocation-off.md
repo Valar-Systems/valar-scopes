@@ -814,3 +814,17 @@ _Filled in after the slot, below this line, without editing anything above it._
   (f) plant in section 5, and S-NEWFIELD in section 8) is in RFC 5737's TEST-NET-1 block. `2001:db8::1` (C2 in section
   5a) is in RFC 3849's documentation prefix. Neither is routable on the internet, and neither belongs to any device or
   person: they were chosen so that a plant could never be mistaken for a real address.
+
+- **(d), recorded late (2026-11-26), a record made after the fact from the step's records:**
+  - On 2026-11-21, window A (staging `4a02123c`, 10:06:20-10:16:20Z), both reads gave (a) = 0, (d) g13 = 7 and
+    (d)(ii) names = 1. That is section 6's row "(d) > 0 after, (a) = 0".
+  - That row's action is "no rollback; stop and report". The step stopped at A. Staging was then rolled back to
+    `e6de3d81` at 10:38:53Z, under the reviewer's ruling (ii), the owner's words taking precedence over the row's
+    "no rollback". W2, the production deploy and window P never ran.
+  - The report the row calls for was completed on 2026-11-26: at 02:11Z the owner confirmed that the 2026-11-21
+    report was received.
+  - G13N26 (10:43Z) named the one field: `$workers.event.request.url`, 7 of 7.
+  - On 2026-11-26, J (production `4a02123c`, a closed hour) read 3,623 of 3,623 req+devl lines carrying it, query
+    string included.
+  - So Cloudflare attaches the request URL to our console events too: `invocation_logs = false` alone does not
+    remove it.
