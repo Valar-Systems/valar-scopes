@@ -28,7 +28,7 @@
 
 namespace {
 
-constexpr int kCases = 160;
+constexpr int kCases = 163;
 constexpr int kS = maplayer::kSize;
 constexpr double kDegToRad = 0.017453292519943295769236907684886;   // Arduino's DEG_TO_RAD, as radians() uses it
 
@@ -524,6 +524,15 @@ void Cm11(const bmpk::Package& pk)
         }
 }
 
+// CM12, the 480 map gate: the map draws only on a screen its composite fits. 240 is the control; 480
+// (blipscope-pro-s3-21) and 466 (the 1.75" AMOLED) must not.
+void Cm12()
+{
+    check("CM12-240", maplayer::DrawsAt(240), "a 240 px screen, the composite's own size (the control)");
+    check("CM12-480", !maplayer::DrawsAt(480), "a 480 px screen: the map does not draw");
+    check("CM12-466", !maplayer::DrawsAt(466), "a 466 px screen: the map does not draw");
+}
+
 }  // namespace
 
 int main(int argc, char** argv)
@@ -563,6 +572,8 @@ int main(int argc, char** argv)
     Cm10(pBend);
     std::printf("CM11 the line against wxraster::Line\n");
     Cm11(pBend);
+    std::printf("CM12 the map's screen sizes (the 480 gate)\n");
+    Cm12();
     if (rig) return 2;
     std::printf("%d checks, %d failures\n", cases, failures);
     if (cases != kCases) {

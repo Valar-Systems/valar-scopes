@@ -1,7 +1,7 @@
 """Step A's sabotages (docs/blipscope-map-client-steps.md, step A; registered 2026-11-11, item 5) and D4's S-D4 (2026-11-25,
-the 100-mi map cap): 24 plants, each in a COPY of the tree. Each must turn red exactly its registered set across
+the 100-mi map cap) and the 480 map gate's S-G480-WIRE and S-G480-ASSERT: 27 plants, each in a COPY of the tree. Each must turn red exactly its registered set across
 test_map_fetch.cpp (43 cases) and
-check_map_fetch.py (CA12-CA14), no fewer and no more. The sets were computed before the code: the request plants' by the
+check_map_fetch.py (CA12-CA15), no fewer and no more. The sets were computed before the code: the request plants' by the
 scratch reference run under each plant, the policy and source plants' by applying the registered rules row by row.
 
   request (include/MapQuery.h)    S-CA-MARGIN, S-CA-EPSFLOOR, S-CA-FLOAT, S-CA-LEVELM, S-CA-CAP, S-CA-ZOOMFETCH, S-D4
@@ -120,6 +120,12 @@ SABOTAGES = {
                              "    // SABOTAGE S-CA-NOSEQ: no config sequence check\n")], {"CA11"}),
     "S-CA-NVS": (AMCPP, [(NVS_AT, NVS_AT + "        Preferences p; p.begin(\"map\", false);"
                           " p.putString(\"held\", \"1\");   // SABOTAGE S-CA-NVS\n")], {"CA12"}),
+    # The 480 map gate (b1/g480 registration e09d9f8abdcf): each must turn exactly CA15 red.
+    "S-G480-WIRE": (AMCPP, [(" && !mapAllocFailed && variant::MAP_LAYER;\n",
+                            " && !mapAllocFailed;   // SABOTAGE S-G480-WIRE\n")], {"CA15"}),
+    "S-G480-ASSERT": (AMCPP, [("    static_assert(!variant::MAP_LAYER || SCREEN_SIZE == mapcompose::kSize,\n",
+                              "    static_assert(/* SABOTAGE S-G480-ASSERT */ SCREEN_SIZE == mapcompose::kSize,\n")],
+                      {"CA15"}),
     "S-CA-PRINTD": (AMCPP, [(PRINTD_AT, PRINTD_AT + "        Serial.printf(\"[map] wait %lu s\\n\","
                              " (unsigned long)mappolicy::SpreadS(DeviceIdentity::LeaderboardId().c_str()));"
                              "   // SABOTAGE S-CA-PRINTD\n")], {"CA13"}),
@@ -169,7 +175,7 @@ def run_suites(tree, td, tag):
     cm = sc.COUNT.search(c.stdout)
     if c.returncode not in (0, 1) or not cm or int(cm.group(1)) != SOURCE_CHECKS:
         return None, None, f"the source check did not run as {SOURCE_CHECKS} rows (exit {c.returncode})\n" + c.stdout + c.stderr
-    red |= {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CA1[234])\b", c.stdout, re.M)}
+    red |= {mm.group(1) for mm in re.finditer(r"^\s*FAIL\s+(CA1[2-5])\b", c.stdout, re.M)}
     return red, int(m.group(1)), None
 
 
@@ -213,7 +219,7 @@ def main():
 # --control: the unplanted run alone, each suite against this table. CASES and SOURCE_CHECKS are the one place each count
 # lives, read by the full run too.
 CASES = 44   # D4 added CA-D4a; form B CA-D4b
-SOURCE_CHECKS = 3   # CA12, CA13, CA14
+SOURCE_CHECKS = 4   # CA12, CA13, CA14, CA15
 CONTROL_TABLE = {"test_map_fetch": ("checks", CASES), "check_map_fetch.py": ("checks", SOURCE_CHECKS)}
 
 
