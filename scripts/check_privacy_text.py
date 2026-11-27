@@ -30,6 +30,17 @@ A check that finds nothing proves nothing on its own, so each file also has two 
   - its replacement wording is present (REQUIRED), so the fix has not quietly gone too.
 If a later edit rewords a replacement on purpose, update FILES below in the same change.
 
+Those sentences about what our request log keeps rest on a premise in proxy/wrangler.toml, so four more rows assert it
+rather than state it (the invocation-logs guard, ruled 2026-11-26):
+  - IL-P  the config parses (a parse failure turns all four red: nothing can be certified);
+  - IL-C  CONTROL: staging and production each have an observability table, read from the document itself;
+  - IL-A  every observability table the walk reaches (top-level, previews, each env and its previews) sets
+          logs.invocation_logs to the boolean false. Absent is red, because Cloudflare's default is ON;
+  - IL-N  no table traces, pushes or tails a request envelope: traces.enabled = true, logpush, tail_consumers,
+          logs.destinations, or the tracing compatibility flag.
+A compatibility_date bump can change Cloudflare's defaults with no config edit at all. No check here can see that,
+and the comment at compatibility_date says so: the weak form.
+
   python3 scripts/check_privacy_text.py              check the tree
   python3 scripts/check_privacy_text.py --selftest   plant each failure into an in-memory copy; each must turn
                                                      exactly its own row red
@@ -78,11 +89,78 @@ RETIRED = (
 # the pages say our request log keeps is true only while Cloudflare's per-request invocation event is OFF in every
 # observability table of the proxy's config, and Cloudflare's default is ON when the key is absent.
 WRANGLER = "proxy/wrangler.toml"
+IL_ROWS = {
+    "IL-P": f"IL-P {WRANGLER}: the file parses",
+    "IL-C": f"IL-C {WRANGLER}: staging and production each have an observability table",
+    "IL-A": f"IL-A {WRANGLER}: every observability table sets logs.invocation_logs = false",
+    "IL-N": f"IL-N {WRANGLER}: no request envelope is traced, pushed or tailed",
+}
+# Cloudflare: this flag "will enable Workers Tracing by default" wherever observability is enabled.
+TRACING_FLAG = "enable_workers_observability_tracing"
+
+
+def walk(doc):
+    """THE ONE WALK that IL-A and IL-N both read: (name, table) for the document, its previews block, and every
+    env.<name> with its own previews block. A table the walk does not yield is one IL-A would vouch for unread."""
+    out = [("top-level", doc)]
+    if isinstance(doc.get("previews"), dict):
+        out.append(("previews", doc["previews"]))
+    envs = doc.get("env")
+    for name, t in (envs.items() if isinstance(envs, dict) else ()):
+        if isinstance(t, dict):
+            out.append((name, t))
+            if isinstance(t.get("previews"), dict):
+                out.append((f"{name}.previews", t["previews"]))
+    return out
+
+
+def envelope_items(name, t):
+    """IL-N's tests for one walked table: anything that would trace, push or tail a request envelope. Presence is
+    enough for logpush, tail_consumers and logs.destinations, whatever the value (as ruled)."""
+    found = set()
+    obs = t.get("observability") if isinstance(t.get("observability"), dict) else {}
+    traces = obs.get("traces")
+    if isinstance(traces, dict) and traces.get("enabled") is True:
+        found.add(f"IL-N {name} traces")
+    if "logpush" in t:
+        found.add(f"IL-N {name} logpush")
+    if "tail_consumers" in t:
+        found.add(f"IL-N {name} tail_consumers")
+    logs = obs.get("logs")
+    if isinstance(logs, dict) and "destinations" in logs:
+        found.add(f"IL-N {name} logs.destinations")
+    flags = t.get("compatibility_flags")
+    if isinstance(flags, list) and TRACING_FLAG in flags:
+        found.add(f"IL-N {name} compatibility_flags")
+    return found
 
 
 def grade_il(text):
-    """The rule lands in the next commit. Until then nothing is graded, so the cases below are OFF (red first)."""
-    return set()
+    """The premise as findings: "IL-P", "IL-C", "IL-A <table>", "IL-N <table> <item>". Empty means all four rows pass."""
+    try:
+        doc = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return {"IL-P", "IL-C", "IL-A", "IL-N"}  # nothing can be certified
+    found = set()
+    # IL-C reads the document DIRECTLY, never the walk: a walk that skipped a table must not also hide that it is gone.
+    envs = doc.get("env") if isinstance(doc.get("env"), dict) else {}
+    for e in ("staging", "production"):
+        if not (isinstance(envs.get(e), dict) and isinstance(envs[e].get("observability"), dict)):
+            found.add("IL-C")
+    for name, t in walk(doc):
+        obs = t.get("observability")
+        if isinstance(obs, dict):
+            logs = obs.get("logs")
+            v = logs.get("invocation_logs") if isinstance(logs, dict) else None
+            if v is not False:  # absent is red: Cloudflare's default is ON. The string "false" is red too.
+                found.add(f"IL-A {name}")
+        found |= envelope_items(name, t)
+    return found
+
+
+def il_red(findings):
+    """The IL rows a set of findings turns red."""
+    return {k for k in IL_ROWS if any(f == k or f.startswith(k + " ") for f in findings)}
 
 
 def norm(text):
@@ -128,9 +206,14 @@ def report(texts):
     for path in FILES:
         for row in rows(path):
             print(("FAIL " if row in red else "PASS ") + row)
-    total = sum(len(rows(p)) for p in FILES)
-    print(f"{total - len(red)} of {total} rows pass")
-    return red
+    findings = grade_il(texts[WRANGLER])
+    ilred = il_red(findings)
+    for key, row in IL_ROWS.items():
+        named = sorted(f for f in findings if f.startswith(key + " "))
+        print(("FAIL " if key in ilred else "PASS ") + row + (f" -- {', '.join(named)}" if named else ""))
+    total = sum(len(rows(p)) for p in FILES) + len(IL_ROWS)
+    print(f"{total - len(red) - len(ilred)} of {total} rows pass")
+    return red | ilred
 
 
 def selftest():
