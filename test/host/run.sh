@@ -2919,6 +2919,27 @@ exit "$rc"
 )
 note_block $? "labels default to the type only"
 
+# The config page's Aircraft details list marks exactly one option selected, and its hint says what Blipscope Cloud
+# sends (the owner, 2026-11-26; _handoffs/p4/privacy/REG-hint-v20.txt). It reads the SHIPPING
+# src/ConfigurationWebServer.cpp at run time, so it tests the real <select> and processor lines, not a copy.
+echo
+echo "== the Aircraft details list: one option selected =="
+(
+if ! "$CXX" $FLAGS "$ROOT/test/host/test_local_details_select.cpp" -o "$OUT/test_local_details_select.exe" 2>"$OUT/build.log"; then
+  echo "FAIL: the Aircraft details list test did not compile"
+  cat "$OUT/build.log"
+  exit 2
+fi
+"$OUT/test_local_details_select.exe" "$ROOT"
+rc=$?
+if [ "$rc" -eq 127 ] || [ "$rc" -ge 2 ]; then
+  echo "FAIL: the Aircraft details list test did not run (exit $rc). This is the RIG, not the code."
+  exit 2
+fi
+exit "$rc"
+)
+note_block $? "the Aircraft details list: one option selected"
+
 echo
 echo "== strings_elf: the image-level text check's selftest (Q-6b-6) =="
 # docs/blipscope-map-client-steps.md Q-6b-4 and Q-6b-6: scripts/strings_elf.py's selftest, on synthetic objects it
