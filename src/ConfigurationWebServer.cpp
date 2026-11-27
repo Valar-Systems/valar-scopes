@@ -883,7 +883,7 @@ R"(
                             <option value="off" %LD_OFF%>Off &mdash; receiver data only</option>
                         </select>
                     </label>
-                    <span class="hint">Positions always come from your receiver; this only chooses where card details (type, airline, route, photo) come from. No default &mdash; <b>until you choose, details stay off.</b><br><b>Blipscope Cloud</b> sends the tapped aircraft's hex, callsign and position, plus your device model, firmware and access key; never your receiver's address or your location &mdash; though <i>a tapped aircraft is near you, so treat it as coarse location</i>. Only Cloud has photos.<br><b>Off</b> contacts nothing; the card shows what your receiver reported.</span>
+                    <span class="hint">Positions always come from your receiver; this only chooses where card details (type, airline, route, photo) come from. No default &mdash; <b>until you choose, details stay off.</b><br><b>Blipscope Cloud</b> asks us about each aircraft in view (nearest first) and any you tap: its hex, callsign, position to about 1 km and heading, plus your Blipscope's identifier, model, firmware and access key; our request log keeps these for up to seven days. Never your receiver's address or your location &mdash; though <i>an aircraft in view is near you, so treat it as coarse location</i>. Only Cloud has photos.<br><b>Off</b> sends us nothing; the card shows what your receiver reported.</span>
                 </div>
 
                 </div><!-- /sec -->
@@ -3256,7 +3256,7 @@ void ConfigurationWebServer::Initialise() {
                 // placeholder selected rather than quietly implying a choice.
                 if (var == "LD_CLOUD")  return localDetails == "cloud"  ? "selected" : "";
                 if (var == "LD_OFF")    return localDetails == "off"    ? "selected" : "";
-                if (var == "LD_UNSET")  return localDetails == "cloud" ? "" : "selected";
+                if (var == "LD_UNSET")  return (localDetails == "cloud" || localDetails == "off") ? "" : "selected";
                 if (var == "SCANLINE")       return scanlineEnabled == "true" ? "checked" : "";
                 if (var == "FADE")           return fadeEnabled == "true" ? "checked" : "";
                 if (var == "INFOTEXT")       return infoTextEnabled == "true" ? "checked" : "";
