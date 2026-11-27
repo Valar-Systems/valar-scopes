@@ -39,6 +39,7 @@ Exit 0 pass, 1 a row is red, 2 a file cannot be read, 3 the selftest is off its 
 import os
 import re
 import sys
+import tomllib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -73,6 +74,16 @@ RETIRED = (
     "asks us for that aircraft's photo",
 )
 
+# THE INVOCATION-LOGS PREMISE (rows IL-P, IL-C, IL-A, IL-N; handoff proxy/activation-geo/il-guard-registration.md). What
+# the pages say our request log keeps is true only while Cloudflare's per-request invocation event is OFF in every
+# observability table of the proxy's config, and Cloudflare's default is ON when the key is absent.
+WRANGLER = "proxy/wrangler.toml"
+
+
+def grade_il(text):
+    """The rule lands in the next commit. Until then nothing is graded, so the cases below are OFF (red first)."""
+    return set()
+
 
 def norm(text):
     """Lower case, every run of whitespace one space, so a re-wrap or a capital cannot hide a match."""
@@ -102,7 +113,7 @@ def grade(texts):
 
 def read_tree():
     texts = {}
-    for path in FILES:
+    for path in (*FILES, WRANGLER):
         try:
             with open(os.path.join(ROOT, path), encoding="utf-8", newline="") as f:
                 texts[path] = f.read()
@@ -156,9 +167,62 @@ def selftest():
     for path in FILES:
         cases.append((f"{path}: replacement gone", drop(path, FILES[path][1][0]), {rows(path)[2]}))
 
+    # IL1-IL14: plants into the config's text, CRLF folded to LF. Each anchor must match exactly once, or nothing here
+    # could say which table a plant landed in.
+    wr = base[WRANGLER].replace("\r\n", "\n")
+
+    def il(*pairs):
+        t = wr
+        for old, new in pairs:
+            if t.count(old) != 1:
+                raise SystemExit(f"selftest BLIND: {old[:48]!r} is in {WRANGLER} {t.count(old)} times, not once")
+            t = t.replace(old, new)
+        return with_(WRANGLER, t)
+
+    def il_add(extra):
+        return with_(WRANGLER, wr + "\n" + extra)
+
+    def logs(env):
+        return f"[env.{env}.observability.logs]\ninvocation_logs = false\n"
+
+    prod_obs = "[env.production.observability]\nenabled = true\nhead_sampling_rate = 1.0\n"
+    if wr.count("[env.production.observability.logs]") != 1:
+        raise SystemExit(f"selftest BLIND: production's logs header is not in {WRANGLER} exactly once")
+    cut = wr.index("[env.production.observability.logs]") + 10
+    flag = 'compatibility_flags = ["enable_workers_observability_tracing"]\n'
+    cases += [
+        ("IL1: production invocation_logs = true",
+         il((logs("production"), logs("production").replace("false", "true"))), {"IL-A production"}),
+        ("IL2: staging invocation_logs = true",
+         il((logs("staging"), logs("staging").replace("false", "true"))), {"IL-A staging"}),
+        ("IL3: production's logs table removed", il((logs("production"), "")), {"IL-A production"}),
+        ("IL4: production invocation_logs = \"false\", a string",
+         il((logs("production"), logs("production").replace("false", '"false"'))), {"IL-A production"}),
+        ("IL5: a new env with an observability table and no logs table",
+         il_add("[env.canary.observability]\nenabled = true\n"), {"IL-A canary"}),
+        ("IL6: a top-level observability table with no logs table",
+         il_add("[observability]\nenabled = true\n"), {"IL-A top-level"}),
+        ("IL7: production's observability removed, both tables",
+         il((prod_obs, ""), (logs("production"), "")), {"IL-C"}),
+        ("IL8: the text cut mid-table, so it does not parse",
+         with_(WRANGLER, wr[:cut]), {"IL-P", "IL-C", "IL-A", "IL-N"}),
+        ("IL9: production traces enabled",
+         il_add("[env.production.observability.traces]\nenabled = true\n"), {"IL-N production traces"}),
+        ("IL10: logpush under staging",
+         il(("[env.staging]\n", "[env.staging]\nlogpush = true\n")), {"IL-N staging logpush"}),
+        ("IL11: a top-level tail consumer",
+         il_add('[[tail_consumers]]\nservice = "x"\n'), {"IL-N top-level tail_consumers"}),
+        ("IL12: production logs.destinations",
+         il((logs("production"), logs("production") + 'destinations = ["x"]\n')), {"IL-N production logs.destinations"}),
+        ("IL13: production carries the tracing compatibility flag",
+         il(("[env.production]\n", "[env.production]\n" + flag)), {"IL-N production compatibility_flags"}),
+        ("IL14: a previews observability table with no logs table",
+         il_add("[previews.observability]\nenabled = true\n"), {"IL-A previews"}),
+    ]
+
     off = 0
     for name, texts, want in cases:
-        got = grade(texts)
+        got = grade(texts) | grade_il(texts[WRANGLER])
         ok = got == want
         off += not ok
         print(f"{'as predicted' if ok else 'OFF'}: {name}: red {len(got)}, predicted {len(want)}")
