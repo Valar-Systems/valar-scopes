@@ -24,6 +24,8 @@ Each phrase in RETIRED was a public privacy statement found false, and replaced:
   - "activating a device still logs": the activation record is kept until the device next activates, not only logged.
   - "we keep that until the Blipscope next activates": the activation record no longer keeps the country and network
     for any activation after the change (the owner, 2026-11-26: "activation: stop storing").
+  - "Cloudflare reports for that address", "A copy also sits in the request log": activating no longer records the
+    country or network anywhere, the request log included (the owner, relayed 2026-11-27: "activation: shorter").
 This check fails if any of them comes back in any of FILES, in any letter case or line wrapping.
 
 A check that finds nothing proves nothing on its own, so each file also has two controls:
@@ -44,9 +46,9 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # path -> (the anchor proving the check reads that file's privacy text, the replacement wording that must be present)
-# ACTIVATION is the activation record's sentence (the owner, 2026-11-26: "activation: stop storing"): the record no
-# longer keeps the country and network, and both pages say so in the same change as the server.
-ACTIVATION = "our record of a blipscope's activation no longer keeps them"
+# ACTIVATION is the activation sentence (the owner: "activation: stop storing", then "activation: shorter"): neither
+# the record nor the console lines keep the country and network, and both pages say so in the same change as the server.
+ACTIVATION = "activating a blipscope no longer records the country or network"
 FILES = {
     "README.md": ("## privacy & telemetry",
                   ("cloudflare keeps these logs for up to seven days", "ever holds the device's key",
@@ -75,6 +77,8 @@ RETIRED = (
     "which for the radar includes the area it asked about",
     "activating a device still logs",
     "we keep that until the blipscope next activates",
+    "cloudflare reports for that address",
+    "a copy also sits in the request log",
 )
 
 
