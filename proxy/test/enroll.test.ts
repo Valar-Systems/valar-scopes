@@ -220,12 +220,14 @@ describe("a repeat activation needs a reset (first activation wins)", () => {
   });
 });
 
-describe("the activation record keeps no country or network (the owner, 2026-11-26: \"activation: stop storing\")", () => {
-  // Until this ruling the ledger row kept the latest activation's CF-IPCountry and AS number, with no expiry, and
-  // nothing read them (handoff proxy/activation-geo/answer.md). The console lines keep both for the logs' 7 days, so
-  // P-AS3 pins those as KEPT. Example inputs only: "XX" is a user-assigned country code, 64500 an AS number from the
-  // documentation range (RFC 5398).
+describe("an activation keeps no country or network, in the record or the console (the owner: \"activation: stop storing\", then \"activation: shorter\")", () => {
+  // Until the first ruling (2026-11-26) the ledger row kept the latest activation's CF-IPCountry and AS number, with no
+  // expiry, and nothing read them (handoff proxy/activation-geo/answer.md). Under the second (relayed 2026-11-27) the
+  // console lines stop carrying them too, so an activation writes neither anywhere. Example inputs only: "XX" is a
+  // user-assigned country code, 64500 an AS number from the documentation range (RFC 5398). The labels of both ids
+  // used here (1a0dc0b4, 147eb9dc) and the host contain neither.
   const FIVE = ["enrollments", "firstAt", "hostnames", "id", "lastAt"];
+  const UNLISTED = "aaaabbbbccccdddd"; // listed by no test in this file, so it is refused whatever ran before
   let lines: string[] = [];
   beforeEach(() => {
     lines = [];
@@ -236,20 +238,33 @@ describe("the activation record keeps no country or network (the owner, 2026-11-
   });
 
   /** An activation as Cloudflare would deliver it: the country header and request.cf.asn, or neither. */
-  async function enrollFrom(id: string, geo: boolean) {
-    const res = await call(new Request("https://proxy.test/blipscope/enroll", {
+  async function enrollFrom(id: string, geo: boolean, overrides: Record<string, unknown> = {}) {
+    const req = new Request("https://proxy.test/blipscope/enroll", {
       method: "POST",
       headers: { "content-type": "application/json", ...(geo ? { "CF-IPCountry": "XX" } : {}) },
       body: JSON.stringify({ id, token: "t" }),
       ...(geo ? { cf: { asn: 64500 } } : {}),
-    } as RequestInit), enrollEnv());
-    return res.status;
+    } as RequestInit);
+    const res = await call(req, enrollEnv(overrides));
+    return { status: res.status, req };
   }
   const rowOf = (id: string) => env.ENRICH_KV.get<Record<string, unknown>>(`enr:dev:${id}`, "json");
 
+  /** P-AS3′-P-AS5's three checks on one activation, in order (handoff activation-geo/registration-b.md, section 1). */
+  function expectNoGeo(req: Request, prefix: string) {
+    // 1. The inputs were sent. The handler no longer reads them, so nothing it prints can show they arrived.
+    expect([req.headers.get("CF-IPCountry"), (req.cf as { asn?: number } | undefined)?.asn],
+      "CONTROL: the request carries XX and 64500").toEqual(["XX", 64500]);
+    // 2. The line still prints, so 3 is not passing on silence.
+    expect(lines.filter((l) => l.startsWith(prefix)), `CONTROL: exactly one "${prefix}" line`).toHaveLength(1);
+    // 3. The WHOLE output, not a token: a renamed key, a JSON line or a new line of any shape all fail here.
+    const all = lines.join("\n");
+    expect([all.includes("XX"), all.includes("64500")], "no console line carries XX or 64500").toEqual([false, false]);
+  }
+
   it("P-AS1: a first activation's row holds exactly id, firstAt, lastAt, enrollments, hostnames", async () => {
     await list(DEVICE_ID);
-    expect(await enrollFrom(DEVICE_ID, true)).toBe(200);
+    expect((await enrollFrom(DEVICE_ID, true)).status).toBe(200);
     // The whole key set, not a name check: the same data under any other name fails here too.
     expect(Object.keys((await rowOf(DEVICE_ID)) ?? {}).sort()).toEqual(FIVE);
   });
@@ -261,19 +276,30 @@ describe("the activation record keeps no country or network (the owner, 2026-11-
       hostnames: ["scopes.valarsystems.com"], lastCountry: "XX", lastAsn: "64500",
     }));
     await list(DEVICE_ID); // a reset: the id may activate again
-    expect(await enrollFrom(DEVICE_ID, false)).toBe(200);
+    expect((await enrollFrom(DEVICE_ID, false)).status).toBe(200);
     const row = (await rowOf(DEVICE_ID)) ?? {};
     expect(Object.keys(row).sort()).toEqual(FIVE);
     // CONTROL: the old row WAS read, so the fields are gone by construction rather than because it was missed.
     expect([row.firstAt, row.enrollments]).toEqual(["2026-08-01T00:00:00Z", 2]);
   });
 
-  it("P-AS3: CONTROL and KEPT -- the same activation's mint line carries cc=XX and asn=64500", async () => {
-    // Without this, P-AS1 passing could mean the inputs never reached the handler.
+  it("P-AS3′: a mint: no console line carries the country or network", async () => {
     await list(DEVICE_ID);
-    expect(await enrollFrom(DEVICE_ID, true)).toBe(200);
-    const mint = lines.filter((l) => l.startsWith("enroll new "));
-    expect(mint.map((l) => l.split(" ").filter((t) => /^(cc|asn)=/.test(t)).join(" "))).toEqual(["cc=XX asn=64500"]);
+    const { status, req } = await enrollFrom(DEVICE_ID, true);
+    expect(status).toBe(200);
+    expectNoGeo(req, "enroll new ");
+  });
+
+  it("P-AS4: an enforce refusal: no console line carries the country or network", async () => {
+    const { status, req } = await enrollFrom(UNLISTED, true);
+    expect(status).toBe(403);
+    expectNoGeo(req, "enroll refused=");
+  });
+
+  it("P-AS5: a would-be refusal under watch, and the mint after it: no console line carries either", async () => {
+    const { status, req } = await enrollFrom(UNLISTED, true, { ACTIVATION_GATE: "watch" });
+    expect(status).toBe(200);
+    expectNoGeo(req, "enroll watch=");
   });
 });
 
