@@ -11,6 +11,10 @@
 # staging waits for the hold to lift and a booking; production needs the owner's OK and is the map server's to run.
 name = "blipscope-screen"
 main = "src/screen/worker.ts"
+# THE WEAK FORM, prose that does not run: re-read Cloudflare's tracing default on any compatibility_date bump. Cloudflare
+# says it "plans to enable automatic tracing in addition to logs when you set observability.enabled = true", and that
+# "an updated compatibility_date will be required for this change to take effect". scripts/check-screen.ts P-O1 guards
+# invocation_logs as this file SAYS it, and cannot see a default that a date changes.
 compatibility_date = "2025-12-01"
 account_id = "48822e896bb10c45aa6bfe139bcff3d1"
 workers_dev = false

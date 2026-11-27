@@ -18,6 +18,11 @@
 
 name = "blipscope-proxy"
 main = "src/index.ts"
+# THE WEAK FORM, prose that does not run: re-read Cloudflare's tracing default on any compatibility_date bump. Cloudflare
+# says it "plans to enable automatic tracing in addition to logs when you set observability.enabled = true", and that
+# "an updated compatibility_date will be required for this change to take effect". A bump could start storing more,
+# with no observability edit at all. scripts/check_privacy_text.py rows IL-A/IL-N guard what this file SAYS (including
+# the enable_workers_observability_tracing flag), and cannot see a default that a date changes.
 compatibility_date = "2025-12-01"
 
 # Build identifier surfaced on /healthz. This default is what `wrangler dev` and
@@ -198,6 +203,9 @@ head_sampling_rate = 1
 # Invocation logs OFF (owner ruling, 2026-11-17): the per-request invocation event ("the Request, Response, and
 # related metadata", Cloudflare's words) is not stored. The Worker's own console lines still are. Staging proves it
 # before production; see docs/workers-logs-invocation-off.md.
+# The privacy pages depend on this (README "Privacy & telemetry"; support.html #privacy: no network address, no
+# location estimate, and the activation sentence). scripts/check_privacy_text.py row IL-A fails unless it is the
+# boolean false: absent means ON, Cloudflare's default.
 [env.staging.observability.logs]
 invocation_logs = false
 
@@ -409,7 +417,8 @@ enabled = true
 head_sampling_rate = 1.0
 
 # Invocation logs OFF (owner ruling, 2026-11-17), as staging above: our own console lines are still stored.
-# See docs/workers-logs-invocation-off.md.
+# See docs/workers-logs-invocation-off.md. The privacy pages depend on this, as on staging's; check_privacy_text.py
+# row IL-A fails unless it is the boolean false.
 [env.production.observability.logs]
 invocation_logs = false
 
