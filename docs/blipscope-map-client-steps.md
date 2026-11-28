@@ -6036,3 +6036,114 @@ Rows, red first (registration outside the repo, `stepd2_registration.txt` 35c21c
 and turned exactly five rows red on the old constants (DNC1 x2, DNC2 x2, D1 x1); the constants then turned all three
 suites green; `sabotage_map_settings.py` plants the OLD values (`S-DNC1` = true, `S-DNC2` a literal "true") and all
 seven plants are red in exactly their own rows.
+
+## The release flip: the switch turned on for v20, registered before its code (2026-11-26)
+
+**Named by the orchestrator (2026-11-26 00:54:01Z), verbatim:**
+
+> THE FLIP PR IS NAMED AND IS YOURS ... The PR is two parts: platformio.ini:154 `layer = -DWX_LAYER_SHIPS`, and removing
+> firmware.yml's "No weather in a shipping Blipscope image" step (:539-545). Rule the wxlook --expect step's fate inside
+> the PR. ORDER: after 6a ... and 6b ..., and after step E's soak. Step E tests M_E plus exactly this line, and THE CUT
+> IS THIS PR'S SQUASH. Open it as a DRAFT now, so it exists and can't be forgotten, with predictions first ... It merges
+> only on my reads after 6a, 6b and E's soak.
+
+And 6a (00:56:26Z): "Weatherscope takes ALL of 6a: it writes the fresh P-REDO pair's and P-FLIP's expected-change sets
+from the diff, and you REVIEW them as the code's author ... your review is a read, not a write."
+
+The registration is frozen as `b1/flip/flip_registration.txt` `a1ab86dc045a` (2026-11-26T00:58:29Z, before any edit,
+build or push). This section is its record.
+
+**What main builds today (main `ef7d48c74568`, read, not run).** The only slug-ful row, `skus.yml:47`
+`blipscope-s3-128`, ends in `${cloud.prod}` (`platformio.ini:242`). `:157` carries `${weather.layer}`, and `:153-154`
+(`[weather]`, `layer =`) is empty. So `WX_LAYER_SHIPS` is undefined, and three things are absent:
+- the weather (`WxLayerSwitch.h:22-26`);
+- the map (`AircraftManager.h:38-39`);
+- the map's settings (`ConfigurationWebServer.cpp:10-12`).
+
+On top of that, `firmware.yml:541-545` fails a slug-ful Blipscope leg that carries any of `check-no-weather.sh`'s seven
+strings. Without this PR, v20 publishes with no map and no weather, and CI stays green, because CI requires that absence.
+
+**The diff** (the flip commit; nothing else in it):
+
+| | file | change |
+|---|---|---|
+| F1 | `platformio.ini:154` | `layer =` becomes `layer = -DWX_LAYER_SHIPS`. The comment above it (`:147-152`) stays as written. |
+| F2 | `.github/workflows/firmware.yml:539-545` | "No weather in a shipping Blipscope image" is **replaced** by "Weather and the map in the shipping Blipscope image": the same `if:`, `check-no-weather.sh --selftest`, then `--expect` on the same image. CI then proves the published image CARRIES the layers. |
+| F3 | `test/host/check_save_vocab.py:347-349` (#756's) | Today it raises Rig when the shipping env already defines `WX_LAYER_SHIPS`, so after F1 run.sh's vocabulary block exits 2. Instead, V1 is the env without the switch and V2 is V1 plus it, whatever the ini says, and the check prints which one the shipping env is. Every assertion (A_V1, A_V2, U_V1, U_V2, G, M) is unchanged. |
+
+Notes on F2:
+- **The wxlook `--expect` step (`:488-492`) is kept, unchanged.** It proves the bench image keeps the weather it sets
+  for itself. It is no longer the only positive control, and it costs nothing.
+- Replacing the step, rather than only deleting it, is map-client's proposal. If the orchestrator strikes it, F2 becomes
+  a pure deletion.
+
+**Local rows, before the push:**
+
+| row | check | predicted result |
+|---|---|---|
+| L1 | `git diff --stat ef7d48c74568` | names exactly `platformio.ini` (one line), `firmware.yml`, `check_save_vocab.py` and two docs |
+| L2 | `blipscope-s3-128` through `pio_guarded.ps1` | exit 0; it fits app0 (6,553,600 B) with more than 4 MB spare. The size is printed, not predicted to the byte. |
+| L3 | `check-no-weather.sh --expect <bin>` | exit 0, all seven strings |
+| L4 | CONTROL: the old step on the same bin | exit 1 |
+| L5 | `check-no-bench-hooks.sh <bin>` | exit 0 |
+| L6 | the ELF | `[build] env=blipscope-s3-128`, the production base URL and "The map covers up to 100 miles." are all present |
+| L7 (a) | `check_save_vocab.py` on the flip tree | exit 0 and says V2; `--selftest` exit 0 |
+| L7 (b) | the same on main's tree | exit 0 and says V1; `--selftest` exit 0 |
+| L7 (c) | CONTROL: the unedited script on the flip tree | exit 2 |
+| L8 | device ids on the diff | 0 findings |
+
+Anything outside L1-L8: stop, push nothing, report.
+
+**CI rows, on the pushed head (DRAFT, base main):**
+
+- **C1:** every check-run ends success or skipped.
+- **C2:** the count is 38 = 35 / 3 / 0.
+  - The file set triggers exactly bench-tools, device-ids, firmware, no-traffic-captures and web-renderer
+    (whose paths include `platformio.ini`).
+  - main's workflows and `skus.yml` are unchanged since `6ab54962`, and F2 changes a step, not a job.
+  - It is read with `gh --jq`, twice, at least 65 s apart.
+- **C3:** the s3-128 leg's new step prints "carries all 7 weather strings". The old step runs on no leg.
+- **C4:** every firmware leg builds, including the legs that now gain both layers through `${cloud.*}`: pro-s3-21,
+  joindiag and cardbench. wxlook and mapbench now get `-DWX_LAYER_SHIPS` twice, identically.
+  - pro-s3-21 (480 px) compiles the map.
+  - Its runtime hazard, a draw that copies `SCREEN_SIZE`² from a 240 px composite, is what the 480 gate closes. The
+    480 gate is in M_E, so it merges first.
+- **C5:** `check_save_vocab` says V2, and every row passes.
+
+Anything outside C1-C5: read the log and report. No re-run, and no new commit, until the orchestrator has read it.
+
+**Merge conditions** (each named by the orchestrator):
+- **M1:** the 480 gate merged, then M_E named.
+- **M2:** weatherscope's 6a record, reviewed by map-client as a read.
+- **M3:** 6b's final read on the candidate.
+- **M4:** step E's soak on M_E plus exactly F1.
+- **M5:** "approved to merge at <SHA>", then merge-by-rule.sh. **The cut is this PR's squash.**
+
+The merge-time row, registered now: the squash's s3-128 image differs from step E's image only in the build-time
+regions (`app_elf_sha256`, the image SHA-256, the checksum, and WiFiManager's two `__DATE__`/`__TIME__` strings),
+provided main between M_E and the squash changed no firmware source. A byte that cannot be placed means a different
+build, and the merge stops.
+
+### CI on `f1d21321f42e`, as read (written after the fact, 2026-11-26)
+
+Read twice, at 01:25:27Z and 01:26:51Z: total 38, as C2 predicted, but **34 / 3 / 1**, not 35 / 3 / 0.
+
+- **C1: OUTSIDE.**
+  - `sku-readers` (`scripts/skus.py --check-readers`) refused this doc. Its prose names the workflow file four times,
+    and one of them is inside the orchestrator's ruling, quoted verbatim.
+  - That guard keeps a second matrix parser from appearing, and its own message prescribes the escape for prose: an
+    `ALLOWED_MENTIONS` entry. That entry is this commit, with the orchestrator's ruling.
+  - **The miss was the prediction's.** The CI rows were derived from the workflows' triggers and from the steps
+    that read the image. Nothing asked which checks read the docs being added.
+- **C2:** the total of 38, as predicted.
+- **C3:** as predicted. The s3-128 leg's new step printed "carries all 7 weather strings (anchor present)". The
+  old step appears in no log. On wxlook its own `--expect` step passed, and the new step was skipped (no slug).
+- **C4:** as predicted. All 12 build legs succeeded, pro-s3-21, joindiag and cardbench among them.
+- **C5:** as predicted. Both host-tests legs print "the shipping env as platformio.ini builds it: V2", every row
+  passes, and the selftest passes.
+
+**The fix's predictions** (frozen before its commit; the registration's Amendment 2):
+- **N1:** locally, `--check-readers` exits 0 on the new tree, against exit 1 on `f1d21321f42e`, and
+  `--check-readers-selftest` exits 0.
+- **N2:** CI on the new head reads 38 = 35 / 3 / 0, `sku-readers` succeeds, and C3-C5 read as before.
+- Anything outside: report it, and run nothing again.

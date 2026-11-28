@@ -91,8 +91,9 @@ How it runs:
 | map-client | 3. The merges: #659 (step B), then step C rebased, re-read, its PR and CI | 1 d | row 1 (not row 2) |
 | map-client | 4. D, the setting: the map on by default, town names on by default with their own switch; DO1-DO4, DOC1-DOC2, the config page, the off checks; a row asserting a board saved on v19 comes up with both on | 2 d | row 3; its registration ruled. Its merge waits on row 2 |
 | map-client | 5. E, the bench and soak: DOC3, S1's two airports, memory, a soak on a fetched map | 3-4 d | **a production /basemap (map-server's D4) for the final pass**; row 4; E2:08 windows |
-| map-client | 6a. The pre-ship per-function accounting with #656's comparator | 0.5 d | #656 |
+| weatherscope | 6a. The pre-ship per-function accounting with #656's comparator. Ruled by the orchestrator (2026-11-26 00:56:26Z): "Weatherscope takes ALL of 6a: it writes the fresh P-REDO pair's and P-FLIP's expected-change sets from the diff"; map-client reviews them as the code's author, a read, not a write. It runs on M_E. | 0.5 d | #656; M_E named |
 | map-client | 6b. The pre-ship image-level text check (a third instrument, shown on controls first) | 1-1.5 d | nothing to start; its final read waits on the candidate |
+| map-client | **The flip** (named by the orchestrator, 2026-11-26 00:54:01Z): `[weather]` `layer = -DWX_LAYER_SHIPS` (`platformio.ini:154`), and the CI step that requires the shipping image to carry NO weather replaced by one that requires it to carry the weather and the map. Without it v20 publishes with neither, and CI stays green. A draft PR with its predictions (`docs/blipscope-map-client-steps.md`, "The release flip"). "THE CUT IS THIS PR'S SQUASH." | 0.5 d | merges only on the orchestrator's reads, after 6a's record, 6b's final read and step E's soak (and so after the 480 gate, which is in M_E) |
 | blipscope-5c | The proxy bill (proposal, Logs, a KV cache, KV writes, and /wx's F1: `latest` cached per colo) | 5-6 d | read-only to start; deploys under the claim; plan or billing changes are the owner's. **Before the cut** |
 | blipscope-5c | The fresh-boot automation (commissioned) | ~3.5 d | the owner's three choices (the Wi-Fi password file, the claim tap, the config-page reset) |
 | blipscope-5c | O11 pre-flight on the real v20 candidate | ~2 d after the candidate | the candidate; #630's identity confirmed on it |
@@ -189,6 +190,7 @@ elapsed days) runs beside the map path below.
 | 5 | The staging reading of 3 + 4 | map-server | 1 | Nov 19-21 |
 | 6 | D4, the map on in production (the owner's announcement and OK) | map-server | 1-2 | Nov 20-23 |
 | 7 | The client's final bench pass and soak on a production map (E), then the pre-ship accounting (6a, #656) | map-client | 1-2 after D4 | Nov 21-25 |
+| 7a | **The flip** merges: the map and the weather compiled into the shipping image (after 6a's record, 6b's final read and E's soak); the cut is its squash | map-client | 0.5 after E's soak | after E |
 | F | **Content freeze**: the map, weather on by default, the card fix, the proxy bill, the speed work to the bar | everyone | | **Nov 23-26** (the map path alone: Nov 21-25) |
 | 8 | O11 pre-flight on the real v20 candidate, including the frame-rate gate, then the cut (fresh-boot, tag, prerelease, bench flash, verify, promote) | blipscope-5c | 4-5 after F | **Nov 27 - Dec 1** (the map path alone: Nov 25-30) |
 
