@@ -73,27 +73,27 @@ describe("LL1-LL3: the enroll lines carry the label, never the id", () => {
     return found[0]!;
   };
 
-  it("LL1: a refused activation (enforce): refused, devl, host, cc -- and no id", async () => {
+  it("LL1: a refused activation (enforce): refused, devl, host -- and no id (no country: \"activation: shorter\")", async () => {
     expect((await activate(OTHER)).status).toBe(403);
     const line = enrollLine("enroll refused=");
-    expect(tokenKeys(line)).toEqual(["cc", "devl", "host", "refused"]);
+    expect(tokenKeys(line)).toEqual(["devl", "host", "refused"]);
     expect(tokenVal(line, "devl")).toBe(await deviceLabel(OTHER));
     expect(line).not.toContain(OTHER);
   });
 
-  it("LL2: a would-be refusal under watch: watch, devl, host, cc -- and no id", async () => {
+  it("LL2: a would-be refusal under watch: watch, devl, host -- and no id", async () => {
     expect((await activate(OTHER, { ACTIVATION_GATE: "watch" })).status).toBe(200);
     const line = enrollLine("enroll watch=");
-    expect(tokenKeys(line)).toEqual(["cc", "devl", "host", "watch"]);
+    expect(tokenKeys(line)).toEqual(["devl", "host", "watch"]);
     expect(tokenVal(line, "devl")).toBe(await deviceLabel(OTHER));
     expect(line).not.toContain(OTHER);
   });
 
-  it("LL3: a mint: devl, n, day_total, host, cc, asn -- and no id", async () => {
+  it("LL3: a mint: devl, n, day_total, host -- and no id (no country or network)", async () => {
     expect((await list(LISTED)).status).toBe(200);
     expect((await activate(LISTED)).status).toBe(200);
     const line = enrollLine("enroll new ");
-    expect(tokenKeys(line)).toEqual(["asn", "cc", "day_total", "devl", "host", "n"]);
+    expect(tokenKeys(line)).toEqual(["day_total", "devl", "host", "n"]);
     expect(tokenVal(line, "devl")).toBe(await deviceLabel(LISTED));
     expect(line).not.toContain(LISTED);
   });

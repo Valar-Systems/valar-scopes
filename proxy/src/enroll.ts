@@ -56,9 +56,8 @@ export interface EnrollLedgerRow {
   enrollments: number;
   /** Siteverify's view of where the solve happened. Recorded, never enforced. */
   hostnames: string[];
-  /** Coarse origin of the most recent solve, for abuse triage. */
-  lastCountry?: string;
-  lastAsn?: string;
+  // No country or network here (the owner, 2026-11-26: "activation: stop storing"). Rows written before that ruling
+  // still carry `lastCountry`/`lastAsn` until they are cleaned up; nothing reads either field.
 }
 
 interface SiteverifyResponse {
@@ -216,9 +215,9 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
     const refused = gate === "activated" ? "already_activated" : "not_listed";
     // A refused activation is the abuse signal now -- a guessed id lands here -- so it
     // is logged the way a mint is, and COUNTED where scripts/reconcile-fleet.py prints it.
-    // The device LABEL, never the id (the owner's "label too", 2026-11-17; src/devlabel.ts).
-    console.log(`enroll ${watch ? "watch" : "refused"}=${refused} devl=${(await labelOf(id)) ?? "?"} host=${solve.hostname ?? "?"} `
-      + `cc=${request.headers.get("CF-IPCountry") ?? "?"}`);
+    // The device LABEL, never the id (the owner's "label too", 2026-11-17; src/devlabel.ts). No country, like the mint
+    // line below (enroll.test.ts P-AS4, P-AS5).
+    console.log(`enroll ${watch ? "watch" : "refused"}=${refused} devl=${(await labelOf(id)) ?? "?"} host=${solve.hostname ?? "?"}`);
     if (!watch) {
       await bumpRefused(env, day, refused);
       return json({ error: refused, id, support: SUPPORT_EMAIL }, refused === "not_listed" ? 403 : 409);
@@ -231,6 +230,12 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
 
   // The ledger still counts every activation of the id (a reset and a re-activation
   // make two), and keeps the first one's date: the history that makes a reset legible.
+  //
+  // THE ROW HOLDS NO COUNTRY OR NETWORK (the owner, 2026-11-26: "activation: stop storing"). It used to keep the
+  // latest activation's CF-IPCountry and AS number with no expiry, and nothing read them. NOR DOES ANY CONSOLE LINE
+  // (the owner, relayed 2026-11-27: "activation: shorter"): this handler reads neither CF-IPCountry nor request.cf, so
+  // triage has devl, host and day_total (enroll.test.ts P-AS3', P-AS4, P-AS5). The row is built FRESH, never spread
+  // from `prev`, so re-activating a row written before the ruling drops its old fields too (P-AS1, P-AS2).
   const row: EnrollLedgerRow = {
     id,
     firstAt: prev?.firstAt ?? nowIso,
@@ -238,10 +243,6 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
     enrollments: (prev?.enrollments ?? 0) + 1,
     hostnames: [...new Set([...(prev?.hostnames ?? []), solve.hostname ?? ""].filter(Boolean))].slice(0, 10),
   };
-  const country = request.headers.get("CF-IPCountry");
-  const asn = (request.cf as { asn?: number } | undefined)?.asn;
-  if (country) row.lastCountry = country;
-  if (asn) row.lastAsn = String(asn);
 
   await env.ENRICH_KV.put(ledgerKey(id), JSON.stringify(row));
   const dayTotal = await bumpDayCounter(env, day);
@@ -251,7 +252,7 @@ export async function handleEnroll(request: Request, env: Env): Promise<Response
   // this line is the only thing that will ever say "something is wrong".
   console.log(
     `enroll ${row.enrollments === 1 ? "new" : "repeat"} devl=${(await labelOf(id)) ?? "?"} n=${row.enrollments} `
-    + `day_total=${dayTotal} host=${solve.hostname ?? "?"} cc=${country ?? "?"} asn=${asn ?? "?"}`,
+    + `day_total=${dayTotal} host=${solve.hostname ?? "?"}`,
   );
 
   return json({
