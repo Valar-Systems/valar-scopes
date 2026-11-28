@@ -35,8 +35,17 @@ static_assert(sizeof(kRungs) / sizeof(kRungs[0]) == 3, "the six: two homes x thr
 // the 10 mi rows, the packed stress rows (Bend 40/60 at kRungs), LIVE-APT at both airports (F2), LIVE-OWN.
 // The sibling's Scene is {kind, pkg, rungMi, role, home, level}: rungMi holds RP5's rung, and home and level exist only
 // under FRAME_BENCH_S2B. pkg and role are FT's and stay 0 here.
+// THE GATE's TABLE (PORT registration sections 4-6, AMEND1 A1, AMEND2; C:\Github\_handoffs\map-client\gate-port-20261128):
+// XAH first (XA-H's hold: KSFO, level 40, 25 mi, the local feed, 21 min), then RP5's CTRL-IL, THE SIX, the 10 mi rows and
+// the packed stress rows unchanged, then S1L-S6L (the six at v19's label set, Q-L) and S-RL (KSFO at 100 mi, a 40 s
+// settle and ~277 s of measure, to the recording's end: LIVE-R's replay side). LIVE-APT and LIVE-OWN are DROPPED (XA
+// replaced by XA-H + LIVE-R; LIVE-R's live side is the SHIPPING image, not a bench scene).
+// {kind, pkg, rungMi, role, home, level, labels, settleS, measureS}
 #define FB_S2B_SCENE(kind, home, level, rung) {kind, 0, (uint8_t)(rung), GRADED, (uint8_t)(home), (uint8_t)(level)}
+#define FB_S2B_GATE(kind, home, level, rung, labels, settleS, measureS) \
+    {kind, 0, (uint8_t)(rung), GRADED, (uint8_t)(home), (uint8_t)(level), (uint8_t)(labels), (uint16_t)(settleS), (uint16_t)(measureS)}
 static const Scene kScenes[] = {
+    FB_S2B_GATE(FIXED, 1, 40, 25, 0, 0, 1160),   // XAH: KSFO (kS2bHomeName[1]), 40, 25 mi, local: 100 s + 1160 s = 21 min
     FB_S2B_SCENE(CTRL_IL, 0, 40, 25),   // I-6's S0 (Bend/40/25): the control's own configuration, not a rung of the bar
     FB_S2B_SCENE(REPLAY, 0, 0, kRungs[0]), FB_S2B_SCENE(REPLAY, 0, 0, kRungs[1]), FB_S2B_SCENE(REPLAY, 0, 0, kRungs[2]),
     FB_S2B_SCENE(REPLAY, FRAME_BENCH_REC_B, 0, kRungs[0]), FB_S2B_SCENE(REPLAY, FRAME_BENCH_REC_B, 0, kRungs[1]),
@@ -44,12 +53,29 @@ static const Scene kScenes[] = {
     FB_S2B_SCENE(REPLAY, 0, 0, kReportedMi), FB_S2B_SCENE(REPLAY, FRAME_BENCH_REC_B, 0, kReportedMi),
     FB_S2B_SCENE(FIXED, 0, 40, kRungs[0]), FB_S2B_SCENE(FIXED, 0, 40, kRungs[1]), FB_S2B_SCENE(FIXED, 0, 40, kRungs[2]),
     FB_S2B_SCENE(FIXED, 0, 60, kRungs[0]), FB_S2B_SCENE(FIXED, 0, 60, kRungs[1]), FB_S2B_SCENE(FIXED, 0, 60, kRungs[2]),
-    // (a)+ (2026-11-17): LIVE-APT at kRungs[0], configured at the shipping radius and zoomed (ShipsThenZooms)
-    FB_S2B_SCENE(LIVE_APT, 0, 0, kRungs[0]), FB_S2B_SCENE(LIVE_APT, FRAME_BENCH_REC_B, 0, kRungs[0]),
-    FB_S2B_SCENE(LIVE_OWN, 0, 0, 0),
+    // S1L-S6L: the six again at v19's label set (OverrideS2b, V19Label)
+    FB_S2B_GATE(REPLAY, 0, 0, kRungs[0], 1, 0, 0), FB_S2B_GATE(REPLAY, 0, 0, kRungs[1], 1, 0, 0),
+    FB_S2B_GATE(REPLAY, 0, 0, kRungs[2], 1, 0, 0), FB_S2B_GATE(REPLAY, FRAME_BENCH_REC_B, 0, kRungs[0], 1, 0, 0),
+    FB_S2B_GATE(REPLAY, FRAME_BENCH_REC_B, 0, kRungs[1], 1, 0, 0), FB_S2B_GATE(REPLAY, FRAME_BENCH_REC_B, 0, kRungs[2], 1, 0, 0),
+    // S-RL: KSFO at 100 mi, 40 s + 277 s (AMEND2: the recording ends ~317 s after the settle starts)
+    FB_S2B_GATE(REPLAY, 0, 0, kRungs[2], 0, 40, 277),
 };
 #undef FB_S2B_SCENE
-static_assert(sizeof(kScenes) / sizeof(kScenes[0]) == 18, "RP5's registered run is 18 scenes");
+#undef FB_S2B_GATE
+static_assert(sizeof(kScenes) / sizeof(kScenes[0]) == 23, "the gate's registered run is 23 scenes");
+static_assert(kRungs[2] == 100, "S-RL is the six's KSFO scene at 100 mi");
+
+// Q-L: v19's label set, from v19's src/AircraftInfoFields.cpp table (its defaultOn column): ON for callsign, type,
+// operator, speed and baroalt, OFF for the other ten. Answered as the stored form ("true"/"false") for S1L-S6L only.
+inline const char* V19Label(const char* key)
+{
+    static const char* const kOn[] = {"info-callsign", "info-type", "info-operator", "info-speed", "info-baroalt"};
+    static const char* const kOff[] = {"info-reg", "info-route", "info-icao", "info-country", "info-vrate", "info-geoalt",
+                                       "info-heading", "info-squawk", "info-category", "info-possrc"};
+    for (const char* k : kOn) if (strcmp(key, k) == 0) return "true";
+    for (const char* k : kOff) if (strcmp(key, k) == 0) return "false";
+    return nullptr;
+}
 
 // The local homes of CTRL-IL and the packed rows, to 2 dp: only ever returned to Initialise(); nothing prints them.
 static const char* const kS2bHomeName[] = {"Bend", "KSFO"};

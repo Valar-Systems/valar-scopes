@@ -55,6 +55,9 @@ struct Scene {
 #if defined(FRAME_BENCH_S2B)
     uint8_t home = 0;     // S2b: RP5's home (0 Bend / KSFO, else an index into kAptCode)
     uint8_t level = 0;    // S2b: RP5's fixed traffic level (0 for the recordings and live)
+    uint8_t labels = 0;     // the gate (PORT registration section 6, Q-L): 1 = v19's label set (S1L-S6L), 0 = the defaults
+    uint16_t settleS = 0;   // the gate: the scene's own settle in s (S-RL, AMEND2), 0 = SETTLE_MS
+    uint16_t measureS = 0;  // the gate: the scene's own measure in s (XAH, S-RL), 0 = the kind's
 #endif
 };
 #if defined(FRAME_BENCH_FT)
@@ -285,6 +288,10 @@ inline const char* OverrideS2b(const char* key)
         if (strcmp(key, "data-source") == 0) return "";
         if (strcmp(key, "local-url") == 0) return "";
         if (strcmp(key, "local-details") == 0) return "";
+        if (sc.labels == 1) {   // the gate's S1L-S6L (Q-L): v19's label set, "the other label state"
+            const char* v = V19Label(key);
+            if (v) return v;
+        }
         return CustomerDefault(key);
     }
     // CTRL-IL and the packed rows: the local feed (fixed_traffic.py on the bench PC)
@@ -514,13 +521,14 @@ inline void Record(uint32_t frameUs, size_t tracked, uint8_t stateFlags)
 // S2b: RP5's spans (LIVE-OWN and LIVE-APT measure 300 s; every settle is 100 s)
 inline uint32_t MeasureMs(int k)
 {
+    if (kScenes[k].measureS) return (uint32_t)kScenes[k].measureS * 1000u;   // the gate: XAH, S-RL
     switch (kScenes[k].kind) {
     case LIVE_OWN: return MEASURE_OWN_MS;
     case LIVE_APT: return MEASURE_APT_MS;
     default: return MEASURE_MS;
     }
 }
-inline uint32_t SettleMs(int) { return SETTLE_MS; }
+inline uint32_t SettleMs(int k) { return kScenes[k].settleS ? (uint32_t)kScenes[k].settleS * 1000u : SETTLE_MS; }
 #else
 inline uint32_t MeasureMs(int) { return MEASURE_MS; }
 inline uint32_t SettleMs(int) { return SETTLE_MS; }
