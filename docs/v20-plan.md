@@ -73,6 +73,22 @@ How it runs:
 4. **The standing rule (the owner):** "every change to drawing code reports its frame time on the bench, before and
    after. A slowdown beyond the margin frozen in its registration stops it."
 
+**The owner's speed rulings (2026-11-28, 05:30Z), for O11's pre-flight and the release check:**
+- **"speed gate: port it."** map-client ports the six-scene gate onto the v20 code, registration first. The port must
+  not take the test board or map-client away from the owner's Sunday sitting, Monday's D4 or the 24-hour run; if it
+  would, the owner is told which it costs before it happens.
+- **A deadline:** a clean six-scene reading by **Fri 4 Dec 18:00Z**. Past it, the owner judges v20 at the release check
+  on the labelled stand-ins plus the release build's own live reading. The release does not wait past the deadline for
+  the tool.
+- **The stand-ins** run now, as an early warning, each labelled "not the bar": the fixed-scene reading on the real v20
+  build, and the frame bench's simulated map and weather scenes, each with the faster clock and once more at the new
+  type-only default.
+- **"xa: replace."** XA (the replay-against-live check) is replaced by a new check whose pass line is written down
+  before it runs, so it can still fail. The earlier XA result stays on record as a miss.
+- **Over 50 ms:** the result goes to the owner at the release check with the worst scene, the same scene at the new
+  type-only default, and v19's figure on the same scene.
+- **No new speed work after the freeze without the owner's word.**
+
 ## Work remaining, by session
 
 *(collected 2026-11-12; sizes are elapsed days, including review; each assumes a first reading as predicted)*
@@ -93,10 +109,10 @@ How it runs:
 | map-client | 5. E, the bench and soak: DOC3, S1's two airports, memory, a soak on a fetched map | 3-4 d | **a production /basemap (map-server's D4) for the final pass**; row 4; E2:08 windows |
 | map-client | 6a. The pre-ship per-function accounting with #656's comparator | 0.5 d | #656 |
 | map-client | 6b. The pre-ship image-level text check (a third instrument, shown on controls first) | 1-1.5 d | nothing to start; its final read waits on the candidate |
-| blipscope-5c | The proxy bill (proposal, Logs, a KV cache, KV writes, and /wx's F1: `latest` cached per colo) | 5-6 d | read-only to start; deploys under the claim; plan or billing changes are the owner's. **Before the cut** |
+| blipscope-5c | The proxy bill (proposal, Logs, a KV cache, KV writes, and /wx's F1: `latest` cached per colo) | 5-6 d | read-only to start; deploys under the claim; plan or billing changes are the owner's. **Not before the cut** (the owner, 2026-11-28: "bill: nothing before the cut"); its KV cache (#689) deploys after v20's first week (2026-11-13) |
 | blipscope-5c | The fresh-boot automation (commissioned) | ~3.5 d | the owner's three choices (the Wi-Fi password file, the claim tap, the config-page reset) |
 | blipscope-5c | O11 pre-flight on the real v20 candidate | ~2 d after the candidate | the candidate; #630's identity confirmed on it |
-| blipscope-5c | The cut (FW_VERSION 20, CHANGES-customer v20, v19's steps 2-7 shape) | 4-5 d after the content freeze | the content freeze; the proxy bill; O11 |
+| blipscope-5c | The cut (FW_VERSION 20, CHANGES-customer v20, v19's steps 2-7 shape) | 4-5 d after the content freeze | the content freeze; O11 (not the proxy bill: the owner, 2026-11-28) |
 | blipscope-5c | Step 8 (v19's week after), daily to 11-19 | 7 d, ~15 min/day | nothing |
 | blipscope-5c | **The card bug (the owner, 2026-11-12 17:26Z: v20 content):** a no-photo card with Follow offered drops route, type and operator on the 1.28"; fixed with a test that fails on today's code first, confirmed on a real board | ~2 d (#670; every no-photo or photo-loading card, since v9) | its before/after look to the owner before merge; a bench slot on E2:08 |
 | blipscope-5c | Pro 2.1 bring-up (independent; build-only) | ~1.5 d | the owner's window |
@@ -120,8 +136,9 @@ How it runs:
   but note that v20's UK weather (opuk) is ALSO an OPERA product. While OPERA is down, a UK board shows no radar
   (503, so nothing drawn) until it returns. If OPERA is still down at the cut, v20 ships with UK weather dark. Continental boards get "No weather
   coverage" until their products are routed.
-- **The proxy bill** must land before weather goes fleet-wide (at 600 boards: Logs ~$166, KV reads ~$115, KV
-  writes ~$54 a month). Log sampling must not drop the breaker/upstream_skip instruments.
+- **The proxy bill** gates nothing before the cut (the owner, 2026-11-28: "bill: nothing before the cut"); its KV cache
+  (#689) deploys after v20's first week of fleet reads (2026-11-13). The figures at 600 boards are why it stays planned
+  (Logs ~$166, KV reads ~$115, KV writes ~$54 a month). Log sampling must not drop the breaker/upstream_skip instruments.
 - **The frame-rate gate** (above): v20 as planned misses the owner's bar. The measured v19 baseline (2026-11-12,
   E2:08, map and weather off, each p95 +-1.54 ms) is 76.6-81.8 ms at 40 aircraft on the packed bench traffic; a live
   San Francisco reading puts a realistic 40 near 63 ms (an estimate until the recordings are measured). Weather adds
@@ -159,7 +176,8 @@ while the push task runs) and a longer soak before the riskier push design is ch
   ~$29-46/mo.
 - **The SeamlessHSR price**: about $1.00-1.40 a month, flat in board count. The owner said yes (2026-11-12 17:12Z),
   and raised the Cloudflare overage allowance to $10 a month. R2 bills in whole millions, rounded up.
-- **blipscope-5c's proxy bill work** (Logs, a KV cache, KV writes, /wx's `latest` cached): 5-6 days, before F.
+- **blipscope-5c's proxy bill work** (Logs, a KV cache, KV writes, /wx's `latest` cached): 5-6 days; not before F or
+  the cut (the owner, 2026-11-28).
 - **The account-wide budget** (#671, uk-data): every cost estimate adds its line and states the account total; the
   digest flags any allowance over 80%.
 
@@ -189,14 +207,14 @@ elapsed days) runs beside the map path below.
 | 5 | The staging reading of 3 + 4 | map-server | 1 | Nov 19-21 |
 | 6 | D4, the map on in production (the owner's announcement and OK) | map-server | 1-2 | Nov 20-23 |
 | 7 | The client's final bench pass and soak on a production map (E), then the pre-ship accounting (6a, #656) | map-client | 1-2 after D4 | Nov 21-25 |
-| F | **Content freeze**: the map, weather on by default, the card fix, the proxy bill, the speed work to the bar | everyone | | **Nov 23-26** (the map path alone: Nov 21-25) |
-| 8 | O11 pre-flight on the real v20 candidate, including the frame-rate gate, then the cut (fresh-boot, tag, prerelease, bench flash, verify, promote) | blipscope-5c | 4-5 after F | **Nov 27 - Dec 1** (the map path alone: Nov 25-30) |
+| F | **Content freeze**: the map, weather on by default, the card fix, the speed work to the bar (the proxy bill is not part of F: the owner, 2026-11-28) | everyone | | **Nov 23-26** (the map path alone: Nov 21-25) |
+| 8 | O11 pre-flight on the real v20 candidate, including the frame-rate gate, then the cut (fresh-boot, tag, prerelease, bench flash, verify, promote) (this table's row 8; v19's step 8, the week after, is the work table's "Step 8 (v19's week after)" row) | blipscope-5c | 4-5 after F | **Nov 27 - Dec 1** (the map path alone: Nov 25-30) |
 
 **Off the critical path but due before F** (each fits inside steps 1-7):
 - map-client: the B + C merges, D (the setting), 6b (the image-level text check);
 - weatherscope: #656 (~1 day, Nov 13);
-- blipscope-5c: the proxy bill (5-6 days, by ~Nov 18), the card bug #670 (~2 days), the fresh-boot automation
-  (~3.5 days);
+- blipscope-5c: the card bug #670 (~2 days), the fresh-boot automation (~3.5 days); the proxy bill is no longer due
+  before F (the owner, 2026-11-28: "bill: nothing before the cut");
 - uk-data: the account-budget file (#671).
 
 **What would move the date:**
