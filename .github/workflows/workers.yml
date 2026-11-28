@@ -324,6 +324,40 @@ jobs:
         if: matrix.worker == 'proxy'
         run: node scripts/sabotage-basemap.mjs --selftest-keep
 
+      # The support page's links to our own site, read OUT OF pages/support.html, must answer 200, and a linked page
+      # must carry the page's own "frozen on <date>" phrase. A control URL on the same site must answer first, so an
+      # unreachable site reads BLIND, never as a dead link. The selftest runs on every PR. The LIVE check runs only
+      # when this change touches a file that carries, embeds or checks those links (the script's SCOPE); otherwise it
+      # prints "skipped: no link-bearing change", and an empty diff or a scope file missing from the tree reads BLIND,
+      # never a skip. "This change" is measured from the base the tested tree was built on:
+      #   - on a pull_request, the test merge commit's FIRST PARENT (the script reads it from the commit itself);
+      #   - on a push, the event's `before`.
+      # NOT the PR's recorded base.sha: it can predate the merge being tested, and a diff from it carries main's own
+      # files into the PR (#836 recorded 27b51243b564, merged onto 3bd9d536aa13). With that, a site outage cannot turn
+      # an unrelated proxy PR red. smoke-prod.sh prints the same live line at deploy time, as information. Kept LAST
+      # among the proxy steps: a red here hides no other step's result.
+      - name: the support page's links answer and match (selftest)
+        if: matrix.worker == 'proxy'
+        run: node scripts/check-support-links.mjs --selftest
+      - name: the support page's links answer and match (live, on a link-bearing change)
+        if: matrix.worker == 'proxy'
+        env:
+          EVENT: ${{ github.event_name }}
+          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            node scripts/check-support-links.mjs --changed-since-merge --recorded "$RECORDED_BASE"
+          else
+            git fetch --no-tags --depth=1 origin "$BEFORE"
+            node scripts/check-support-links.mjs --changed-since "$BEFORE"
+          fi
+      # The support page's text against the repo's own file (scripts/check-support-text.mjs): its cases graded here, with
+      # no network. The live check runs from smoke-prod.sh at deploy time, given the commit production ran before.
+      - name: the support page's text matches the repo (selftest)
+        if: matrix.worker == 'proxy'
+        run: node scripts/check-support-text.mjs --selftest
+
       # Every SQL statement the dashboard can issue, run against the LIVE Analytics
       # Engine endpoint. vitest never executes the SQL, and two defects reached the
       # browser through a green suite on 2026-09-24 (IF() branch types, and a

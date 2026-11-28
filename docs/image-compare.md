@@ -1746,3 +1746,185 @@ is a STOP.
 **Run 2 (02:51:50Z):** `run/1j-plants-2.out` `1fb77024cd15`, driver `c4022c5a6353`, comparator `3788f2d011bf`,
 selftest `b49cb6ba0138`. **ALL AS DECLARED**, 39 plants x 64 cases, exit 0, empty stderr. The anchors were 39, each
 present exactly once.
+
+## 27. Amendment 1k: a local label into a merged-string section (2026-11-26), registered before any code
+
+Weatherscope, 2026-11-26, from 04:33Z (stamps from `date -u`). This is the registration as filed, TEXT ONLY when it was written, with its correction and readings appended in order; nothing above a correction was edited. Files named `run/...`, `REG-1k.md`, `PROBES-6a-pflip.md` and `OWNER-Q-6a-pflip.md` are in weatherscope's 6a handoff (`image-compare-6a/`), each kept by its sha.
+
+### The ruling it rests on
+
+- **P-b read GAP** (`PROBES-6a-pflip.md` `0b7d4d55daac`). In P-FLIP, `append_answer$constprop$0` (an unchanged
+  framework object) reads `local:.LC35+38`. That is a local label in `.rodata.append_answer$constprop$0.str1.1`
+  (flags 0x32: ALLOC + MERGE + STRINGS), and the string it reads is equal on both sides.
+- **The comparator's `resolve_data()` refuses it:** "the local .LC35 is not in one unit of …". A merged section is never
+  a unit.
+- **The orchestrator:** "an instrument fix, amendment 1k, the same path as #832: red first, a control that a differing
+  local merged string stays STOP, a PR, my reads."
+- **(a), the 10 compiler-copy units, is NOT in 1k.** It waits for the owner's word on `OWNER-Q-6a-pflip.md`
+  `ddbc5a3d7c30`.
+
+### 1. The change (`scripts/image-compare.py` at main `65500c7ac86b`, blob `f7207101131d`)
+
+- **`resolve_data(side, obj, iid, kind, nm, add=0)`, the "local" branch.** When the ONE local symbol named `nm` sits in a
+  section that is both SHF_MERGE and SHF_STRINGS (so not a unit):
+  - it returns `("str", <the NUL-terminated bytes at st_value + add>)`;
+  - an offset outside the section, or no terminator, refuses with the texts `name_target` already uses ("a string offset
+    outside its section", "an unterminated string").
+- **`rodata_read()`:**
+  - it passes the target's addend (`+N` in `local:NAME+N`) as `add`;
+  - when both sides resolve `"str"`, EQUAL bytes continue and are not counted, as a `str:` name inside a signature is
+    not;
+  - DIFFERING bytes append `"<nm> [<input>]"` to `differ`, so the line reads "it reads read-only data that differs:
+    .LCn [input]". **That is a STOP: the orchestrator's control.**
+  - One side `"str"` and the other not reads "resolves differently in A and B", as now.
+- **Unchanged:**
+  - a local label into a merged section that is NOT strings (a `cst` pool) still refuses;
+  - so does a local in any other non-unit section;
+  - `name_target` and every signature are untouched.
+
+### 2. Why no other line of a reading can move
+
+1k acts only where today's "local" branch refuses, AND the symbol's section is a merged-string section. Every other
+path returns exactly what it does now. So any other line that moves is OUTSIDE.
+
+### 3. The frozen predictions: re-reads of the SAME stores with the 1k comparator
+
+- **The method:** by text edit of the readings, with no comparator code, using `predict_pflip_1k.py` `7bd89152fd5b`.
+  The numbers come from the merged comparator's own functions (`diag_aa.py` `9a81d0ea49e6` -> `run/diag-aa.out`
+  `8e3d5155b6d7`):
+  - append_answer's (a) is equal;
+  - of its 28 distinct targets, all resolve except `local:.LC35+38`, an 11-byte string, which 1k reads as an equal
+    string, not counted;
+  - one `ro` unit (`__func__$4`), so 1 section;
+  - (c) reads 2/2 sites and 0 mismatches.
+
+| re-read | prediction |
+|---|---|
+| **P-FLIP** (OFF vs ON, `--ld-flags` `72aebc33dab7`, `allow-pflip.txt` `559634757a32`) | `run/predicted-pflip-1k.out` `5e26467e1309`. It is the reading `d0b90712cfc5` with exactly ONE line moved: `UNDECIDED append_answer$constprop$0 …` leaves, and its LINK-ONLY line (`… read-only data equal: 1 section(s); call sites checked A/B: 2/2; …`) enters at its key-order slot. The verdict becomes `UNDECIDED (18); LINK-ONLY: 35; …`. Compare exits 3. **check6a v4:** STOP (exit 2) on exactly the 10 "no-source NEW unit" lines (`run/predicted-pflip-1k-check.out` `4a2f0af1b79c`). The "line outside the registration" leaves. P-FLIP stays STOP until the owner rules (1) and (2) |
+| **P-REDO** (Bw vs Cw, with and without the flag) | byte-identical to its frozen files (`7743ff03d92a`, `09def0743736`), because nothing there refuses a local label |
+| **K0** (OFF vs OFF2) | byte-identical to `run/k0-1j-reading.out` `e7a45f3f4517`: NO CHANGE, CLEAN |
+| **anything else**, including a crash, a refusal, or one byte different | **OUTSIDE:** stop, the diff to the orchestrator, nothing re-fitted |
+
+### 4. The selftest: one fixture, four cases, three plants
+
+**The fixture `lstr`,** built by `gen.sh ONLY=lstr`; no other store moves.
+- An assembly object `lsr.S`:
+  - `lsr` reads a string through a literal naming `.LS0+4`, a local label in `.rodata.lsr.str1.1` (`"aMS",@progbits,1`);
+  - `lcs` reads a word through a local label in `.rodata.lcs.cst4` (`"aM",@progbits,4`).
+- A and B are identical, and B's `lsr` and `lcs` are grown by 2 in its image (R3's method), so each stands in front of
+  LINK-ONLY.
+- **If gen shows the assembler named the SECTION symbol rather than the local label in either relocation,** the fixture
+  does not build the case. That is filed as a correction before any comparator run.
+
+**The cases.** Each one's whole output is filed after gen and before any run.
+
+| case | construction | 1k comparator | the merged 1j comparator (red first) |
+|---|---|---|---|
+| **K-base** | as built | `LINK-ONLY lsr … read-only data equal: 0 section(s) …`; `lcs`: the "not in one unit" line (as now) | lsr reads "the local .LS0 is not in one unit of src/lsr.S.o" (**red**) |
+| **K1** (the orchestrator's) | B's object: one byte of the string at `.LS0+4..` changed, resealed | `UNDECIDED lsr: … it reads read-only data that differs: .LS0 [src/lsr.S.o]` | "not in one unit" (**red**: a different line) |
+| **K2** (narrowness) | as built, read for `lcs` | `lcs`: "the local .LC… is not in one unit" (a constant pool, not strings: still refused) | the same (green) |
+| **K4** (the addend) | B's object: one byte BEFORE `.LS0+4` (outside the string read) changed, resealed | `LINK-ONLY lsr …`: the datum it reads is equal | "not in one unit" (**red**) |
+
+- K-base and K2 are one run graded on its whole output: `lsr`'s line for K-base, `lcs`'s for K2.
+- The orchestrator's control (K1) is the STOP.
+- K4 makes the addend matter: a reader that ignores it sees the changed byte.
+
+**The plants (`sabotage_image_compare.py`), each row declared before its run:**
+
+| plant | the sabotage | red |
+|---|---|---|
+| P40 | the string compare skipped: differing bytes accepted | K1 |
+| P41 | any SHF_MERGE section accepted as a string | K2 |
+| P42 | the addend ignored: read at the label | K4 |
+
+- P1-P39 are each declared over the 4 new cases, derived case by case before the run.
+- **The red first:** K-base, K1 and K4 read red against the merged 1j comparator, and K2 reads green.
+
+### 5. Order
+
+1. This text, by sha, to the orchestrator.
+2. Gen (`ONLY=lstr`) and the cases' whole outputs, appended here by sha.
+3. Red first.
+4. The code; green; plants all as declared.
+5. The PR: docs section 27, CI predicted, the four gates on the committed tree.
+6. The orchestrator's reads; merge by rule on its word; X3.
+7. The three re-reads with the merged 1k comparator, graded by section 3's table.
+
+W-sep comes first. No board is touched.
+
+### Correction 1 (2026-11-26, by 04:37:22Z, the `date -u` of its scan; appended BEFORE any comparator run)
+
+The orchestrator accepted REG-1k as `f4e777417408`. Nothing above is edited.
+
+**The fixture is built, and no correction is needed for the symbols.**
+- `gen.sh ONLY=lstr`: in both stores, `.rela.literal.lsr` holds `R_XTENSA_32 .LS0 + 4` and `.rela.literal.lcs` holds
+  `R_XTENSA_32 .LC9 + 4`, each naming the LOCAL NOTYPE label.
+  - `.LS0` is in `.rodata.lsr.str1.1` (AMS, 23 B: `"abcdhello local string"`).
+  - `.LC9` is in `.rodata.lcs.cst4` (AM, entsize 4, 8 B).
+- `lsr` is 11 B and `lcs` 10 B in both images. The maps and json are LF-normalized, as the committed stores are.
+
+**Two construction changes, for the reasons given:**
+- **K2 is its own run, with only `lcs` grown.** Sharing K-base's run would have made K2's label red by K-base's line.
+  Now K2 reads identically under both comparators: green, as registered.
+- **`.LC9`'s second word is `0x00345678`.** It holds a zero byte, so P41 (any merge accepted as a string) reads an
+  equal "string" and turns K2 red by reaching LINK-ONLY, not by a different refusal message.
+
+**A FINDING: an object-layer blind spot, older than 1k and NOT widened here.**
+- `compare_units` compares units only, and a merged-string section is never one. A function that reads a string through
+  a LOCAL label is named `local:<label>+N` (by label, not content).
+- So a change in that string leaves its signature, and its verdict, SAME. Only LINK-ONLY's (b) can see it, and only
+  when the function is also a walk candidate. Same-size, it reads a false NO CHANGE.
+- **The exposure in 6a, measured:** `diag_lstr_exposure.py` `31eaa86633ba` -> `run/diag-lstr-exposure.out`
+  `104d2d7e3fb5`.
+  - In every differing object of P-REDO (Bw) and P-FLIP (OFF and ON), string references by section symbol (named by
+    content) number 890 / 172 for P-REDO; 835 / 59 / 443 / 178 for OFF; and 896 / 60 / 535 / 179 for ON.
+  - **Local-label references: 0 in every one.**
+  - Only prebuilt framework objects such as mdns use them, and those are unchanged objects in 6a's pairs.
+- **So it is named and filed, not fixed:** a fifth case, **K5 (the limit, filed)**, as R13 was.
+  - **Construction:** B's object has a byte inside `.LS0+4`'s string changed and resealed, with NO grow.
+  - **Expected, the same under both comparators:**
+    - `inputs: 2 loaded, 1 differ` / `  differs: src/lsr.S.o` / `functions whose address moved: 0` /
+      `verdict: NO CHANGE…`;
+    - (W, U) = (0, 3).
+  - No plant turns it red. A future change that names local-label strings by content would move it, and that move is
+    the point.
+  - The fix, if wanted, is its own amendment, since it changes signatures.
+
+**The cases, finally:**
+- K-base, K1, K4: `lsr` grown, (W, U) = (1, 2).
+- K2: `lcs` grown, (1, 2).
+- K5: no grow, (0, 3).
+- The selftest totals 69.
+- **Red first predicted:** K-base, K1 and K4, which is 3 of 69. K2 and K5 are green.
+
+### The cases filed, and one slip of mine (by 04:39:26Z, before red first)
+
+- **The orchestrator accepted Correction 1 (`323c8f57190e`), with K5 as a NAMED limit.**
+  - The fix is filed, AFTER v20, as its own amendment in two parts: (1) a guard that runs (the comparator prints each
+    differing object's count of local-label string references); (2) the content-naming fix.
+  - It is on `weatherscope/after-v20.md`, citing `diag-lstr-exposure.out` `104d2d7e3fb5`.
+- **The five cases' whole outputs and (W, U)** are filed in the selftest at `E:\weatherscope\wt-1k`,
+  `test/host/image_compare_selftest.py` `e50c4e01f234`, with gen.sh `a89a7dae074e`.
+- **The slip.** My first edit of that file in the new worktree was refused, because the file had not been read there,
+  and I ran the selftest anyway.
+  - That run (`run/1k-NOEDIT-run.out` `4da2207a800b`: 64 cases, 0 failed, identical to main's) is the UNMODIFIED
+    selftest. It is NOT red first.
+  - It is kept and renamed so it cannot be read as one.
+  - The edits were then applied; `LSTR_CASES` is present.
+
+### Red first, green, and the plants declared (by 04:40:59Z, before the plant run)
+
+- **Red first (04:39:45Z):** `run/1k-redfirst.out` `000d54cf230f`, selftest `e50c4e01f234` against main's comparator
+  (`3788f2d011bf`). The result was `69 cases, 3 failed`, exactly K-base, K1 and K4, each with "the local .LS0 is not in
+  one unit of src/lsr.S.o". K2 and K5 were green.
+- **Green (04:40:26Z):** `run/1k-green.out` `c6249fb21cb8`, comparator `80b07c0ed901`: `69 cases, 0 failed`, exit 0,
+  empty stderr, on its first run.
+- **The plants:** driver `test/host/sabotage_image_compare.py` `cfd0c521a9c5`.
+  - `--anchors`: 42 plants, 42 anchors, each present once. The declarations cover 42 x 69 with no refusal.
+  - P40 (a differing local merged string accepted) is red for K1.
+  - P41 (any merged section read as a string) is red for K2.
+  - P42 (the label's addend ignored) is red for K4.
+  - P1-P39 are red for none of the 5 new cases, derived case by case.
+  - P40-P42 are red for none of the 64 older cases. Their path is reached only by a local label into a merged
+    section, which every older case's comparator refused, and no older case reads that refusal.
+- **Predicted: ALL AS DECLARED.** Any plant OFF is OUTSIDE and goes to the orchestrator.

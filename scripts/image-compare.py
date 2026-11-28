@@ -1287,9 +1287,9 @@ def collect_sites(side, loc, ent):
     return seen
 
 
-def resolve_data(side, obj, iid, kind, nm):
-    """One named target, on one side -> ('code' | 'writable', None), ('outside', address), or ('ro', (iid, obj, sec)).
-    Refusal when it cannot be placed."""
+def resolve_data(side, obj, iid, kind, nm, add=0):
+    """One named target, on one side -> ('code' | 'writable', None), ('outside', address), ('ro', (iid, obj, sec)), or
+    (1k) ('str', bytes) for a local label into a merged-string section. Refusal when it cannot be placed."""
     if kind == "unit":
         if nm not in obj.units:
             raise Refusal("no unit %s in %s" % (nm, iid))
@@ -1297,6 +1297,19 @@ def resolve_data(side, obj, iid, kind, nm):
     elif kind == "local":
         hits = [s for s in obj.syms if s.name == nm and s["st_info"]["bind"] == "STB_LOCAL"
                 and s["st_info"]["type"] not in ("STT_SECTION", "STT_FILE")]
+        if len(hits) == 1 and isinstance(hits[0]["st_shndx"], int) and hits[0]["st_shndx"] not in obj.sec_ident:
+            s = obj.secs[hits[0]["st_shndx"]]
+            # 1k (section 27): a local label into a merged-STRING section (never a unit) names the string at label + addend,
+            # compared by content. A merged pool that is not strings, and every other non-unit section, still refuse.
+            if (s["sh_flags"] & SHF_MERGE) and (s["sh_flags"] & SHF_STRINGS):
+                data = s.data()
+                at = hits[0]["st_value"] + add
+                if not 0 <= at < len(data):
+                    raise Refusal("a string offset outside its section")
+                end = data.find(b"\0", at)
+                if end < 0:
+                    raise Refusal("an unterminated string")
+                return ("str", data[at:end])
         if len(hits) != 1 or not isinstance(hits[0]["st_shndx"], int) or hits[0]["st_shndx"] not in obj.sec_ident:
             raise Refusal("the local %s is not in one unit of %s" % (nm, iid))
         loc = (iid, obj, hits[0]["st_shndx"])
@@ -1348,12 +1361,16 @@ def rodata_read(A, B, la, lb, sig, dm):
             if not m:
                 continue  # content names (str:, cst:, lit:0x, span:) are in the signature already; self is the function
             try:
-                ra = resolve_data(A, oa, ia, m.group(1), m.group(2))
-                rb = resolve_data(B, ob, ib, m.group(1), m.group(2))
+                ra = resolve_data(A, oa, ia, m.group(1), m.group(2), int(m.group(3)))
+                rb = resolve_data(B, ob, ib, m.group(1), m.group(2), int(m.group(3)))
             except Refusal as e:
                 return n, differ, str(e)
             if ra[0] != rb[0]:
                 return n, differ, "%s resolves differently in A and B" % m.group(2)
+            if ra[0] == "str":  # 1k: a local label's merged string, compared by content; equal is not counted
+                if ra[1] != rb[1]:   # differing bytes are never equal: the read-only datum differs
+                    differ.append("%s [%s]" % (m.group(2), ia))
+                continue
             if ra[0] == "outside" and ra[1] != rb[1]:
                 return n, differ, "%s lies outside the image at different addresses" % m.group(2)
             if ra[0] != "ro":

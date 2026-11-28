@@ -22,6 +22,7 @@ Each phrase in RETIRED was a public privacy statement found false, and replaced:
   - "which for the radar includes the area it asked about": the log keeps exactly what each request asked for, a
     detail card's and a photo's included;
   - "activating a device still logs": the activation record is kept until the device next activates, not only logged.
+  - "asks us for that aircraft's photo": a detail card's photo is of the aircraft's type (the owner, 2026-11-26).
   - "we keep that until the Blipscope next activates": the activation record no longer keeps the country and network
     for any activation after the change (the owner, 2026-11-26: "activation: stop storing").
   - "Cloudflare reports for that address", "A copy also sits in the request log": activating no longer records the
@@ -76,6 +77,7 @@ RETIRED = (
     "when you tap an aircraft, we're sent",
     "which for the radar includes the area it asked about",
     "activating a device still logs",
+    "asks us for that aircraft's photo",
     "we keep that until the blipscope next activates",
     "cloudflare reports for that address",
     "a copy also sits in the request log",

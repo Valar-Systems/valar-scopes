@@ -17,9 +17,18 @@ workers_dev = false
 # The nested quotes are required: the value is substituted into the bundle verbatim, as a JS string literal.
 define = { BUILD_COMMIT = "\"UNSTAMPED\"" }
 
-# MM3's measured worst case (Atlanta at r 222) is 1,453 ms of CPU; 10x that, inside the 30,000 ms cap (A2.37, A2.40).
+# cpu_ms is 68000 in ALL THREE limits blocks (S3, which rides D4; the owner's ruling to raise it with D4, 2026-11-25). The basis,
+# both labels carried, never one without the other:
+#   - the registered verdict: "A3' BLIND (the two-clock control failed 12 of 13): C NOT CONCLUDED";
+#   - the labelled reading, as read and NOT the registered verdict: the INVOCATION's cpuTimeMs on staging, max 22,655 ms (KJFK at
+#     r 222, the 137-mile shape), an upper bound on the build's own CPU. 3 x 22,655 = 67,965 -> 68,000.
+# The previous 14,530 (10 x MM3's 1,453 ms at Atlanta, r 222) predates the dense builder. The firmware caps the map at 100 miles
+# (r <= 162), where 22 measured places peak at 11,365 ms; the margin covers the heavier r 222 shape the server still accepts
+# (MAX_R_KM 222). A limit costs nothing by itself: only CPU used is billed. The owner asked that every build past 14,530 ms be
+# counted, so that the insurance is seen when it is used; that count is its own change.
+# The three blocks must hold the same value, since staging measures what ships (test/basemap-limits.test.ts).
 [limits]
-cpu_ms = 14530
+cpu_ms = 68000
 
 [[r2_buckets]]
 binding = "STORE"
@@ -36,7 +45,7 @@ workers_dev = false
 BUILD_COMMIT = "\"UNSTAMPED\""
 
 [env.staging.limits]
-cpu_ms = 14530
+cpu_ms = 68000
 
 # Workers Logs, STAGING ONLY (docs/basemap-build-reads.md): the builder's one line per build (BB1-BB3) is read from
 # here. Without it the builder had no events at all (0 over MM4's 15 builds). Production is unchanged.
@@ -62,7 +71,7 @@ workers_dev = false
 BUILD_COMMIT = "\"UNSTAMPED\""
 
 [env.production.limits]
-cpu_ms = 14530
+cpu_ms = 68000
 
 # Workers Logs, PRODUCTION: written and switched OFF (the owner, 2026-11-18: D4 logs = A). Switch-on, his word only: true.
 [env.production.observability]
