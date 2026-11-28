@@ -1,0 +1,7 @@
+# S2b's built-in map (s2b_rerun_registration.amend3.txt ec898b33b31f; the owner, 2026-11-18 23:25Z: "S2b: built-in").
+# map-server's two packages for EXACTLY the queries this image sends (b1/cfq/s2bq/harness.cpp 8e52415c9484 = CA1),
+# builder H5 d8089010fd27, store 33d6dc41c749 (PROVENANCE.txt beside them). One line each: point, variant, sha256,
+# length. The files come from the UNTRACKED directory named by FRAME_BENCH_PKG_DIR, as <point>-<variant>.bmpk. No
+# coordinate is written here; FT-CTR checks each centre sits at 2 dp, and the image's B-CENTRE that it is the scene's home.
+KSFO S2B-s2b d94687ff5012e27e531f81a868cbf197b84ff00f677ce9537d522eaba70e98e9 211403
+LAX S2B-s2b a1813ea0c239b6494d507a3dc47a7890b6119a5ed8e4a010749397184f420b82 211389

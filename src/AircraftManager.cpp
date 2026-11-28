@@ -1,4 +1,9 @@
 #include "AircraftManager.h"
+// THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#include "FrameBench.h"   // the frame-time bench, C1 (docs/frame-time-bench.md)
+#endif
+// THE FRAME BENCH END
 #include "RadarProjection.h"   // ProjectAt's rule, shared with the weather layer
 #include "AirportBoxes.h"      // an airport's mark and code: the one rule the map's names avoid (CB8)
 #include "DrawHelpers.h"       // DrawRadarSweepBeam: today's beam over the weather sweep (WD6)
@@ -46,17 +51,37 @@ constexpr uint8_t kMapWhyUnread = 0xFF;
 #ifdef MAP_BENCH
 // The map's bench image (docs/blipscope-map-client-steps.md, "The mapbench env"). The two packages are built in
 // (board_build.embed_files); nothing is fetched. Every line it prints is counts: no place name, anchor or coordinate.
+#if !defined(FRAME_BENCH_FT) && !defined(FRAME_BENCH_S2B)   // FT and S2b embed their pinned packages instead
 extern const uint8_t kMapBenchBend[] asm("_binary_test_fixtures_wx_basemap_bend_bmpk_start");
 extern const uint8_t kMapBenchBendEnd[] asm("_binary_test_fixtures_wx_basemap_bend_bmpk_end");
 extern const uint8_t kMapBenchKsfo[] asm("_binary_test_fixtures_wx_basemap_ksfo_bmpk_start");
 extern const uint8_t kMapBenchKsfoEnd[] asm("_binary_test_fixtures_wx_basemap_ksfo_bmpk_end");
+#endif
 
 // One built-in package into PSRAM, as step A's landing buffer would hold a fetched one, through the gate
 // (maplayer::Load), and accepted: the package, its length and a new sequence, as ConsumeBasemap's Accepted does.
 void AircraftManager::MapBenchAccept(int which)
 {
+#if !defined(FRAME_BENCH_FT) && !defined(FRAME_BENCH_S2B)
     const uint8_t* s = which == 1 ? kMapBenchKsfo : kMapBenchBend;
     const size_t len = (size_t)((which == 1 ? kMapBenchKsfoEnd : kMapBenchBendEnd) - s);
+#endif
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#if defined(FRAME_BENCH_FT)
+    const uint8_t* s = framebench::FtPkgStart(which);   // FT: the scene's pinned package, by index (FrameBenchFt.h)
+    const size_t len = framebench::FtPkgLen(which);
+    if (s == nullptr || len == 0) {
+        Serial.printf("[frame-bench] ft package %d: not in the row's table\n", which);
+        return;
+    }
+#elif defined(FRAME_BENCH_S2B)
+    const uint8_t* s = framebench::S2bPkgStart(which);   // S2b: the scene's built-in package (FrameBenchS2b.h)
+    const size_t len = framebench::S2bPkgLen(which);
+    if (s == nullptr || len == 0) return;   // no package for this scene (B-NONE): no map, as registered
+#endif
+#endif
+    // THE FRAME BENCH END
     if (mapLanding == nullptr || mapLandingCap < len) {
         if (mapLanding != nullptr) heap_caps_free(mapLanding);
         mapLanding = (uint8_t*)heap_caps_malloc(len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -73,6 +98,18 @@ void AircraftManager::MapBenchAccept(int which)
         Serial.printf("[map-bench] package %d refused by the gate (status %d)\n", which, (int)v.why);
         return;
     }
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#if defined(FRAME_BENCH_S2B)
+    // B-CENTRE (amend3 D7): the package's own centre is the scene's 2-dp home, exactly, in micro-degrees. Any other
+    // centre would misplace the map under the traffic, so it is refused (no map) and said; never a coordinate.
+    if (lround(lat * 1e6) != (long)pk.lat0Micro || lround(lon * 1e6) != (long)pk.lon0Micro) {
+        Serial.printf("[s2b-map] package %d REFUSED: its centre is not the scene's home\n", which);
+        return;
+    }
+#endif
+#endif
+    // THE FRAME BENCH END
     mapPkg = pk;
     mapHeldLen = len;
     ++mapPkgSeq;
@@ -84,6 +121,13 @@ void AircraftManager::MapBenchAccept(int which)
 // config-change path, on this loop task); then done. Each line says the state the NEXT interval runs in.
 void AircraftManager::MapBenchTick()
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#if defined(FRAME_BENCH_FT) || defined(FRAME_BENCH_S2B)
+    return;   // FT and S2b: the frame bench's scenes drive the package and the weather; MAP_BENCH's phases stay off
+#endif
+#endif
+    // THE FRAME BENCH END
     if (mapBench.phase == 0 || mapBench.phase == 3 || mapBench.phase == 4) {
         const maplayer::BuildInfo& bi = mapDraw.info;   // the last rebuild's passes (CF5): one zoom step per tick
         Serial.printf("[map-bench] passes s1=%lu water=%lu rivers=%lu roads=%lu colour=%lu total=%lu\n",
@@ -929,6 +973,17 @@ bool enqueueEnrich(QueueHandle_t queue, EnrichRequest* req)
 
 void AircraftManager::Initialise()
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#if defined(FRAME_BENCH_S2B)
+    {   // S2b's customer defaults (RP5's item 2): the KEEP-CURRENT members' initializers, before any parse can change them
+        const bool keepNow[framebench::kNumKeep] = {displayInfoText, displayTriangles, displayAirports, displayTrails,
+                                                    displayAltColor, displayHighlight};
+        framebench::SnapshotKeep(keepNow);
+    }
+#endif
+#endif
+    // THE FRAME BENCH END
     // get centre point + radius
     const String latStr = configServer.GetStoredString("latitude");
     const String lonStr = configServer.GetStoredString("longitude");
@@ -939,16 +994,28 @@ void AircraftManager::Initialise()
     // lands here with both empty, and the radar has nothing to centre on.
     hasLocation = latStr.length() > 0 && lonStr.length() > 0;
     // THE MAP BENCH BEGIN
-#ifdef MAP_BENCH
+#if defined(MAP_BENCH) && !defined(FRAME_BENCH_S2B)   // S2b keeps the recording's own home (amend3 D7, D9)
     // The bench's home is the held package's centre, so the radar, the weather and the map agree. Set here, before the
     // radius is computed from the latitude below; nothing prints it.
     if (mapBench.which < 0) {
         mapBench.which = 0;
+#if !defined(FRAME_BENCH_FT)
         Serial.println("[map-bench] the map's bench image: Bend, then KSFO, built in; nothing fetched");
+#endif
     }
     {
+#if !defined(FRAME_BENCH_FT)
         const uint8_t* s = mapBench.which == 1 ? kMapBenchKsfo : kMapBenchBend;
         const size_t len = (size_t)((mapBench.which == 1 ? kMapBenchKsfoEnd : kMapBenchBendEnd) - s);
+#endif
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#if defined(FRAME_BENCH_FT)
+        const uint8_t* s = framebench::FtPkgStart(mapBench.which);   // FT: the scene's pinned package (FrameBenchFt.h)
+        const size_t len = framebench::FtPkgLen(mapBench.which);
+#endif
+#endif
+        // THE FRAME BENCH END
         bmpk::Package pk;
         if (bmpk::Validate(s, len, &pk) == bmpk::Status::kOk) {
             lat = pk.lat0Micro / 1e6;
@@ -2300,6 +2367,229 @@ void AircraftManager::RecordSweepParts(uint32_t rasteriseUs, uint32_t blendUs, u
 
 void AircraftManager::RecordFrameUs(uint32_t frameUs)
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    {
+        // The frame bench's recorder and scene driver, on the loop task (docs/frame-time-bench.md, C1).
+        framebench::State& fb = framebench::S();
+        static bool announced = false;
+        if (!announced) {
+            announced = true;
+#if defined(FRAME_BENCH_S2B)
+            // S2b: RP5's announce line (the reader's BOOT mark), the push task named after it; no table (no C1 scene)
+            Serial.printf("[frame-bench] the frame bench: %d scenes, settle %lu s, measure %lu s; S2b, push task %s\n",
+                          framebench::kNumScenes, (unsigned long)(framebench::SETTLE_MS / 1000),
+                          (unsigned long)(framebench::MEASURE_MS / 1000),
+#if defined(BLIPSCOPE_PUSH_TASK)
+                          "on, presents counted");
+#else
+                          "off");
+#endif
+#if defined(MAP_BENCH)
+            // (c), amend3 item 4: the map built in, named as such, with the pins' sha256 prefixes (never a coordinate)
+            Serial.printf("[s2b-map] map built in, download not measured: %s %s, %s %s\n", framebench::kS2bPkgName[0],
+                          framebench::kS2bPkgSha12[0], framebench::kS2bPkgName[1], framebench::kS2bPkgSha12[1]);
+#endif
+        }
+#else
+            Serial.printf("[frame-bench] the frame bench C1: %d scenes, settle %lu s, measure %lu s, push task %s\n",
+                          framebench::kNumScenes, (unsigned long)(framebench::SETTLE_MS / 1000),
+                          (unsigned long)(framebench::MEASURE_MS / 1000),
+#if defined(BLIPSCOPE_PUSH_TASK)
+                          "on, presents counted");   // THE PACKAGE's M3-2: this image prints a presents line per scene
+#else
+                          "off");
+#endif
+            framebench::PrintTable();
+        }
+#endif
+        uint8_t mapDrew = 0;   // FT's Addition 2, per frame: step C's own mapFrameDrawn (the composite copied this frame)
+#ifdef BLIPSCOPE_MAP_FETCH
+        mapDrew = mapFrameDrawn ? 32 : 0;
+#endif
+        const uint8_t stateFlags = (uint8_t)((wxShowing == wxpolicy::Show::Crop ? 4 : 0) | (MapEnabled() ? 8 : 0) |
+                                             (nightNow ? 16 : 0) | mapDrew);
+        const uint8_t mapTag = framebench::TakeMapRebuilt();   // S2b: bit value 64 on the frame a map rebuild drew
+        framebench::Record(frameUs, trackedAircraft.size(), (uint8_t)(stateFlags | mapTag));
+        const uint32_t nowMs = millis();
+#if defined(FRAME_BENCH_S2B)
+        // S2b: RP5's item 2 record, after a scene's Initialise(): what this scene draws with (counts and booleans
+        // only), RP5's fields in RP5's order, then v20's map (MapEnabled(): the cloud scenes) appended
+        auto drawingLine = [&](int k) {
+            unsigned long fields = 0;
+            for (size_t i = 0; i < infoFieldEnabled.size() && i < 32; ++i)
+                if (infoFieldEnabled[i]) fields |= 1UL << i;
+#ifdef FEATURE_CLOUD_FEED
+            const int wx = wxLayerEnabled ? 1 : 0, look = (int)wxLook, lb = lbEnabled ? 1 : 0;
+#else
+            const int wx = -1, look = -1, lb = -1;
+#endif
+            Serial.printf("[frame-bench] drawing S%d: infotext=%d triangle=%d airports=%d apmin=%d trail=%d altcolor=%d "
+                          "highlight=%d scanline=%d fade=%d wx=%d look=%d mil=%d heli=%d spc=%d milvis=%d emgvis=%d "
+                          "visnight=%d nightclock=%d radarup=%d follow=%d followtrack=%d lookup=%d logbook=%d lb=%d "
+                          "autodim=%d bright=%u mqtt=%d ntfy=%d milalert=%d emgalert=%d lookalert=%d tones=%d kiosk=%d "
+                          "watch=%u fields=%lx meta=%d unit=%s zoom=%d/%d map=%d\n",
+                          k, displayInfoText, displayTriangles, displayAirports, (int)airportsMin, displayTrails,
+                          displayAltColor, displayHighlight, displaySweep, displayFade, wx, look, showMilitary,
+                          showHelicopters, showSpecial, (int)milVisual, (int)emgVisual, visualNightOverride,
+                          nightClockEnabled, radarUpDeg, followTarget.isEmpty() ? 0 : 1, followDrawTrack, showOverhead,
+                          logbookEnabled, lb, autoDim, (unsigned)configuredBrightness, mqttEnabled,
+                          ntfyTopic.isEmpty() ? 0 : 1, alertMilitary, alertEmergency, alertOverhead, tonesEnabled,
+                          kioskOn, (unsigned)watchlist.size(), fields, metadataNeeded, rangeUnit.c_str(), zoomIdx + 1,
+                          zoomLadder.n, MapEnabled() ? 1 : 0);
+        };
+        auto applyScene = [&](int k) {
+#if defined(MAP_BENCH)
+            mapBench.which = framebench::S2bPkgOf(k);   // amend3: this scene's built-in package, or -1 (none, B-NONE)
+#endif
+            Initialise();
+            // (Z) and (a)+: a REPLAY or LIVE-APT scene below the shipping radius zooms the default ladder to its rung,
+            // as a swipe does: the view culls (ZoomCulled) and the fetch keeps the shipping query (RadarZoom.h)
+            const uint8_t vr = framebench::ViewRung(k);
+            for (int i = 0; vr > 0 && i < zoomLadder.n; ++i)
+                if (fabsf(zoomLadder.step[i] - (float)vr) < radarzoom::SAME_STEP_EPS) {
+                    ApplyZoom(i, radarzoom::Edge::None, "bench");
+                    break;
+                }
+            drawingLine(k);
+        };
+        auto printStart = [&](int k) {
+            Serial.printf("[frame-bench] scene S%d %s home=%s level=%u rung=%umi settle\n", k,
+                          framebench::kKindName[framebench::kScenes[k].kind], framebench::HomeName(k),
+                          (unsigned)framebench::kScenes[k].level, (unsigned)framebench::kScenes[k].rungMi);
+        };
+#else
+        auto applyScene = [&](int k) {
+#if defined(FRAME_BENCH_FT)
+            // FT: the scene's package and weather, and its home -- the package's own centre, by bmpk's own reading
+            // and the map bench's conversion -- before Initialise reads the bench's answers (Override).
+            const framebench::Scene& sc = framebench::kScenes[k];
+            mapBench.which = sc.pkg;
+            mapBench.wxOff = sc.kind == framebench::FT_MAP;
+            {
+                bmpk::Package hp;
+                const uint8_t* hs = framebench::FtPkgStart(sc.pkg);
+                if (hs != nullptr && bmpk::Validate(hs, framebench::FtPkgLen(sc.pkg), &hp) == bmpk::Status::kOk) {
+                    framebench::SetHome(hp.lat0Micro / 1e6, hp.lon0Micro / 1e6);
+                    framebench::PrintHomeTable(k);   // TBL-DEV at this scene's home: a CRC, never a coordinate
+                }
+            }
+            fb.ftPart = 0;
+            fb.ftForced = 0;
+            fb.ftSteadyRebuilds = 0;
+            fb.ftForcings = 0;
+#endif
+            fb.noting = true;
+            Initialise();
+            fb.noting = false;
+            framebench::PrintNoted(k);
+#if defined(FRAME_BENCH_FT)
+            MapBenchAccept(mapBench.which);   // installed whatever the key did: a graded pair shares its home and rung
+#endif
+        };
+        auto printStart = [&](int k) {
+#if defined(FRAME_BENCH_FT)
+            const framebench::Scene& sc = framebench::kScenes[k];
+            Serial.printf("[frame-bench] scene S%d %s pkg=%s-%s %s role=%s level=%d rung=%dmi settle\n", k,
+                          framebench::kKindName[sc.kind], framebench::kFtPkgs[sc.pkg].point,
+                          framebench::kFtPkgs[sc.pkg].variant, framebench::kFtPkgs[sc.pkg].sha12,
+                          framebench::kRoleName[sc.role], framebench::kLevel, framebench::RungMi(k));
+#else
+            Serial.printf("[frame-bench] scene S%d %s home=Bend level=%d rung=%dmi settle\n", k,
+                          framebench::kKindName[framebench::kScenes[k].kind], framebench::kLevel,
+                          framebench::kRungMi);
+#endif
+        };
+#endif
+        auto advance = [&](uint32_t atMs) {
+            framebench::EndMeasure();
+#if defined(FRAME_BENCH_S2B)
+            {   // S2b: RP5's item 2 (a): enrichment over the scene, and the tracked contacts it has filled (counts only)
+                unsigned withType = 0, withRoute = 0;
+                for (const auto& [icao, t] : trackedAircraft) {
+                    withType += t.typeCode.isEmpty() ? 0 : 1;
+                    withRoute += t.routeOrigin.isEmpty() ? 0 : 1;
+                }
+                Serial.printf("[frame-bench] enrich S%d: submits %lu tracked %u type %u route %u\n", fb.scene,
+                              (unsigned long)fb.submits, (unsigned)trackedAircraft.size(), withType, withRoute);
+            }
+#endif
+            const int next = fb.scene + 1;
+            if (next < framebench::kNumScenes) {
+                fb.scene = next;
+                framebench::PrepareScene(next);
+                fb.phaseStartMs = atMs;
+                printStart(next);
+                applyScene(next);
+            } else {
+                fb.done = true;
+                Serial.println("[frame-bench] run done; the board's own settings again");
+                Initialise();
+            }
+        };
+        if (!fb.done) {
+            if (fb.scene < 0) {
+                if (nowMs >= framebench::START_AFTER_MS && framebench::Allocate()) {
+                    framebench::SelfTime();
+#if defined(FRAME_BENCH_S2B)
+                    framebench::SelfTimeOverride();   // S2b: RP5's override cost, beside FB-REC's pinned SelfTime()
+#endif
+                    fb.scene = 0;
+                    framebench::PrepareScene(0);
+                    fb.measuring = false;
+                    fb.phaseStartMs = nowMs;
+                    printStart(0);
+                    applyScene(0);
+                }
+#if defined(FRAME_BENCH_FT)
+            } else if (fb.ftPart == 2) {
+                // FT's forced part: kFtForced re-accepts of the scene's own package, kFtForceGapMs apart, each making
+                // the next shown frame rebuild it (++mapPkgSeq); the plant scene's are planted. The steady dump waits
+                // for it (EndMeasure), so nothing but the rebuild records prints over a timed rebuild.
+                if (fb.ftForcings < framebench::kFtForced && (int32_t)(nowMs - fb.ftNextForceMs) >= 0) {
+                    if (framebench::kScenes[fb.scene].role == framebench::PLANT) mapDraw.benchPlant = true;
+                    MapBenchAccept(mapBench.which);
+                    fb.ftForcings++;
+                    fb.ftNextForceMs = nowMs + framebench::kFtForceGapMs;
+                } else if (fb.ftForcings >= framebench::kFtForced && (int32_t)(nowMs - fb.ftNextForceMs) >= 0) {
+                    Serial.printf("[frame-bench] ft S%d forced %u of %u recorded; steady rebuilds %u\n", fb.scene,
+                                  (unsigned)fb.ftForced, (unsigned)framebench::kFtForced,
+                                  (unsigned)fb.ftSteadyRebuilds);
+                    fb.ftPart = 0;
+                    advance(nowMs);
+                }
+#endif
+            } else if (!fb.measuring) {
+                if (nowMs - fb.phaseStartMs >= framebench::SettleMs(fb.scene) && fb.dumpScene < 0) {
+                    fb.measuring = true;
+                    fb.phaseStartMs = nowMs;
+                    fb.n = 0;
+                    fb.overflowFrames = 0;
+                    Serial.printf("[frame-bench] scene S%d measure\n", fb.scene);
+#if defined(FRAME_BENCH_FT)
+                    fb.ftPart = 1;   // the steady window: its rebuilds are counted (expected 0)
+                    Serial.printf("[frame-bench] ft S%d view home=%.2f,%.2f rLat=%.6f rLon=%.6f askedMm=%lu\n",
+                                  fb.scene, lat, lon, viewRadLat, viewRadLon, (unsigned long)mapReq.rvMm);
+#endif
+                }
+            } else if (nowMs - fb.phaseStartMs >= framebench::MeasureMs(fb.scene)) {
+#if defined(FRAME_BENCH_FT)
+                // the steady window ends: recording stops, and the dump waits for the forced part (EndMeasure)
+                fb.measuring = false;
+                fb.ftPart = 2;
+                fb.ftForcings = 0;
+                fb.ftNextForceMs = nowMs;
+                Serial.printf("[frame-bench] ft S%d steady end; rebuilds %u; the forced part\n", fb.scene,
+                              (unsigned)fb.ftSteadyRebuilds);
+#else
+                advance(nowMs);
+#endif
+            }
+        }
+        framebench::PumpDump();
+    }
+#endif
+    // THE FRAME BENCH END
     // Ring of the last N frames in 0.1 ms units (u16 caps at ~6.5 s -- ample).
     const uint32_t tenths = frameUs / 100;
     const uint16_t capped = (uint16_t)std::min(tenths, (uint32_t)UINT16_MAX);
@@ -3286,6 +3576,23 @@ void AircraftManager::RunFetchTask()
                 res->ok = true;
             else // schema-version mismatch or malformed body: never wipe the picture over it
                 Serial.println("[WARN] Blipscope Cloud: blips schema mismatch; keeping current picture");
+            // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#if !defined(FRAME_BENCH_S2B)
+            // THE (a) HOOK: after the REAL GET's parse, the table's content at the device's UTC second
+            if (res->ok)
+                framebench::OnCloudPoll(doc, res->aircraft, res->dataEpoch,
+                                        [](JsonDocument& d, auto& r, long& e) { return CloudFeed::ParseBlips(d, r, e); });
+#else
+            // S2b's P2: RP5's replay serve after the REAL GET's parse (the recorded body at the scene's elapsed time),
+            // with RP5's arguments: the request's own 2-dp lat/lon, exactly as sent
+            if (res->ok)
+                framebench::OnCloudPollS2b(doc, res->aircraft, res->dataEpoch, wireloc::Center(req->lat).c_str(),
+                                           wireloc::Center(req->lon).c_str(),
+                                           [](JsonDocument& d, auto& r, long& e) { return CloudFeed::ParseBlips(d, r, e); });
+#endif
+#endif
+            // THE FRAME BENCH END
         }
 #endif
         else if (req->local) {
@@ -3565,6 +3872,18 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
 {
     // Only a WHOLE body is a candidate: len == claimed. An over-cap reply arrives with len 0 and claimed > cap,
     // and is passed to the policy at its claimed size, so (b) refuses it for size rather than as an error.
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+#if !defined(FRAME_BENCH_S2B)   // S2b: the weather is live, as shipped (Q-S2b-L); C1's fixed field is never applied
+    // THE WEATHER FIELD: a whole 200's body replaced by the fixed one-cell field; its header (the real frame
+    // time and geometry) kept, so the shipping Validate, OnResponse and rebuild run unchanged
+    if (status == 200 && len > 0 && len == claimed) {
+        len = framebench::WxField(wxLanding, len);
+        claimed = len;
+    }
+#endif
+#endif
+    // THE FRAME BENCH END
     wxcrop::Header h;
     const bool whole = status == 200 && len > 0 && len == claimed;
     const bool valid = whole && wxcrop::Validate(wxLanding, len, &h) == wxcrop::Status::Ok;
@@ -3605,6 +3924,11 @@ void AircraftManager::ConsumeWeather(int status, size_t len, size_t claimed, con
 
 bool AircraftManager::MapEnabled() const
 {
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::MapOff()) return false;   // C1: map OFF, the registered deviation
+#endif
+    // THE FRAME BENCH END
     // Step D (E3): the resolved map-layer setting is a term here, so the map off asks for nothing (ShouldFetch is passed
     // false) and draws nothing (DrawMapBase returns false: today's path, byte for byte).
     // The 480 gate: on a screen that is not the composite's size (blipscope-pro-s3-21) the map asks for nothing.
@@ -3779,6 +4103,11 @@ bool AircraftManager::RebuildWeatherLayer()
     // THE MAP DRAW END
     // B1 reads this: a rebuild is a one-frame spike, barred at 40 ms on the s3-128.
     Serial.printf("[wx] layer rebuilt in %lu ms (look %c)\n", millis() - t0, wxLook == wxs2::Look::A ? 'A' : 'B');
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    framebench::S().rebuilt = true;   // a rebuild frame, counted per arm
+#endif
+    // THE FRAME BENCH END
     return true;
 }
 
@@ -3901,6 +4230,18 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
     in.airports = &AircraftManager::MapAirportBoxes;
     in.ctx = this;
     in.askedMm = mapReq.rvMm;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    // FT's timer plant spins on the CPU cycle counter, a clock independent of esp_timer (micros, which times the laps),
+    // so a lap reading D tests the timer's conversion too. Both derive from the one crystal: a crystal error scales
+    // both and is not seen (named in docs/frame-time-bench.md). The MHz goes into every rebuild record.
+    in.spin = [](uint32_t us) {
+        const uint32_t cycles = us * (uint32_t)getCpuFrequencyMhz();
+        const uint32_t c0 = ESP.getCycleCount();
+        while ((uint32_t)(ESP.getCycleCount() - c0) < cycles) {}
+    };
+#endif
+    // THE FRAME BENCH END
     // THE MAP BENCH BEGIN
 #ifdef MAP_BENCH
     in.clock = []() -> uint32_t { return (uint32_t)micros(); };   // CF5: Build times its passes
@@ -3919,14 +4260,58 @@ bool AircraftManager::DrawMapBase(BandCanvas& canvas, const uint16_t* wx)
     // THE MAP BENCH END
     const bool rebuild = mapcompose::Stale(mapDraw, k);
     const bool wasRefused = mapDraw.refused;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    const bool ftPlant = mapDraw.benchPlant;   // Rebuild consumes it; the record says whether this rebuild was planted
+    const uint32_t ftT0 = micros();            // FT's rebuild row: the µs total around the one Frame() that rebuilds
+#endif
+    // THE FRAME BENCH END
     const unsigned long t0 = millis();
     const uint16_t* b = mapcompose::Frame(mapDraw, &mapPkg, k, wx, mapWxGen, in);
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    const uint32_t ftTotal = micros() - ftT0;
+#endif
+    // THE FRAME BENCH END
     if (mapDraw.refused && !wasRefused) {
         mapAllocFailed = true;   // Q-MW3: one flag; the next config change clears it, and Forget the refusal
         Serial.println("[map] draw: buffers refused");
     } else if (rebuild && mapDraw.attempted) {
         Serial.printf("[map] draw: rebuilt in %lu ms, %d label(s)%s\n", millis() - t0, mapDraw.nPlaced,
                       mapDraw.ready ? "" : ", Build refused the package");
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        framebench::RebuildRec rr;
+        rr.totalUs = ftTotal;
+        rr.ms = millis() - t0;
+        rr.load = mapDraw.lap.load;
+        rr.build = mapDraw.lap.build;
+        rr.names = mapDraw.lap.names;
+        rr.compose = mapDraw.lap.compose;
+        rr.loaded = mapDraw.lap.loaded;
+        rr.composed = mapDraw.lap.composed;
+        rr.ready = mapDraw.ready;
+        rr.plant = ftPlant;
+        const maplayer::BuildInfo& bi = mapDraw.info;
+        rr.usS1 = bi.usS1;
+        rr.usWater = bi.usWater;
+        rr.usRivers = bi.usRivers;
+        rr.usRoads = bi.usRoads;
+        rr.usColour = bi.usColour;
+        rr.usTotal = bi.usTotal;
+        rr.rings = bi.rings;
+        rr.rivers = bi.rivers;
+        rr.primary = bi.primary;
+        rr.secondary = bi.secondary;
+        rr.primaryInView = bi.primaryInView;
+        rr.secondaryInView = bi.secondaryInView;
+        rr.secondaryDrawn = bi.secondaryDrawn;
+        rr.level = bi.level;
+        rr.placed = mapDraw.nPlaced;
+        rr.cpuMhz = getCpuFrequencyMhz();
+        framebench::OnRebuild(rr);
+#endif
+        // THE FRAME BENCH END
     }
     if (b == nullptr) return false;
     // The 480 gate's second guard: wherever the map is on, the screen IS the composite's size, so the copy below
@@ -4675,6 +5060,11 @@ void AircraftManager::DrawRadar(BandCanvas& backbuffer, bool firstPass)
         // view culls nothing, as before zoom). The tap hit-test uses the same
         // predicate, so nothing undrawn can be tapped.
         if (ZoomCulled(x, y)) continue;
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        if (firstPass) framebench::S().drawn++;   // DRAWN (A2): this frame's drawn aircraft
+#endif
+        // THE FRAME BENCH END
 
         // The whole contact -- marker, trail, label -- fades together as its
         // radar return ages, so a dim blip doesn't sit under a bright trail/label.
@@ -11144,6 +11534,14 @@ void AircraftManager::RequestCloudEnrich(const String& icao24, const String& cal
     req->hasTrack = hasTrack;
     if (enqueueEnrich(enrichRequestQueue, req))
         enrichInFlight = true;
+    // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+    if (framebench::IsSceneHex(icao24)) framebench::S().fbSubmits++;   // must stay 0
+#if defined(FRAME_BENCH_S2B)
+    framebench::S().submits++;   // S2b: RP5's item 2 (a), enrichment submits counted per scene
+#endif
+#endif
+    // THE FRAME BENCH END
 }
 
 void AircraftManager::ApplyEnrichment(TrackedAircraft& tracked, const CloudFeed::Enrichment& e,
@@ -12586,6 +12984,11 @@ void AircraftManager::ProcessMetadataLookups()
     for (auto& [icao, tracked] : trackedAircraft) {
         if (tracked.metadataState != TrackedAircraft::MetadataState::NotFetched)
             continue;
+        // THE FRAME BENCH BEGIN
+#ifdef FRAME_BENCH
+        if (framebench::IsSceneHex(icao)) continue;   // the table's hexes never leave the board
+#endif
+        // THE FRAME BENCH END
         if (now < tracked.metadataRetryAfter)
             continue; // still in post-failure cooldown; skip so others get a turn
 
