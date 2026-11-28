@@ -1263,3 +1263,668 @@ Each reading below was against a prediction filed before it, and each output is 
 - **On K0-K4, 0 functions are walked and 8,806 are trusted to the link.** The comparator's strength is the object
   layer.
 - **What closes the rest** is the relink check sized in section 24: (B), about 2 days, recommended after v20.
+
+## 26. Amendment 1j: the converted long call, `--wrap`, and one unit per address (2026-11-26), registered before any code
+
+Weatherscope, 2026-11-26, from 02:27Z (stamps from `date -u`). This is the registration as filed, TEXT ONLY when it was written, with its corrections and readings appended in order; nothing above a correction was edited. Files named `run/...`, `REG-B.md`, `PROBES-6a.md` and `OWNER-Q-6a-cause1.md` are in weatherscope's 6a handoff (`image-compare-6a/`), each kept by its sha.
+
+### The rulings it rests on
+
+- **The orchestrator, (B) for causes 2 and 3:**
+  - the comparator PR, red first, with controls that still FAIL;
+  - "predictions first, then CI and my reads";
+  - P-REDO's re-read of the SAME stores follows the merge.
+- **The orchestrator, accepting it for drafting:**
+  - one added control: a vtable with one relocation re-aimed at a different function, same size and same bytes, still
+    STOP;
+  - the wrap list transcribed from `flags/ld_flags` (`72aebc33dab7`) is accepted as the named weaker form;
+  - "record the list in the store at build" is the named follow-up.
+- **The owner, 02:13Z (relayed), on cause 1: "filler: yes".**
+  - The narrow rule N1-N6 of `OWNER-Q-6a-cause1.md` (`bac094ea7702`) joins this PR, exactly as written and no wider.
+  - Its STOP controls run red first under sabotage, with the positive control, and with n = 7 stated as the limit.
+- **The orchestrator, on the prediction:** causes 1, 2 and 3 all leave STOP. The exact verdict line and check6a's
+  outcome are frozen before any code. Anything else is OUTSIDE.
+- **The evidence behind each cause:**
+  - P-REDO's reading `c5c86e53ce3d` and check `8e0c69df6c32`;
+  - probe 1, run 2, `90f3fb8ec97e`;
+  - the diagnostics `diag-run2.out` `b562394af8eb` and `diag-reg.out` `3efe563c7dc8`; `diag-c3.out` `c8dc71308649`
+    and `diag-c3b.out` `990c32d4d535`; `diag-pred.out` `0f210606353b` and `diag-wrap.out` `210c0c998b8d`;
+  - PROBES-6a.md's appended correction (`b70da0363a21`): cause 3's datum is the vtable, not a string.
+
+### 1. The three changes to `scripts/image-compare.py` (main's blob `41fbed475218`), each no wider than its cause
+
+#### 1j-1 (cause 1): the converted long call, in `fill_image_walk` ONLY
+
+- **Where it applies:** at a long-call site, after the relaxed branch and the kept branch, and before the refusal "a
+  long-call site that is neither relaxed nor kept".
+- **When it accepts:** the site is accepted as CONVERTED only when all of N1-N6 hold:
+  - **N1.** The input is `l32r; callx8` at the site, found as today from the input's ASM_EXPAND relocation, whose
+    T_in comes from that relocation.
+  - **N2.** The `l32r`'s register (its t field) and the `callx8`'s register (its s field) are both a8.
+  - **N3.** The final copy's instruction at the site is exactly the 3 bytes `10 11 20` (`or a1, a1, a1`).
+  - **N4.** The final copy's NEXT instruction starts at the next byte (no gap) and is a `call8`.
+  - **N5.** That `call8`'s target is T_in. This is enforced where every other site's target is enforced: the site goes
+    into `seen`, and 1i'' (`finished_walk_sites`) requires the target to equal the image address of what the input's
+    relocation names. An address equal to T_in's is T_in's exact start, so an alias at that address passes, as N5
+    says.
+  - **N6.** The window is equal: `callx8` -> `call8`.
+- **What it records:** the site as a direct call:
+  - `r += 1`;
+  - the site tuple's relaxed flag set (the flip check pairs it with the other side's form as it does a relaxed call);
+  - `seen` gets `(input offset, the call8's pc, its target)`;
+  - the walk advances 2 input and 2 final instructions.
+- **Not changed:**
+  - `relax_walk`. Its "neither relaxed nor kept" refusal stays, so `WiFiScanClass::scanComplete()`'s LINK-ONLY line
+    does not move.
+  - `nop` and `nop.n` handling, and `or a1, a1, a1` anywhere else.
+
+#### 1j-2 (cause 2): `--ld-flags PATH`, the link's `--wrap` list
+
+- **The option:** `compare --ld-flags PATH`, one file, for both sides.
+- **What it reads:** the tokens `-Wl,--wrap=NAME` and `--wrap=NAME`.
+  - Any other token containing `--wrap` is refused, exit 2: "an ld flags token naming --wrap in a form the comparator
+    does not read".
+  - A missing or unreadable file is refused the same way.
+- **The rule in `symbol_address()`:** a non-local symbol whose `st_shndx` is `SHN_UNDEF` and whose name is on the list
+  is looked up as `__wrap_NAME`. That is ld's rule: "any undefined reference to symbol will be resolved to
+  `__wrap_symbol`".
+  - `__wrap_NAME` must appear in the image's symbol table exactly once, or the comparator refuses as it does now.
+  - The display name becomes `NAME (--wrap: __wrap_NAME)`.
+- **Who gets it:** only `symbol_address` changes, so both of its callers do:
+  - (c) for LINK-ONLY;
+  - 1i'' for finished walks.
+- **`__real_NAME` is NOT modelled.** It is looked up as itself and refuses as today. The wrap fixture shows that
+  refusal. It is a named limit.
+- **The verdict line, with the flag:** it gains, at its end, `; --wrap (ld flags <sha12 of the file>): <the names,
+  sorted, ", ">`.
+- **Without the flag:** the list is empty and this change does nothing.
+- **For Bw/Cw:** the file is the framework's `framework-arduinoespressif32-libs/esp32s3/flags/ld_flags`, `72aebc33dab7`,
+  which holds `-Wl,--wrap=log_printf` and `-Wl,--wrap=longjmp`.
+  - That is a transcription of the link's input, not the link's own record: the store has no link line, and build.log
+    is not verbose.
+  - The follow-up is to record the list in the store at build time. It is not in this PR.
+
+#### 1j-3 (cause 3): one unit per address, in `resolve_data()`'s global-symbol branch
+
+- **Today:** the branch bisects to the LAST map entry starting at or before the symbol's address.
+- **The change:**
+  - take every "kept" map entry whose stated range `[address, address + size)` covers the symbol's address;
+  - keep those that `Side.locate` resolves to a unit;
+  - **exactly one** is that unit;
+  - **none** refuses: "no unit covers NAME at 0x…";
+  - **two or more** refuse: "N units cover NAME at 0x…".
+- **What it fixes:** merged sections (SHF_MERGE) are never units, so their pre-merge map lines can no longer hide the
+  holder.
+- **How "read-only data equal" compares (unchanged, stated as the orchestrator asked):** it compares the unit's
+  signature `(size, masked bytes, named relocations)` on both sides (`sa2[:3] != sb2[:3]`).
+  - The bytes under a relocation are masked.
+  - Each relocation is compared by its NAME: `sym:NAME+addend`, `local:…`, `unit:…`, or `str:`/`cst:` content.
+  - So a vtable's pointers are compared by relocation target name and addend, never by image address.
+
+### 2. Why no other line of a reading can move, and what it means if one does
+
+- **1j-1 acts only where `fill_image_walk` refuses today.** A walk that finishes today never reaches that point.
+- **1j-2 changes the address wanted for an undefined, listed name.**
+  - A site that passes today with such a name would have to call the unwrapped NAME, which a `--wrap` link cannot
+    produce.
+  - Unlisted names are untouched.
+- **1j-3 differs from today only where today's last entry is not the one unit covering the address.** Two units
+  cannot both cover one address in a real link.
+- **So a line that moves outside the predicted set is OUTSIDE** (section 3's table).
+
+### 3. The frozen prediction: the re-read of the SAME stores
+
+**What stays the same as P-REDO:**
+- the stores: `E:\weatherscope\ic-6a\Bw` as A and `Cw` as B;
+- `--allow allow-predo.txt` (`e12d2071ca06`), `--cxxfilt`, and `--reloc-names`;
+- check6a v4 (`7a859a146125`).
+
+**What is new:**
+- the comparator is the one this PR merges, with its blob sha read from main and checked by the driver;
+- `--ld-flags` is the framework `ld_flags`, `72aebc33dab7`.
+
+**How the predictions were made:** both were written by text edits of the reading, with no comparator code changed.
+- `predict_reread.py` (`db4641829d3a`) made the first. It orders the LINK-ONLY block with the filed comparator's own
+  function table.
+- `predict_noflag.py` (`4482180bf5f5`) made the second, from the first.
+- check6a v4 was then run on each predicted file.
+
+| file | sha | what it is |
+|---|---|---|
+| `run/predicted-reread.out` | `7743ff03d92a` | **the re-read WITH `--ld-flags`**, 287 lines, CRLF |
+| `run/predicted-check.out` | `cd1ced796e5b` | check6a v4 on it |
+| `run/predicted-reread-noflag.out` | `09def0743736` | **the re-read WITHOUT `--ld-flags`**: the control that the flag moves exactly one line |
+| `run/predicted-check-noflag.out` | `710008e6effa` | check6a v4 on it |
+
+**What the WITH-flag prediction says, in words.** It is the reading (`c5c86e53ce3d`, 291 lines) with:
+- **7 lines removed:**
+  - cause 1's 4 `UNDECIDED … (FILL): … neither relaxed nor kept` (ParseArray<Aircraft>, the `_Rb_tree` hint, `__heap_select`
+    and `__insertion_sort` on `pair<int, String>`). Their `FILL func` lines are already in the reading, so a walk that
+    now finishes adds no line;
+  - cause 2's `UNDECIDED NetworkManager::hostByName …`;
+  - cause 3's two `UNDECIDED lgfx::v1::LGFX_Sprite::~LGFX_Sprite() …`.
+- **3 lines added**, in the LINK-ONLY block, in the comparator's key order (block positions 9, 12 and 13):
+  - `LINK-ONLY NetworkManager::hostByName(char const*, IPAddress&) [.pio/build/blipscope-s3-128-wxlook/lib1dc/Network/NetworkManager.cpp.o] -- size 358 -> 374; the walk: site 0 flipped, but its reach did not cross the call limit; object code equal; read-only data equal: 0 section(s); call sites checked A/B: 18/18; non-call bytes trusted to the link (store built from M0, inputs hashed)`
+  - twice, for D1 and D2: `LINK-ONLY lgfx::v1::LGFX_Sprite::~LGFX_Sprite() [.pio/build/blipscope-s3-128-wxlook/src/main.cpp.o] -- size 34 -> 42; the walk: site 1 flipped, but its reach did not cross the call limit; object code equal; read-only data equal: 1 section(s); call sites checked A/B: 3/3; non-call bytes trusted to the link (store built from M0, inputs hashed)`
+  - **Where the numbers come from:** the filed comparator's own functions (`diag-pred.out`).
+    - hostByName: (a) equal, (b) 0, 18/18 sites. Its only mismatch is site 17 on each side, `log_printf`
+      (SHN_UNDEF), whose target is `__wrap_log_printf` (`diag-wrap.out`).
+    - `~LGFX_Sprite`: (a) equal, 3/3 sites, no mismatch. The vtable's signature is equal A/B and all 7 of its names
+      resolve to code, so (b) counts exactly the vtable: 1.
+- **The verdict line, exactly:**
+  `verdict: UNDECIDED (22); LINK-ONLY: 29; trusted to the link (store built from M0, inputs hashed): 66 walked (call sites checked, other bytes trusted), 8812 unwalked (all bytes trusted); --wrap (ld flags 72aebc33dab7): log_printf, longjmp`
+  - W/U is unchanged: all 7 functions were already walked.
+  - The comparator's exit is 3, because the 22 property-table UNDECIDED lines remain.
+- **check6a v4: REPORTED (exit 1), 287 lines, 0 STOP.** The 28 REPORTED lines are exactly the reading's own 28:
+  - 22 UNACCOUNTED: the `(FILL)` "the image's property table ends at +0" lines;
+  - 1 form-mismatch: `bmpk::detail::Utf8`;
+  - 3 lib-member: `fmin`, `fmax`, `__fpclassifyd`;
+  - 2 reloc-moved: `UpdateBrightness`, `DrawSweepOverWeather`.
+
+**What the WITHOUT-flag prediction says:** it is the same, except:
+- hostByName's LINK-ONLY line is out, and the reading's own UNDECIDED line is back, before DrawConnect's;
+- the verdict is `UNDECIDED (23); LINK-ONLY: 28` with no `--wrap` statement;
+- check6a reads **STOP (exit 2)** on exactly that one line.
+
+**The verdict table (the driver prints its row):**
+
+| the two re-reads | meaning |
+|---|---|
+| each byte-identical (`cmp`) to its predicted file; each check6a output identical to its predicted check except line 1's path | **as predicted:** causes 1, 2 and 3 are closed. P-REDO reads REPORTED with the 28 lines above |
+| anything else, including a crash, a refusal, one line more or less, one byte different | **OUTSIDE:** stop and print the diff. It goes to the orchestrator, and nothing is re-fitted |
+
+The driver is a new `run_6a_reread.sh`, filed by sha before it runs. It:
+- checks every tool's sha and refuses to overwrite a reading;
+- runs WITH then WITHOUT the flag;
+- runs check6a on each;
+- runs `cmp` on each against its prediction;
+- prints the row. Registered with bgcheck.
+
+### 4. The selftest: new fixtures, cases and plants
+
+#### New fixtures
+
+`gen.sh` gains `ONLY="<cases>"`, which builds only the named stores and removes nothing else. The existing 44 cases'
+stores are NOT regenerated: `git status` after gen must show only the three new store directories and the new `src/`
+files.
+
+- **`conv` (cause 1):** the `fill` sources, linked with `-Wl,--no-relax` on both sides. So `pick`'s 4 long calls to
+  `ext` stay as 6-byte `l32r a8; callx8 a8`, and B (`-Wa,--no-target-align`) differs from A only in fill, as in `fill`.
+- **`wrap` (cause 2):**
+  - `lo_w` calls `hw`. `__wrap_hw` is in `.text.hi_wrap`, placed at 0x40070000 in A (in call range, so relaxed) and
+    0x40090000 in B (out of range, so kept). `__wrap_hw` calls `__real_hw`.
+  - Both links read their flags from `src/wrap_ld_flags` (`-Wl,--wrap=hw`), the same file the cases pass to
+    `--ld-flags`. The link and the check read one file.
+- **`vtab` (cause 3):**
+  - **The object:** in source order, `s1`-`s3` with string literals sized so the merged pool ends 4-aligned; `t1`, `t2`;
+    `rv`, which reads `vtab` (`vtab[i & 1](i)`); `rs`, which reads a string; `ktab` (`const int ktab[2]`); and
+    `vtab = {t1, t2}`.
+  - **The tie:** the map lists the later `.str1.1` sections at `vtab`'s own address with their pre-merge sizes, as the
+    firmware's map does. A throwaway link (`E:\weatherscope\scratch-vt`) showed it: with the pool at 0x58 bytes,
+    `.rodata.s2.str1.1` (0x1e) and `.rodata.s3.str1.1` (0x25) are listed at 0x3f000058, and `.rodata.vtab` (8) is there
+    too.
+  - **If the fixture does not reproduce the tie,** that is found at gen, before any comparator run, and filed as a
+    correction.
+
+**What is filed, and when:** after gen and before any comparator run, this file gains each new case's WHOLE expected
+output (the fixture's own numbers, read with objdump and readelf, not the comparator) and each case's (W, U). The
+(W, U) comes from a counting script written apart from the comparator's loop, as in section 24.
+
+#### The cases (each filed in full before its first run)
+
+| case | construction | new comparator | the current comparator (red first) |
+|---|---|---|---|
+| **C1-base** | `conv` as built | silent FILL (`FILL func … pick`), no UNDECIDED | the same (green) |
+| **C1-CONV** (the positive) | B's site 0 rewritten in the image: `10 11 20` then `call8 ext` | as C1-base | `UNDECIDED pick (FILL): … neither relaxed nor kept` (**red**) |
+| **S1** (the orchestrator's) | `10 11 20` written over a non-site 3-byte instruction of B's `pick` | `UNDECIDED pick (FILL): … a final instruction differs at input +k` | the same (green) |
+| **S2** (the orchestrator's) | at B's site 0: `20 22 20` (`or a2,a2,a2`), and separately `20 12 20` (`or a1,a2,a2`), then `call8 ext`. Two cases | `… neither relaxed nor kept` | the same (green) |
+| **S3** (the orchestrator's) | at B's site 0: `10 11 20` then `call8` to `entry` (a different function) | `UNDECIDED pick (FILL): … B's site 0 calls 0x…; its input names ext, at 0x…` (1i'') | `… neither relaxed nor kept` (**red**: a different line) |
+| **S4** (mine, N6) | `10 11 20` then `call4 ext` | `… neither relaxed nor kept` | the same (green) |
+| **S5** (mine, N4) | `10 11 20` then `f0 20 00` (nop): no call after the `or` | `… neither relaxed nor kept` | the same (green) |
+| **S6** (mine, N2) | BOTH sides' input objects have site 0 re-registered to a9 (`l32r a9; callx8 a9`, identically, resealed), so they still differ only in fill; B's image converted as in C1-CONV. A's kept site still passes, because the kept branch checks no register | `… neither relaxed nor kept` | the same (green) |
+| **W-base** | `wrap`, `--ld-flags src/wrap_ld_flags` | `RELAX lo_w …`; `UNDECIDED __wrap_hw: … __real_hw is in the image's symbol table 0 times` (the limit); `--wrap` on the verdict | `UNDECIDED lo_w: … its input names hw …` (**red**) |
+| **W-noflag** | `wrap`, no flag | byte-identical to the current comparator's output | (green) |
+| **W-LO** (the LINK-ONLY path) | as W-base, with B's `lo_w` grown by 2 | `LINK-ONLY lo_w …` | `UNDECIDED lo_w: … not LINK-ONLY: …` (**red**) |
+| **W1** (the orchestrator's) | as W-base, with B's kept literal re-aimed from `__wrap_hw` to `hw` | `UNDECIDED lo_w: … B's site 0 calls 0x…; its input names hw (--wrap: __wrap_hw), at 0x…` | **red** (see the note below) |
+| **W2** (mine) | as W-base, with a flags file naming `--wrap=other` | `lo_w` as in W-noflag; `--wrap (…): other` on the verdict | **red** (see the note below) |
+| **V-base** | `vtab`, B's `rv` grown by 2 | `LINK-ONLY rv … read-only data equal: 1 section(s); call sites checked A/B: 0/0 …` | `UNDECIDED rv: … 0 inputs match src/vt.c.o .rodata.s3.str1.1` (**red**) |
+| **V1** (the orchestrator's) | as V-base, with B's `vt.c.o` second `vtab` relocation re-aimed from `t2` to `t1` (same size, same bytes; resealed) | `UNDECIDED rv: … it reads read-only data that differs: vtab [src/vt.c.o]`, with the object layer's `vtab` CHANGED line | the "0 inputs match" line (**red**: a different line) |
+| **V2** (the orchestrator's) | as V-base, with one byte of `rs`'s string changed in B's `vt.c.o` (resealed) | `rs` CHANGED at the object layer, never LINK-ONLY | the same (green) |
+| **V3** (mine) | as V-base, with B's map listing `ktab` also at `vtab`'s address | `UNDECIDED rv: … 2 units cover vtab at 0x…` | "0 inputs match" (**red**) |
+| **V4** (mine) | as V-base, with `vtab`'s line removed from B's map | `UNDECIDED rv: … no unit covers vtab at 0x…` | "0 inputs match" (**red**) |
+
+- **The note on W1 and W2 under the current comparator:** a case that passes `--ld-flags` to a comparator without the
+  option reads red as a GRADED refusal ("the comparator takes no ld flags"), never as a harness crash. A crash is an
+  instrument failure, not a red (ruling 2026-11-04).
+- **The red-first set, predicted:** C1-CONV, S3, W-base, W-LO, W1, W2, V-base, V1, V3, V4. That is 10 of the 19 new
+  cases.
+- **Green under both comparators:** the other 9 new cases and all 44 existing ones.
+- **The regression:** the 44 existing cases, T0's two included, read byte-identical under the new comparator, with no
+  flag.
+
+#### The plants (`sabotage_image_compare.py`), each declared in the driver before its run
+
+| plant | the sabotage | red |
+|---|---|---|
+| P28 | `or a1,a1,a1` accepted in place of any instruction | S1 |
+| P29 | any `or` accepted at a site | S2 ×2 |
+| P30 | a converted site is not put in `seen` | S3 |
+| P31 | the window is not checked | S4 |
+| P32 | a call after the `or` is not required | S5 |
+| P33 | the register is not checked | S6 |
+| P34 | NAME or `__wrap_NAME` both accepted | W1 |
+| P35 | the wrap list inferred from the image (every undefined NAME with a `__wrap_NAME`), not read from the file | W2 |
+| P36 | read-only data compared without relocation names (`[:2]`) | V1 (the orchestrator's added control) |
+| P37 | the first covering unit taken | V3 |
+| P38 | a datum no unit covers is skipped | V4 |
+| P39 | a string named without its content | V2 |
+
+- **P1-P27 are each declared over the 19 new cases too.** An example, derived beforehand: P27 (the finished-walk check
+  off) also turns S3 and W1 red.
+- **Each declaration is derived case by case and filed before the run.**
+- **A plant that does not visibly change its case did not apply.** The driver prints the failure count before and
+  after.
+
+### 5. Named limits
+
+- **Cause 1:**
+  - n = 7 sites in 4 functions, one pair, one window (callx8), one register (a8);
+  - the rule is no wider than that;
+  - Espressif's binutils fork is unread.
+- **Cause 2:**
+  - the `--wrap` list is transcribed from the framework file, the weaker form; the follow-up records it in the store at
+    build time;
+  - `__real_` is not modelled and refuses;
+  - only SHN_UNDEF references are wrapped, as ld's rule says. A misreading of that rule would err toward a false
+    STOP, never a false pass.
+- **Cause 3:** the rule trusts the map's stated ranges for units. A unit's range is real; a merged section's is not,
+  and is not used.
+
+### 6. Order
+
+1. This text, by sha, to the orchestrator.
+2. The fixtures (gen, `ONLY="conv wrap vtab"`), with each new case's whole output and (W, U) appended here by sha.
+3. Red first: the new selftest against main's comparator. The red set above, exactly.
+4. The comparator change. Green: 63 / 0. Plants: all as declared.
+5. The PR: docs section 26 is this text. Then the four gates, CI, the orchestrator's reads, and merge by rule.
+6. The re-read of Bw/Cw with the merged comparator, via `run_6a_reread.sh`, graded by section 3's table.
+
+- **W-sep comes first:** T-10 at 09:50Z and the window 10:00-11:15Z pause this work.
+- **No board is touched by any step here.**
+
+### Correction 1 (2026-11-26, appended by 02:40:21Z, the `date -u` read after it, and BEFORE any comparator run): the fixtures, the constructions, the outputs
+
+The orchestrator accepted REG-B as `71952407f6cc`. Nothing above is edited. Each construction change below follows
+from the fixtures as built, and each was found BEFORE any comparator read them.
+
+**The fixtures:**
+- `gen.sh` `297d584be76b` was run with `ONLY="conv wrap vtab"`.
+- `git status`: only the three new store directories, the six new `src/` files and `gen.sh` itself changed. No
+  existing store moved.
+- The tie reproduced in both vtab stores: `vtab at 0x3f000078, .rodata.rs.str1.1, .rodata.s2.str1.1,
+  .rodata.s3.str1.1`.
+- conv's two `fp.c.o` and its `main.c.o` are byte-identical to `fill`'s, so its FILL line is `fill`'s.
+- Facts: `fixture_facts.py` `32a4a4c4cae8` -> `run/fixture-facts.out` `825194e232a2`, from pyelftools and objdump.
+- `.gitattributes` `d90d72a1f38b` pins `src/wrap_ld_flags` (`9108a06ebc91`) to LF: gen.sh `cat`s it into the link.
+
+**The construction changes, and why:**
+- **C1-CONV converts BOTH images' site 0.** With `--no-relax`, every site is kept although in range. Pairing a kept
+  side with a converted one is "site 0 flipped, but its reach did not cross the call limit": a true refusal, and not
+  the case. The real `_Rb_tree` site is converted on one side and relaxed on the other: both are direct calls, so they
+  never flip.
+- **S2, S4 and S5: A carries the good converted form, B the variant.** A plant that admits the variant then reads NO
+  CHANGE outright, rather than tripping the flip check.
+- **S6: both inputs at a9, both images converted.**
+- **S3: A good, B's call aimed at `entry`.**
+- **S1: unchanged.** Only B's `entry` instruction (+0) becomes `10 11 20`.
+- **V2 has no grow.** It is one string byte alone, so it reads identically under both comparators, as the table
+  registered. With `rv` grown, V2 would carry V-base's change and be red under the current comparator.
+- **P27 (the finished-walk check off) is declared red for:** S3, and every wrap case. `__wrap_hw`'s `__real_hw`
+  refusal is a 1i'' mismatch, and so is lo_w's in W-noflag and W2.
+  - It is NOT red for W1, whose `lo_w` mismatch is LINK-ONLY's (c). The P27 example in section 4 is corrected
+    accordingly.
+- **The flags file's sha in the expected verdict is computed from the file's bytes at run time.** A Windows checkout
+  may convert line ends; the flags file is LF-pinned, and the tmp file of W2 is written by the selftest.
+
+**The cases' whole expected outputs, (W, U) and exit codes are filed in `test/host/image_compare_selftest.py`
+`9cbcaa9f33e5`** (the working tree of `E:\weatherscope\wt-1j`, branch `weatherscope/image-compare-1j` from main
+`f14ab5c79771`).
+- **(W, U):** conv cases (1, 2); wrap cases (2, 2); V-base, V1, V3, V4 (1, 8); V2 (0, 9). N comes from the facts: 3,
+  4 and 9.
+- **The lines that carry the new mechanism, exactly:**
+  - **C1-base and C1-CONV:** `inputs: 2 loaded, 1 differ` / `  differs: src/fp.c.o` / `FILL func global pick
+    [src/fp.c.o] -- fill bytes A/B=1/0; width swaps: none; 34 instructions` / `functions whose address moved: 0` /
+    `verdict: NO CHANGE…`. Exit 0.
+  - **S2, S4, S5 and S6:** the same four lines, then `UNDECIDED pick (FILL): size 94 -> 93: a long-call site that is
+    neither relaxed nor kept`. Exit 3.
+  - **S1:** `… a final instruction differs at input +0`. Exit 3.
+  - **S3:** `UNDECIDED pick (FILL): size 94 -> 93: B's site 0 calls 0x40000018; its input names ext, at 0x40000090`.
+    Exit 3.
+  - **W-base:**
+    - `RELAX lo_w: n=1 rA=1 rB=0 narrowed A/B=1/0 widened A/B=0/0 dsize=+4; site 0: call in A, reach +458720; long in
+      B, reach +589792`;
+    - `UNDECIDED __wrap_hw: size 12 -> 16: A's site 0's target cannot be placed: __real_hw is in the image's symbol
+      table 0 times; B's …` (the `__real_` limit);
+    - the verdict `UNDECIDED (1)…; --wrap (ld flags 9108a06ebc91): hw`. Exit 3.
+  - **W-noflag:** the `__wrap_hw` line and `UNDECIDED lo_w: size 12 -> 16: A's site 0 calls 0x40070000; its input
+    names hw, at 0x40000024; B's site 0 calls 0x40090004; its input names hw, at 0x4000002c`. Verdict `UNDECIDED
+    (2)`, no `--wrap`.
+  - **W-LO:** `LINK-ONLY lo_w [src/wr.c.o] -- size 12 -> 18; the walk: the walk ends 2 bytes before the function
+    does; object code equal; read-only data equal: 0 section(s); call sites checked A/B: 1/1; …`.
+  - **W1:** `UNDECIDED lo_w: size 12 -> 16: site 0 flipped, but its reach did not cross the call limit; not LINK-ONLY:
+    B's site 0 calls 0x4000002c; its input names hw (--wrap: __wrap_hw), at 0x40090004`.
+  - **W2:** W-noflag's lines, with `--wrap (ld flags <its sha>): other`.
+  - **V-base:** `LINK-ONLY rv [src/vt.c.o] -- size 24 -> 26; the walk: its size differs and it has no long-call site;
+    object code equal; read-only data equal: 1 section(s); call sites checked A/B: 0/0; …`. Exit 0.
+  - **V1:** `CHANGED data global A+B vtab [src/vt.c.o] -- OUT (named by: rv)` and `UNDECIDED rv: … not LINK-ONLY: it
+    reads read-only data that differs: vtab [src/vt.c.o]`. Exit 3.
+  - **V2:** `CHANGED func global A+B rs [src/vt.c.o] -- OUT`, verdict `OUT OF SCOPE: rs`. Exit 1.
+  - **V3:** `… cannot be compared: 2 units cover vtab at 0x3f000078`. Exit 3.
+  - **V4:** `… cannot be compared: no unit covers vtab at 0x3f000078`. Exit 3.
+
+**Red first, predicted for the selftest above against main's comparator** (`41fbed475218`, unchanged in that
+worktree):
+- **The 63 cases read 10 failed:**
+  - C1-CONV and S3: "neither relaxed nor kept" in place of their lines;
+  - W-base, W-LO, W1 and W2: "the comparator takes no ld flags";
+  - V-base, V1, V3 and V4: "0 inputs match src/vt.c.o .rodata.s3.str1.1".
+- **Every other case is PASS**, the 44 existing ones included.
+- **Exit 1.**
+- **Any other set is OUTSIDE.** It is reported, not re-fitted.
+
+### Correction 2 (2026-11-26, appended by 02:40:57Z, the `date -u` read after it, and before the re-run): the first red-first run crashed in MY harness
+
+- **The run:** `run/1j-redfirst.out` `b2e07ad9b96a` and `.err`, kept. It exited 2 after 51 cases.
+- **The cause:** `grade()` printed a FAIL's exit with `%d`, and the graded refusal for a flag case ("the comparator
+  takes no ld flags") returns no exit. That is a `TypeError` at W-base, an instrument failure (ruling 2026-11-04), not
+  a red.
+- **The fix:** the FAIL line prints the exit with `%s`. No expected line, exit code or case changes. The selftest is
+  now `47240eee27e4` (sha256sum, 02:40:57Z).
+- **What the crashed run showed:** up to the crash it read as predicted. All 42 earlier (non-T0) cases were PASS;
+  C1-CONV and S3 were FAIL; C1-base, S1, S2 ×2, S4, S5 and S6 were PASS. That is not offered as the red-first result:
+  the re-run is the result, graded against Correction 1's prediction unchanged.
+
+### Red first, as read (02:41:29Z): as predicted
+
+- **The run:** `run/1j-redfirst-2.out` `c0acc9320b2f`. The selftest was `47240eee27e4`; the comparator was main's
+  (`606e3c92200f`); stderr was empty.
+- **The result:** `63 cases, 10 failed`, exit 1. The failures were exactly the ten named, each with its predicted
+  reason:
+  - C1-CONV and S3: "neither relaxed nor kept";
+  - W-base, W-LO, W1 and W2: "the comparator takes no ld flags";
+  - V-base, V1, V3 and V4: "0 inputs match src/vt.c.o .rodata.s3.str1.1".
+- **The rest:** all 44 existing cases and the other 9 new ones were PASS.
+
+### Correction 3 (2026-11-26, appended by 02:44:16Z, the `date -u` of the run that follows it, and BEFORE any comparator code): two controls made two-sided, one case added, the plants as they will be coded
+
+Writing the plants against the code that is about to be written showed three things, all before that code existed.
+
+**V3 and V4 now edit BOTH maps.**
+- With only B's map edited, a plant that guesses a holder or skips the datum still reads a STOP: A and B resolve
+  differently, and only the message changes. That is the "fragment" kind of red this file warns about.
+- With both maps edited, those plants read clean, which is a real red.
+- The expected lines are unchanged, because A's resolution refuses first with the same text.
+
+**A new case, W3** ("a --wrap token in a form not read refuses").
+- The registered refusal (exit 2) had no case, so it was a rule nobody had seen reject anything.
+- Construction: the flags file is `-Wl,--wrap,hw` (ld accepts the comma form; the comparator reads only the `=` form),
+  run through `main()`, the CLI's own path.
+- Expected: exactly `image-compare: --ld-flags: an ld flags token naming --wrap in a form the comparator does not
+  read: -Wl,--wrap,hw`, exit 2.
+- It prints no verdict line, so it is exempt from (W, U), like T0.
+
+**The plants, as they will be coded:**
+- **P32** is "N4 and N6 off together". N6 (a call8) implies N4 (a call), so N4 alone has no sabotage that S5 can see.
+- **P34** is "the --wrap redirect not applied". It admits the unwrapped name, which is W1's failure (W1 red), and
+  also turns W-base and W-LO red.
+- **P35** is "the wrap list inferred from the image": W2 red, and also W-noflag.
+- **P39** is now "a --wrap token in an unread form ignored": W3 red.
+- **The string plant is dropped:** V2's plant is the existing **P1** ("strings named by offset"), which is exactly
+  that sabotage.
+- Each plant's full red set over all 64 cases is derived and declared in the driver before its run.
+
+**Red first is re-run once, for the 64-case selftest against main's comparator.**
+- Predicted: `64 cases, 11 failed`. That is the ten above, with the same reasons, plus W3: main's CLI does not know
+  `--ld-flags` and prints its usage, exit 2, so W3's lines differ.
+- Any other set is OUTSIDE.
+
+### Red first (64 cases) and green, as read
+
+- **Red first (02:44:16Z):** `run/1j-redfirst-3.out` `9d327e89fe3d`, selftest `b49cb6ba0138` against main's comparator.
+  `64 cases, 11 failed`, exit 1. That is exactly the eleven predicted, each with its reason; V3 and V4 read the "0
+  inputs match … s3.str1.1" line, and W3 read main's usage text.
+- **The comparator change, first run (02:46:07Z):** CRASHED, exit 2 (`run/1j-green.out` `992921dbf57a`, kept).
+  - I had inserted the flags reader between `Side.__init__` and `Side.locate`, so `locate` became unreachable code
+    inside `read_ld_flags`: an `AttributeError`.
+  - An instrument failure, not a result. The block was moved above `class Side`. No expectation changed.
+- **Green (02:46:49Z):** `run/1j-green-2.out` `4da2207a800b`. Comparator `3788f2d011bf`, selftest `b49cb6ba0138`.
+  `64 cases, 0 failed`, exit 0, empty stderr: every filed expectation held on its first readable run.
+
+### Correction 4 (appended by 02:48:51Z, before the plant run): the plants as coded, every row declared
+
+- **The driver:** `test/host/sabotage_image_compare.py` `c25514871909`. Its `--anchors` mode reads: 39 plants, 39
+  anchors, each present exactly once. Its declarations cover 39 plants x 64 cases, with no refusal.
+- **A driver fix:** each plant's scratch tree now copies the WHOLE fixture directory. W-base, W-LO and W1 read
+  `src/wrap_ld_flags` beside the stores, and with only `stores/` copied, every plant would have crashed.
+- **The new plants:** P28-P39 as Correction 3 named them. Each is a single textual replacement of 1j's own code, so
+  each is declared unaffected on all 44 cases from before 1j.
+- **The old plants' rows for the 20 new cases, derived case by case:**
+  - P1 (strings by offset): V2.
+  - P3 (no reach-crossing check): W1. Its flip refusal goes, so 1i'' reports the mismatch instead, a different line.
+  - P6 (no narrowing): W-base, W-noflag, W-LO, W1 and W2. A's `lo_w` and `__wrap_hw` both narrow `or` to `mov.n`.
+  - P12 (referrers not printed): V1.
+  - P17 (fill counts not printed): all nine conv cases.
+  - P23 ((b) skipped): V1.
+  - P25 ((c) skipped): W1.
+  - P27 (the finished-walk check off): S3, W-base, W-noflag, W-LO, W1 and W2.
+  - Every other old plant: none of the 20.
+- **This corrects Correction 1's P27 note:** P27 IS red for W1. W1 carries the `__wrap_hw` line, a 1i'' mismatch.
+  "Not W1" considered only `lo_w`'s line.
+- **Predicted: `ALL AS DECLARED`, exit 0.** Any plant OFF, or a crash, is OUTSIDE and comes to the orchestrator.
+
+### The plants, as read
+
+**Run 1 (02:49:13Z):** `run/1j-plants.out` `2e14da9560dc`, driver `c25514871909`. **OUTSIDE:** 38 of 39 as
+declared; P15 was OFF, also turning V2 red.
+- **The mechanism, read before asking:** the same plant in a scratch copy, `run/1j-p15-v2-diag.out` `2ae8a0e9362d`.
+  - V2's `rs` reads `FILL func global rs [src/vt.c.o] -- fill bytes A/B=0/0; width swaps: none; 6 instructions`, and
+    the verdict reads NO CHANGE.
+  - rs's only difference is a string relocation's name, and P15 stops the FILL check comparing names: the same route
+    by which P15 turns R8 red.
+  - The alternative, a crash or another path, is excluded: exit 1, clean output, exactly 8 failures (7 declared + V2).
+- **Why it was missed:** my derivation checked P15 only against the conv fixtures. Every unit of every differing
+  object passes that FILL check.
+
+**The ruling (the orchestrator):** re-declare P15's 1j row as [V2] only, labelled "found at plant run 1j-plants.out
+`2e14da9560dc`; mechanism read in 1j-p15-v2-diag.out `2ae8a0e9362d`; not a prediction". Then re-run ONCE; another OFF
+is a STOP.
+- A sha I first typed for the diagnostic (`05d6066ca46f`) was not from output. It was corrected to the orchestrator
+  before the ruling was applied, and the label carries `2ae8a0e9362d`.
+- What it shows: V2, a differing mergeable string, is held by TWO independent guards, the signature's content naming
+  (P1) and the FILL check's relocation-name comparison (P15). Each turns it red alone.
+
+**Run 2 (02:51:50Z):** `run/1j-plants-2.out` `1fb77024cd15`, driver `c4022c5a6353`, comparator `3788f2d011bf`,
+selftest `b49cb6ba0138`. **ALL AS DECLARED**, 39 plants x 64 cases, exit 0, empty stderr. The anchors were 39, each
+present exactly once.
+
+## 27. Amendment 1k: a local label into a merged-string section (2026-11-26), registered before any code
+
+Weatherscope, 2026-11-26, from 04:33Z (stamps from `date -u`). This is the registration as filed, TEXT ONLY when it was written, with its correction and readings appended in order; nothing above a correction was edited. Files named `run/...`, `REG-1k.md`, `PROBES-6a-pflip.md` and `OWNER-Q-6a-pflip.md` are in weatherscope's 6a handoff (`image-compare-6a/`), each kept by its sha.
+
+### The ruling it rests on
+
+- **P-b read GAP** (`PROBES-6a-pflip.md` `0b7d4d55daac`). In P-FLIP, `append_answer$constprop$0` (an unchanged
+  framework object) reads `local:.LC35+38`. That is a local label in `.rodata.append_answer$constprop$0.str1.1`
+  (flags 0x32: ALLOC + MERGE + STRINGS), and the string it reads is equal on both sides.
+- **The comparator's `resolve_data()` refuses it:** "the local .LC35 is not in one unit of …". A merged section is never
+  a unit.
+- **The orchestrator:** "an instrument fix, amendment 1k, the same path as #832: red first, a control that a differing
+  local merged string stays STOP, a PR, my reads."
+- **(a), the 10 compiler-copy units, is NOT in 1k.** It waits for the owner's word on `OWNER-Q-6a-pflip.md`
+  `ddbc5a3d7c30`.
+
+### 1. The change (`scripts/image-compare.py` at main `65500c7ac86b`, blob `f7207101131d`)
+
+- **`resolve_data(side, obj, iid, kind, nm, add=0)`, the "local" branch.** When the ONE local symbol named `nm` sits in a
+  section that is both SHF_MERGE and SHF_STRINGS (so not a unit):
+  - it returns `("str", <the NUL-terminated bytes at st_value + add>)`;
+  - an offset outside the section, or no terminator, refuses with the texts `name_target` already uses ("a string offset
+    outside its section", "an unterminated string").
+- **`rodata_read()`:**
+  - it passes the target's addend (`+N` in `local:NAME+N`) as `add`;
+  - when both sides resolve `"str"`, EQUAL bytes continue and are not counted, as a `str:` name inside a signature is
+    not;
+  - DIFFERING bytes append `"<nm> [<input>]"` to `differ`, so the line reads "it reads read-only data that differs:
+    .LCn [input]". **That is a STOP: the orchestrator's control.**
+  - One side `"str"` and the other not reads "resolves differently in A and B", as now.
+- **Unchanged:**
+  - a local label into a merged section that is NOT strings (a `cst` pool) still refuses;
+  - so does a local in any other non-unit section;
+  - `name_target` and every signature are untouched.
+
+### 2. Why no other line of a reading can move
+
+1k acts only where today's "local" branch refuses, AND the symbol's section is a merged-string section. Every other
+path returns exactly what it does now. So any other line that moves is OUTSIDE.
+
+### 3. The frozen predictions: re-reads of the SAME stores with the 1k comparator
+
+- **The method:** by text edit of the readings, with no comparator code, using `predict_pflip_1k.py` `7bd89152fd5b`.
+  The numbers come from the merged comparator's own functions (`diag_aa.py` `9a81d0ea49e6` -> `run/diag-aa.out`
+  `8e3d5155b6d7`):
+  - append_answer's (a) is equal;
+  - of its 28 distinct targets, all resolve except `local:.LC35+38`, an 11-byte string, which 1k reads as an equal
+    string, not counted;
+  - one `ro` unit (`__func__$4`), so 1 section;
+  - (c) reads 2/2 sites and 0 mismatches.
+
+| re-read | prediction |
+|---|---|
+| **P-FLIP** (OFF vs ON, `--ld-flags` `72aebc33dab7`, `allow-pflip.txt` `559634757a32`) | `run/predicted-pflip-1k.out` `5e26467e1309`. It is the reading `d0b90712cfc5` with exactly ONE line moved: `UNDECIDED append_answer$constprop$0 …` leaves, and its LINK-ONLY line (`… read-only data equal: 1 section(s); call sites checked A/B: 2/2; …`) enters at its key-order slot. The verdict becomes `UNDECIDED (18); LINK-ONLY: 35; …`. Compare exits 3. **check6a v4:** STOP (exit 2) on exactly the 10 "no-source NEW unit" lines (`run/predicted-pflip-1k-check.out` `4a2f0af1b79c`). The "line outside the registration" leaves. P-FLIP stays STOP until the owner rules (1) and (2) |
+| **P-REDO** (Bw vs Cw, with and without the flag) | byte-identical to its frozen files (`7743ff03d92a`, `09def0743736`), because nothing there refuses a local label |
+| **K0** (OFF vs OFF2) | byte-identical to `run/k0-1j-reading.out` `e7a45f3f4517`: NO CHANGE, CLEAN |
+| **anything else**, including a crash, a refusal, or one byte different | **OUTSIDE:** stop, the diff to the orchestrator, nothing re-fitted |
+
+### 4. The selftest: one fixture, four cases, three plants
+
+**The fixture `lstr`,** built by `gen.sh ONLY=lstr`; no other store moves.
+- An assembly object `lsr.S`:
+  - `lsr` reads a string through a literal naming `.LS0+4`, a local label in `.rodata.lsr.str1.1` (`"aMS",@progbits,1`);
+  - `lcs` reads a word through a local label in `.rodata.lcs.cst4` (`"aM",@progbits,4`).
+- A and B are identical, and B's `lsr` and `lcs` are grown by 2 in its image (R3's method), so each stands in front of
+  LINK-ONLY.
+- **If gen shows the assembler named the SECTION symbol rather than the local label in either relocation,** the fixture
+  does not build the case. That is filed as a correction before any comparator run.
+
+**The cases.** Each one's whole output is filed after gen and before any run.
+
+| case | construction | 1k comparator | the merged 1j comparator (red first) |
+|---|---|---|---|
+| **K-base** | as built | `LINK-ONLY lsr … read-only data equal: 0 section(s) …`; `lcs`: the "not in one unit" line (as now) | lsr reads "the local .LS0 is not in one unit of src/lsr.S.o" (**red**) |
+| **K1** (the orchestrator's) | B's object: one byte of the string at `.LS0+4..` changed, resealed | `UNDECIDED lsr: … it reads read-only data that differs: .LS0 [src/lsr.S.o]` | "not in one unit" (**red**: a different line) |
+| **K2** (narrowness) | as built, read for `lcs` | `lcs`: "the local .LC… is not in one unit" (a constant pool, not strings: still refused) | the same (green) |
+| **K4** (the addend) | B's object: one byte BEFORE `.LS0+4` (outside the string read) changed, resealed | `LINK-ONLY lsr …`: the datum it reads is equal | "not in one unit" (**red**) |
+
+- K-base and K2 are one run graded on its whole output: `lsr`'s line for K-base, `lcs`'s for K2.
+- The orchestrator's control (K1) is the STOP.
+- K4 makes the addend matter: a reader that ignores it sees the changed byte.
+
+**The plants (`sabotage_image_compare.py`), each row declared before its run:**
+
+| plant | the sabotage | red |
+|---|---|---|
+| P40 | the string compare skipped: differing bytes accepted | K1 |
+| P41 | any SHF_MERGE section accepted as a string | K2 |
+| P42 | the addend ignored: read at the label | K4 |
+
+- P1-P39 are each declared over the 4 new cases, derived case by case before the run.
+- **The red first:** K-base, K1 and K4 read red against the merged 1j comparator, and K2 reads green.
+
+### 5. Order
+
+1. This text, by sha, to the orchestrator.
+2. Gen (`ONLY=lstr`) and the cases' whole outputs, appended here by sha.
+3. Red first.
+4. The code; green; plants all as declared.
+5. The PR: docs section 27, CI predicted, the four gates on the committed tree.
+6. The orchestrator's reads; merge by rule on its word; X3.
+7. The three re-reads with the merged 1k comparator, graded by section 3's table.
+
+W-sep comes first. No board is touched.
+
+### Correction 1 (2026-11-26, by 04:37:22Z, the `date -u` of its scan; appended BEFORE any comparator run)
+
+The orchestrator accepted REG-1k as `f4e777417408`. Nothing above is edited.
+
+**The fixture is built, and no correction is needed for the symbols.**
+- `gen.sh ONLY=lstr`: in both stores, `.rela.literal.lsr` holds `R_XTENSA_32 .LS0 + 4` and `.rela.literal.lcs` holds
+  `R_XTENSA_32 .LC9 + 4`, each naming the LOCAL NOTYPE label.
+  - `.LS0` is in `.rodata.lsr.str1.1` (AMS, 23 B: `"abcdhello local string"`).
+  - `.LC9` is in `.rodata.lcs.cst4` (AM, entsize 4, 8 B).
+- `lsr` is 11 B and `lcs` 10 B in both images. The maps and json are LF-normalized, as the committed stores are.
+
+**Two construction changes, for the reasons given:**
+- **K2 is its own run, with only `lcs` grown.** Sharing K-base's run would have made K2's label red by K-base's line.
+  Now K2 reads identically under both comparators: green, as registered.
+- **`.LC9`'s second word is `0x00345678`.** It holds a zero byte, so P41 (any merge accepted as a string) reads an
+  equal "string" and turns K2 red by reaching LINK-ONLY, not by a different refusal message.
+
+**A FINDING: an object-layer blind spot, older than 1k and NOT widened here.**
+- `compare_units` compares units only, and a merged-string section is never one. A function that reads a string through
+  a LOCAL label is named `local:<label>+N` (by label, not content).
+- So a change in that string leaves its signature, and its verdict, SAME. Only LINK-ONLY's (b) can see it, and only
+  when the function is also a walk candidate. Same-size, it reads a false NO CHANGE.
+- **The exposure in 6a, measured:** `diag_lstr_exposure.py` `31eaa86633ba` -> `run/diag-lstr-exposure.out`
+  `104d2d7e3fb5`.
+  - In every differing object of P-REDO (Bw) and P-FLIP (OFF and ON), string references by section symbol (named by
+    content) number 890 / 172 for P-REDO; 835 / 59 / 443 / 178 for OFF; and 896 / 60 / 535 / 179 for ON.
+  - **Local-label references: 0 in every one.**
+  - Only prebuilt framework objects such as mdns use them, and those are unchanged objects in 6a's pairs.
+- **So it is named and filed, not fixed:** a fifth case, **K5 (the limit, filed)**, as R13 was.
+  - **Construction:** B's object has a byte inside `.LS0+4`'s string changed and resealed, with NO grow.
+  - **Expected, the same under both comparators:**
+    - `inputs: 2 loaded, 1 differ` / `  differs: src/lsr.S.o` / `functions whose address moved: 0` /
+      `verdict: NO CHANGE…`;
+    - (W, U) = (0, 3).
+  - No plant turns it red. A future change that names local-label strings by content would move it, and that move is
+    the point.
+  - The fix, if wanted, is its own amendment, since it changes signatures.
+
+**The cases, finally:**
+- K-base, K1, K4: `lsr` grown, (W, U) = (1, 2).
+- K2: `lcs` grown, (1, 2).
+- K5: no grow, (0, 3).
+- The selftest totals 69.
+- **Red first predicted:** K-base, K1 and K4, which is 3 of 69. K2 and K5 are green.
+
+### The cases filed, and one slip of mine (by 04:39:26Z, before red first)
+
+- **The orchestrator accepted Correction 1 (`323c8f57190e`), with K5 as a NAMED limit.**
+  - The fix is filed, AFTER v20, as its own amendment in two parts: (1) a guard that runs (the comparator prints each
+    differing object's count of local-label string references); (2) the content-naming fix.
+  - It is on `weatherscope/after-v20.md`, citing `diag-lstr-exposure.out` `104d2d7e3fb5`.
+- **The five cases' whole outputs and (W, U)** are filed in the selftest at `E:\weatherscope\wt-1k`,
+  `test/host/image_compare_selftest.py` `e50c4e01f234`, with gen.sh `a89a7dae074e`.
+- **The slip.** My first edit of that file in the new worktree was refused, because the file had not been read there,
+  and I ran the selftest anyway.
+  - That run (`run/1k-NOEDIT-run.out` `4da2207a800b`: 64 cases, 0 failed, identical to main's) is the UNMODIFIED
+    selftest. It is NOT red first.
+  - It is kept and renamed so it cannot be read as one.
+  - The edits were then applied; `LSTR_CASES` is present.
+
+### Red first, green, and the plants declared (by 04:40:59Z, before the plant run)
+
+- **Red first (04:39:45Z):** `run/1k-redfirst.out` `000d54cf230f`, selftest `e50c4e01f234` against main's comparator
+  (`3788f2d011bf`). The result was `69 cases, 3 failed`, exactly K-base, K1 and K4, each with "the local .LS0 is not in
+  one unit of src/lsr.S.o". K2 and K5 were green.
+- **Green (04:40:26Z):** `run/1k-green.out` `c6249fb21cb8`, comparator `80b07c0ed901`: `69 cases, 0 failed`, exit 0,
+  empty stderr, on its first run.
+- **The plants:** driver `test/host/sabotage_image_compare.py` `cfd0c521a9c5`.
+  - `--anchors`: 42 plants, 42 anchors, each present once. The declarations cover 42 x 69 with no refusal.
+  - P40 (a differing local merged string accepted) is red for K1.
+  - P41 (any merged section read as a string) is red for K2.
+  - P42 (the label's addend ignored) is red for K4.
+  - P1-P39 are red for none of the 5 new cases, derived case by case.
+  - P40-P42 are red for none of the 64 older cases. Their path is reached only by a local label into a merged
+    section, which every older case's comparator refused, and no older case reads that refusal.
+- **Predicted: ALL AS DECLARED.** Any plant OFF is OUTSIDE and goes to the orchestrator.

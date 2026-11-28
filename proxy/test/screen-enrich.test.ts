@@ -40,6 +40,7 @@ import { __resetReleaseMemoForTests } from "../src/screen/release";
 import { enrichCtx } from "../src/screen/details";
 import { installLogGuard } from "../src/screen/logguard";
 import * as W from "../src/screen/worker";
+import { BEND, extractRaw, readSnapshot } from "../src/sitefeed/bend";
 import { __resetBreakersForTests } from "../src/upstreams/types";
 import { apiRequest, call as deviceCall, hexBody, makeAc } from "./helpers";
 
@@ -224,6 +225,7 @@ beforeAll(() => {
   mockHex(H.INBLOCK);
   mockHex(H.NS1, { t: "ZZ9Z" });
   mockHex(H.NS2);
+  for (const hex of MF_PUBLIC_HEXES) mockHex(hex); // P-MF3's public cells resolve in the background
 });
 beforeEach(() => {
   routesetPosts = 0;
@@ -870,5 +872,70 @@ describe("the screen's logs carry no subject (P-NS3, P-NS3a, P-NS3b, P-NS5)", ()
     expect(got.length).toBe(1); // CONTROL: the shim handed the promise on
     await expect(got[0]).resolves.toBeUndefined();
     expect(lines).toEqual([JSON.stringify({ evt: "screen_bg_error", name: "TypeError" })]);
+  });
+});
+
+// P-MF3, P-MF4: the screen hides on the malformed-flags marker (the malformed-flags registration, Addenda 1 and 2). The
+// input is taken from the OTHER side of the contract: F1-F13 as RAW readsb records, through the site feed's own
+// extractRaw, a stored snapshot, and readSnapshot -- exactly what the screen receives -- never a hand-built answer.
+// Positions are computed at runtime from the feed's exported centre; each cell gets its own altitude, so a hidden row
+// (no hex, no callsign: G1) can still be matched to its cell.
+const MF_CELLS: Array<[string, Record<string, unknown>]> = [
+  ["F1", {}], ["F2", { dbFlags: 0 }], ["F3", { dbFlags: 4 }], ["F4", { dbFlags: 8 }], ["F5", { dbFlags: 15 }],
+  ["F6", { dbFlags: 2 }], ["F7", { dbFlags: -1 }], ["F8", { dbFlags: "8" }], ["F9", { dbFlags: 4.5 }],
+  ["F10", { dbFlags: null }], ["F11", { dbFlags: 16 }], ["F12", { dbFlags: true }], ["F13", { dbFlags: 2147483648 }],
+];
+const mfHex = (cell: string) => `b2a3${cell.slice(1).padStart(2, "0")}`;
+const MF_PUBLIC_HEXES = ["F1", "F2", "F6"].map(mfHex);
+const mfAlt = (i: number) => 20000 + i * 100;
+
+async function mfFeed(): Promise<Record<string, unknown>> {
+  const raw = MF_CELLS.map(([cell, part], i) => {
+    const lat = BEND.lat + ((1 + i) / 6371.0088) * (180 / Math.PI); // (1 + i) km due north of the centre
+    const { dbFlags: _none, ...base } = makeAc({ hex: mfHex(cell), flight: `TST${180 + i} `, lat, lon: BEND.lon, alt_baro: mfAlt(i) });
+    return { ...base, ...part };
+  });
+  const snap = { t: Math.floor(T0 / 1000) - 3, source: "adsb.lol", aircraft: extractRaw(raw) };
+  const ns = { idFromName: (n: string) => ({ name: n }), get: () => ({ fetch: async () => Response.json(snap) }) };
+  const m = new Map<string, string>();
+  const cache = {
+    match: async (k: Request) => (m.has(k.url) ? new Response(m.get(k.url)) : undefined),
+    put: async (k: Request, r: Response) => void m.set(k.url, await r.text()),
+  } as unknown as Cache;
+  const served = await readSnapshot({ ...env, SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns as unknown as DurableObjectNamespace }, T0, cache);
+  expect(served).toMatchObject({ available: true, v: 2, stale: false }); // the rig: a live v2 answer
+  return served as unknown as Record<string, unknown>;
+}
+const mfCellByAlt = new Map(MF_CELLS.map(([cell], i) => [mfAlt(i), cell]));
+
+describe("the malformed-flags marker on the screen (P-MF3, P-MF4)", () => {
+  it("P-MF3 hidden is EXACTLY F3 F4 F5 F7-F13 and public EXACTLY F1 F2 F6 (F1, no key, public: the empty-sky control)", async () => {
+    const h = harness({ feed: await mfFeed() });
+    const s = await site(h.loc, "snapshot");
+    expect(s.ok).toBe(true);
+    const rows = aircraftOf(s).map((a) => [mfCellByAlt.get(a.alt_ft as number) ?? "?", a.class] as const);
+    expect(rows.map(([c]) => c).sort()).toEqual(MF_CELLS.map(([c]) => c).sort()); // every cell served, once
+    expect(rows.filter(([, k]) => k === "private").map(([c]) => c).sort())
+      .toEqual(["F3", "F4", "F5", "F7", "F8", "F9", "F10", "F11", "F12", "F13"].sort());
+    expect(rows.filter(([, k]) => k === "public").map(([c]) => c).sort()).toEqual(["F1", "F2", "F6"].sort());
+    await h.settle();
+    tally(h);
+  });
+
+  it("P-MF4 nothing says why: no served row carries dbFlagsBad, no hidden row carries dbFlags, no count at the top", async () => {
+    const h = harness({ feed: await mfFeed() });
+    const s = await site(h.loc, "snapshot");
+    expect(s.ok).toBe(true);
+    const rows = aircraftOf(s);
+    expect(rows.length).toBe(MF_CELLS.length); // CONTROL: there are rows to inspect
+    for (const a of rows) {
+      const cell = mfCellByAlt.get(a.alt_ft as number) ?? "?";
+      expect(Object.keys(a), cell).not.toContain("dbFlagsBad");
+      if (a.class === "private") expect(Object.keys(a), cell).not.toContain("dbFlags");
+    }
+    const top = Object.keys((s as { value: Record<string, unknown> }).value);
+    expect(top.filter((k) => /dbflags/i.test(k))).toEqual([]);
+    await h.settle();
+    tally(h);
   });
 });

@@ -11,6 +11,18 @@ Each phrase in RETIRED was a public privacy statement found false, and replaced:
   - "Counts only — no location" (the leaderboard page): a submission also carries the spotter name and the types;
   - "no location or flight data leaves your device" (the leaderboard page): in cloud mode the radar sends a rounded
     location (the owner, 2026-11-17).
+  - "own receiver — then it never talks to us", "own receiver and the radar never talks to us", "which otherwise never
+    talks to anyone": an own-receiver device with Aircraft details set to Blipscope Cloud asks us about every aircraft
+    in view (the owner, 2026-11-26: true only with details Off);
+  - "nothing external is contacted at all", "transmits nothing, by construction": with details Off the device still
+    checks GitHub for updates and sets its clock from pool.ntp.org;
+  - "not on an update, not ever": firmware 9 moved every "adsbdb direct" choice to Blipscope Cloud;
+  - "we're never contacted; a third party is": the adsbdb direct option no longer exists;
+  - "when you tap an aircraft, we're sent": the lookups cover every aircraft in view, not only a tapped one;
+  - "which for the radar includes the area it asked about": the log keeps exactly what each request asked for, a
+    detail card's and a photo's included;
+  - "activating a device still logs": the activation record is kept until the device next activates, not only logged.
+  - "asks us for that aircraft's photo": a detail card's photo is of the aircraft's type (the owner, 2026-11-26).
 This check fails if any of them comes back in any of FILES, in any letter case or line wrapping.
 
 A check that finds nothing proves nothing on its own, so each file also has two controls:
@@ -48,6 +60,17 @@ RETIRED = (
     "its api key and hardware model)",
     "counts only — no location",
     "no location or flight data leaves your device",
+    "own receiver — then it never talks to us",
+    "own receiver and the radar never talks to us",
+    "which otherwise never talks to anyone",
+    "nothing external is contacted at all",
+    "transmits nothing, by construction",
+    "not on an update, not ever",
+    "we're never contacted; a third party is",
+    "when you tap an aircraft, we're sent",
+    "which for the radar includes the area it asked about",
+    "activating a device still logs",
+    "asks us for that aircraft's photo",
 )
 
 

@@ -29,6 +29,9 @@
 namespace maplayer {
 
 constexpr int kSize = wxbase::kSize;   // 240: FillRing's image width, and the s3-128's screen (the client's one SKU)
+// The 480 map gate: the map draws only on a screen of exactly the composite's size. Build refuses any other view, and
+// the device copies SCREEN_SIZE^2 pixels out of the composite, so a larger panel must never reach it.
+constexpr bool DrawsAt(int screen) { return screen == kSize; }
 constexpr double kKmPerDeg = 111.0;   // the planar metric's k (format section 2)
 constexpr double kPi = 3.14159265358979323846;
 

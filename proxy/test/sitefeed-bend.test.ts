@@ -430,3 +430,127 @@ describe("B20 LADD aircraft are shown, flags intact (Daniel's decision, 2026-10-
     expect(servedBy["c20002"]?.dbFlags).toBe(12);
   });
 });
+
+// P-MF1, P-MF2a/b, P-MF5, P-MF5b, P-MF6: the malformed-flags marker (the malformed-flags registration, with
+// Addenda 1 and 2; the owner's rulings of 2026-11-25 22:38Z). The Worker is the last stage that can tell
+// "readsb left dbFlags out" (0) from "it sent a value that is not one of the four bits": passThrough turns both into
+// null, so a malformed value carries `dbFlagsBad: true` beside its null. Positions are computed at runtime.
+describe("P-MF the malformed-flags marker, its per-write count and its /healthz reader", () => {
+  const V1_KEYS = ["alt_ft", "category", "cs", "gs_kt", "hex", "lat", "lon", "seen_s", "track_deg", "vrate_fpm"];
+  // F1-F13: [cell, the raw record's dbFlags part, the served dbFlags]. F1 has NO dbFlags key at all.
+  const CELLS: Array<[string, Record<string, unknown>, number | null]> = [
+    ["F1", {}, null], ["F2", { dbFlags: 0 }, 0], ["F3", { dbFlags: 4 }, 4], ["F4", { dbFlags: 8 }, 8],
+    ["F5", { dbFlags: 15 }, 15], ["F6", { dbFlags: 2 }, 2], ["F7", { dbFlags: -1 }, null], ["F8", { dbFlags: "8" }, null],
+    ["F9", { dbFlags: 4.5 }, null], ["F10", { dbFlags: null }, null], ["F11", { dbFlags: 16 }, null],
+    ["F12", { dbFlags: true }, null], ["F13", { dbFlags: 2147483648 }, null],
+  ];
+  const MARKED = ["F7", "F8", "F9", "F10", "F11", "F12", "F13"];
+  const hexOf = (cell: string) => `b2a1${cell.slice(1).padStart(2, "0")}`;
+  const cellOf = Object.fromEntries(CELLS.map(([c]) => [hexOf(c), c]));
+  const rawCells = () =>
+    CELLS.map(([c, part], i) => {
+      const p = northOf(1 + i);
+      const { dbFlags: _none, ...base } = makeAc({ hex: hexOf(c), flight: `TST${150 + i} `, lat: p.lat, lon: p.lon });
+      return { ...base, ...part };
+    });
+
+  it("P-MF1 the writer: exactly F7-F13 marked; served dbFlags as the table; a marked row is B16's keys + dbFlagsBad", () => {
+    const raw = rawCells();
+    expect("dbFlags" in raw[0]!).toBe(false); // the plant: F1 really has no key
+    const got = extractRaw(raw) as unknown as Array<Record<string, unknown>>;
+    expect(got.map((a) => cellOf[a.hex as string])).toEqual(CELLS.map(([c]) => c));
+    expect(got.filter((a) => a.dbFlagsBad === true).map((a) => cellOf[a.hex as string])).toEqual(MARKED);
+    expect(got.filter((a) => "dbFlagsBad" in a && a.dbFlagsBad !== true)).toEqual([]); // written only when true
+    expect(Object.fromEntries(got.map((a) => [cellOf[a.hex as string], a.dbFlags]))).toEqual(
+      Object.fromEntries(CELLS.map(([c, , served]) => [c, served])),
+    );
+    for (const a of got) {
+      const cell = cellOf[a.hex as string]!;
+      expect(Object.keys(a).sort(), cell).toEqual(
+        [...V1_KEYS, "dbFlags", "desc", "t", ...(MARKED.includes(cell) ? ["dbFlagsBad"] : [])].sort(),
+      );
+    }
+  });
+
+  // Three well-formed rows (keys present: 0, 4, 8) and one more, through the real device path to a DO answering 204.
+  const fourth = (part: Record<string, unknown>) => {
+    const rows = [0, 4, 8].map((f, i) => {
+      const p = northOf(2 + i);
+      return makeAc({ hex: `b2a20${i}`, flight: `TST16${i} `, lat: p.lat, lon: p.lon, dbFlags: f });
+    });
+    const p = northOf(6);
+    const { dbFlags: _none, ...base } = makeAc({ hex: "b2a2a9", flight: "TST169 ", lat: p.lat, lon: p.lon });
+    return [...rows, { ...base, ...part }];
+  };
+  async function written(acs: Record<string, unknown>[], limit: number) {
+    fetchMock.get(LOL).intercept({ path: UPSTREAM_PATH }).reply(200, pointBody(acs));
+    const { ns, calls } = fakeNs(async () => new Response(null, { status: 204 }));
+    const { m, points } = metricsSpy();
+    await call(deviceReq(limit), { SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns, METRICS: m });
+    expect(calls).toHaveLength(1);
+    const stored = (JSON.parse(calls[0]!.body) as Snapshot).aircraft as unknown as Array<Record<string, unknown>>;
+    const flags = (points as Array<{ blobs?: string[]; doubles?: number[] }>)
+      .filter((p) => p.blobs?.[0] === "sitefeed" && p.blobs?.[1] === "dbflags_bad")
+      .map((p) => p.doubles);
+    return { stored, flags };
+  }
+
+  it("P-MF2a the registered red: a raw dbFlags \"8\" -> marker true, and the write's point is [bad 1, n 4]", async () => {
+    const acs = fourth({ dbFlags: "8" });
+    const { stored, flags } = await written(acs, 41);
+    expect(stored.find((a) => a.hex === "b2a2a9")?.dbFlagsBad).toBe(true);
+    expect(flags).toEqual([[1, 4]]);
+  });
+
+  it("P-MF2b CONTROL: the same record with its dbFlags key REMOVED -> no marker, and the point is still written: [0, 4]", async () => {
+    const acs = fourth({});
+    expect("dbFlags" in acs[3]!).toBe(false); // the plant applied
+    const { stored, flags } = await written(acs, 42);
+    const row = stored.find((a) => a.hex === "b2a2a9");
+    expect(row).toBeDefined();
+    expect("dbFlagsBad" in row!).toBe(false);
+    expect(flags).toEqual([[0, 4]]);
+  });
+
+  // The reader. /healthz's `sitefeed` block, from a stored snapshot planted DIRECTLY in the DO stub: it never goes
+  // through the writer, so this grades the reader alone. The colo cache key is cleared so no other test's read leaks in.
+  const COLO_KEY = "https://sitefeed.internal/bend/v1";
+  const healthz = async (ns: DurableObjectNamespace) => {
+    await caches.default.delete(new Request(COLO_KEY));
+    const res = await call(new Request("https://proxy.test/healthz"), { SITE_FEED_BEND: "on", BEND_SNAPSHOT: ns });
+    await caches.default.delete(new Request(COLO_KEY));
+    return { status: res.status, body: (await res.json()) as { sitefeed?: Record<string, unknown> } };
+  };
+
+  it("P-MF5 /healthz's sitefeed block over a planted snapshot of four rows, one marked: n 4, dbFlagsBad 1, flat", async () => {
+    const rows = [0, 4, 8, null].map((f, i) => {
+      const p = northOf(3 + i);
+      return {
+        hex: `b2a50${i}`, cs: `TST17${i}`, lat: p.lat, lon: p.lon, alt_ft: 1000, gs_kt: 100, track_deg: 0, vrate_fpm: 0,
+        category: 1, seen_s: 1, t: "C172", desc: "CESSNA 172", dbFlags: f, ...(f === null ? { dbFlagsBad: true } : {}),
+      };
+    });
+    const { ns } = fakeNs(async () => Response.json({ t: Math.floor(Date.now() / 1000) - 3, source: "adsb.fi", aircraft: rows }));
+    const { status, body } = await healthz(ns);
+    expect(status).toBe(200);
+    expect(body.sitefeed).toMatchObject({ available: true, stale: false, n: 4, dbFlagsBad: 1 });
+    expect(Object.keys(body.sitefeed ?? {}).sort()).toEqual(["age_s", "available", "dbFlagsBad", "n", "stale"]);
+    expect(body.sitefeed?.age_s as number).toBeGreaterThanOrEqual(3);
+    expect(body.sitefeed?.age_s as number).toBeLessThan(10);
+    expect(JSON.stringify(body.sitefeed)).not.toMatch(/\[|"commit"/); // flat, for index.ts's two readers
+  });
+
+  it("P-MF5b a DO that throws never fails /healthz: 200, and sitefeed reads read_error", async () => {
+    const { ns } = fakeNs(async () => Promise.reject(new Error("durable object down")));
+    const { status, body } = await healthz(ns);
+    expect(status).toBe(200);
+    expect(body.sitefeed).toEqual({ available: false, reason: "read_error" });
+  });
+
+  it("P-MF6 M5 stays true: a position 90 s old never reaches the snapshot (schema.ts drops it before the write)", () => {
+    const p = northOf(5);
+    const fresh = makeAc({ hex: "b2a601", lat: p.lat, lon: p.lon, seen_pos: 2 });
+    const stale = makeAc({ hex: "b2a602", lat: p.lat, lon: p.lon, seen_pos: 90 });
+    expect(extractRaw([fresh, stale]).map((a) => a.hex)).toEqual(["b2a601"]);
+  });
+});

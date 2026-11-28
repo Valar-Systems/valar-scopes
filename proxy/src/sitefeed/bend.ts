@@ -96,7 +96,13 @@ export interface SiteAircraft {
   // A value of the wrong type is refused (null), never coerced. Registration and operator are NOT passed.
   t: string | null;       // readsb type code, e.g. "B738"
   desc: string | null;    // readsb type name, e.g. "BOEING 737-800"
-  dbFlags: number | null; // readsb bitfield: military 1, interesting 2, PIA 4, LADD 8 -- unchanged
+  dbFlags: number | null; // readsb bitfield: military 1, interesting 2, PIA 4, LADD 8 -- unchanged; 0..15 only
+  // v2, additive (the owner, 2026-11-25: "malformed flags: hide"). PRESENT, and only ever `true`, when the upstream
+  // record HAD a dbFlags key whose value is not an integer in 0..15. Its dbFlags is then null, as before, so a reader
+  // that ignores this field sees what it always saw. It exists because null alone cannot be read: readsb leaves
+  // dbFlags OUT when it is 0, and that also arrives as null. This is the last stage that can tell the two apart, so
+  // every consumer (the site, the screen) hides on this field, never on null.
+  dbFlagsBad?: true;
 }
 
 /** A stored aircraft. The v2 pass-through fields are OPTIONAL here because rows written by v1 code lack them;
@@ -151,12 +157,26 @@ export function extract(all: NormalizedAircraft[]): SiteAircraft[] {
   return all.filter(inCircle).map(toSite);
 }
 
-/** The pass-through fields of one raw upstream record: right type or null. */
-function passThrough(raw: unknown): Pick<SiteAircraft, "t" | "desc" | "dbFlags"> {
+/** readsb's dbFlags carries four bits (military 1, interesting 2, PIA 4, LADD 8). A value above 15 is not one we
+ *  know (fe's ruling, 2026-11-25, on the owner's aim): it is marked, so a new bit in the feed shows as a jump in the
+ *  count and errs toward hidden, rather than passing silently. */
+export const DBFLAGS_MAX = 15;
+
+/** The pass-through fields of one raw upstream record: right type or null, and the malformed-flags marker. */
+function passThrough(raw: unknown): Pick<SiteAircraft, "t" | "desc" | "dbFlags" | "dbFlagsBad"> {
   const r = (raw ?? {}) as Record<string, unknown>;
   const str = (v: unknown) => (typeof v === "string" ? v : null);
-  const flags = typeof r.dbFlags === "number" && Number.isInteger(r.dbFlags) && r.dbFlags >= 0 ? r.dbFlags : null;
-  return { t: str(r.t), desc: str(r.desc), dbFlags: flags };
+  const v = r.dbFlags;
+  const known = typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= DBFLAGS_MAX;
+  const out: Pick<SiteAircraft, "t" | "desc" | "dbFlags" | "dbFlagsBad"> = { t: str(r.t), desc: str(r.desc), dbFlags: known ? v : null };
+  /*P-MF1*/
+  if (Object.hasOwn(r, "dbFlags") && !known) out.dbFlagsBad = true; // a key with a value we do not know; absent is 0
+  return out;
+}
+
+/** How many of a snapshot's aircraft carry the malformed-flags marker. */
+export function countDbFlagsBad(aircraft: ReadonlyArray<{ dbFlagsBad?: unknown }>): number {
+  return aircraft.filter((a) => a.dbFlagsBad === true).length;
 }
 
 /** The planes inside the downtown circle, from the upstream's RAW records: normalised for position exactly as
@@ -177,6 +197,17 @@ function count(env: Env, event: string): void {
     env.METRICS?.writeDataPoint({ blobs: ["sitefeed", event], doubles: [1], indexes: ["sitefeed"] });
   } catch {
     /* a metrics failure must not reach the device path either */
+  }
+}
+
+/** One point per STORED write (the DO's 204: the snapshot that is served), including bad = 0, so a missing point
+ *  means "no write" and never "nothing malformed": [bad, n]. Integers only -- no hex, no position, no tile. */
+function countFlags(env: Env, aircraft: ReadonlyArray<{ dbFlagsBad?: unknown }>): void {
+  try {
+    /*P-MF2*/
+    env.METRICS?.writeDataPoint({ blobs: ["sitefeed", "dbflags_bad"], doubles: [countDbFlagsBad(aircraft), aircraft.length], indexes: ["sitefeed"] });
+  } catch {
+    /* as count(): never reaches the device path */
   }
 }
 
@@ -219,8 +250,11 @@ export function bendWriter(env: Env, ctx: ExecutionContext, latQ: string, lonQ: 
       ctx.waitUntil(
         Promise.resolve()
           .then(() => stub.fetch(`${DO_BASE}/put`, { method: "PUT", body: JSON.stringify(snap) }))
-          .then((r) => count(env, r.status === 204 ? "written" : r.status === 409 ? "refused_30s"
-            : r.status === 412 ? "refused_older" : "write_error"))
+          .then((r) => {
+            count(env, r.status === 204 ? "written" : r.status === 409 ? "refused_30s"
+              : r.status === 412 ? "refused_older" : "write_error");
+            if (r.status === 204) countFlags(env, snap.aircraft); // only a stored snapshot is ever served
+          })
           .catch(() => count(env, "write_error")),
       );
     } catch {
@@ -354,6 +388,24 @@ export async function readSnapshot(env: Env, nowMs: number = Date.now(), cache: 
     // A row stored by v1 code has no pass-through fields: they read null ("not received"), never invented.
     aircraft: stale ? [] : snap.aircraft.map((a) => ({ ...a, t: a.t ?? null, desc: a.desc ?? null, dbFlags: a.dbFlags ?? null })),
   };
+}
+
+/** `/healthz`'s `sitefeed` block (the malformed-flags reader). FLAT -- no array, no "commit" key -- for the two readers
+ *  index.ts names. Counts and an age only: no centre, no hex. A stale snapshot serves no planes, so its n and its
+ *  count are 0, beside stale: true. It never throws: a read that fails is `read_error`, and /healthz still answers. */
+export type SiteFeedHealth =
+  | { available: false; reason: "disabled" | "empty" | "read_error" }
+  | { available: true; stale: boolean; age_s: number; n: number; dbFlagsBad: number };
+
+export async function sitefeedHealth(env: Env, nowMs: number = Date.now(), cache: Cache = caches.default): Promise<SiteFeedHealth> {
+  try {
+    const r = await readSnapshot(env, nowMs, cache);
+    if (!r.available) return { available: false, reason: r.reason };
+    /*P-MF5*/
+    return { available: true, stale: r.stale, age_s: r.age_s, n: r.aircraft.length, dbFlagsBad: countDbFlagsBad(r.aircraft) };
+  } catch {
+    return { available: false, reason: "read_error" };
+  }
 }
 
 /**

@@ -497,6 +497,41 @@ def report_route_mirror(env: str) -> list:
     return warn
 
 
+# The site feed's malformed-flags count (the owner, 2026-11-25: "count every aircraft hidden for this reason, so a change
+# in the feed's format shows as a jump, not as an empty sky nobody can explain"). /healthz's flat `sitefeed` block: bad of
+# n in the last served snapshot. Here because this script is run whenever anyone asks anything about the fleet; the
+# same line is in smoke-prod.sh (sitefeed-line.sh). Graded by P-MF7 in reconcile-fleet.selftest.py.
+def sitefeed_lines(body: str | None) -> tuple:
+    """(lines, warnings) for /healthz's `sitefeed` block. Never a silent pass: an unreadable /healthz, a missing block and
+    an unavailable feed each warn, as a malformed count above zero does. A count of 0 prints and does not warn."""
+    if body is None:
+        return ["  Site feed: could not read /healthz"], ["site feed: could not read /healthz"]
+    try:
+        s = json.loads(body).get("sitefeed")
+    except (ValueError, AttributeError):
+        s = None
+    if not isinstance(s, dict):
+        return (["  Site feed: /healthz has no sitefeed field"],
+                ["site feed: /healthz has no sitefeed field (a Worker before the dbFlagsBad marker)"])
+    if s.get("available") is not True:
+        why = s.get("reason") or "unknown"
+        return ["  Site feed: unavailable (%s)" % why], ["site feed: unavailable (%s)" % why]
+    bad, n = s.get("dbFlagsBad"), s.get("n")
+    line = "  Site feed: sitefeed dbFlagsBad=%s/%s age=%ss stale=%s" % (bad, n, s.get("age_s"), json.dumps(s.get("stale")))
+    if bad != 0:
+        warn = ["site feed: %s/%s aircraft hidden for malformed dbFlags (feed format?)" % (bad, n)]
+        return [line + "  <== MALFORMED FLAGS"], warn
+    return [line], []
+
+
+def report_sitefeed(env: str) -> list:
+    lines, warn = sitefeed_lines(read_healthz(env))
+    for line in lines:
+        print(line)
+    print()
+    return warn
+
+
 def route_refresh_issue_lines(count) -> tuple:
     """W6 (docs/route-weekly-code.md): (lines, warnings) for the open `route-refresh` issues a failed or refused weekly
     run leaves (routes-notify.ts). A count only. A count that could not be read says so, and warns: never a silent 0."""
@@ -522,6 +557,142 @@ def report_route_refresh() -> list:
     lines, warn = route_refresh_issue_lines(count_route_refresh_issues())
     for line in lines:
         print(line)
+    print()
+    return warn
+
+
+# --- The builder's over-limit count (the owner's ruling, 2026-11-25: count every build that runs past 14,530 ms) ---------
+# The map builder's cpu_ms rose from 14,530 to 68,000 ms with D4 (S3). An invocation whose CPU passes 14,530 ms is one the old
+# limit would have stopped: the insurance, used. The production builder writes no logs (its logs are off), so the writer is
+# Cloudflare's own record, GraphQL workersInvocationsAdaptive, read with the existing analytics-read token (no new token).
+# Read 2026-11-26 from the settings node: 90 d retention, 32 d per query, a 10,000-row page.
+# The rule, per row (one second, one status, one script version): max cpuTime <= T -> 0; min cpuTime > T -> every invocation
+# in the row; otherwise 1 to requests-1, a RANGE, never rounded to a count. A full page or a malformed row makes the count
+# UNREADABLE with no number; a refused or failed query is BLIND. Cloudflare samples a few builds at WRITE time (one kept
+# in ten, weighted by ten; the 2026-11-26 probe found one in a 10-minute window), so a sampled row (avg sampleInterval
+# != 1) makes the TOTAL unreadable while the line still states the known part: at least X over among the unsampled
+# builds, and how many builds the sampled rows stand for. A sampled value is never counted. exceededCpu is printed
+# apart: a build STOPPED at a limit is not insurance used. A count above 0 is marked, not warned: it is information the owner
+# asked to see, not an instrument fault, and a warning would keep this tool exiting 1 for 30 days after one heavy build.
+OLC_T_US = 14530 * 1000  # microseconds, as workersInvocationsAdaptive reports cpuTime
+OLC_DAYS = 30
+OLC_ROW_LIMIT = 10000
+OLC_SCRIPT = {"production": "blipscope-basemap", "staging": "blipscope-basemap-staging"}
+OLC_QUERY = ("query($a:String!,$s:String!,$f:Time!,$t:Time!){viewer{accounts(filter:{accountTag:$a}){"
+             "workersInvocationsAdaptive(limit:%d,filter:{scriptName:$s,datetime_geq:$f,datetime_leq:$t},"
+             "orderBy:[datetime_ASC]){dimensions{datetime status scriptVersion} sum{requests} min{cpuTime} max{cpuTime}"
+             " avg{sampleInterval}}}}}" % OLC_ROW_LIMIT)
+
+
+def read_builder_cpu_rows(env: str, token: str, frm: str, to: str) -> tuple:
+    """(rows, "") or (None, reason). Each row: t, status, version, n (requests), min, max (cpu, us), si (sampleInterval)."""
+    payload = json.dumps({"query": OLC_QUERY, "variables": {"a": ACCOUNT, "s": OLC_SCRIPT.get(env, OLC_SCRIPT["production"]),
+                                                            "f": frm, "t": to}}).encode("utf-8")
+    req = urllib.request.Request("https://api.cloudflare.com/client/v4/graphql", data=payload, method="POST",
+                                 headers={"Authorization": "Bearer " + token, "content-type": "application/json",
+                                          "User-Agent": "blipscope-reconcile (support@valarsystems.com)"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            body = json.loads(r.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as e:
+        return None, "GraphQL answered %d: %s" % (e.code, e.read().decode("utf-8", "replace").strip()[:300])
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        return None, "GraphQL unreachable (%s)" % type(e).__name__
+    errs = body.get("errors") if isinstance(body, dict) else None
+    if errs:
+        return None, "GraphQL errors: %s" % "; ".join(str(x.get("message", x)) for x in errs)[:300]
+    try:
+        raw = body["data"]["viewer"]["accounts"][0]["workersInvocationsAdaptive"]
+    except (KeyError, IndexError, TypeError):
+        return None, "GraphQL's answer has no workersInvocationsAdaptive list"
+    if not isinstance(raw, list):
+        return None, "GraphQL's answer has no workersInvocationsAdaptive list"
+    rows = []
+    for x in raw:
+        d, s = x.get("dimensions") or {}, x.get("sum") or {}
+        rows.append({"t": d.get("datetime"), "status": d.get("status"), "version": d.get("scriptVersion"),
+                     "n": s.get("requests"), "min": (x.get("min") or {}).get("cpuTime"),
+                     "max": (x.get("max") or {}).get("cpuTime"), "si": (x.get("avg") or {}).get("sampleInterval")})
+    return rows, ""
+
+
+def over_limit_lines(env: str, rows, why: str, blind: bool, window: str) -> tuple:
+    """(lines, warnings) for the over-limit count. Not read, BLIND, a full page and a malformed row each warn and print no
+    number. Sampled rows (Cloudflare keeps about one in ten of a few builds, at write time, so any window can hold one) make
+    the total UNREADABLE, and the line says what IS known: at least X over among the unsampled builds, each one real
+    invocation read exactly, and how many builds the sampled rows stand for. A sampled value is never counted, even when it
+    is over. Never a bare total when a row is sampled. A full count (exact or a range) prints and does not warn."""
+    head = "  Builder CPU over 14,530 ms (%s, %s; retention 90 d):" % (env, window)
+    if rows is None:
+        kind = "BLIND" if blind else "not read"
+        return ["%s %s: %s" % (head, kind, why)], ["builder over-limit count: %s (%s)" % (kind, why)]
+    if len(rows) >= OLC_ROW_LIMIT:
+        why = "the %d-row page was full, so rows may be cut" % OLC_ROW_LIMIT
+        return ["%s UNREADABLE: %s" % (head, why)], ["builder over-limit count: UNREADABLE (%s)" % why]
+    lo = {"success": 0, "exceededCpu": 0, "other": 0}
+    hi = dict(lo)
+    multi, invocations, newest, sampled, sampled_builds = 0, 0, None, 0, 0
+    for r in rows:
+        n, mn, mx = r.get("n"), r.get("min"), r.get("max")
+        if not (isinstance(n, int) and n >= 1 and isinstance(mn, (int, float)) and isinstance(mx, (int, float)) and mn <= mx):
+            why = "a row is malformed (requests %r, cpu %r..%r)" % (n, mn, mx)
+            return ["%s UNREADABLE: %s" % (head, why)], ["builder over-limit count: UNREADABLE (%s)" % why]
+        is_s = r.get("si") != 1
+        if is_s:
+            sampled += 1
+            sampled_builds += n
+            continue
+        invocations += n
+        if mx <= OLC_T_US:
+            continue
+        a, b = (n, n) if mn > OLC_T_US else (1, n - 1)
+        k = r.get("status") if r.get("status") in ("success", "exceededCpu") else "other"
+        lo[k] += a
+        hi[k] += b
+        multi += n > 1
+        if k != "exceededCpu" and (newest is None or str(r.get("t")) > str(newest)):
+            newest = r.get("t")
+    marker = "  <== THE RAISED LIMIT WAS USED"
+    if sampled:
+        x = lo["success"] + lo["other"]
+        line = ("%s UNREADABLE as a total: %d of %d row(s) sampled (sampleInterval != 1); "
+                "at least %d over 14,530 ms among %d unsampled builds (success %d, other %d; exceededCpu, apart, %d); "
+                "%d sampled row(s) standing for about %d build(s) not counted"
+                % (head, sampled, len(rows), x, invocations, lo["success"], lo["other"], lo["exceededCpu"], sampled,
+                   sampled_builds))
+        warn = ("builder over-limit count: UNREADABLE (%d of %d row(s) sampled; at least %d over among %d unsampled builds)"
+                % (sampled, len(rows), x, invocations))
+        return [line + (marker if x >= 1 else "")], [warn]
+    span = lambda k: str(lo[k]) if lo[k] == hi[k] else "%d-%d" % (lo[k], hi[k])
+    used_lo, used_hi = lo["success"] + lo["other"], hi["success"] + hi["other"]
+    used = str(used_lo) if used_lo == used_hi else "%d-%d" % (used_lo, used_hi)
+    line = ("%s %s (success %s, other %s); exceededCpu, stopped at a limit and printed apart, %s; newest %s; "
+            "invocations %d; rows %d" % (head, used, span("success"), span("other"), span("exceededCpu"), newest or "none",
+                                         invocations, len(rows)))
+    if multi:
+        line += "; a range: %d row(s) held more than one invocation" % multi
+    if used_hi > 0:
+        line += marker
+    return [line], []
+
+
+def report_builder_over_limit(env: str, frm: str = "", to: str = "", verbose: bool = False) -> list:
+    now = datetime.now(timezone.utc)
+    window = "%s to %s" % (frm or "%d d ago" % OLC_DAYS, to or "now") if (frm or to) else "last %d d" % OLC_DAYS
+    frm = frm or datetime.fromtimestamp(now.timestamp() - OLC_DAYS * 86400, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    to = to or now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    token, why = analytics_token()
+    rows, blind = None, False
+    if token:
+        rows, why = read_builder_cpu_rows(env, token, frm, to)
+        blind = rows is None
+    lines, warn = over_limit_lines(env, rows, why, blind, window)
+    for line in lines:
+        print(line)
+    if verbose and rows:
+        for r in rows:
+            print("    row %s status %s version %s requests %s cpu %s..%s us sampleInterval %s"
+                  % (r["t"], r["status"], r["version"], r["n"], r["min"], r["max"], r["si"]))
     print()
     return warn
 
@@ -701,7 +872,9 @@ def report_instruments(env: str, errfile: Path, detail: dict, days: int, alert: 
     print()
     warn += report_ota_reader(env, detail)
     warn += report_route_mirror(env)
+    warn += report_sitefeed(env)
     warn += report_route_refresh()
+    warn += report_builder_over_limit(env)
     return warn
 
 
@@ -741,7 +914,15 @@ def main() -> None:
     ap.add_argument("--enroll-alert", type=int, default=25,
                     help="flag any day whose enrolment count exceeds this (default 25)")
     ap.add_argument("--json", help="also write the report here; must be a git-ignored path")
+    ap.add_argument("--olc-only", action="store_true",
+                    help="print only the builder over-limit count, with its rows; exit 0 on a value, 2 otherwise")
+    ap.add_argument("--olc-env", choices=sorted(OLC_SCRIPT), help="the builder to count (default: --env)")
+    ap.add_argument("--olc-from", default="", help="the window start, ISO UTC (default: %d d ago)" % OLC_DAYS)
+    ap.add_argument("--olc-to", default="", help="the window end, ISO UTC (default: now)")
     args = ap.parse_args()
+    if args.olc_only:
+        sys.exit(2 if report_builder_over_limit(args.olc_env or args.env, args.olc_from, args.olc_to,
+                                                 verbose=True) else 0)
 
     # A report carries real device ids. Rather than trusting whoever runs this to
     # pick a safe path, ask git and refuse if the answer is wrong -- a check that

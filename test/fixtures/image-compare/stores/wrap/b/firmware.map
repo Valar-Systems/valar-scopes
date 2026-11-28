@@ -1,0 +1,82 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 src/main.c.o
+ .data          0x00000000        0x0 src/main.c.o
+ .bss           0x00000000        0x0 src/main.c.o
+ .text          0x00000000        0x0 src/wr.c.o
+ .data          0x00000000        0x0 src/wr.c.o
+ .bss           0x00000000        0x0 src/wr.c.o
+ .text          0x00000000        0x0 src/wr_hi.c.o
+ .data          0x00000000        0x0 src/wr_hi.c.o
+ .bss           0x00000000        0x0 src/wr_hi.c.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+Address of section .text_hi set to 0x40090000
+LOAD src/main.c.o
+LOAD src/wr.c.o
+LOAD src/wr_hi.c.o
+
+.text_hi        0x40090000       0x14
+ *(.literal.hi_* .text.hi_*)
+ .literal.hi_wrap
+                0x40090000        0x4 src/wr_hi.c.o
+ .text.hi_wrap  0x40090004       0x10 src/wr_hi.c.o
+                0x40090004                __wrap_hw
+
+.text_lo        0x40000000       0x34
+ *(.literal .literal.* .text .text.*)
+ .literal.entry
+                0x40000000        0x4 src/main.c.o
+                                  0x8 (size before relaxing)
+ .literal.lo_w  0x40000004        0x4 src/wr.c.o
+ .text.entry    0x40000008       0x12 src/main.c.o
+                                 0x16 (size before relaxing)
+                0x40000008                entry
+ *fill*         0x4000001a        0x2 
+ .text.lo_w     0x4000001c       0x10 src/wr.c.o
+                0x4000001c                lo_w
+ *fill*         0x4000002c        0x0 
+ .text.hw       0x4000002c        0x8 src/wr_hi.c.o
+                0x4000002c                hw
+
+.rodata
+ *(.rodata .rodata.*)
+
+.data
+ *(.data .data.*)
+
+.bss            0x40000034        0x4
+ *(.bss .bss.* COMMON)
+ .bss.g_out     0x40000034        0x4 src/main.c.o
+                0x40000034                g_out
+
+.xt.lit         0x00000000       0x18
+ *(.xt.lit .xt.lit.* .gnu.linkonce.p.*)
+ .xt.lit        0x00000000        0x8 src/main.c.o
+ .xt.lit        0x00000008        0x8 src/wr.c.o
+ .xt.lit        0x00000010        0x8 src/wr_hi.c.o
+
+.xt.prop        0x00000000       0xc0
+ *(.xt.prop .xt.prop.* .gnu.linkonce.prop.*)
+ .xt.prop       0x00000000       0x3c src/main.c.o
+ .xt.prop       0x0000003c       0x30 src/wr.c.o
+ .xt.prop       0x0000006c       0x54 src/wr_hi.c.o
+OUTPUT(firmware.elf elf32-xtensa-le)
+
+.comment        0x00000000       0x2f
+ .comment       0x00000000       0x2f src/main.c.o
+                                 0x30 (size before relaxing)
+ .comment       0x0000002f       0x30 src/wr.c.o
+ .comment       0x0000002f       0x30 src/wr_hi.c.o
+
+.xtensa.info    0x00000000       0x38
+ .xtensa.info   0x00000000       0x38 src/main.c.o
+ .xtensa.info   0x00000038        0x0 src/wr.c.o
+ .xtensa.info   0x00000038        0x0 src/wr_hi.c.o

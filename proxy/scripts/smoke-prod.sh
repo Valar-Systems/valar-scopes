@@ -331,6 +331,14 @@ printf '\n===== /healthz wx, every product =====\n'
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/wx-products-lines.sh"
 wx_products_section "$HEALTH_BODY"
 
+# The site feed's malformed-flags count (the owner, 2026-11-25: "count every aircraft hidden for this reason, so a
+# change in the feed's format shows as a jump"): bad/n in the last served snapshot, from the /healthz body fetched above
+# (no new request), WARN when bad is not 0 or the block is missing. Information only, like the wx lines: it touches
+# neither pass nor fail. The line and that promise are graded by sitefeed-line.selftest.sh in CI.
+printf '\n===== /healthz site feed, malformed flags =====\n'
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sitefeed-line.sh"
+sitefeed_line "$HEALTH_BODY"
+
 # The rt: route mirror's age (docs/route-mirror-age.md), from the /healthz body fetched above (no new request). The
 # limit is the body's own maxAgeDays: 10 days (the owner, 2026-11-13; docs/route-age-alert.md). FAIL mode since the
 # approved refresh of 2026-11-13 landed and was verified: a PASS counts as a pass and anything else -- stale, no age, no
@@ -846,6 +854,19 @@ contains "/blipscope/support (support page)" 200 "Blipscope Support" "$BASE/blip
 contains "/blipscope/support (Shopify redirect destination)" 200 "Still stuck" \
   "$BASE/blipscope/support"
 
+# The support page's TEXT against the repo's own file (scripts/check-support-text.mjs): every line changed since the
+# commit production ran BEFORE this deploy is live, no retired privacy claim is back, and the freeze phrase and the site
+# links match. COUNTED. It needs SMOKE_SUPPORT_BASE, that earlier commit (D4's D0 before-run and S4-9 pass P0); without
+# it, one SKIPPED row, because "which lines changed" has no answer. Read at least 300 s after a deploy: the page carries
+# a 300 s cache (staticPage), and a stale page reads like a FAIL. Offline, `--serve-rev <base>` computes the before-run.
+if [ -n "${SMOKE_SUPPORT_BASE:-}" ]; then
+  ST_OUT="$(node "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/check-support-text.mjs" --base "$SMOKE_SUPPORT_BASE" --url "$BASE/blipscope/support" 2>&1)"; ST_RC=$?
+  printf '\n===== /blipscope/support text vs the repo (base %s) =====\n%s\n' "${SMOKE_SUPPORT_BASE:0:12}" "$ST_OUT"
+  if [ "$ST_RC" -eq 0 ]; then printf 'RESULT: PASS\n'; pass=$((pass+1)); else printf 'RESULT: FAIL (exit %s)\n' "$ST_RC"; fail=$((fail+1)); fi
+else
+  skip "/blipscope/support text vs the repo" "SMOKE_SUPPORT_BASE is not set (the commit production ran before this deploy), so no changed lines can be named"
+fi
+
 # NO /missileer/support CHECK, and deliberately not a skip() either. Missileer is
 # still in development and does not need a support page yet, so there is nothing
 # here that went unverified -- counting it as SKIPPED would inflate the skip tally
@@ -1049,6 +1070,18 @@ enroll_post "enroll POST, malformed id -> 400 (id shape checked before anything)
 # check. The failure was in CONTENT, and only a content check could see it.
 # =============================================================================
 
+
+# The support page's links to our own site (scripts/check-support-links.mjs; its cases are graded by its --selftest in
+# CI). INFORMATION ONLY, and deliberately not counted in PASS/FAIL/SKIPPED: the site is not the proxy, so a site outage
+# must not turn a proxy deploy's smoke red. It is here so the person deploying SEES whether the support page links to a
+# live page with the same terms. CI runs the same check only on a change to a link-bearing file.
+printf '\n===== the support page links (valarscopes.com) =====\n'
+SL_OUT="$(node "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/check-support-links.mjs" 2>&1)"; SL_RC=$?
+printf '%s\n' "$SL_OUT"
+case "$SL_RC" in
+  0) SL_V="PASS" ;; 1) SL_V="FAILED" ;; 2) SL_V="BLIND" ;; 3) SL_V="OUTSIDE" ;; *) SL_V="ERROR (exit $SL_RC)" ;;
+esac
+printf 'RESULT: INFO -- %s (information only; not counted)\n' "$SL_V"
 
 printf '\n================ SUMMARY ================\n'
 printf 'PASS: %d   FAIL: %d   SKIPPED: %d\n' "$pass" "$fail" "$skipped"
