@@ -368,6 +368,10 @@ inline bool Rebuild(Map& m, const bmpk::Package& pk, const Key& k, const Inputs&
 #endif
     // THE FRAME BENCH END
     for (size_t i = 0; i < kPixels; ++i) m.layer[i] = Swap(m.layer[i]);   // to the canvas's byte order
+    if (k.names)
+        DrawNames(m, pk, k, in.airports, in.ctx);
+    else
+        m.nPlaced = 0;   // step D: town names off, the map draws without them
     // THE FRAME BENCH BEGIN
 #ifdef FRAME_BENCH
     if (in.clock) {
@@ -378,10 +382,6 @@ inline bool Rebuild(Map& m, const bmpk::Package& pk, const Key& k, const Inputs&
     }
 #endif
     // THE FRAME BENCH END
-    if (k.names)
-        DrawNames(m, pk, k, in.airports, in.ctx);
-    else
-        m.nPlaced = 0;   // step D: town names off, the map draws without them
     m.ready = true;
     m.layerFresh = true;
     return true;
