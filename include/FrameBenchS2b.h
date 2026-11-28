@@ -63,7 +63,7 @@ static const Scene kScenes[] = {
 #undef FB_S2B_SCENE
 #undef FB_S2B_GATE
 static_assert(sizeof(kScenes) / sizeof(kScenes[0]) == 23, "the gate's registered run is 23 scenes");
-static_assert(kRungs[2] == 100, "S-RL is the six's KSFO scene at 100 mi");
+// S-RL's rung is kRungs[2], the six's 100 mi (kRungs is static const, not constexpr, so no static_assert here)
 
 // Q-L: v19's label set, from v19's src/AircraftInfoFields.cpp table (its defaultOn column): ON for callsign, type,
 // operator, speed and baroalt, OFF for the other ten. Answered as the stored form ("true"/"false") for S1L-S6L only.
