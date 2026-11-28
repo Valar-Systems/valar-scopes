@@ -113,7 +113,7 @@ int main()
     printf("\n-- what must be REFUSED --\n");
     double junk = 0.0;
     check(!CoordParse::Parse(String("Bend, Oregon"), true, junk), "a place name is refused");
-    check(!CoordParse::Parse(String("97701"), true, junk),        "a ZIP code is out of range for a latitude");
+    check(!CoordParse::Parse(String("99999"), true, junk),        "a ZIP code is out of range for a latitude");
     check(!CoordParse::Parse(String("98.753 W"), true, junk),    "a WEST value refused in the LATITUDE box");
     check(!CoordParse::Parse(String("12.582 N"), false, junk),    "a NORTH value refused in the LONGITUDE box");
     check(!CoordParse::Parse(String("91"), true, junk),           "91 is not a latitude");
